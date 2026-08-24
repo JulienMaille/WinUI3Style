@@ -6,19 +6,16 @@
 #include <QLabel>
 #include <QParallelAnimationGroup>
 #include <QPropertyAnimation>
+#include <QResizeEvent>
+#include <QVariantAnimation>
 
 namespace WinUI3 {
 
 AnimatedStack::AnimatedStack(QWidget *parent)
     : QStackedWidget(parent)
 {
-    connect(this, &QStackedWidget::widgetRemoved, this, [this] {
-        // A page can disappear while an animation is running (for example
-        // when a navigation model is reset).  Finish cleanup synchronously so
-        // no animation retains a deleted page or stale index.
-        if (m_group)
-            cancelTransition();
-    });
+    connect(this, &QStackedWidget::widgetRemoved, this,
+            &AnimatedStack::handleWidgetRemoved);
 }
 
 AnimatedStack::~AnimatedStack() = default;
@@ -80,9 +77,13 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     // source-over cross-fade, without borrowing QGraphicsEffect ownership or
     // leaving QPropertyAnimation with a destroyed target if the application
     // installs/replaces an effect during the transition.
+    m_outgoing = outgoing;
     m_incoming = incoming;
+    m_overlayStartGeometry = finalGeometry;
+    m_overlayEndGeometry = outgoingEnd;
 
     auto *overlay = new QLabel(this);
+    overlay->setObjectName(QStringLiteral("_winui_animated_stack_overlay"));
     overlay->setPixmap(interruptedFrame.isNull() ? outgoing->grab()
                                                  : interruptedFrame);
     overlay->setScaledContents(true);
@@ -103,6 +104,7 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     overlay->raise();
 
     m_group = new QParallelAnimationGroup(this);
+    m_group->setObjectName(QStringLiteral("_winui_animated_stack_group"));
     auto add = [this](QObject *target, const char *property,
                       const QVariant &start, const QVariant &end) {
         auto *animation = new QPropertyAnimation(target, property, m_group);
@@ -112,11 +114,84 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         animation->setEasingCurve(QEasingCurve::OutCubic);
         m_group->addAnimation(animation);
     };
-    add(overlay, "geometry", finalGeometry, outgoingEnd);
+
+    auto *geometry = new QVariantAnimation(m_group);
+    geometry->setStartValue(0.0);
+    geometry->setEndValue(1.0);
+    geometry->setDuration(m_duration);
+    geometry->setEasingCurve(QEasingCurve::OutCubic);
+    m_geometryAnimation = geometry;
+    connect(geometry, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &value) {
+        if (!m_overlay)
+            return;
+        const qreal progress = qBound<qreal>(0.0, value.toReal(), 1.0);
+        const QRectF start(m_overlayStartGeometry);
+        const QRectF end(m_overlayEndGeometry);
+        const QRectF frame(
+            start.left() + (end.left() - start.left()) * progress,
+            start.top() + (end.top() - start.top()) * progress,
+            start.width() + (end.width() - start.width()) * progress,
+            start.height() + (end.height() - start.height()) * progress);
+        m_overlay->setGeometry(frame.toRect());
+    });
+    m_group->addAnimation(geometry);
     add(outOpacity, "opacity", 1.0, 0.0);
     connect(m_group, &QParallelAnimationGroup::finished,
             this, &AnimatedStack::finishTransition);
     m_group->start();
+}
+
+void AnimatedStack::resizeEvent(QResizeEvent *event)
+{
+    QStackedWidget::resizeEvent(event);
+    if (m_incoming && indexOf(m_incoming) >= 0)
+        m_incoming->setGeometry(rect());
+    if (m_overlay) {
+        const int offset = m_overlayEndGeometry.left()
+            - m_overlayStartGeometry.left();
+        m_overlayStartGeometry = rect();
+        m_overlayEndGeometry = rect().translated(offset, 0);
+        m_overlay->setGeometry(rect());
+    }
+}
+
+void AnimatedStack::handleWidgetRemoved(int index)
+{
+    if (!m_group)
+        return;
+
+    // Indices after widgetRemoved() are already shifted by QStackedWidget. The
+    // guarded page pointers remain authoritative, but keeping both indices in
+    // sync prevents stale values from being used by diagnostic code or a
+    // re-entrant navigation request.
+    if (m_from == index)
+        m_from = -1;
+    else if (m_from > index)
+        --m_from;
+    if (m_to == index)
+        m_to = -1;
+    else if (m_to > index)
+        --m_to;
+    cancelTransition();
+}
+
+void AnimatedStack::destroyTransitionObjects()
+{
+    if (m_group) {
+        QParallelAnimationGroup *group = m_group.data();
+        m_group = nullptr;
+        disconnect(group, nullptr, this, nullptr);
+        group->stop();
+        delete group;
+    }
+    m_geometryAnimation = nullptr;
+    if (m_overlay) {
+        QWidget *overlay = m_overlay.data();
+        m_overlay = nullptr;
+        overlay->hide();
+        delete overlay;
+    }
 }
 
 void AnimatedStack::cancelTransition()
@@ -124,22 +199,20 @@ void AnimatedStack::cancelTransition()
     if (!m_group)
         return;
 
-    disconnect(m_group, nullptr, this, nullptr);
-    m_group->stop();
-    m_group->deleteLater();
-    m_group = nullptr;
-
+    QPointer<QWidget> finalPage = m_incoming;
+    if (!finalPage || indexOf(finalPage) < 0)
+        finalPage = m_outgoing;
+    destroyTransitionObjects();
     m_incoming = nullptr;
+    m_outgoing = nullptr;
 
-    if (m_overlay) {
-        m_overlay->hide();
-        m_overlay->deleteLater();
-        m_overlay = nullptr;
-    }
-
-    if (m_to >= 0 && m_to < count()) {
-        QStackedWidget::setCurrentIndex(m_to);
-        if (QWidget *page = widget(m_to))
+    if (finalPage && indexOf(finalPage) >= 0) {
+        QStackedWidget::setCurrentWidget(finalPage);
+        finalPage->setGeometry(rect());
+    } else if (count() > 0) {
+        const int fallback = qBound(0, currentIndex(), count() - 1);
+        QStackedWidget::setCurrentIndex(fallback);
+        if (QWidget *page = widget(fallback))
             page->setGeometry(rect());
     }
     m_from = m_to = -1;
@@ -149,21 +222,21 @@ void AnimatedStack::finishTransition()
 {
     if (!m_group)
         return;
-    QWidget *incoming = m_incoming ? m_incoming.data() : widget(m_to);
-    if (incoming) {
-        incoming->setGeometry(rect());
-    }
+    QPointer<QWidget> incoming = m_incoming;
+    if (!incoming || indexOf(incoming) < 0)
+        incoming = m_outgoing;
+    const int completed = incoming ? indexOf(incoming) : -1;
+    destroyTransitionObjects();
     m_incoming = nullptr;
-    if (m_overlay) {
-        m_overlay->deleteLater();
-        m_overlay = nullptr;
+    m_outgoing = nullptr;
+    if (completed >= 0) {
+        QStackedWidget::setCurrentIndex(completed);
+        if (QWidget *page = widget(completed))
+            page->setGeometry(rect());
     }
-    QStackedWidget::setCurrentIndex(m_to);
-    const int completed = m_to;
-    m_group->deleteLater();
-    m_group = nullptr;
     m_from = m_to = -1;
-    emit transitionFinished(completed);
+    if (completed >= 0)
+        emit transitionFinished(completed);
 }
 
 } // namespace WinUI3

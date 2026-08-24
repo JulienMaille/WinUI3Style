@@ -5,6 +5,7 @@
 #include "winui3tokens_p.h"
 
 #include <QGridLayout>
+#include <QEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
@@ -34,6 +35,8 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_rootLayout->setContentsMargins(16, 0, 16, 0);
     m_rootLayout->setSpacing(0);
     m_headerHost->setObjectName(QStringLiteral("_winui_settings_card_headerHost"));
+    m_expandableHost->setObjectName(
+        QStringLiteral("_winui_settings_card_expandableHost"));
     m_headerHost->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_headerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_headerLayout->setContentsMargins(0, 12, 0, 12);
@@ -69,10 +72,18 @@ SettingsCard::SettingsCard(QWidget *parent)
 
     connect(m_expansionAnimation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) { setExpansionProgress(value.toReal()); });
+    m_expansionAnimation->setObjectName(
+        QStringLiteral("_winui_settings_card_expansion_animation"));
     refreshChevronPixmap();
 }
 
-SettingsCard::~SettingsCard() = default;
+SettingsCard::~SettingsCard()
+{
+    if (m_expandableDestroyedConnection)
+        disconnect(m_expandableDestroyedConnection);
+    if (m_expandableWidget)
+        m_expandableWidget->removeEventFilter(this);
+}
 
 QString SettingsCard::title() const { return m_titleLabel->text(); }
 void SettingsCard::setTitle(const QString &title)
@@ -148,7 +159,13 @@ QWidget *SettingsCard::expandableWidget() const { return m_expandableWidget; }
 void SettingsCard::setExpandableWidget(QWidget *widget)
 {
     if (widget == m_expandableWidget) return;
+
+    const bool wasExpanded = m_expanded;
+    resetExpansionState(false);
+    if (m_expandableDestroyedConnection)
+        disconnect(m_expandableDestroyedConnection);
     if (m_expandableWidget) {
+        m_expandableWidget->removeEventFilter(this);
         delete m_expandableHost->layout();
         m_expandableWidget->setParent(nullptr);
     }
@@ -158,12 +175,24 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
         const bool rtl = layoutDirection() == Qt::RightToLeft;
         layout->setContentsMargins(rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
         layout->addWidget(widget);
+        widget->installEventFilter(this);
+        const QPointer<QWidget> guarded = widget;
+        m_expandableDestroyedConnection = connect(widget, &QObject::destroyed,
+            this, [this, guarded] {
+            if (m_expandableWidget == guarded) {
+                m_expandableWidget = nullptr;
+                resetExpansionState(true);
+                refreshChevronPixmap();
+                updateGeometry();
+            }
+        });
         widget->show();
-    } else {
-        setExpanded(false);
     }
+    invalidateExpandableHeight();
     refreshChevronPixmap();
     updateGeometry();
+    if (wasExpanded)
+        emit expandedChanged(false);
 }
 
 bool SettingsCard::isExpanded() const { return m_expanded; }
@@ -190,15 +219,76 @@ qreal SettingsCard::expansionProgress() const { return m_expansionProgress; }
 void SettingsCard::setExpansionProgress(qreal progress)
 {
     m_expansionProgress = qBound<qreal>(0.0, progress, 1.0);
-    const int contentHeight = m_expandableWidget
-        ? m_expandableWidget->sizeHint().height() + 16 : 0;
-    m_expandableHost->setMaximumHeight(qRound(contentHeight * m_expansionProgress));
+    const int contentHeight = m_expandableWidget ? expandableContentHeight() : 0;
+    const int maximumHeight = qRound(contentHeight * m_expansionProgress);
+    if (m_expandableHost->maximumHeight() != maximumHeight)
+        m_expandableHost->setMaximumHeight(maximumHeight);
     if (qFuzzyIsNull(m_expansionProgress) && !m_expanded)
         m_expandableHost->setVisible(false);
     // The header lives in a fixed-size host. The parent may still relayout to
     // accommodate the animated content, but title/description geometry is
     // independent of that changing height.
     update();
+}
+
+void SettingsCard::invalidateExpandableHeight()
+{
+    m_expandableHeightValid = false;
+    m_expandableContentWidth = -1;
+}
+
+void SettingsCard::scheduleExpandableHeightRefresh()
+{
+    if (!m_expanded || m_expansionAnimation->state() != QAbstractAnimation::Stopped
+        || m_expandableHeightRefreshPending) {
+        return;
+    }
+    m_expandableHeightRefreshPending = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_expandableHeightRefreshPending = false;
+        if (m_expandableWidget && m_expanded)
+            setExpansionProgress(m_expansionProgress);
+    }, Qt::QueuedConnection);
+}
+
+int SettingsCard::expandableContentHeight()
+{
+    if (!m_expandableWidget)
+        return 0;
+
+    const int width = m_expandableWidget->width();
+    if (!m_expandableHeightValid || m_expandableContentWidth != width) {
+        m_expandableContentHeight = qMax(0, m_expandableWidget->sizeHint().height() + 16);
+        m_expandableContentWidth = width;
+        m_expandableHeightValid = true;
+    }
+    return m_expandableContentHeight;
+}
+
+void SettingsCard::resetExpansionState(bool notify)
+{
+    m_expansionAnimation->stop();
+    m_expansionProgress = 0.0;
+    m_expandableHeightRefreshPending = false;
+    if (m_expandableHost->maximumHeight() != 0)
+        m_expandableHost->setMaximumHeight(0);
+    m_expandableHost->setVisible(false);
+    const bool wasExpanded = m_expanded;
+    m_expanded = false;
+    refreshChevronPixmap();
+    if (notify && wasExpanded)
+        emit expandedChanged(false);
+}
+
+bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_expandableWidget
+        && (event->type() == QEvent::LayoutRequest
+            || event->type() == QEvent::Resize)) {
+        invalidateExpandableHeight();
+        scheduleExpandableHeightRefresh();
+    }
+    return QFrame::eventFilter(watched, event);
 }
 
 bool SettingsCard::headerContains(const QPoint &position) const

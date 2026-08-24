@@ -4,12 +4,14 @@
 
 #include <QFrame>
 #include <QIcon>
+#include <QPointer>
 
 class QLabel;
 class QGridLayout;
 class QVBoxLayout;
 class QVariantAnimation;
 class QWidget;
+class QEvent;
 
 namespace WinUI3 {
 
@@ -52,6 +54,7 @@ signals:
 
 protected:
     void changeEvent(QEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -63,6 +66,10 @@ private:
     bool headerContains(const QPoint &position) const;
     void refreshIconPixmap();
     void refreshChevronPixmap();
+    void invalidateExpandableHeight();
+    void scheduleExpandableHeightRefresh();
+    int expandableContentHeight();
+    void resetExpansionState(bool notify);
 
     QGridLayout *m_headerLayout = nullptr;
     QVBoxLayout *m_rootLayout = nullptr;
@@ -72,11 +79,16 @@ private:
     QLabel *m_descriptionLabel = nullptr;
     QLabel *m_chevronLabel = nullptr;
     QWidget *m_trailingWidget = nullptr;
-    QWidget *m_expandableWidget = nullptr;
+    QPointer<QWidget> m_expandableWidget;
     QWidget *m_expandableHost = nullptr;
     QVariantAnimation *m_expansionAnimation = nullptr;
     QIcon m_icon;
+    QMetaObject::Connection m_expandableDestroyedConnection;
     qreal m_expansionProgress = 0.0;
+    int m_expandableContentHeight = 0;
+    int m_expandableContentWidth = -1;
+    bool m_expandableHeightValid = false;
+    bool m_expandableHeightRefreshPending = false;
     bool m_expanded = false;
     bool m_pressed = false;
 };

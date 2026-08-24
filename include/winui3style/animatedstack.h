@@ -7,6 +7,8 @@
 #include <QPixmap>
 
 class QParallelAnimationGroup;
+class QResizeEvent;
+class QVariantAnimation;
 
 namespace WinUI3 {
 
@@ -38,16 +40,25 @@ public slots:
 signals:
     void transitionFinished(int index);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
+    void handleWidgetRemoved(int index);
     void cancelTransition();
     void finishTransition();
+    void destroyTransitionObjects();
 
     int m_duration = 250;
     int m_from = -1;
     int m_to = -1;
-    QParallelAnimationGroup *m_group = nullptr;
-    QWidget *m_overlay = nullptr;
+    QPointer<QParallelAnimationGroup> m_group;
+    QPointer<QWidget> m_outgoing;
     QPointer<QWidget> m_incoming;
+    QPointer<QWidget> m_overlay;
+    QPointer<QVariantAnimation> m_geometryAnimation;
+    QRect m_overlayStartGeometry;
+    QRect m_overlayEndGeometry;
 };
 
 } // namespace WinUI3
