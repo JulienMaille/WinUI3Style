@@ -16,6 +16,8 @@ option(WINUI3STYLE_BUILD_DEMO "Build the widget gallery" ON)
 option(WINUI3STYLE_BUILD_TESTS "Build tests" ON)
 option(WINUI3STYLE_BUILD_NATIVE_TESTS
        "Build interactive native Windows tests" ON)
+option(WINUI3STYLE_BUILD_BENCHMARKS
+       "Build the opt-in render benchmark (not registered with CTest)" OFF)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
 
@@ -33,6 +35,10 @@ if(WINUI3STYLE_BUILD_TESTS)
     enable_testing()
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
+endif()
+
+if(WINUI3STYLE_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)

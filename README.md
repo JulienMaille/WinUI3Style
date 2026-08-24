@@ -28,6 +28,15 @@ The visual comparison workflow and pinned Microsoft sources are documented in
 layout and explicitly unsupported controls; all covered visual and interaction
 contracts live in `WinUI3::Style`.
 
+## Opt-in render benchmark
+
+The render benchmark is deliberately not registered with normal CTest. Build it
+with `-DWINUI3STYLE_BUILD_BENCHMARKS=ON` and run
+`winui3style_render_benchmark.exe` with `QT_QPA_PLATFORM=offscreen`. It reports
+p50/p95 render times for list, tree, table, and a rich toolbar/tab/header
+surface. `--no-icons`, `--rows=N`, and `--iterations=N` keep comparisons
+repeatable without making performance work part of the normal test gate.
+
 ## Native widget variants
 
 Visual variants retain Qt's native semantics and are selected with dynamic

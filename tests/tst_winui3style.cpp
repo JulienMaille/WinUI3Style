@@ -51,6 +51,7 @@
 #include <QStyleOptionSlider>
 #include <QStyleOptionSpinBox>
 #include <QStyleOptionTab>
+#include <QStyledItemDelegate>
 #include <QSlider>
 #include <QTabBar>
 #include <QTabWidget>
@@ -134,6 +135,7 @@ private slots:
     void cleanup();
     void palettes();
     void buttonToolButtonAndIconContracts();
+    void iconPixmapCacheDprAndPalette();
     void buttonPressedPulseContract();
     void disabledButtonHasNoInteractionState();
     void toolButtonIconVerticalCenter();
@@ -194,6 +196,7 @@ private slots:
     void itemViewMouseFocusReset();
     void checkboxAndRadioUncheckMotion();
     void navigationModelReconnectAndScroll();
+    void navigationDelegateLifecycle();
     void runtimeAppearanceAndDialogLifecycle();
     void progressTimerScalingAndLifecycle();
     void callbackCoalescingAndAnimationReuse();
@@ -340,6 +343,51 @@ void WinUI3StyleTest::buttonToolButtonAndIconContracts()
                                        &separator, &painter, &toolbar);
     }
     QVERIFY(horizontalToolbarSeparator != verticalToolbarSeparator);
+}
+
+void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
+{
+    const QIcon fluent = WinUI3::icon(WinUI3::Icon::Search);
+    const QColor foreground(30, 110, 220, 211);
+    const QPixmap first = WinUI3::iconPixmap(
+        fluent, QSize(20, 20), 1.5, foreground);
+    const QPixmap second = WinUI3::iconPixmap(
+        fluent, QSize(20, 20), 1.5, foreground);
+    QVERIFY(!first.isNull());
+    QCOMPARE(first.devicePixelRatioF(), 1.5);
+    QCOMPARE(first.size(), QSize(30, 30));
+    QCOMPARE(first.toImage(), second.toImage());
+
+    const QPixmap differentDpr = WinUI3::iconPixmap(
+        fluent, QSize(20, 20), 2.0, foreground);
+    QVERIFY(!differentDpr.isNull());
+    QCOMPARE(differentDpr.devicePixelRatioF(), 2.0);
+    QCOMPARE(differentDpr.size(), QSize(40, 40));
+
+    const QPixmap disabled = WinUI3::iconPixmap(
+        fluent, QSize(20, 20), 1.5, foreground, QIcon::Disabled,
+        QIcon::On);
+    QVERIFY(!disabled.isNull());
+    QCOMPARE(disabled.size(), QSize(30, 30));
+
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    auto renderArrow = [style](const QColor &windowColor) {
+        QStyleOption option;
+        option.rect = QRect(0, 0, 24, 24);
+        option.state = QStyle::State_Enabled;
+        option.palette = qApp->palette();
+        option.palette.setColor(QPalette::Window, windowColor);
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_IndicatorArrowDown, &option,
+                             &painter);
+        return image;
+    };
+    const QImage light = renderArrow(Qt::white);
+    const QImage dark = renderArrow(Qt::black);
+    QVERIFY(light != dark);
 }
 
 void WinUI3StyleTest::buttonPressedPulseContract()
@@ -3238,6 +3286,60 @@ void WinUI3StyleTest::navigationModelReconnectAndScroll()
     QVERIFY(!view.currentIndex().isValid());
     QVERIFY(!view.viewport()->property(
                 "_winui_navigation_indicator_y").isValid());
+}
+
+void WinUI3StyleTest::navigationDelegateLifecycle()
+{
+    QListView view;
+    view.resize(280, 140);
+    QStandardItemModel model(40, 1);
+    for (int row = 0; row < model.rowCount(); ++row)
+        model.setData(model.index(row, 0), QStringLiteral("Item %1").arg(row));
+    view.setModel(&model);
+    view.setCurrentIndex(model.index(4, 0));
+    WinUI3::Style::setNavigationView(&view);
+    view.show();
+    QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
+
+    // Re-entering while the previous delegate is deferred for deletion must
+    // not create a second model/scrollbar subscription.
+    for (int cycle = 0; cycle < 6; ++cycle) {
+        WinUI3::Style::setNavigationView(&view, false);
+        WinUI3::Style::setNavigationView(&view, true);
+    }
+    QCoreApplication::processEvents();
+    QVERIFY(view.itemDelegate());
+    QVERIFY(view.property("_winui_navigation_delegate").isValid());
+
+    auto *external = new QStyledItemDelegate(&view);
+    view.setItemDelegate(external);
+    WinUI3::Style::setNavigationView(&view, false);
+    QCoreApplication::processEvents();
+    QCOMPARE(view.itemDelegate(), external);
+    QVERIFY(!view.viewport()->property(
+                 "_winui_navigation_indicator_y").isValid());
+
+    // The original delegate can disappear before restoration. The style must
+    // install a valid owned fallback instead of restoring a dangling pointer.
+    auto *original = new QStyledItemDelegate(&view);
+    view.setItemDelegate(original);
+    WinUI3::Style::setNavigationView(&view, true);
+    QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
+    delete original;
+    WinUI3::Style::setNavigationView(&view, false);
+    QCoreApplication::processEvents();
+    QVERIFY(view.itemDelegate());
+    QVERIFY(!view.property("_winui_navigation_delegate").isValid());
+    QVERIFY(!view.viewport()->property(
+                 "_winui_navigation_indicator_y").isValid());
+
+    // A model reset while the indicator is moving must leave no stale target.
+    WinUI3::Style::setNavigationView(&view, true);
+    view.setCurrentIndex(model.index(20, 0));
+    model.clear();
+    QCoreApplication::processEvents();
+    QVERIFY(!view.viewport()->property(
+                 "_winui_navigation_indicator_y").isValid());
 }
 
 void WinUI3StyleTest::runtimeAppearanceAndDialogLifecycle()

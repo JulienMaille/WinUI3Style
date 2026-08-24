@@ -92,6 +92,9 @@ constexpr auto focusVisibleProperty = "_winui_focus_visible";
 constexpr auto checkProperty = "_winui_check_progress";
 constexpr auto togglePositionProperty = "_winui_toggle_position";
 constexpr auto navigationIndicatorProperty = "_winui_navigation_indicator_y";
+constexpr auto navigationDelegateProperty = "_winui_navigation_delegate";
+constexpr auto navigationOriginalDelegateProperty = "_winui_navigation_original_delegate";
+constexpr auto navigationStateProperty = "_winui_navigation_state";
 constexpr auto scrollBarInsideProperty = "_winui_scrollbar_inside";
 constexpr auto scrollBarGenerationProperty = "_winui_scrollbar_generation";
 constexpr auto sliderToolTipVisibleProperty = "_winui_slider_tooltip_visible";
@@ -117,7 +120,6 @@ void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground,
                      QIcon::Mode mode = QIcon::Normal,
                      QIcon::State state = QIcon::Off);
-
 void remember(QWidget *widget, const char *property, const QVariant &value)
 {
     if (widget && !widget->property(property).isValid())
@@ -565,8 +567,12 @@ void hideSliderValueToolTip(QSlider *slider)
 class NavigationItemDelegate final : public QStyledItemDelegate
 {
 public:
-    explicit NavigationItemDelegate(QAbstractItemView *view)
-        : QStyledItemDelegate(view), m_view(view), m_indicatorAnimation(this)
+    explicit NavigationItemDelegate(QAbstractItemView *view,
+                                    QAbstractItemDelegate *original)
+        : QStyledItemDelegate(view)
+        , m_view(view)
+        , m_original(original)
+        , m_indicatorAnimation(this)
     {
         QObject::connect(&m_indicatorAnimation, &QVariantAnimation::valueChanged,
                          this, [this](const QVariant &value) {
@@ -578,10 +584,38 @@ public:
             }
         });
         attachSelectionModel();
-        QObject::connect(view->verticalScrollBar(), &QScrollBar::valueChanged,
-                         this, [this] { syncIndicatorToViewport(); });
-        QObject::connect(view->horizontalScrollBar(), &QScrollBar::valueChanged,
-                         this, [this] { syncIndicatorToViewport(); });
+        m_verticalConnection = QObject::connect(
+            view->verticalScrollBar(), &QScrollBar::valueChanged,
+            this, [this] { syncIndicatorToViewport(); });
+        m_horizontalConnection = QObject::connect(
+            view->horizontalScrollBar(), &QScrollBar::valueChanged,
+            this, [this] { syncIndicatorToViewport(); });
+    }
+
+    ~NavigationItemDelegate() override { shutdown(false); }
+
+    QAbstractItemDelegate *originalDelegate() const { return m_original.data(); }
+
+    void shutdown(bool clearViewport = true)
+    {
+        if (m_shutdown)
+            return;
+        m_shutdown = true;
+        m_indicatorAnimation.stop();
+        if (m_selectionConnection)
+            QObject::disconnect(m_selectionConnection);
+        if (m_verticalConnection)
+            QObject::disconnect(m_verticalConnection);
+        if (m_horizontalConnection)
+            QObject::disconnect(m_horizontalConnection);
+        m_selectionConnection = {};
+        m_verticalConnection = {};
+        m_horizontalConnection = {};
+        if (clearViewport && m_view && m_view->viewport()) {
+            m_view->viewport()->setProperty(navigationIndicatorProperty, {});
+            m_view->viewport()->update();
+        }
+        m_selectionModel.clear();
     }
 
     QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override
@@ -592,6 +626,8 @@ public:
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override
     {
+        if (m_shutdown)
+            return;
         const_cast<NavigationItemDelegate *>(this)->attachSelectionModel();
         const auto t = Private::tokens(option.palette);
         const bool selected = option.state & QStyle::State_Selected;
@@ -655,7 +691,8 @@ public:
 private:
     void attachSelectionModel()
     {
-        if (!m_view || m_selectionModel == m_view->selectionModel())
+        if (m_shutdown || !m_view
+            || m_selectionModel == m_view->selectionModel())
             return;
         if (m_selectionConnection)
             QObject::disconnect(m_selectionConnection);
@@ -670,7 +707,7 @@ private:
 
     void setIndicatorTarget(const QModelIndex &current, bool animate)
     {
-        if (!m_view)
+        if (m_shutdown || !m_view)
             return;
         if (!current.isValid()) {
             m_indicatorAnimation.stop();
@@ -709,21 +746,120 @@ private:
 
     QPointer<QAbstractItemView> m_view;
     QPointer<QItemSelectionModel> m_selectionModel;
+    QPointer<QAbstractItemDelegate> m_original;
     QMetaObject::Connection m_selectionConnection;
+    QMetaObject::Connection m_verticalConnection;
+    QMetaObject::Connection m_horizontalConnection;
     mutable qreal m_indicatorY = -1.0;
     QVariantAnimation m_indicatorAnimation;
+    bool m_shutdown = false;
 };
+
+class NavigationViewState final : public QObject
+{
+public:
+    explicit NavigationViewState(QAbstractItemView *view)
+        : QObject(view)
+    {
+        setObjectName(QString::fromLatin1(navigationStateProperty));
+    }
+
+    QPointer<NavigationItemDelegate> delegate;
+    QPointer<QAbstractItemDelegate> original;
+};
+
+NavigationViewState *navigationState(QAbstractItemView *view, bool create)
+{
+    if (!view)
+        return nullptr;
+    QObject *object = view->findChild<QObject *>(
+        QString::fromLatin1(navigationStateProperty), Qt::FindDirectChildrenOnly);
+    auto *state = dynamic_cast<NavigationViewState *>(object);
+    if (!state && create)
+        state = new NavigationViewState(view);
+    return state;
+}
+
+void clearNavigationProperties(QAbstractItemView *view)
+{
+    if (!view)
+        return;
+    view->setProperty(navigationDelegateProperty, {});
+    view->setProperty(navigationOriginalDelegateProperty, {});
+    if (view->viewport())
+        view->viewport()->setProperty(navigationIndicatorProperty, {});
+}
+
+void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *state)
+{
+    if (!view || !state)
+        return;
+
+    NavigationItemDelegate *delegate = state->delegate.data();
+    const bool installed = delegate && view->itemDelegate() == delegate;
+    QAbstractItemDelegate *original = state->original.data();
+
+    // Stop and disconnect while the delegate is still alive. A deferred
+    // deletion must never leave a selection/model or scrollbar callback
+    // connected during a rapid enable/disable cycle.
+    if (delegate)
+        delegate->shutdown();
+    state->delegate.clear();
+    state->original.clear();
+    clearNavigationProperties(view);
+
+    if (installed) {
+        if (original)
+            view->setItemDelegate(original);
+        else
+            view->setItemDelegate(new QStyledItemDelegate(view));
+    }
+    if (delegate)
+        delegate->deleteLater();
+}
 
 void prepareNavigationView(QAbstractItemView *view)
 {
-    if (!view || !view->property(Style::NavigationViewProperty).toBool()
-        || view->property("_winui_navigation_delegate").isValid())
+    if (!view || !view->property(Style::NavigationViewProperty).toBool())
         return;
-    auto *delegate = new NavigationItemDelegate(view);
-    view->setProperty("_winui_navigation_original_delegate",
-                      QVariant::fromValue<QObject *>(view->itemDelegate()));
-    view->setProperty("_winui_navigation_delegate",
+
+    NavigationViewState *state = navigationState(view, true);
+    if (state->delegate && view->itemDelegate() == state->delegate)
+        return;
+    if (state->delegate)
+        retireNavigationDelegate(view, state);
+
+    QAbstractItemDelegate *original = view->itemDelegate();
+    auto *delegate = new NavigationItemDelegate(view, original);
+    state->original = original;
+    state->delegate = delegate;
+    view->setProperty(navigationOriginalDelegateProperty,
+                      QVariant::fromValue<QObject *>(original));
+    view->setProperty(navigationDelegateProperty,
                       QVariant::fromValue<QObject *>(delegate));
+
+    const QPointer<QAbstractItemView> guardedView(view);
+    const QPointer<NavigationViewState> guardedState(state);
+    QObject::connect(delegate, &QObject::destroyed, state,
+                     [guardedView, guardedState, delegate] {
+        if (!guardedView || !guardedState)
+            return;
+        if (guardedState->delegate.data() != delegate)
+            return;
+        guardedState->delegate.clear();
+        if (guardedView->itemDelegate() == delegate)
+            guardedView->setItemDelegate(new QStyledItemDelegate(guardedView));
+        guardedView->setProperty(navigationDelegateProperty, {});
+    });
+    if (original) {
+        QObject::connect(original, &QObject::destroyed, state,
+                         [guardedView, guardedState] {
+            if (!guardedView || !guardedState)
+                return;
+            guardedState->original.clear();
+            guardedView->setProperty(navigationOriginalDelegateProperty, {});
+        });
+    }
     view->setItemDelegate(delegate);
     view->viewport()->setProperty(Style::NavigationViewProperty, true);
     remember(view->viewport(), originalMouseTrackingProperty,
@@ -735,21 +871,17 @@ void restoreNavigationView(QAbstractItemView *view)
 {
     if (!view)
         return;
-    auto *delegate = qobject_cast<QAbstractItemDelegate *>(
-        view->property("_winui_navigation_delegate").value<QObject *>());
-    auto *original = qobject_cast<QAbstractItemDelegate *>(
-        view->property("_winui_navigation_original_delegate").value<QObject *>());
-    if (delegate && view->itemDelegate() == delegate)
-        view->setItemDelegate(original);
-    if (delegate)
-        delegate->deleteLater();
+    NavigationViewState *state = navigationState(view, false);
+    if (state)
+        retireNavigationDelegate(view, state);
+    else
+        clearNavigationProperties(view);
     if (view->viewport()->property(originalMouseTrackingProperty).isValid())
         view->viewport()->setMouseTracking(
             view->viewport()->property(originalMouseTrackingProperty).toBool());
     view->viewport()->setProperty(originalMouseTrackingProperty, {});
     view->viewport()->setProperty(Style::NavigationViewProperty, {});
-    view->setProperty("_winui_navigation_delegate", {});
-    view->setProperty("_winui_navigation_original_delegate", {});
+    view->viewport()->setProperty(navigationIndicatorProperty, {});
 }
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback)
