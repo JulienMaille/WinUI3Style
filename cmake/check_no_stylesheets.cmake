@@ -1,0 +1,22 @@
+file(GLOB_RECURSE checked_files
+    "${PROJECT_SOURCE_DIR}/*"
+)
+
+foreach(path IN LISTS checked_files)
+    if(IS_DIRECTORY "${path}")
+        continue()
+    endif()
+    get_filename_component(ext "${path}" EXT)
+    string(TOLOWER "${ext}" lower_ext)
+    if(lower_ext STREQUAL ".qss")
+        message(FATAL_ERROR "QSS file is forbidden: ${path}")
+    endif()
+    if(lower_ext MATCHES "^\\.(cpp|h|hpp|cc|cxx|ui)$")
+        file(READ "${path}" contents)
+        string(FIND "${contents}" "setStyleSheet" set_pos)
+        string(FIND "${contents}" "styleSheet()" get_pos)
+        if(NOT set_pos EQUAL -1 OR NOT get_pos EQUAL -1)
+            message(FATAL_ERROR "Stylesheet API is forbidden: ${path}")
+        endif()
+    endif()
+endforeach()

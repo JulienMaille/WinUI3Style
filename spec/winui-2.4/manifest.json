@@ -1,0 +1,54 @@
+{
+  "contract": "WinUI 3 Gallery 2.9.3 visual contract (repository schema 2.4)",
+  "gallery": {
+    "package": "Microsoft.WinUI3ControlsGallery",
+    "version": "2.9.3.0",
+    "release": "https://github.com/microsoft/WinUI-Gallery/releases/tag/v2.9.3",
+    "source": "https://github.com/microsoft/WinUI-Gallery/tree/14a4a1a2b8ddc527dc4a7d5f7e743d7c2bc97db7",
+    "commit": "14a4a1a2b8ddc527dc4a7d5f7e743d7c2bc97db7"
+  },
+  "resources": [
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/Common_themeresources_any.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/CornerRadius_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/Button_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/ComboBox/ComboBox_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/AnimatedIcon/AnimatedVisuals/AnimatedChevronDownSmallVisualSource.cpp",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/CheckBox_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/RadioButton_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/MenuFlyout_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/TextBox_themeresources_perf2026.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/RichEditBox_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/ToggleSwitch_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/AppBarButton_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/Slider_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/ScrollBar_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/TabView/TabView_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/TabView/TabView.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/NumberBox/NumberBox_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/NumberBox/NumberBox.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/TreeView/TreeView_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/TreeView/TreeView.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/ListViewItem_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/ContentDialog_themeresources.xaml",
+    "https://learn.microsoft.com/windows/apps/design/iconography/segoe-fluent-icons-font",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/NavigationView/NavigationView_themeresources.xaml"
+  ],
+  "motion": {
+    "faster_ms": 83,
+    "fast_ms": 167,
+    "normal_ms": 250,
+    "fast_out_slow_in": [0.0, 0.0, 0.0, 1.0]
+  },
+  "geometry": {
+    "control_corner_radius": 4,
+    "overlay_corner_radius": 8,
+    "minimum_control_height": 32,
+    "toggle_track": [40, 20],
+    "toggle_knob_rest": 12
+  },
+  "typography": {
+    "family": "Segoe UI Variable Text",
+    "body_px": 14,
+    "title_weight": 600
+  }
+}
