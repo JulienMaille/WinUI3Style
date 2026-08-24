@@ -422,7 +422,7 @@ int interactionDuration(const QWidget *widget, InteractionMotion motion,
 }
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0);
-QEasingCurve fluentCurve();
+const QEasingCurve &fluentCurve();
 void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill,
                  const QColor &stroke, qreal radius, qreal strokeWidth = 1.0);
 bool keyboardFocusVisible(const QWidget *widget);
@@ -760,10 +760,14 @@ qreal progress(const QWidget *widget, const char *name, qreal fallback)
     return value.isValid() ? value.toReal() : fallback;
 }
 
-QEasingCurve fluentCurve()
+const QEasingCurve &fluentCurve()
 {
-    QEasingCurve curve(QEasingCurve::BezierSpline);
-    curve.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
+    static const QEasingCurve curve = [] {
+        QEasingCurve result(QEasingCurve::BezierSpline);
+        result.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0),
+                                     QPointF(1.0, 1.0));
+        return result;
+    }();
     return curve;
 }
 
@@ -1111,45 +1115,338 @@ public:
     {
     }
 
+    bool needsSystemAppearancePolling() const
+    {
+        return mode == ThemeMode::System || !accent.isValid();
+    }
+
+    void restartSystemAppearancePolling()
+    {
+        if (!systemAppearanceTimer)
+            return;
+        if (!needsSystemAppearancePolling()) {
+            systemAppearanceTimer->stop();
+            return;
+        }
+        if (mode == ThemeMode::System)
+            lastSystemDark = systemUsesDarkTheme();
+        if (!accent.isValid())
+            lastSystemAccent = systemAccentColor();
+        systemAppearanceTimer->start();
+    }
+
+    bool progressBarNeedsAnimation(const QProgressBar *progressBar) const
+    {
+        return progressBar && progressBar->minimum() == progressBar->maximum()
+            && progressBar->isVisible() && Style::animationsAllowed();
+    }
+
+    void refreshProgressTimer()
+    {
+        for (auto it = progressBars.begin(); it != progressBars.end();) {
+            if (it->isNull())
+                it = progressBars.erase(it);
+            else
+                ++it;
+        }
+
+        bool active = false;
+        for (const QPointer<QProgressBar> &guarded : progressBars) {
+            if (progressBarNeedsAnimation(guarded)) {
+                active = true;
+                break;
+            }
+        }
+        if (active)
+            progressTimer->start();
+        else
+            progressTimer->stop();
+    }
+
+    void advanceProgressBars()
+    {
+        const bool allowed = Style::animationsAllowed();
+        const qreal phase = allowed
+            ? qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0
+            : 0.35;
+        for (auto it = progressBars.begin(); it != progressBars.end();) {
+            const QPointer<QProgressBar> guarded = *it;
+            if (!guarded) {
+                it = progressBars.erase(it);
+                continue;
+            }
+            if (guarded->minimum() == guarded->maximum() && guarded->isVisible()) {
+                guarded->setProperty(progressPhaseProperty, phase);
+                guarded->update();
+            }
+            ++it;
+        }
+        refreshProgressTimer();
+    }
+
+    void registerProgressBar(QProgressBar *progressBar)
+    {
+        if (!progressBar)
+            return;
+        if (progressBarStateConnections.contains(progressBar)) {
+            refreshProgressTimer();
+            return;
+        }
+        progressBars.append(QPointer<QProgressBar>(progressBar));
+        // QProgressBar has no rangeChanged signal. valueChanged covers the
+        // normal range-reset path, while UpdateRequest below closes the case
+        // where a range changes without changing the current value.
+        progressBarStateConnections.insert(progressBar,
+            QObject::connect(progressBar, &QProgressBar::valueChanged, q,
+                             [this](int) {
+                refreshProgressTimer();
+            }));
+        QObject::connect(progressBar, &QObject::destroyed, q,
+                         [this, progressBar] {
+            unregisterProgressBar(progressBar);
+        });
+        refreshProgressTimer();
+    }
+
+    void unregisterProgressBar(QProgressBar *progressBar)
+    {
+        if (!progressBar)
+            return;
+        if (const auto connection = progressBarStateConnections.take(progressBar))
+            QObject::disconnect(connection);
+        for (auto it = progressBars.begin(); it != progressBars.end();) {
+            if (it->isNull() || it->data() == progressBar)
+                it = progressBars.erase(it);
+            else
+                ++it;
+        }
+        refreshProgressTimer();
+    }
+
+    QTimer *ensureScrollBarTimer(QScrollBar *scrollBar)
+    {
+        if (!scrollBar)
+            return nullptr;
+        if (auto it = scrollBarTimers.find(scrollBar);
+            it != scrollBarTimers.end() && it->data()) {
+            return it->data();
+        }
+        auto *timer = new QTimer(scrollBar);
+        timer->setObjectName(QStringLiteral("_winui_scrollbar_timer"));
+        timer->setSingleShot(true);
+        const QPointer<QScrollBar> guarded(scrollBar);
+        QObject::connect(timer, &QTimer::timeout, q, [this, guarded] {
+            if (!guarded || !guarded->isVisible() || !guarded->isEnabled()
+                || !guarded->property(scrollBarInsideProperty).isValid()) {
+                return;
+            }
+            if (guarded->property(scrollBarInsideProperty).toBool()) {
+                animate(guarded, hoverProperty, 1.0, Private::FastDuration);
+            } else {
+                animate(guarded, hoverProperty, 0.0, Private::FastDuration);
+            }
+        });
+        scrollBarTimers.insert(scrollBar, QPointer<QTimer>(timer));
+        QObject::connect(scrollBar, &QObject::destroyed, q,
+                         [this, scrollBar] {
+            unregisterScrollBar(scrollBar);
+        });
+        return timer;
+    }
+
+    void scheduleScrollBar(QScrollBar *scrollBar, int delay)
+    {
+        if (auto *timer = ensureScrollBarTimer(scrollBar))
+            timer->start(delay);
+    }
+
+    void cancelScrollBarTimer(QScrollBar *scrollBar)
+    {
+        if (!scrollBar)
+            return;
+        if (auto it = scrollBarTimers.find(scrollBar);
+            it != scrollBarTimers.end() && it->data()) {
+            it->data()->stop();
+        }
+    }
+
+    void unregisterScrollBar(QScrollBar *scrollBar)
+    {
+        if (!scrollBar)
+            return;
+        if (auto it = scrollBarTimers.find(scrollBar);
+            it != scrollBarTimers.end()) {
+            QTimer *timer = it->data();
+            if (timer)
+                timer->stop();
+            scrollBarTimers.erase(it);
+            delete timer;
+        }
+    }
+
+    QTimer *ensureSliderToolTipTimer(QSlider *slider)
+    {
+        if (!slider)
+            return nullptr;
+        if (auto it = sliderToolTipTimers.find(slider);
+            it != sliderToolTipTimers.end() && it->data()) {
+            return it->data();
+        }
+        auto *timer = new QTimer(slider);
+        timer->setObjectName(QStringLiteral("_winui_slider_tooltip_timer"));
+        timer->setSingleShot(true);
+        const QPointer<QSlider> guarded(slider);
+        QObject::connect(timer, &QTimer::timeout, q, [guarded] {
+            if (guarded && guarded->isEnabled())
+                showSliderValueToolTip(guarded);
+        });
+        sliderToolTipTimers.insert(slider, QPointer<QTimer>(timer));
+        QObject::connect(slider, &QObject::destroyed, q,
+                         [this, slider] {
+            unregisterSlider(slider);
+        });
+        return timer;
+    }
+
+    void scheduleSliderToolTip(QSlider *slider)
+    {
+        if (!slider || !slider->isEnabled())
+            return;
+        if (auto *timer = ensureSliderToolTipTimer(slider))
+            timer->start(0);
+    }
+
+    void cancelSliderToolTip(QSlider *slider)
+    {
+        if (!slider)
+            return;
+        if (auto it = sliderToolTipTimers.find(slider);
+            it != sliderToolTipTimers.end() && it->data()) {
+            it->data()->stop();
+        }
+    }
+
+    void unregisterSlider(QSlider *slider)
+    {
+        if (!slider)
+            return;
+        if (auto it = sliderToolTipTimers.find(slider);
+            it != sliderToolTipTimers.end()) {
+            QTimer *timer = it->data();
+            if (timer)
+                timer->stop();
+            sliderToolTipTimers.erase(it);
+            delete timer;
+        }
+    }
+
+    QVariantAnimation *findAnimation(QWidget *widget, const char *property)
+    {
+        if (!widget)
+            return nullptr;
+        const auto widgetIt = animations.find(widget);
+        if (widgetIt == animations.end())
+            return nullptr;
+        const auto propertyIt = widgetIt->find(QByteArray(property));
+        if (propertyIt == widgetIt->end())
+            return nullptr;
+        return propertyIt->data();
+    }
+
+    void forgetAnimation(QWidget *widget, const QByteArray &property,
+                         QVariantAnimation *expected)
+    {
+        if (!widget || !expected)
+            return;
+        auto widgetIt = animations.find(widget);
+        if (widgetIt == animations.end())
+            return;
+        const auto propertyIt = widgetIt->find(property);
+        if (propertyIt == widgetIt->end() || propertyIt->data() != expected)
+            return;
+        const QPointer<QVariantAnimation> animation = propertyIt->data();
+        widgetIt->erase(propertyIt);
+        if (widgetIt->isEmpty()) {
+            animations.erase(widgetIt);
+            if (const auto connection = animationCleanupConnections.take(widget))
+                QObject::disconnect(connection);
+        }
+        if (animation) {
+            animation->stop();
+            delete animation;
+        }
+    }
+
+    QVariantAnimation *ensureAnimation(QWidget *widget, const char *property)
+    {
+        if (!widget)
+            return nullptr;
+        auto widgetIt = animations.find(widget);
+        if (widgetIt == animations.end())
+            widgetIt = animations.insert(widget, {});
+        const QByteArray propertyName(property);
+        auto propertyIt = widgetIt->find(propertyName);
+        if (propertyIt != widgetIt->end() && propertyIt->data())
+            return propertyIt->data();
+
+        auto *animation = new QVariantAnimation(q);
+        widgetIt->insert(propertyName, QPointer<QVariantAnimation>(animation));
+        if (!animationCleanupConnections.contains(widget)) {
+            animationCleanupConnections.insert(widget,
+                QObject::connect(widget, &QObject::destroyed, q,
+                                 [this, widget] { stopAnimations(widget); }));
+        }
+        const QPointer<QWidget> guardedWidget(widget);
+        QObject::connect(animation, &QVariantAnimation::valueChanged, q,
+                         [guardedWidget, propertyName](const QVariant &value) {
+            if (!guardedWidget)
+                return;
+            guardedWidget->setProperty(propertyName.constData(), value);
+            guardedWidget->update();
+        });
+        QObject::connect(animation, &QVariantAnimation::finished, q,
+                         [this, widget, propertyName, animation] {
+            auto widgetIt = animations.find(widget);
+            if (widgetIt == animations.end())
+                return;
+            const auto propertyIt = widgetIt->find(propertyName);
+            if (propertyIt == widgetIt->end() || propertyIt->data() != animation)
+                return;
+            widgetIt->erase(propertyIt);
+            if (widgetIt->isEmpty()) {
+                animations.erase(widgetIt);
+                if (const auto connection = animationCleanupConnections.take(widget))
+                    QObject::disconnect(connection);
+            }
+            delete animation;
+        });
+        return animation;
+    }
+
     void animate(QWidget *widget, const char *property, qreal target, int duration)
     {
         if (!widget)
             return;
 
-        const QString key = QString::number(reinterpret_cast<quintptr>(widget))
-            + QLatin1Char(':') + QString::fromLatin1(property);
-        if (auto previous = animations.take(key)) {
-            previous->stop();
-            previous->deleteLater();
-        }
-
         const qreal start = progress(widget, property, 1.0 - target);
+        QPointer<QVariantAnimation> previous = findAnimation(widget, property);
+        if (previous)
+            previous->stop();
         if (duration <= 0 || !animationsAllowed() || qFuzzyCompare(start, target)) {
+            forgetAnimation(widget, QByteArray(property), previous);
             widget->setProperty(property, target);
             widget->update();
             return;
         }
 
-        auto *animation = new QVariantAnimation(q);
-        animations.insert(key, animation);
+        auto *animation = ensureAnimation(widget, property);
+        if (!animation)
+            return;
+        animation->setKeyValues({});
         animation->setStartValue(start);
         animation->setEndValue(target);
         animation->setDuration(duration);
         animation->setEasingCurve(fluentCurve());
-        const QPointer<QWidget> guardedWidget(widget);
-        QObject::connect(animation, &QVariantAnimation::valueChanged, q,
-                         [guardedWidget, property](const QVariant &value) {
-            if (!guardedWidget)
-                return;
-            guardedWidget->setProperty(property, value);
-            guardedWidget->update();
-        });
-        QObject::connect(animation, &QVariantAnimation::finished, q,
-                         [this, animation, key] {
-            if (animations.value(key) == animation)
-                animations.remove(key);
-            animation->deleteLater();
-        });
         animation->start();
     }
 
@@ -1157,19 +1454,18 @@ public:
     {
         if (!widget)
             return;
-        const QString prefix = QString::number(
-            reinterpret_cast<quintptr>(widget)) + QLatin1Char(':');
-        for (auto it = animations.begin(); it != animations.end();) {
-            if (!it.key().startsWith(prefix)) {
-                ++it;
-                continue;
+        if (auto it = animations.find(widget); it != animations.end()) {
+            const auto propertyAnimations = std::move(it.value());
+            animations.erase(it);
+            for (const QPointer<QVariantAnimation> &animation : propertyAnimations) {
+                if (animation) {
+                    animation->stop();
+                    delete animation;
+                }
             }
-            if (it.value()) {
-                it.value()->stop();
-                it.value()->deleteLater();
-            }
-            it = animations.erase(it);
         }
+        if (const auto connection = animationCleanupConnections.take(widget))
+            QObject::disconnect(connection);
     }
 
     void beginButtonPress(QWidget *widget)
@@ -1237,14 +1533,12 @@ public:
     {
         if (!widget)
             return;
-        const QString key = QString::number(reinterpret_cast<quintptr>(widget))
-            + QLatin1Char(':') + QString::fromLatin1(comboChevronProperty);
-        if (auto previous = animations.take(key)) {
-            previous->stop();
-            previous->deleteLater();
-        }
         const qreal start = progress(widget, comboChevronProperty, 0.0);
+        QPointer<QVariantAnimation> previous = findAnimation(widget, comboChevronProperty);
+        if (previous)
+            previous->stop();
         if (!animationsAllowed() || qFuzzyIsNull(start)) {
+            forgetAnimation(widget, QByteArray(comboChevronProperty), previous);
             widget->setProperty(comboChevronProperty, 0.0);
             widget->update();
             return;
@@ -1252,27 +1546,14 @@ public:
         // AnimatedChevronDownSmallVisualSource: PressedToNormal moves from
         // y=31.5 to y=21 then y=24 on a 48 px canvas. At the 12 px ComboBox
         // glyph this is +1.875 px, -0.75 px, then rest over about 300 ms.
-        auto *animation = new QVariantAnimation(q);
-        animations.insert(key, animation);
+        auto *animation = ensureAnimation(widget, comboChevronProperty);
+        if (!animation)
+            return;
         animation->setStartValue(start);
-        animation->setKeyValueAt(0.28, -0.4);
+        animation->setKeyValues({{0.28, QVariant(-0.4)}});
         animation->setEndValue(0.0);
         animation->setDuration(300);
         animation->setEasingCurve(fluentCurve());
-        const QPointer<QWidget> guarded(widget);
-        QObject::connect(animation, &QVariantAnimation::valueChanged, q,
-                         [guarded](const QVariant &value) {
-            if (!guarded)
-                return;
-            guarded->setProperty(comboChevronProperty, value);
-            guarded->update();
-        });
-        QObject::connect(animation, &QVariantAnimation::finished, q,
-                         [this, animation, key] {
-            if (animations.value(key) == animation)
-                animations.remove(key);
-            animation->deleteLater();
-        });
         animation->start();
     }
 
@@ -1284,15 +1565,21 @@ public:
     Style *q = nullptr;
     ThemeMode mode = ThemeMode::System;
     QColor accent;
-    QHash<QString, QPointer<QVariantAnimation>> animations;
+    QHash<QWidget *, QHash<QByteArray, QPointer<QVariantAnimation>>> animations;
+    QHash<QWidget *, QMetaObject::Connection> animationCleanupConnections;
+    QVector<QPointer<QProgressBar>> progressBars;
+    QHash<QProgressBar *, QMetaObject::Connection> progressBarStateConnections;
+    QHash<QScrollBar *, QPointer<QTimer>> scrollBarTimers;
+    QHash<QSlider *, QPointer<QTimer>> sliderToolTipTimers;
     QHash<QWidget *, QMetaObject::Connection> toggleConnections;
     QHash<QRadioButton *, QMetaObject::Connection> radioConnections;
     QHash<QWidget *, QMetaObject::Connection> tableConnections;
     QHash<QCheckBox *, ToggleDragState> toggleDragStates;
     bool keyboardInput = false;
     bool applicationStateSaved = false;
-    bool lastSystemDark = systemUsesDarkTheme();
-    QColor lastSystemAccent = systemAccentColor();
+    bool lastSystemDark = false;
+    QColor lastSystemAccent;
+    QTimer *progressTimer = nullptr;
     QTimer *systemAppearanceTimer = nullptr;
     QFont originalApplicationFont;
     QPalette originalApplicationPalette;
@@ -1302,6 +1589,11 @@ Style::Style(ThemeMode mode)
     : QProxyStyle(new QCommonStyle), d(std::make_unique<StylePrivate>(this, mode))
 {
     setObjectName(QStringLiteral("winui3"));
+    d->progressTimer = new QTimer(this);
+    d->progressTimer->setObjectName(QStringLiteral("_winui_progress_timer"));
+    d->progressTimer->setInterval(16);
+    connect(d->progressTimer, &QTimer::timeout, this,
+            [this] { d->advanceProgressBars(); });
     d->systemAppearanceTimer = new QTimer(this);
     d->systemAppearanceTimer->setObjectName(
         QStringLiteral("_winui_system_appearance_timer"));
@@ -1312,6 +1604,7 @@ Style::Style(ThemeMode mode)
         connect(hints, &QStyleHints::colorSchemeChanged, this,
                 [this](Qt::ColorScheme) { checkSystemAppearance(); });
     }
+    d->restartSystemAppearancePolling();
 }
 
 Style::~Style() = default;
@@ -1327,6 +1620,7 @@ void Style::setThemeMode(ThemeMode mode)
         return;
     d->mode = mode;
     refreshApplicationAppearance();
+    d->restartSystemAppearancePolling();
     emit themeChanged(mode);
 }
 
@@ -1346,6 +1640,7 @@ void Style::setAccentColor(const QColor &color)
         return;
     d->accent = color;
     refreshApplicationAppearance();
+    d->restartSystemAppearancePolling();
     emit accentColorChanged(accentColor());
 }
 
@@ -1391,14 +1686,23 @@ void Style::refreshApplicationAppearance()
 
 void Style::checkSystemAppearance()
 {
-    const bool systemDark = systemUsesDarkTheme();
-    const QColor systemAccent = systemAccentColor();
-    const bool themeChangedAtRuntime = d->mode == ThemeMode::System
-        && d->lastSystemDark != systemDark;
-    const bool accentChangedAtRuntime = !d->accent.isValid()
-        && d->lastSystemAccent != systemAccent;
-    d->lastSystemDark = systemDark;
-    d->lastSystemAccent = systemAccent;
+    if (!d->needsSystemAppearancePolling()) {
+        d->systemAppearanceTimer->stop();
+        return;
+    }
+    bool themeChangedAtRuntime = false;
+    bool accentChangedAtRuntime = false;
+    QColor systemAccent;
+    if (d->mode == ThemeMode::System) {
+        const bool systemDark = systemUsesDarkTheme();
+        themeChangedAtRuntime = d->lastSystemDark != systemDark;
+        d->lastSystemDark = systemDark;
+    }
+    if (!d->accent.isValid()) {
+        systemAccent = systemAccentColor();
+        accentChangedAtRuntime = d->lastSystemAccent != systemAccent;
+        d->lastSystemAccent = systemAccent;
+    }
     if (!themeChangedAtRuntime && !accentChangedAtRuntime)
         return;
     refreshApplicationAppearance();
@@ -3875,9 +4179,7 @@ void Style::polish(QApplication *application)
     font.setPixelSize(14);
     application->setFont(font);
     application->setPalette(standardPalette());
-    d->lastSystemDark = systemUsesDarkTheme();
-    d->lastSystemAccent = systemAccentColor();
-    d->systemAppearanceTimer->start();
+    d->restartSystemAppearancePolling();
 }
 
 void Style::polish(QWidget *widget)
@@ -3944,37 +4246,10 @@ void Style::polish(QWidget *widget)
     }
 
     if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
-        auto *timer = progressBar->findChild<QTimer *>(
-            QStringLiteral("_winui_progress_timer"), Qt::FindDirectChildrenOnly);
-        if (!timer) {
-            timer = new QTimer(progressBar);
-            timer->setObjectName(QStringLiteral("_winui_progress_timer"));
-            timer->setInterval(16);
-            const QPointer<QProgressBar> guarded(progressBar);
-            connect(timer, &QTimer::timeout, timer, [guarded, timer] {
-                if (!guarded || guarded->minimum() != guarded->maximum()) {
-                    timer->stop();
-                    return;
-                }
-                if (!guarded->isVisible() || !Style::animationsAllowed()) {
-                    guarded->setProperty(progressPhaseProperty, 0.35);
-                    guarded->update();
-                    timer->stop();
-                    return;
-                }
-                const qreal phase =
-                    qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0;
-                guarded->setProperty(progressPhaseProperty, phase);
-                guarded->update();
-            });
-        }
+        d->registerProgressBar(progressBar);
         progressBar->setProperty(progressPhaseProperty,
                                   Style::animationsAllowed() ? 0.0 : 0.35);
-        if (progressBar->minimum() == progressBar->maximum()
-            && progressBar->isVisible() && Style::animationsAllowed())
-            timer->start();
-        else
-            timer->stop();
+        d->refreshProgressTimer();
     }
     if (auto *view = qobject_cast<QAbstractItemView *>(widget))
         prepareNavigationView(view);
@@ -4102,13 +4377,15 @@ void Style::unpolish(QWidget *widget)
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
             d->toggleDragStates.remove(checkBox);
         if (auto *slider = qobject_cast<QSlider *>(widget))
-            hideSliderValueToolTip(slider);
-        if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
-            if (auto *timer = progressBar->findChild<QTimer *>(
-                    QStringLiteral("_winui_progress_timer"),
-                    Qt::FindDirectChildrenOnly))
-                delete timer;
+            d->unregisterSlider(slider);
+        if (auto *progressBar = qobject_cast<QProgressBar *>(widget))
+            d->unregisterProgressBar(progressBar);
+        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
+            d->cancelScrollBarTimer(scrollBar);
+            d->unregisterScrollBar(scrollBar);
         }
+        if (auto *slider = qobject_cast<QSlider *>(widget))
+            hideSliderValueToolTip(slider);
         widget->removeEventFilter(this);
         widget->setProperty(hoverProperty, {});
         widget->setProperty(pressProperty, {});
@@ -4172,23 +4449,27 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
             radio->setProperty(checkProperty, radio->isChecked() ? 1.0 : 0.0);
         }
+        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
+            d->cancelScrollBarTimer(scrollBar);
+        if (auto *slider = qobject_cast<QSlider *>(widget)) {
+            d->cancelSliderToolTip(slider);
+            if (!enabled)
+                hideSliderValueToolTip(slider);
+        }
+        if (qobject_cast<QProgressBar *>(widget))
+            d->refreshProgressTimer();
         widget->update();
         break;
     }
     case QEvent::Paint:
-        if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
-            if (auto *timer = progressBar->findChild<QTimer *>(
-                    QStringLiteral("_winui_progress_timer"),
-                    Qt::FindDirectChildrenOnly)) {
-                if (progressBar->minimum() == progressBar->maximum()
-                    && progressBar->isVisible() && animationsAllowed()) {
-                    if (!timer->isActive())
-                        timer->start();
-                } else if (timer->isActive()) {
-                    timer->stop();
-                }
-            }
-        }
+        break;
+    case QEvent::UpdateRequest:
+        // QProgressBar exposes no rangeChanged signal. Refresh only while the
+        // shared clock is stopped, so ordinary timer-driven updates remain
+        // O(1) in callbacks and do not rescan the registry per paint.
+        if (qobject_cast<QProgressBar *>(widget)
+            && !d->progressTimer->isActive())
+            d->refreshProgressTimer();
         break;
     case QEvent::Enter:
         if (!widget->isEnabled()) {
@@ -4196,29 +4477,21 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             widget->update();
             break;
         }
-        if (qobject_cast<QScrollBar *>(widget)) {
+        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
             const int generation = widget->property(scrollBarGenerationProperty).toInt() + 1;
             widget->setProperty(scrollBarInsideProperty, true);
             widget->setProperty(scrollBarGenerationProperty, generation);
             if (!animationsAllowed()) {
+                d->cancelScrollBarTimer(scrollBar);
                 d->animate(widget, hoverProperty, 1.0, 0);
             } else if (progress(widget, hoverProperty) > 0.001) {
                 // Re-entering during contraction reverses from the current
                 // thickness immediately. Waiting for a fresh 400 ms reveal
                 // would make the thumb disappear under a stationary pointer.
+                d->cancelScrollBarTimer(scrollBar);
                 d->animate(widget, hoverProperty, 1.0, Private::FastDuration);
             } else {
-                const QPointer<QWidget> guarded(widget);
-                QTimer::singleShot(400, this, [this, guarded, generation] {
-                    if (!guarded
-                        || !guarded->property(scrollBarInsideProperty).toBool()
-                        || guarded->property(scrollBarGenerationProperty).toInt()
-                            != generation) {
-                        return;
-                    }
-                    d->animate(guarded, hoverProperty, 1.0,
-                               Private::FastDuration);
-                });
+                d->scheduleScrollBar(scrollBar, 400);
             }
         } else {
             d->animate(widget, hoverProperty, 1.0,
@@ -4232,24 +4505,15 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             widget->update();
             break;
         }
-        if (qobject_cast<QScrollBar *>(widget)) {
+        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
             const int generation = widget->property(scrollBarGenerationProperty).toInt() + 1;
             widget->setProperty(scrollBarInsideProperty, false);
             widget->setProperty(scrollBarGenerationProperty, generation);
             if (!animationsAllowed()) {
+                d->cancelScrollBarTimer(scrollBar);
                 d->animate(widget, hoverProperty, 0.0, 0);
             } else {
-                const QPointer<QWidget> guarded(widget);
-                QTimer::singleShot(500, this, [this, guarded, generation] {
-                    if (!guarded
-                        || guarded->property(scrollBarInsideProperty).toBool()
-                        || guarded->property(scrollBarGenerationProperty).toInt()
-                            != generation) {
-                        return;
-                    }
-                    d->animate(guarded, hoverProperty, 0.0,
-                               Private::FastDuration);
-                });
+                d->scheduleScrollBar(scrollBar, 500);
             }
         } else {
             d->animate(widget, hoverProperty, 0.0,
@@ -4301,10 +4565,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton && slider->isEnabled()) {
-                const QPointer<QSlider> guarded(slider);
-                QTimer::singleShot(0, slider, [guarded] {
-                    showSliderValueToolTip(guarded);
-                });
+                d->scheduleSliderToolTip(slider);
             }
         }
         if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton)
@@ -4320,10 +4581,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if ((mouse->buttons() & Qt::LeftButton) && slider->isEnabled()) {
-                const QPointer<QSlider> guarded(slider);
-                QTimer::singleShot(0, slider, [guarded] {
-                    showSliderValueToolTip(guarded);
-                });
+                d->scheduleSliderToolTip(slider);
             }
         }
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
@@ -4361,11 +4619,14 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton) {
-            if (auto *slider = qobject_cast<QSlider *>(widget))
+            if (auto *slider = qobject_cast<QSlider *>(widget)) {
+                d->cancelSliderToolTip(slider);
                 hideSliderValueToolTip(slider);
+            }
             break;
         }
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
+            d->cancelSliderToolTip(slider);
             hideSliderValueToolTip(slider);
         }
         if (qobject_cast<QComboBox *>(widget))
@@ -4415,8 +4676,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                                        true));
         break;
     case QEvent::FocusOut:
-        if (auto *slider = qobject_cast<QSlider *>(widget))
+        if (auto *slider = qobject_cast<QSlider *>(widget)) {
+            d->cancelSliderToolTip(slider);
             hideSliderValueToolTip(slider);
+        }
         widget->setProperty(focusVisibleProperty, false);
         if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
             view && view->viewport() == widget) {
@@ -4501,26 +4764,21 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 group->start();
             }
         }
-        if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
-            if (auto *timer = progressBar->findChild<QTimer *>(
-                    QStringLiteral("_winui_progress_timer"),
-                    Qt::FindDirectChildrenOnly)) {
-                if (progressBar->minimum() == progressBar->maximum()
-                    && animationsAllowed())
-                    timer->start();
-            }
-        }
+        if (qobject_cast<QProgressBar *>(widget))
+            d->refreshProgressTimer();
         if (qobject_cast<QMenu *>(widget)
             || (widget->isWindow() && widget->windowType() == Qt::ToolTip))
             applyBackdrop(widget, Backdrop::Acrylic);
         preparePopupSurface(widget);
         break;
     case QEvent::Hide:
-        if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
-            if (auto *timer = progressBar->findChild<QTimer *>(
-                    QStringLiteral("_winui_progress_timer"),
-                    Qt::FindDirectChildrenOnly))
-                timer->stop();
+        if (qobject_cast<QProgressBar *>(widget))
+            d->refreshProgressTimer();
+        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
+            d->cancelScrollBarTimer(scrollBar);
+        if (auto *slider = qobject_cast<QSlider *>(widget)) {
+            d->cancelSliderToolTip(slider);
+            hideSliderValueToolTip(slider);
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
             for (QWidget *candidate : qApp->allWidgets()) {

@@ -61,6 +61,7 @@
 #include <QTest>
 #include <QTextEdit>
 #include <QTreeWidget>
+#include <QVariantAnimation>
 #include <QVBoxLayout>
 #include <QStandardItemModel>
 
@@ -194,6 +195,8 @@ private slots:
     void checkboxAndRadioUncheckMotion();
     void navigationModelReconnectAndScroll();
     void runtimeAppearanceAndDialogLifecycle();
+    void progressTimerScalingAndLifecycle();
+    void callbackCoalescingAndAnimationReuse();
     void dpiGeometry();
 };
 
@@ -2814,10 +2817,12 @@ void WinUI3StyleTest::progressAnimationAndOrientations()
     QTest::qWait(40);
     QImage second = bar.grab().toImage();
     QVERIFY(first != second);
-    auto *timer = bar.findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
-                                         Qt::FindDirectChildrenOnly);
+    auto *timer = style->findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
+                                             Qt::FindDirectChildrenOnly);
     QVERIFY(timer);
     QVERIFY(timer->isActive());
+    QVERIFY(!bar.findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
+                                     Qt::FindDirectChildrenOnly));
 
     bar.hide();
     QTRY_VERIFY(!timer->isActive());
@@ -2827,9 +2832,11 @@ void WinUI3StyleTest::progressAnimationAndOrientations()
     bar.setRange(0, 100);
     bar.setValue(40);
     bar.grab();
+    QCoreApplication::processEvents();
     QVERIFY(!timer->isActive());
     bar.setRange(0, 0);
     bar.grab();
+    QCoreApplication::processEvents();
     QVERIFY(timer->isActive());
 
     bar.setOrientation(Qt::Vertical);
@@ -2847,8 +2854,133 @@ void WinUI3StyleTest::progressAnimationAndOrientations()
     qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
 
     style->unpolish(&bar);
-    QVERIFY(!bar.findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
-                                    Qt::FindDirectChildrenOnly));
+    QVERIFY(!timer->isActive());
+}
+
+void WinUI3StyleTest::progressTimerScalingAndLifecycle()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget host;
+    host.resize(420, 420);
+    QList<QProgressBar *> bars;
+    for (int i = 0; i < 100; ++i) {
+        auto *bar = new QProgressBar(&host);
+        bar->setRange(0, 0);
+        bar->setGeometry((i % 10) * 42, (i / 10) * 42, 40, 24);
+        bars.append(bar);
+    }
+    host.show();
+    QCoreApplication::processEvents();
+
+    const auto timers = style->findChildren<QTimer *>(
+        QStringLiteral("_winui_progress_timer"), Qt::FindDirectChildrenOnly);
+    QCOMPARE(timers.size(), 1);
+    auto *timer = timers.constFirst();
+    QVERIFY(timer->isActive());
+    for (QProgressBar *bar : bars) {
+        QVERIFY(!bar->findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
+                                          Qt::FindDirectChildrenOnly));
+    }
+
+    host.hide();
+    QCoreApplication::processEvents();
+    QVERIFY(!timer->isActive());
+    host.show();
+    QCoreApplication::processEvents();
+    QVERIFY(timer->isActive());
+
+    delete bars.takeLast();
+    QVERIFY(timer->isActive());
+    qDeleteAll(bars);
+    bars.clear();
+    QCoreApplication::processEvents();
+    QVERIFY(!timer->isActive());
+}
+
+void WinUI3StyleTest::callbackCoalescingAndAnimationReuse()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+
+    {
+        QSlider slider(Qt::Horizontal);
+        slider.setRange(0, 100);
+        slider.resize(320, 40);
+        slider.show();
+        QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
+                          slider.rect().center());
+        auto *timer = slider.findChild<QTimer *>(
+            QStringLiteral("_winui_slider_tooltip_timer"),
+            Qt::FindDirectChildrenOnly);
+        QVERIFY(timer);
+        QSignalSpy callbacks(timer, &QTimer::timeout);
+        for (int i = 0; i < 1000; ++i) {
+            slider.setValue(i % 100);
+            QMouseEvent move(QEvent::MouseMove,
+                             QPointF(slider.rect().center()), Qt::NoButton,
+                             Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(&slider, &move);
+        }
+        slider.setValue(77);
+        QVERIFY(timer->isActive());
+        QCoreApplication::processEvents();
+        QCOMPARE(callbacks.count(), 1);
+        QCOMPARE(slider.property("_winui_slider_tooltip_value").toString(),
+                 QStringLiteral("77"));
+        QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
+                            slider.rect().center());
+        QVERIFY(!timer->isActive());
+    }
+
+    {
+        QScrollBar scrollBar(Qt::Vertical);
+        scrollBar.setRange(0, 100);
+        scrollBar.resize(12, 300);
+        scrollBar.show();
+        QEvent enter(QEvent::Enter);
+        QEvent leave(QEvent::Leave);
+        QCoreApplication::sendEvent(&scrollBar, &enter);
+        auto *timer = scrollBar.findChild<QTimer *>(
+            QStringLiteral("_winui_scrollbar_timer"),
+            Qt::FindDirectChildrenOnly);
+        QVERIFY(timer);
+        QSignalSpy callbacks(timer, &QTimer::timeout);
+        for (int i = 0; i < 100; ++i) {
+            QCoreApplication::sendEvent(&scrollBar, &leave);
+            QCoreApplication::sendEvent(&scrollBar, &enter);
+        }
+        QCoreApplication::sendEvent(&scrollBar, &leave);
+        QCOMPARE(scrollBar.findChildren<QTimer *>(
+                     QStringLiteral("_winui_scrollbar_timer"),
+                     Qt::FindDirectChildrenOnly).size(), 1);
+        QVERIFY(timer->isActive());
+        QTest::qWait(550);
+        QCOMPARE(callbacks.count(), 1);
+        scrollBar.setEnabled(false);
+        QVERIFY(!timer->isActive());
+    }
+
+    const int baseline = style->findChildren<QVariantAnimation *>().size();
+    auto *button = new QPushButton(QStringLiteral("animation lifecycle"));
+    button->show();
+    QEvent enter(QEvent::Enter);
+    QEvent leave(QEvent::Leave);
+    for (int i = 0; i < 1000; ++i) {
+        QCoreApplication::sendEvent(button, &enter);
+        QCoreApplication::sendEvent(button, &leave);
+    }
+    const int afterFirstStorm = style->findChildren<QVariantAnimation *>().size();
+    QVERIFY(afterFirstStorm <= baseline + 2);
+    for (int i = 0; i < 1000; ++i) {
+        QCoreApplication::sendEvent(button, &enter);
+        QCoreApplication::sendEvent(button, &leave);
+    }
+    QCOMPARE(style->findChildren<QVariantAnimation *>().size(), afterFirstStorm);
+    delete button;
+    QCoreApplication::processEvents();
+    QCOMPARE(style->findChildren<QVariantAnimation *>().size(), baseline);
 }
 
 void WinUI3StyleTest::sliderExtremeRangeTicks()
@@ -3123,6 +3255,8 @@ void WinUI3StyleTest::runtimeAppearanceAndDialogLifecycle()
     style->setAccentColor(accent);
     QTRY_COMPARE(qApp->palette().color(QPalette::Highlight), accent);
     QVERIFY(qApp->palette().color(QPalette::Accent) != accent);
+    QVERIFY(!style->findChild<QTimer *>(
+        QStringLiteral("_winui_system_appearance_timer"))->isActive());
 
     style->setThemeMode(WinUI3::ThemeMode::System);
     auto *watcher = style->findChild<QTimer *>(
