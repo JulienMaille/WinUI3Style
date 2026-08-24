@@ -1301,19 +1301,22 @@ public:
         const qreal phase = allowed
             ? qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0
             : 0.35;
+        bool active = false;
         for (auto it = progressBars.begin(); it != progressBars.end();) {
             const QPointer<QProgressBar> guarded = *it;
             if (!guarded) {
                 it = progressBars.erase(it);
                 continue;
             }
-            if (guarded->minimum() == guarded->maximum() && guarded->isVisible()) {
+            if (progressBarNeedsAnimation(guarded)) {
+                active = true;
                 guarded->setProperty(progressPhaseProperty, phase);
                 guarded->update();
             }
             ++it;
         }
-        refreshProgressTimer();
+        if (!active)
+            progressTimer->stop();
     }
 
     void registerProgressBar(QProgressBar *progressBar)
