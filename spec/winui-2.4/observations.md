@@ -161,17 +161,19 @@ now only page/search composition and content transition behavior.
 NumberBox must be audited as a complex control, not as a focused TextBox with
 arrows painted on top. In the official inline placement, the spin-button column
 is 72 px wide and is partitioned into two horizontal 36 px buttons. On mouse
-focus, the 2 px accent underline stops at the editable-column boundary; the up
-and down buttons keep their neutral lower edge and own hover/pressed surfaces.
-Their enabled states are independent at the numeric bounds. The `QSpinBox`
-mapping deliberately replaces Qt's usual vertically stacked button rectangles
-with this WinUI inline partition.
+focus, the 2 px accent underline spans the complete official control width,
+including the button column; the up and down buttons keep their neutral surface
+and own hover/pressed states. Their enabled states are independent at the
+numeric bounds. The `QSpinBox` mapping deliberately replaces Qt's usual
+vertically stacked button rectangles with this WinUI inline partition.
 
 The optional `winuiVerticalSpinButtons` variant is a consistency extension for
 Qt applications that need the familiar stacked layout. It keeps the same
-WinUI surface, glyphs, input states and editable-field focus underline, but
-uses one 32 px trailing column split into two non-overlapping vertical hit
-targets. It is not presented as an official NumberBox template placement.
+WinUI surface, glyphs and input states, uses one 32 px trailing column split
+into two non-overlapping vertical hit targets, and adds one neutral vertical
+separator at the editable-field boundary. Its focus underline still spans the
+complete control width. The separator is a stroke only, not a cell or bevel;
+the variant is not presented as an official NumberBox template placement.
 
 Qt `QGroupBox` has no direct WinUI control equivalent. It is therefore treated
 as a WinUI card: a translucent layer fill, subtle one-pixel stroke, six-pixel

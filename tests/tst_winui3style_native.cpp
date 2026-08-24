@@ -6,6 +6,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDockWidget>
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
@@ -13,6 +14,7 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSignalSpy>
+#include <QStyleOptionSlider>
 #include <QTest>
 #include <QToolTip>
 #include <QVBoxLayout>
@@ -66,6 +68,7 @@ private slots:
     void backdropStateRestoration();
     void dialogThemeUpdate();
     void dockFloatingFocusCleanup();
+    void scrollBarHoverTiming();
 };
 
 void WinUI3StyleNativeTest::initTestCase()
@@ -249,6 +252,90 @@ void WinUI3StyleNativeTest::dockFloatingFocusCleanup()
     dock->close();
     QVERIFY(!dock->isVisible());
     window.close();
+}
+
+void WinUI3StyleNativeTest::scrollBarHoverTiming()
+{
+    const bool hadAnimationOverride = qEnvironmentVariableIsSet(
+        "WINUI3STYLE_DISABLE_ANIMATIONS");
+    const QByteArray animationOverride =
+        qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+
+    QWidget host;
+    host.resize(80, 300);
+    QScrollBar bar(Qt::Vertical, &host);
+    bar.setRange(0, 100);
+    bar.setPageStep(20);
+    bar.setValue(30);
+    bar.setGeometry(0, 0, 12, 300);
+    host.show();
+    const bool exposed = QTest::qWaitForWindowExposed(&host);
+    host.activateWindow();
+    const bool active = QTest::qWaitForWindowActive(&host);
+    Q_UNUSED(active);
+    bar.setProperty("_winui_hover_progress", 0.0);
+
+    QTest::mouseMove(&host, QPoint(60, 150));
+    QTest::qWait(30);
+    bar.setProperty("_winui_hover_progress", 0.0);
+
+    QStyleOptionSlider option;
+    option.initFrom(&bar);
+    option.orientation = bar.orientation();
+    option.minimum = bar.minimum();
+    option.maximum = bar.maximum();
+    option.sliderPosition = bar.sliderPosition();
+    option.sliderValue = bar.value();
+    option.pageStep = bar.pageStep();
+    option.upsideDown = false;
+    const QRect thumb = bar.style()->subControlRect(
+        QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, &bar);
+
+    QElapsedTimer timer;
+    timer.start();
+    QTest::mouseMove(&bar, bar.rect().center());
+    // QTest's Windows cursor injection does not synthesize QEvent::Enter for
+    // a 12 px child consistently on every desktop session. Keep the native
+    // QScrollBar and QTest path, then deliver the same Qt enter event that
+    // QWidget receives when the platform does synthesize it.
+    QEnterEvent enter(bar.rect().center(), bar.rect().center(),
+                      bar.mapToGlobal(bar.rect().center()));
+    QCoreApplication::sendEvent(&bar, &enter);
+    QTest::qWait(350);
+    const bool stayedCollapsed =
+        bar.property("_winui_hover_progress").toReal() <= 0.01;
+
+    int revealAt = -1;
+    while (timer.elapsed() < 650) {
+        if (bar.property("_winui_hover_progress").toReal() > 0.01) {
+            revealAt = timer.elapsed();
+            break;
+        }
+        QTest::qWait(5);
+    }
+    int settledAt = -1;
+    while (timer.elapsed() < 850) {
+        if (bar.property("_winui_hover_progress").toReal() > 0.99) {
+            settledAt = timer.elapsed();
+            break;
+        }
+        QTest::qWait(5);
+    }
+
+    if (hadAnimationOverride)
+        qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", animationOverride);
+    else
+        qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+
+    QVERIFY(exposed);
+    QCOMPARE(thumb.width(), 12);
+    QVERIFY(thumb.height() >= 30);
+    QVERIFY(stayedCollapsed);
+    QVERIFY(revealAt >= 380);
+    QVERIFY(revealAt <= 650);
+    QVERIFY(settledAt >= 520);
+    QVERIFY(settledAt <= 850);
 }
 
 QTEST_MAIN(WinUI3StyleNativeTest)

@@ -2888,15 +2888,25 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
             if (combo->subControls & SC_ComboBoxArrow) {
-                const QRect arrow = subControlRect(CC_ComboBox, combo,
-                                                    SC_ComboBoxArrow, widget);
+                // Keep the chevron rectangle logical; paintThemedIcon resolves
+                // the pixmap's DPR without changing this geometry.
+                const QRect logicalArrow(combo->rect.right() - 37,
+                                         combo->rect.top(), 38,
+                                         combo->rect.height());
+                const QRect logicalChevron(
+                    logicalArrow.left() + (logicalArrow.width() - 12) / 2,
+                    logicalArrow.top() + (logicalArrow.height() - 12) / 2,
+                    12, 12);
+                const QRect chevronRect = visualRect(combo->direction,
+                                                     combo->rect,
+                                                     logicalChevron);
                 const qreal chevron = progress(widget, comboChevronProperty, 0.0);
                 painter->save();
                 painter->translate(0.0, 1.875 * chevron);
-                icon(Icon::ChevronDown,
-                     enabled ? t.textPrimary : t.textDisabled).paint(
-                         painter, arrow, Qt::AlignCenter,
-                         enabled ? QIcon::Normal : QIcon::Disabled);
+                paintThemedIcon(painter, icon(Icon::ChevronDown), chevronRect,
+                                Qt::AlignCenter,
+                                enabled ? t.textPrimary : t.textDisabled,
+                                enabled ? QIcon::Normal : QIcon::Disabled);
                 painter->restore();
             }
             if (keyboardFocusVisible(widget)) {
@@ -2924,21 +2934,25 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
                           : mix(t.control, t.controlHover, hover);
             controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary,
                            ControlRadius);
-            if (focused) {
+            if (verticalButtons) {
                 const QRect editField = subControlRect(CC_SpinBox, spin,
                                                        SC_SpinBoxEditField,
                                                        widget);
+                const int separatorX = spin->direction == Qt::RightToLeft
+                    ? editField.left() : editField.right();
+                painter->save();
+                painter->setPen(QPen(t.stroke, 1, Qt::SolidLine, Qt::FlatCap));
+                painter->drawLine(separatorX, spin->rect.top() + 1,
+                                  separatorX, spin->rect.bottom() - 1);
+                painter->restore();
+            }
+            if (focused) {
                 painter->save();
                 painter->setRenderHint(QPainter::Antialiasing);
-                painter->setPen(QPen(t.accentFill, 2, Qt::SolidLine, Qt::RoundCap));
+                painter->setPen(QPen(t.accentFill, 2, Qt::SolidLine, Qt::FlatCap));
                 const int underlineY = spin->rect.bottom() - 1;
-                const QPoint underlineStart = spin->direction == Qt::RightToLeft
-                    ? QPoint(editField.left(), underlineY)
-                    : QPoint(spin->rect.left() + 4, underlineY);
-                const QPoint underlineEnd = spin->direction == Qt::RightToLeft
-                    ? QPoint(spin->rect.right() - 4, underlineY)
-                    : QPoint(editField.right(), underlineY);
-                painter->drawLine(underlineStart, underlineEnd);
+                painter->drawLine(spin->rect.left(), underlineY,
+                                  spin->rect.right(), underlineY);
                 painter->restore();
             }
             const auto drawStep = [&](SubControl subControl, Icon glyph) {
@@ -3233,7 +3247,7 @@ QSize Style::sizeFromContents(ContentsType type, const QStyleOption *option,
         size.setHeight(qMax(size.height(), 32));
         break;
     case CT_SpinBox:
-        size += QSize(verticalSpinButtons(widget) ? 44 : 84, 12);
+        size += QSize(verticalSpinButtons(widget) ? 44 : 84, 0);
         size.setHeight(qMax(size.height(), 32));
         size.setWidth(qMax(size.width(), 120));
         break;

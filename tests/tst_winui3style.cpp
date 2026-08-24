@@ -18,6 +18,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDockWidget>
+#include <QElapsedTimer>
 #include <QFocusEvent>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
@@ -153,6 +154,7 @@ private slots:
     void indeterminateProgressDeterminism();
     void comboPopupContract();
     void comboChevronMotion();
+    void comboChevronGeometry();
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
     void checkboxAcceptAnimation();
@@ -170,6 +172,7 @@ private slots:
     void sliderValueToolTipAndFocus();
     void scrollBarContract();
     void scrollBarHorizontalAndReentry();
+    void scrollBarNativeHoverTiming();
     void scrollAreaScrollBarIntegration();
     void tabViewContract();
     void listViewContract();
@@ -1247,6 +1250,66 @@ void WinUI3StyleTest::comboChevronMotion()
     combo.hidePopup();
 }
 
+void WinUI3StyleTest::comboChevronGeometry()
+{
+    QComboBox combo;
+    combo.addItems({QStringLiteral("One"), QStringLiteral("Two")});
+    combo.resize(220, 32);
+    combo.show();
+    combo.setProperty("_winui_combo_chevron_progress", 0.0);
+
+    const auto renderChevron = [&](Qt::LayoutDirection direction) {
+        QStyleOptionComboBox option;
+        option.initFrom(&combo);
+        option.rect = combo.rect();
+        option.direction = direction;
+        option.subControls = QStyle::SC_ComboBoxArrow;
+        option.state = QStyle::State_Enabled;
+
+        QImage image(combo.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        {
+            QPainter painter(&image);
+            combo.style()->drawComplexControl(QStyle::CC_ComboBox, &option,
+                                              &painter, &combo);
+        }
+
+        const QRect logicalArrow(option.rect.right() - 37, option.rect.top(),
+                                 38, option.rect.height());
+        const QRect logicalChevron(
+            logicalArrow.left() + (logicalArrow.width() - 12) / 2,
+            logicalArrow.top() + (logicalArrow.height() - 12) / 2, 12, 12);
+        const QRect expected = QStyle::visualRect(direction, option.rect,
+                                                  logicalChevron);
+        QRect ink;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (image.pixelColor(x, y).alpha() > 24)
+                    ink |= QRect(x, y, 1, 1);
+            }
+        }
+        return qMakePair(expected, ink);
+    };
+
+    const auto ltr = renderChevron(Qt::LeftToRight);
+    const auto rtl = renderChevron(Qt::RightToLeft);
+    QVERIFY(!ltr.second.isEmpty());
+    QVERIFY(!rtl.second.isEmpty());
+    QVERIFY(ltr.first.contains(ltr.second.topLeft())
+            && ltr.first.contains(ltr.second.bottomRight()));
+    QVERIFY(rtl.first.contains(rtl.second.topLeft())
+            && rtl.first.contains(rtl.second.bottomRight()));
+    QVERIFY(ltr.second.width() <= 12);
+    QVERIFY(ltr.second.height() <= 12);
+    QVERIFY(rtl.second.width() <= 12);
+    QVERIFY(rtl.second.height() <= 12);
+    QCOMPARE(ltr.first.size(), QSize(12, 12));
+    QCOMPARE(rtl.first.size(), QSize(12, 12));
+    QCOMPARE(ltr.first.center().y(), rtl.first.center().y());
+    QCOMPARE(ltr.first.center().x() + rtl.first.center().x(),
+             combo.rect().left() + combo.rect().right() - 1);
+}
+
 void WinUI3StyleTest::numberBoxSubcontrolContract()
 {
     QSpinBox spin;
@@ -1299,6 +1362,8 @@ void WinUI3StyleTest::numberBoxSubcontrolContract()
     QCOMPARE(up.right() + 1, down.left());
     QCOMPARE(edit.right() + 1, up.left());
     QVERIFY(spin.sizeHint().width() >= 120);
+    QLineEdit lineEdit;
+    QCOMPARE(spin.sizeHint().height(), qMax(32, lineEdit.sizeHint().height()));
 
     option.direction = Qt::RightToLeft;
     const QRect rtlEdit = spin.style()->subControlRect(
@@ -1328,7 +1393,7 @@ void WinUI3StyleTest::numberBoxSubcontrolContract()
     QVERIFY(distance(focused.pixelColor(edit.center().x(), underlineY), accent)
             < 80);
     QVERIFY(distance(focused.pixelColor(down.center().x(), underlineY), accent)
-            > 120);
+            < 80);
 
     QTest::mouseClick(&spin, Qt::LeftButton, Qt::NoModifier, up.center());
     QCOMPARE(spin.value(), 47);
@@ -1400,7 +1465,26 @@ void WinUI3StyleTest::verticalNumberBoxContract()
     QVERIFY(distance(focused.pixelColor(edit.center().x(), underlineY), accent)
             < 80);
     QVERIFY(distance(focused.pixelColor(down.center().x(), underlineY), accent)
-            > 120);
+            < 80);
+
+    const int separatorX = edit.right();
+    const QColor separator = focused.pixelColor(separatorX, spin.rect().center().y());
+    QVERIFY(separator != focused.pixelColor(separatorX + 1,
+                                             spin.rect().center().y()));
+
+    QImage rtlFocused(spin.size(), QImage::Format_ARGB32_Premultiplied);
+    rtlFocused.fill(Qt::transparent);
+    option.direction = Qt::RightToLeft;
+    {
+        QPainter painter(&rtlFocused);
+        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option,
+                                         &painter, &spin);
+    }
+    const QRect rtlEditForSeparator = geometry(QStyle::SC_SpinBoxEditField);
+    const int rtlSeparatorX = rtlEditForSeparator.left();
+    QVERIFY(rtlFocused.pixelColor(rtlSeparatorX, spin.rect().center().y())
+            != rtlFocused.pixelColor(rtlSeparatorX + 1,
+                                     spin.rect().center().y()));
 
     option.state &= ~QStyle::State_HasFocus;
     QTest::mouseClick(&spin, Qt::LeftButton, Qt::NoModifier, up.center());
@@ -1939,6 +2023,21 @@ void WinUI3StyleTest::scrollBarContract()
     QCOMPARE(thumb.width(), 12);
     QVERIFY(thumb.height() >= 30);
 
+    const auto colorDistance = [](const QColor &a, const QColor &b) {
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
+            + qAbs(a.blue() - b.blue());
+    };
+    bar.setProperty("_winui_hover_progress", 0.0);
+    QImage collapsedGeometry = bar.grab().toImage();
+    const QColor background = bar.palette().color(QPalette::Window);
+    const int sampleY = thumb.center().y();
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(2, sampleY), background)
+            < 5);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(4, sampleY), background)
+            > 10);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(11, sampleY), background)
+            > 10);
+
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&bar, &enter);
     QTest::qWait(250);
@@ -2006,6 +2105,21 @@ void WinUI3StyleTest::scrollBarHorizontalAndReentry()
     QCOMPARE(bar.style()->pixelMetric(QStyle::PM_ScrollBarSliderMin,
                                        &option, &bar), 30);
 
+    const auto colorDistance = [](const QColor &a, const QColor &b) {
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
+            + qAbs(a.blue() - b.blue());
+    };
+    bar.setProperty("_winui_hover_progress", 0.0);
+    QImage collapsedGeometry = bar.grab().toImage();
+    const QColor background = bar.palette().color(QPalette::Window);
+    const int sampleX = thumb.center().x();
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 2), background)
+            < 5);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 4), background)
+            > 10);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 11), background)
+            > 10);
+
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&bar, &enter);
     QTRY_VERIFY_WITH_TIMEOUT(bar.property("_winui_hover_progress").toReal() > 0.99,
@@ -2056,6 +2170,51 @@ void WinUI3StyleTest::scrollBarHorizontalAndReentry()
     const QImage disabled = bar.grab().toImage();
     QCOMPARE(disabled.pixelColor(currentThumb.center()),
              bar.palette().color(QPalette::Window));
+}
+
+void WinUI3StyleTest::scrollBarNativeHoverTiming()
+{
+    QScrollBar bar(Qt::Vertical);
+    bar.setRange(0, 100);
+    bar.setPageStep(20);
+    bar.setValue(30);
+    bar.resize(12, 300);
+    bar.show();
+    bar.setProperty("_winui_hover_progress", 0.0);
+
+    QTest::mouseMove(&bar, QPoint(-20, -20));
+    QTest::qWait(30);
+    bar.setProperty("_winui_hover_progress", 0.0);
+
+    QElapsedTimer timer;
+    timer.start();
+    QTest::mouseMove(&bar, bar.rect().center());
+    QTest::qWait(350);
+    const bool stayedCollapsed =
+        bar.property("_winui_hover_progress").toReal() <= 0.01;
+
+    int revealAt = -1;
+    while (timer.elapsed() < 600) {
+        if (bar.property("_winui_hover_progress").toReal() > 0.01) {
+            revealAt = timer.elapsed();
+            break;
+        }
+        QTest::qWait(5);
+    }
+    int settledAt = -1;
+    while (timer.elapsed() < 850) {
+        if (bar.property("_winui_hover_progress").toReal() > 0.99) {
+            settledAt = timer.elapsed();
+            break;
+        }
+        QTest::qWait(5);
+    }
+
+    QVERIFY(stayedCollapsed);
+    QVERIFY(revealAt >= 380);
+    QVERIFY(revealAt <= 600);
+    QVERIFY(settledAt >= 520);
+    QVERIFY(settledAt <= 850);
 }
 
 void WinUI3StyleTest::scrollAreaScrollBarIntegration()
@@ -2770,6 +2929,38 @@ void WinUI3StyleTest::dpiGeometry()
             <= 2);
     QVERIFY(button.style()->pixelMetric(QStyle::PM_DefaultFrameWidth,
                                         nullptr, &button) >= 1);
+
+    QComboBox combo;
+    combo.addItem(QStringLiteral("DPI"));
+    combo.resize(220, 32);
+    combo.show();
+    QStyleOptionComboBox comboOption;
+    comboOption.initFrom(&combo);
+    comboOption.rect = combo.rect();
+    const QRect comboArrow = combo.style()->subControlRect(
+        QStyle::CC_ComboBox, &comboOption, QStyle::SC_ComboBoxArrow, &combo);
+    QCOMPARE(comboArrow.size(), QSize(38, 32));
+
+    QScrollBar scrollBar(Qt::Vertical);
+    scrollBar.setRange(0, 100);
+    scrollBar.setPageStep(20);
+    scrollBar.resize(12, 300);
+    scrollBar.show();
+    QStyleOptionSlider scrollOption;
+    scrollOption.initFrom(&scrollBar);
+    scrollOption.orientation = scrollBar.orientation();
+    scrollOption.minimum = scrollBar.minimum();
+    scrollOption.maximum = scrollBar.maximum();
+    scrollOption.sliderPosition = scrollBar.sliderPosition();
+    scrollOption.sliderValue = scrollBar.value();
+    scrollOption.pageStep = scrollBar.pageStep();
+    scrollOption.upsideDown = false;
+    const QRect scrollThumb = scrollBar.style()->subControlRect(
+        QStyle::CC_ScrollBar, &scrollOption, QStyle::SC_ScrollBarSlider,
+        &scrollBar);
+    QCOMPARE(scrollThumb.width(), 12);
+    QCOMPARE(scrollBar.style()->pixelMetric(QStyle::PM_ScrollBarExtent,
+                                            &scrollOption, &scrollBar), 12);
 }
 
 QTEST_MAIN(WinUI3StyleTest)
