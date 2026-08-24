@@ -8,6 +8,10 @@ namespace WinUI3::Private {
 
 constexpr int FasterDuration = 83;
 constexpr int FastDuration = 167;
+// The CheckBox glyph is intentionally a little slower than the generic fast
+// brush transition. This keeps the simple path reveal legible without trying
+// to reproduce WinUI's generated AnimatedAcceptVisualSource timeline.
+constexpr int CheckBoxDuration = 200;
 constexpr int NormalDuration = 250;
 constexpr qreal ControlRadius = 4.0;
 constexpr qreal OverlayRadius = 8.0;

@@ -85,6 +85,8 @@ namespace {
 constexpr auto roleProperty = "_winui_control_role";
 constexpr auto hoverProperty = "_winui_hover_progress";
 constexpr auto pressProperty = "_winui_press_progress";
+constexpr auto buttonPressGenerationProperty = "_winui_button_press_generation";
+constexpr auto buttonPressReleasePendingProperty = "_winui_button_press_release_pending";
 constexpr auto focusProperty = "_winui_focus_progress";
 constexpr auto focusVisibleProperty = "_winui_focus_visible";
 constexpr auto checkProperty = "_winui_check_progress";
@@ -111,7 +113,7 @@ constexpr auto originalOpaquePaintProperty = "_winui_original_opaque_paint";
 constexpr auto originalListSpacingProperty = "_winui_original_list_spacing";
 constexpr auto ownedPaletteProperty = "_winui_theme_owned_palette";
 
-void paintThemedIcon(QPainter *painter, const QIcon &source, const QRect &rect,
+void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground,
                      QIcon::Mode mode = QIcon::Normal,
                      QIcon::State state = QIcon::Off);
@@ -239,6 +241,13 @@ bool textBoxHelperButton(const QWidget *widget)
 {
     return qobject_cast<const QAbstractButton *>(widget)
         && qobject_cast<const QLineEdit *>(widget->parentWidget());
+}
+
+bool buttonPressPulse(const QWidget *widget)
+{
+    return !textBoxHelperButton(widget)
+        && (qobject_cast<const QPushButton *>(widget)
+            || qobject_cast<const QToolButton *>(widget));
 }
 
 const QAbstractItemView *itemView(const QWidget *widget)
@@ -724,21 +733,39 @@ void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill,
     painter->restore();
 }
 
-void paintThemedIcon(QPainter *painter, const QIcon &source, const QRect &rect,
+void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground,
                      QIcon::Mode mode, QIcon::State state)
 {
     if (source.isNull() || rect.isEmpty())
         return;
     const qreal dpr = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
-    const QPixmap pixmap = iconPixmap(source, rect.size(), dpr, foreground,
+    const QSize requestedSize(qMax(1, qRound(rect.width())),
+                              qMax(1, qRound(rect.height())));
+    const QPixmap pixmap = iconPixmap(source, requestedSize, dpr, foreground,
                                      mode, state);
     if (pixmap.isNull())
         return;
-    const QSize logicalSize = pixmap.deviceIndependentSize().toSize();
-    const QRect target = QStyle::alignedRect(Qt::LeftToRight, alignment,
-                                             logicalSize, rect);
-    painter->drawPixmap(target.topLeft(), pixmap);
+    const QSizeF logicalSize = pixmap.deviceIndependentSize();
+    QPointF topLeft = rect.topLeft();
+    if (alignment & Qt::AlignRight)
+        topLeft.setX(rect.right() - logicalSize.width());
+    else if (alignment & Qt::AlignHCenter)
+        topLeft.setX(rect.center().x() - logicalSize.width() / 2.0);
+    if (alignment & Qt::AlignBottom)
+        topLeft.setY(rect.bottom() - logicalSize.height());
+    else if (alignment & Qt::AlignVCenter)
+        topLeft.setY(rect.center().y() - logicalSize.height() / 2.0);
+    painter->drawPixmap(topLeft, pixmap);
+}
+
+QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds,
+                   const QRectF &logical)
+{
+    if (direction == Qt::LeftToRight)
+        return logical;
+    return QRectF(bounds.left() + bounds.right() - logical.right(),
+                  logical.top(), logical.width(), logical.height());
 }
 
 void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
@@ -1027,6 +1054,67 @@ public:
             }
             it = animations.erase(it);
         }
+    }
+
+    void beginButtonPress(QWidget *widget)
+    {
+        if (!widget)
+            return;
+        const qulonglong generation = widget->property(
+            buttonPressGenerationProperty).toULongLong() + 1;
+        widget->setProperty(buttonPressGenerationProperty,
+                            QVariant::fromValue(generation));
+        widget->setProperty(buttonPressReleasePendingProperty, false);
+        // A synchronous pressed frame is intentional. It makes a very fast
+        // click observable and also cancels a release animation already in
+        // flight before the next press starts.
+        animate(widget, pressProperty, 1.0, 0);
+    }
+
+    void releaseButtonPress(QWidget *widget)
+    {
+        if (!widget)
+            return;
+        const qulonglong generation = widget->property(
+            buttonPressGenerationProperty).toULongLong() + 1;
+        widget->setProperty(buttonPressGenerationProperty,
+                            QVariant::fromValue(generation));
+        widget->setProperty(buttonPressReleasePendingProperty, true);
+        const QPointer<QWidget> guardedWidget(widget);
+        QTimer::singleShot(16, q, [this, guardedWidget, generation] {
+            if (!guardedWidget
+                || guardedWidget->property(buttonPressGenerationProperty)
+                       .toULongLong() != generation
+                || !guardedWidget->property(buttonPressReleasePendingProperty)
+                       .toBool()) {
+                return;
+            }
+            guardedWidget->setProperty(buttonPressReleasePendingProperty, false);
+            animate(guardedWidget, pressProperty, 0.0, Private::FasterDuration);
+        });
+    }
+
+    void cancelButtonPress(QWidget *widget)
+    {
+        if (!widget)
+            return;
+        const qulonglong generation = widget->property(
+            buttonPressGenerationProperty).toULongLong() + 1;
+        widget->setProperty(buttonPressGenerationProperty,
+                            QVariant::fromValue(generation));
+        widget->setProperty(buttonPressReleasePendingProperty, false);
+        animate(widget, pressProperty, 0.0, Private::FasterDuration);
+    }
+
+    void clearPointerInteraction(QWidget *widget)
+    {
+        if (!widget)
+            return;
+        if (buttonPressPulse(widget))
+            cancelButtonPress(widget);
+        stopAnimations(widget);
+        widget->setProperty(hoverProperty, 0.0);
+        widget->setProperty(pressProperty, 0.0);
     }
 
     void releaseComboChevron(QWidget *widget)
@@ -1389,10 +1477,12 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     using namespace Private;
     const Tokens t = tokens(option->palette);
     const bool enabled = option->state & State_Enabled;
-    const bool hovered = option->state & State_MouseOver;
-    const bool pressed = option->state & State_Sunken;
-    const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
-    const qreal press = progress(widget, pressProperty, pressed ? 1.0 : 0.0);
+    const bool hovered = enabled && (option->state & State_MouseOver);
+    const bool pressed = enabled && (option->state & State_Sunken);
+    const qreal hover = enabled
+        ? progress(widget, hoverProperty, hovered ? 1.0 : 0.0) : 0.0;
+    const qreal press = enabled
+        ? progress(widget, pressProperty, pressed ? 1.0 : 0.0) : 0.0;
 
     if (element == PE_PanelMenuBar) {
         painter->fillRect(option->rect, t.surface);
@@ -1472,7 +1562,11 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         const bool checked = option->state & (State_On | State_NoChange);
         const qreal checkAmount = progress(widget, checkProperty,
                                            checked ? 1.0 : 0.0);
-        const QRectF indicator = QRectF(option->rect).adjusted(1, 1, -1, -1);
+        // Keep the 20 px logical silhouette intact. The half-pixel inset
+        // keeps the one-pixel outline inside that silhouette when antialiasing
+        // is enabled, including at fractional device-pixel ratios.
+        const QRectF indicator = QRectF(option->rect).adjusted(0.5, 0.5,
+                                                                -0.5, -0.5);
         const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
         const qreal press = progress(widget, pressProperty,
                                      option->state & State_Sunken ? 1.0 : 0.0);
@@ -1522,7 +1616,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
                 // the two check segments at a constant path velocity.
                 const QPointF a(indicator.left() + 4, indicator.center().y());
                 const QPointF b(indicator.center().x() - 1, indicator.bottom() - 4);
-                const QPointF c(indicator.right() - 3, indicator.top() + 4);
+                const QPointF c(indicator.right() - 4, indicator.top() + 4);
                 const QLineF first(a, b);
                 const QLineF second(b, c);
                 const qreal total = first.length() + second.length();
@@ -1882,10 +1976,16 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
 
     if (element == CE_MenuBarItem) {
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
-            const qreal hover = progress(widget, hoverProperty,
-                                         item->state & State_Selected ? 1.0 : 0.0);
-            const qreal press = progress(widget, pressProperty,
-                                         item->state & State_Sunken ? 1.0 : 0.0);
+            // QMenuBar owns the animation properties, while this option is
+            // painted once per QAction. Never let the shared bar progress
+            // leak into a sibling item that is not active.
+            const bool enabled = item->state & State_Enabled;
+            const bool selected = enabled && (item->state & State_Selected);
+            const bool sunken = enabled && (item->state & State_Sunken);
+            const qreal hover = selected
+                ? progress(widget, hoverProperty, 1.0) : 0.0;
+            const qreal press = sunken
+                ? progress(widget, pressProperty, 1.0) : 0.0;
             QColor fill = mix(Qt::transparent, t.subtleHover, hover);
             fill = mix(fill, t.subtlePressed, press);
             if (fill.alpha() > 0)
@@ -2207,9 +2307,9 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 || ((tool->state & State_On) && role == ControlRole::Standard);
             const QColor textColor = !enabled ? t.textDisabled
                 : accent ? t.textOnAccentPrimary : t.textPrimary;
-            QRect content = subControlRect(CC_ToolButton, tool,
-                                           SC_ToolButton, widget)
-                                .adjusted(4, 2, -4, -2);
+            const QRectF content = QRectF(subControlRect(CC_ToolButton, tool,
+                                                         SC_ToolButton, widget))
+                                       .adjusted(4.0, 2.0, -4.0, -2.0);
             Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
             if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
                 buttonStyle = toolButton->toolButtonStyle();
@@ -2230,20 +2330,20 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                                   tool->text);
                 painter->restore();
             } else if (buttonStyle == Qt::ToolButtonTextBesideIcon && textWidth > 0) {
-                const int total = iconSize.width() + 6 + textWidth;
-                const int logicalStart = content.left()
-                    + qMax(0, (content.width() - total) / 2);
-                const QRect iconRect = visualRect(tool->direction, content,
-                    QRect(logicalStart,
-                          content.center().y() - iconSize.height() / 2,
-                          iconSize.width(), iconSize.height()));
+                const qreal total = iconSize.width() + 6.0 + textWidth;
+                const qreal logicalStart = content.left()
+                    + qMax<qreal>(0.0, (content.width() - total) / 2.0);
+                const QRectF iconRect = visualRectF(tool->direction, content,
+                    QRectF(logicalStart,
+                           content.center().y() - iconSize.height() / 2.0,
+                           iconSize.width(), iconSize.height()));
                 paintThemedIcon(painter, tool->icon,
                     iconRect, Qt::AlignCenter, textColor,
                     enabled ? QIcon::Normal : QIcon::Disabled,
                     tool->state & State_On ? QIcon::On : QIcon::Off);
-                const QRect textRect = visualRect(tool->direction, content,
-                    QRect(logicalStart + iconSize.width() + 6, content.top(),
-                          textWidth, content.height()));
+                const QRectF textRect = visualRectF(tool->direction, content,
+                    QRectF(logicalStart + iconSize.width() + 6.0, content.top(),
+                           textWidth, content.height()));
                 painter->save();
                 painter->setFont(tool->font);
                 painter->setPen(textColor);
@@ -2252,8 +2352,8 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 painter->restore();
             } else if (buttonStyle == Qt::ToolButtonTextUnderIcon && textWidth > 0) {
                 paintThemedIcon(painter, tool->icon,
-                    QRect(content.center().x() - iconSize.width() / 2,
-                          content.top(), iconSize.width(), iconSize.height()),
+                    QRectF(content.center().x() - iconSize.width() / 2.0,
+                           content.top(), iconSize.width(), iconSize.height()),
                     Qt::AlignCenter, textColor,
                     enabled ? QIcon::Normal : QIcon::Disabled,
                     tool->state & State_On ? QIcon::On : QIcon::Off);
@@ -2265,9 +2365,9 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 painter->restore();
             } else if (hasIcon) {
                 paintThemedIcon(painter, tool->icon,
-                    QRect(content.center().x() - iconSize.width() / 2,
-                          content.center().y() - iconSize.height() / 2,
-                          iconSize.width(), iconSize.height()), Qt::AlignCenter, textColor,
+                    QRectF(content.center().x() - iconSize.width() / 2.0,
+                           content.center().y() - iconSize.height() / 2.0,
+                           iconSize.width(), iconSize.height()), Qt::AlignCenter, textColor,
                     enabled ? QIcon::Normal : QIcon::Disabled,
                     tool->state & State_On ? QIcon::On : QIcon::Off);
             }
@@ -3634,7 +3734,8 @@ void Style::polish(QWidget *widget)
     remember(widget, originalRoleProperty, widget->property(roleProperty));
     widget->setAttribute(Qt::WA_Hover, true);
     widget->installEventFilter(this);
-    widget->setProperty(hoverProperty, widget->underMouse() ? 1.0 : 0.0);
+    widget->setProperty(hoverProperty,
+                        widget->isEnabled() && widget->underMouse() ? 1.0 : 0.0);
     widget->setProperty(pressProperty, 0.0);
     widget->setProperty(focusProperty, widget->hasFocus() ? 1.0 : 0.0);
     widget->setProperty(focusVisibleProperty,
@@ -3654,7 +3755,8 @@ void Style::polish(QWidget *widget)
                     [this, checkBox](int state) {
                 d->animate(checkBox, checkProperty,
                            state == Qt::Unchecked ? 0.0 : 1.0,
-                           Private::FastDuration);
+                           toggleSwitch(checkBox) ? Private::FastDuration
+                                                   : Private::CheckBoxDuration);
                 if (toggleSwitch(checkBox))
                     d->animate(checkBox, togglePositionProperty,
                                state == Qt::Unchecked ? 0.0 : 1.0,
@@ -3852,6 +3954,8 @@ void Style::unpolish(QWidget *widget)
         widget->removeEventFilter(this);
         widget->setProperty(hoverProperty, {});
         widget->setProperty(pressProperty, {});
+        widget->setProperty(buttonPressGenerationProperty, {});
+        widget->setProperty(buttonPressReleasePendingProperty, {});
         widget->setProperty(focusProperty, {});
         widget->setProperty(focusVisibleProperty, {});
         widget->setProperty(checkProperty, {});
@@ -3887,6 +3991,32 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
 
     using namespace Private;
     switch (event->type()) {
+    case QEvent::EnabledChange: {
+        // Qt normally stops delivering pointer events to a disabled widget,
+        // but an in-flight style animation has no such protection. Clear the
+        // interaction state at the source so disabling during a press cannot
+        // leave a stale hover/pressed surface behind.
+        d->clearPointerInteraction(widget);
+        const bool enabled = widget->isEnabled();
+        widget->setProperty(hoverProperty,
+                            enabled && widget->underMouse() ? 1.0 : 0.0);
+        widget->setProperty(pressProperty, 0.0);
+        widget->setProperty(focusProperty,
+                            enabled && widget->hasFocus() ? 1.0 : 0.0);
+        widget->setProperty(focusVisibleProperty,
+                            enabled && widget->hasFocus() && d->keyboardInput);
+        if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
+            checkBox->setProperty(checkProperty,
+                                  checkBox->checkState() == Qt::Unchecked
+                                      ? 0.0 : 1.0);
+            checkBox->setProperty(togglePositionProperty,
+                                  checkBox->isChecked() ? 1.0 : 0.0);
+        } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
+            radio->setProperty(checkProperty, radio->isChecked() ? 1.0 : 0.0);
+        }
+        widget->update();
+        break;
+    }
     case QEvent::Paint:
         if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
             if (auto *timer = progressBar->findChild<QTimer *>(
@@ -3903,6 +4033,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::Enter:
+        if (!widget->isEnabled()) {
+            d->clearPointerInteraction(widget);
+            widget->update();
+            break;
+        }
         if (qobject_cast<QScrollBar *>(widget)) {
             const int generation = widget->property(scrollBarGenerationProperty).toInt() + 1;
             widget->setProperty(scrollBarInsideProperty, true);
@@ -3934,6 +4069,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::Leave:
+        if (!widget->isEnabled()) {
+            d->clearPointerInteraction(widget);
+            widget->update();
+            break;
+        }
         if (qobject_cast<QScrollBar *>(widget)) {
             const int generation = widget->property(scrollBarGenerationProperty).toInt() + 1;
             widget->setProperty(scrollBarInsideProperty, false);
@@ -3958,13 +4098,21 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                        interactionDuration(widget, InteractionMotion::Hover,
                                            false));
         }
-        d->animate(widget, pressProperty, 0.0,
-                   interactionDuration(widget, InteractionMotion::Press,
-                                       false));
+        if (buttonPressPulse(widget))
+            d->cancelButtonPress(widget);
+        else
+            d->animate(widget, pressProperty, 0.0,
+                       interactionDuration(widget, InteractionMotion::Press,
+                                           false));
         break;
     case QEvent::MouseButtonPress:
         d->keyboardInput = false;
         widget->setProperty(focusVisibleProperty, false);
+        if (!widget->isEnabled()) {
+            d->clearPointerInteraction(widget);
+            widget->update();
+            break;
+        }
         if (auto *viewport = qobject_cast<QAbstractItemView *>(widget->parentWidget());
             viewport && viewport->viewport() == widget) {
             viewport->setProperty(focusVisibleProperty, false);
@@ -4003,9 +4151,12 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         }
         if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton)
             break;
-        d->animate(widget, pressProperty, 1.0,
-                   interactionDuration(widget, InteractionMotion::Press,
-                                       true));
+        if (buttonPressPulse(widget))
+            d->beginButtonPress(widget);
+        else
+            d->animate(widget, pressProperty, 1.0,
+                       interactionDuration(widget, InteractionMotion::Press,
+                                           true));
         break;
     case QEvent::MouseMove:
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
@@ -4046,6 +4197,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::MouseButtonRelease:
+        if (!widget->isEnabled()) {
+            d->clearPointerInteraction(widget);
+            widget->update();
+            break;
+        }
         if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton) {
             if (auto *slider = qobject_cast<QSlider *>(widget))
                 hideSliderValueToolTip(slider);
@@ -4074,9 +4230,12 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 return true;
             }
         }
-        d->animate(widget, pressProperty, 0.0,
-                   interactionDuration(widget, InteractionMotion::Press,
-                                       false));
+        if (buttonPressPulse(widget))
+            d->releaseButtonPress(widget);
+        else
+            d->animate(widget, pressProperty, 0.0,
+                       interactionDuration(widget, InteractionMotion::Press,
+                                           false));
         break;
     case QEvent::FocusIn:
         if (const auto *focus = static_cast<QFocusEvent *>(event)) {

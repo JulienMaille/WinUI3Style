@@ -355,8 +355,16 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
                 QStringLiteral("galleryCheckBox"));
             auto *radio = body->findChild<QRadioButton *>(
                 QStringLiteral("galleryRadioButton"));
+            auto *disabledRadio = body->findChild<QRadioButton *>(
+                QStringLiteral("galleryRadioButtonDisabled"));
+            auto *disabledToggle = body->findChild<QCheckBox *>(
+                QStringLiteral("galleryToggleSwitchDisabled"));
             auto *slider = body->findChild<QSlider *>(
                 QStringLiteral("gallerySlider"));
+
+            success = disabledRadio && !disabledRadio->isEnabled() && success;
+            success = disabledToggle && !disabledToggle->isEnabled()
+                && WinUI3::Style::isToggleSwitch(disabledToggle) && success;
 
             success = saveControl(button, QStringLiteral("button-rest")) && success;
             sendPointerState(button, true, false);
@@ -454,20 +462,30 @@ QWidget *GalleryWindow::controlsPage()
     auto *radioA = new QRadioButton(tr("Option A"));
     radioA->setObjectName(QStringLiteral("galleryRadioButton"));
     auto *radioB = new QRadioButton(tr("Option B"));
+    auto *radioDisabled = new QRadioButton(tr("Disabled option"));
+    radioDisabled->setObjectName(QStringLiteral("galleryRadioButtonDisabled"));
+    radioDisabled->setEnabled(false);
     radioA->setChecked(true);
     auto *toggle = new QCheckBox;
     auto *toggleOff = new QCheckBox;
+    auto *toggleDisabled = new QCheckBox;
+    toggleDisabled->setObjectName(QStringLiteral("galleryToggleSwitchDisabled"));
     WinUI3::Style::setToggleSwitch(toggle);
     WinUI3::Style::setToggleSwitch(toggleOff);
+    WinUI3::Style::setToggleSwitch(toggleDisabled);
     WinUI3::Style::setToggleSwitchText(toggle, tr("On"), tr("Off"));
     WinUI3::Style::setToggleSwitchText(toggleOff, tr("On"), tr("Off"));
+    WinUI3::Style::setToggleSwitchText(toggleDisabled, tr("On"), tr("Off"));
     toggle->setChecked(true);
+    toggleDisabled->setEnabled(false);
     selection->addWidget(check, 0, 0);
     selection->addWidget(tri, 0, 1);
     selection->addWidget(radioA, 1, 0);
     selection->addWidget(radioB, 1, 1);
+    selection->addWidget(radioDisabled, 3, 0);
     selection->addWidget(toggle, 2, 0);
     selection->addWidget(toggleOff, 2, 1);
+    selection->addWidget(toggleDisabled, 3, 1);
     content->addWidget(section(tr("Selection controls"), selection));
 
     auto *groupStates = new QHBoxLayout;

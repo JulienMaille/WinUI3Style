@@ -29,6 +29,7 @@
 #include <QKeyEvent>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMenuBar>
 #include <QPainter>
 #include <QParallelAnimationGroup>
 #include <QPointer>
@@ -131,6 +132,9 @@ private slots:
     void cleanup();
     void palettes();
     void buttonToolButtonAndIconContracts();
+    void buttonPressedPulseContract();
+    void disabledButtonHasNoInteractionState();
+    void toolButtonIconVerticalCenter();
     void styleMutationRestoration();
     void accessibilityOwnershipContracts();
     void baseStyleContract();
@@ -152,8 +156,11 @@ private slots:
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
     void checkboxAcceptAnimation();
+    void checkboxGlyphGeometryContract();
+    void checkboxDisabledStopsAnimation();
     void radioStateMotion();
     void menuSizingContract();
+    void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
     void splitterHandleContract();
     void dockWidgetContract();
@@ -322,6 +329,195 @@ void WinUI3StyleTest::buttonToolButtonAndIconContracts()
                                        &separator, &painter, &toolbar);
     }
     QVERIFY(horizontalToolbarSeparator != verticalToolbarSeparator);
+}
+
+void WinUI3StyleTest::buttonPressedPulseContract()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
+                                           WinUI3::ControlRole::Subtle}) {
+        QPushButton button(QStringLiteral("Rapid"));
+        WinUI3::Style::setControlRole(&button, role);
+        button.resize(120, 32);
+        button.show();
+        (void)QTest::qWaitForWindowExposed(&button);
+        QTest::mouseMove(&button, button.rect().center());
+        const QImage rest = button.grab().toImage();
+
+        for (int click = 0; click < 5; ++click) {
+            QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier,
+                              button.rect().center());
+            qApp->processEvents();
+            QCOMPARE(button.property("_winui_press_progress").toReal(), 1.0);
+            const QImage pressed = button.grab().toImage();
+            QVERIFY2(pressed != rest, "a left press must produce a visible frame");
+            QTest::mouseRelease(&button, Qt::LeftButton, Qt::NoModifier,
+                                button.rect().center());
+        }
+        QTest::qWait(130);
+        QVERIFY(button.property("_winui_press_progress").toReal() < 0.1);
+
+        QTest::mousePress(&button, Qt::RightButton, Qt::NoModifier,
+                          button.rect().center());
+        QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+        QTest::mouseRelease(&button, Qt::RightButton, Qt::NoModifier,
+                            button.rect().center());
+        QTest::mousePress(&button, Qt::MiddleButton, Qt::NoModifier,
+                          button.rect().center());
+        QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+        QTest::mouseRelease(&button, Qt::MiddleButton, Qt::NoModifier,
+                            button.rect().center());
+    }
+
+    QToolButton tool;
+    tool.setText(QStringLiteral("Rapid tool"));
+    tool.resize(120, 32);
+    tool.show();
+    (void)QTest::qWaitForWindowExposed(&tool);
+    QTest::mouseMove(&tool, tool.rect().center());
+    const QImage toolRest = tool.grab().toImage();
+    QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier,
+                      tool.rect().center());
+    qApp->processEvents();
+    QCOMPARE(tool.property("_winui_press_progress").toReal(), 1.0);
+    QVERIFY(tool.grab().toImage() != toolRest);
+    QTest::mouseRelease(&tool, Qt::LeftButton, Qt::NoModifier,
+                        tool.rect().center());
+    QTest::qWait(130);
+    QVERIFY(tool.property("_winui_press_progress").toReal() < 0.1);
+}
+
+void WinUI3StyleTest::disabledButtonHasNoInteractionState()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
+                                         WinUI3::ThemeMode::Dark}) {
+        style->setThemeMode(mode);
+        for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
+                                               WinUI3::ControlRole::Subtle}) {
+            QPushButton button(QStringLiteral("Disabled"));
+            WinUI3::Style::setControlRole(&button, role);
+            button.resize(140, 32);
+            button.show();
+            (void)QTest::qWaitForWindowExposed(&button);
+            QTest::mouseMove(&button, button.rect().center());
+            QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier,
+                              button.rect().center());
+            button.setEnabled(false);
+            qApp->processEvents();
+            QCOMPARE(button.property("_winui_hover_progress").toReal(), 0.0);
+            QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+
+            QEvent enter(QEvent::Enter);
+            QCoreApplication::sendEvent(&button, &enter);
+            QMouseEvent press(QEvent::MouseButtonPress,
+                              QPointF(button.rect().center()),
+                              Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(&button, &press);
+            QCOMPARE(button.property("_winui_hover_progress").toReal(), 0.0);
+            QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+
+            QTest::qWait(220);
+            QCOMPARE(button.property("_winui_hover_progress").toReal(), 0.0);
+            QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+
+            auto render = [&](QStyle::State state) {
+                QStyleOptionButton option;
+                option.initFrom(&button);
+                option.rect = button.rect();
+                option.state = state;
+                option.text = button.text();
+                QImage image(button.size(), QImage::Format_ARGB32_Premultiplied);
+                image.fill(button.palette().color(QPalette::Window));
+                QPainter painter(&image);
+                style->drawControl(QStyle::CE_PushButton, &option,
+                                   &painter, &button);
+                return image;
+            };
+            QCOMPARE(render(QStyle::State_None),
+                     render(QStyle::State_MouseOver | QStyle::State_Sunken));
+        }
+
+        QToolButton tool;
+        tool.setText(QStringLiteral("Disabled tool"));
+        tool.resize(140, 32);
+        tool.show();
+        (void)QTest::qWaitForWindowExposed(&tool);
+        QTest::mouseMove(&tool, tool.rect().center());
+        QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier,
+                          tool.rect().center());
+        tool.setEnabled(false);
+        qApp->processEvents();
+        QCOMPARE(tool.property("_winui_hover_progress").toReal(), 0.0);
+        QCOMPARE(tool.property("_winui_press_progress").toReal(), 0.0);
+        QTest::qWait(220);
+        QCOMPARE(tool.property("_winui_hover_progress").toReal(), 0.0);
+        QCOMPARE(tool.property("_winui_press_progress").toReal(), 0.0);
+    }
+}
+
+void WinUI3StyleTest::toolButtonIconVerticalCenter()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    QPixmap sourcePixmap(16, 16);
+    sourcePixmap.fill(QColor(220, 30, 40));
+    const QIcon sourceIcon(sourcePixmap);
+    for (const qreal dpr : {1.0, 1.25, 1.5, 2.0}) {
+        for (const QSize size : {QSize(37, 33), QSize(33, 37)}) {
+            QToolBar toolbar;
+            toolbar.setOrientation(size.width() > size.height()
+                                       ? Qt::Horizontal : Qt::Vertical);
+            QToolButton button(&toolbar);
+            button.setToolButtonStyle(Qt::ToolButtonIconOnly);
+            button.setIcon(sourceIcon);
+            button.setIconSize(QSize(16, 16));
+
+            QStyleOptionToolButton option;
+            option.initFrom(&button);
+            option.rect = QRect(QPoint(), size);
+            option.state = QStyle::State_Enabled;
+            option.icon = sourceIcon;
+            option.iconSize = QSize(16, 16);
+
+            QImage image(qRound(size.width() * dpr),
+                         qRound(size.height() * dpr),
+                         QImage::Format_ARGB32_Premultiplied);
+            image.setDevicePixelRatio(dpr);
+            image.fill(Qt::transparent);
+            {
+                QPainter painter(&image);
+                style->drawControl(QStyle::CE_ToolButtonLabel, &option,
+                                   &painter, &button);
+            }
+
+            qreal sumX = 0.0;
+            qreal sumY = 0.0;
+            qreal weight = 0.0;
+            for (int y = 0; y < image.height(); ++y) {
+                for (int x = 0; x < image.width(); ++x) {
+                    const QColor pixel = image.pixelColor(x, y);
+                    if (pixel.red() < 150 || pixel.green() > 100
+                        || pixel.blue() > 100 || pixel.alpha() == 0)
+                        continue;
+                    const qreal alpha = pixel.alphaF();
+                    sumX += (x + 0.5) / dpr * alpha;
+                    sumY += (y + 0.5) / dpr * alpha;
+                    weight += alpha;
+                }
+            }
+            QVERIFY(weight > 0.0);
+            const QRectF content = QRectF(option.rect).adjusted(4.0, 2.0,
+                                                                -4.0, -2.0);
+            QVERIFY(qAbs(sumX / weight - content.center().x()) <= 0.5);
+            QVERIFY(qAbs(sumY / weight - content.center().y()) <= 0.5);
+        }
+    }
 }
 
 void WinUI3StyleTest::styleMutationRestoration()
@@ -1228,6 +1424,65 @@ void WinUI3StyleTest::checkboxAcceptAnimation()
     QTRY_VERIFY(check.property("_winui_check_progress").toReal() > 0.99);
 }
 
+void WinUI3StyleTest::checkboxGlyphGeometryContract()
+{
+    QCheckBox check(QStringLiteral("Check"));
+    check.resize(120, 32);
+    check.show();
+    check.setProperty("_winui_check_progress", 1.0);
+
+    QStyleOptionButton option;
+    option.initFrom(&check);
+    option.rect = QRect(2, 6, 20, 20);
+    option.state = QStyle::State_Enabled | QStyle::State_On;
+    QImage image(24, 32, QImage::Format_ARGB32_Premultiplied);
+    image.fill(check.palette().color(QPalette::Window));
+    {
+        QPainter painter(&image);
+        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox,
+                                     &option, &painter, &check);
+    }
+
+    const QColor background = check.palette().color(QPalette::Window);
+    QRect bounds;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            const int distance = qAbs(pixel.red() - background.red())
+                + qAbs(pixel.green() - background.green())
+                + qAbs(pixel.blue() - background.blue());
+            if (pixel.alpha() > 0 && distance > 12)
+                bounds |= QRect(x, y, 1, 1);
+        }
+    }
+    QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorWidth,
+                                        nullptr, &check), 20);
+    QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorHeight,
+                                        nullptr, &check), 20);
+    QVERIFY(bounds.width() >= 19);
+    QVERIFY(bounds.height() >= 19);
+    QVERIFY(bounds.width() <= 21);
+    QVERIFY(bounds.height() <= 21);
+}
+
+void WinUI3StyleTest::checkboxDisabledStopsAnimation()
+{
+    QCheckBox check(QStringLiteral("Disabled during transition"));
+    check.resize(180, 32);
+    check.show();
+    check.setChecked(true);
+    QTest::qWait(25);
+    QVERIFY(check.property("_winui_check_progress").toReal() > 0.0);
+    QVERIFY(check.property("_winui_check_progress").toReal() < 1.0);
+
+    check.setEnabled(false);
+    QCOMPARE(check.property("_winui_check_progress").toReal(), 1.0);
+    QTest::qWait(230);
+    QCOMPARE(check.property("_winui_check_progress").toReal(), 1.0);
+    QCOMPARE(check.property("_winui_hover_progress").toReal(), 0.0);
+    QCOMPARE(check.property("_winui_press_progress").toReal(), 0.0);
+}
+
 void WinUI3StyleTest::radioStateMotion()
 {
     QRadioButton radio(QStringLiteral("Animated radio"));
@@ -1293,6 +1548,53 @@ void WinUI3StyleTest::menuSizingContract()
     QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier,
                       actionRect.center());
     QVERIFY(action->isChecked());
+}
+
+void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    QMenuBar bar;
+    QAction *file = bar.addAction(QStringLiteral("File"));
+    QAction *view = bar.addAction(QStringLiteral("View"));
+    bar.resize(180, 32);
+    bar.show();
+    (void)QTest::qWaitForWindowExposed(&bar);
+    bar.setProperty("_winui_hover_progress", 1.0);
+
+    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
+                                                Qt::RightToLeft}) {
+        bar.setLayoutDirection(direction);
+        const QRect fileRect = bar.actionGeometry(file);
+        const QRect viewRect = bar.actionGeometry(view);
+        QVERIFY(!fileRect.intersects(viewRect));
+
+        QImage image(bar.size(), QImage::Format_ARGB32_Premultiplied);
+        const QColor surface = bar.palette().color(QPalette::Window);
+        image.fill(surface);
+        auto drawItem = [&](QAction *action, const QRect &rect,
+                            QStyle::State state) {
+            QStyleOptionMenuItem option;
+            option.initFrom(&bar);
+            option.rect = rect;
+            option.state = state;
+            option.text = action->text();
+            option.font = bar.font();
+            option.fontMetrics = QFontMetrics(option.font);
+            option.menuItemType = QStyleOptionMenuItem::Normal;
+            QPainter painter(&image);
+            style->drawControl(QStyle::CE_MenuBarItem, &option,
+                               &painter, &bar);
+        };
+        drawItem(file, fileRect, QStyle::State_Enabled | QStyle::State_Selected);
+        drawItem(view, viewRect, QStyle::State_Enabled);
+
+        const QPoint fileSample(fileRect.left() + 4, fileRect.top() + 4);
+        const QPoint viewSample(viewRect.left() + 4, viewRect.top() + 4);
+        QVERIFY(image.pixelColor(fileSample) != surface);
+        QCOMPARE(image.pixelColor(viewSample), surface);
+    }
 }
 
 void WinUI3StyleTest::groupBoxContract()
