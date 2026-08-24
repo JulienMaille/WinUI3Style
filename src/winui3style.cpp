@@ -262,6 +262,122 @@ const QAbstractItemView *itemView(const QWidget *widget)
     return nullptr;
 }
 
+constexpr int itemSelectionGutter = 12;
+constexpr int itemSelectionMarkerWidth = 3;
+constexpr int itemSelectionMarkerInset = 2;
+
+const QAbstractItemView *selectionMarkerView(const QWidget *widget)
+{
+    const QAbstractItemView *view = itemView(widget);
+    if (!view || (view->window() && view->window()->windowType() == Qt::Popup))
+        return nullptr;
+    if (qobject_cast<const QTableView *>(view))
+        return nullptr;
+    if (!qobject_cast<const QListView *>(view)
+        && !qobject_cast<const QTreeView *>(view))
+        return nullptr;
+    return view;
+}
+
+int treeItemIndent(const QStyleOptionViewItem &option,
+                   const QAbstractItemView *view)
+{
+    const auto *tree = qobject_cast<const QTreeView *>(view);
+    if (!tree || !option.index.isValid() || option.index.column() != 0)
+        return 0;
+
+    int depth = 0;
+    for (QModelIndex parent = option.index.parent(); parent.isValid();
+         parent = parent.parent()) {
+        ++depth;
+    }
+    // QTreeView reserves one indentation level for top-level items while
+    // rootIsDecorated is enabled. The branch area is not part of the item
+    // delegate's option.rect, so content must explicitly start after it.
+    if (tree->rootIsDecorated())
+        ++depth;
+    return depth * tree->indentation();
+}
+
+QRect itemSelectionGutterRect(const QStyleOptionViewItem &option,
+                              const QAbstractItemView *view)
+{
+    const int indent = treeItemIndent(option, view);
+    if (option.direction == Qt::RightToLeft) {
+        const int right = qMin(option.rect.right(), option.rect.right() - indent);
+        const int left = qMax(option.rect.left(), right - itemSelectionGutter + 1);
+        return QRect(left, option.rect.top(), qMax(0, right - left + 1),
+                     option.rect.height());
+    }
+    const int left = qMin(option.rect.right() + 1,
+                          option.rect.left() + indent);
+    const int right = qMin(option.rect.right(), left + itemSelectionGutter - 1);
+    return QRect(left, option.rect.top(), qMax(0, right - left + 1),
+                 option.rect.height());
+}
+
+QRect selectionMarkerRect(const QStyleOptionViewItem &option,
+                          const QAbstractItemView *view)
+{
+    const QRect gutter = itemSelectionGutterRect(option, view);
+    if (gutter.isEmpty())
+        return {};
+    const int y = option.rect.center().y() - 8;
+    if (option.direction == Qt::RightToLeft) {
+        return QRect(gutter.right() - itemSelectionMarkerInset
+                         - itemSelectionMarkerWidth + 1,
+                     y, itemSelectionMarkerWidth, 16);
+    }
+    return QRect(gutter.left() + itemSelectionMarkerInset, y,
+                 itemSelectionMarkerWidth, 16);
+}
+
+QRect headerSortIndicatorRect(const QStyleOptionHeader &header)
+{
+    // Align the complete glyph slot once. In particular, do not derive the
+    // y coordinate from a half-pixel QRect center: odd header heights and
+    // fractional DPRs otherwise move the glyph by one physical pixel.
+    const QRect slot = header.rect.adjusted(10, 0, -10, 0);
+    return QStyle::alignedRect(header.direction,
+                               Qt::AlignRight | Qt::AlignVCenter,
+                               QSize(16, 16), slot);
+}
+
+QRectF snappedSplitterGrip(const QRectF &grip, bool horizontal,
+                           const QPainter *painter)
+{
+    if (!painter || !painter->device())
+        return grip;
+
+    const QTransform device = painter->deviceTransform();
+    const qreal scale = horizontal ? qAbs(device.m11()) : qAbs(device.m22());
+    if (scale <= 0.0 || !std::isfinite(scale))
+        return grip;
+
+    const qreal origin = horizontal ? device.dx() : device.dy();
+    const qreal center = horizontal ? grip.center().x() : grip.center().y();
+    const qreal half = (horizontal ? grip.width() : grip.height()) * 0.5;
+    const qreal physicalStart = origin + (center - half) * scale;
+    const qreal physicalEnd = origin + (center + half) * scale;
+    const qreal snappedStart = qRound(physicalStart);
+    const qreal snappedEnd = qRound(physicalEnd);
+    const qreal snappedCenter = (snappedStart + snappedEnd) * 0.5;
+    const qreal physicalOffset = snappedCenter - (origin + center * scale);
+
+    // Only translate the painted grip when its physical edges prove that the
+    // rasterizer would otherwise split the grip asymmetrically. The splitter
+    // handle geometry, pane sizes and hit testing remain untouched.
+    if (qAbs(physicalOffset) < 0.01)
+        return grip;
+    const qreal logicalOffset = physicalOffset / scale;
+    QRectF result = grip;
+    if (horizontal)
+        result.translate(logicalOffset, 0.0);
+    else
+        result.translate(0.0, logicalOffset);
+    return result;
+}
+
 const QWidget *richTextEditor(const QWidget *widget)
 {
     for (const QWidget *candidate = widget; candidate;
@@ -1798,17 +1914,14 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
             icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled).paint(painter,
                 checkRect,
                 Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
-        } else if (selected && !table && firstColumn) {
+        } else if (selected && viewOption && selectionMarkerView(widget)
+                   && firstColumn) {
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
             painter->setBrush(enabled ? itemTokens.selectionAccent
                                        : itemTokens.accentFillDisabled);
-            const qreal indicatorX = option->direction == Qt::RightToLeft
-                ? itemRect.right() - 3.0
-                : itemRect.left();
-            const QRectF indicator(indicatorX,
-                                   option->rect.center().y() - 8.0, 3.0, 16.0);
+            const QRectF indicator = selectionMarkerRect(*viewOption, view);
             painter->drawRoundedRect(indicator, 1.5, 1.5);
             painter->restore();
         }
@@ -2131,6 +2244,7 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             }
             drawPrimitive(PE_PanelItemViewItem, source, painter, widget);
             const QAbstractItemView *view = itemView(widget);
+            const bool table = qobject_cast<const QTableView *>(view);
             const bool popup = widget && widget->window()
                 && widget->window()->windowType() == Qt::Popup;
             const bool comboPopup = popup && widget->window()->parentWidget()
@@ -2167,7 +2281,9 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                     source->state & State_Selected ? QIcon::On : QIcon::Off);
             }
 
-            if (source->features & QStyleOptionViewItem::HasDisplay) {
+            const bool tableEditing = table && (source->state & State_Editing);
+            if ((source->features & QStyleOptionViewItem::HasDisplay)
+                && !tableEditing) {
                 const bool hasLeadingContent =
                     (source->features & QStyleOptionViewItem::HasDecoration)
                     || (source->features & QStyleOptionViewItem::HasCheckIndicator);
@@ -2500,6 +2616,7 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                             option->rect.center().y() - thickness / 2.0,
                             length, thickness);
         }
+        handle = snappedSplitterGrip(handle, horizontal, painter);
         roundedRect(painter, handle, color, Qt::transparent, thickness / 2.0);
         return;
     }
@@ -2673,12 +2790,17 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             drawControl(CE_HeaderSection, header, painter, widget);
             QStyleOptionHeader label = *header;
             label.sortIndicator = QStyleOptionHeader::None;
+            if (header->sortIndicator != QStyleOptionHeader::None) {
+                const QRect arrowRect = headerSortIndicatorRect(*header);
+                if (header->direction == Qt::RightToLeft)
+                    label.rect.setLeft(qMin(label.rect.right(), arrowRect.right() + 6));
+                else
+                    label.rect.setRight(qMax(label.rect.left(), arrowRect.left() - 6));
+            }
             drawControl(CE_HeaderLabel, &label, painter, widget);
             if (header->sortIndicator != QStyleOptionHeader::None) {
                 QStyleOption arrow;
-                const QRect logicalArrow(header->rect.right() - 26,
-                                         header->rect.center().y() - 8, 16, 16);
-                arrow.rect = visualRect(header->direction, header->rect, logicalArrow);
+                arrow.rect = headerSortIndicatorRect(*header);
                 arrow.palette = header->palette;
                 arrow.state = header->state;
                 arrow.state.setFlag(State_UpArrow,
@@ -3393,6 +3515,28 @@ QRect Style::subElementRect(SubElement element, const QStyleOption *option,
         return visualRect(option->direction, option->rect, logical);
     }
     QRect result = QProxyStyle::subElementRect(element, option, widget);
+    if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
+        const QAbstractItemView *view = selectionMarkerView(widget);
+        if (view && (element == SE_ItemViewItemCheckIndicator
+                     || element == SE_ItemViewItemDecoration
+                     || element == SE_ItemViewItemText)) {
+            const int offset = treeItemIndent(*source, view) + itemSelectionGutter;
+            const int delta = source->direction == Qt::RightToLeft ? -offset : offset;
+            result.translate(delta, 0);
+
+            // Keep the reserved gutter stable even when the base style
+            // changes its default item padding. The content slot is the
+            // same for selected and unselected rows.
+            QRect content = source->rect;
+            if (source->direction == Qt::RightToLeft)
+                content.setRight(qMax(content.left() - 1,
+                                      content.right() - offset));
+            else
+                content.setLeft(qMin(content.right() + 1,
+                                     content.left() + offset));
+            result = result.intersected(content);
+        }
+    }
     const bool popup = widget && widget->window()
         && widget->window()->windowType() == Qt::Popup;
     if (popup && element == SE_ItemViewItemText) {

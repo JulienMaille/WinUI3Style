@@ -9,6 +9,7 @@ class QLabel;
 class QGridLayout;
 class QVBoxLayout;
 class QVariantAnimation;
+class QWidget;
 
 namespace WinUI3 {
 
@@ -61,12 +62,15 @@ private:
     void setExpansionProgress(qreal progress);
     bool headerContains(const QPoint &position) const;
     void refreshIconPixmap();
+    void refreshChevronPixmap();
 
     QGridLayout *m_headerLayout = nullptr;
     QVBoxLayout *m_rootLayout = nullptr;
+    QWidget *m_headerHost = nullptr;
     QLabel *m_iconLabel = nullptr;
     QLabel *m_titleLabel = nullptr;
     QLabel *m_descriptionLabel = nullptr;
+    QLabel *m_chevronLabel = nullptr;
     QWidget *m_trailingWidget = nullptr;
     QWidget *m_expandableWidget = nullptr;
     QWidget *m_expandableHost = nullptr;

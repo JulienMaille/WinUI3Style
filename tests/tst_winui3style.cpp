@@ -144,6 +144,7 @@ private slots:
     void toggleInteraction();
     void toggleDragInteraction();
     void settingsCardExpansion();
+    void settingsCardChevronAndStableHeader();
     void navigationTransition();
     void renderCommonStates();
     void pluginFactory();
@@ -165,6 +166,7 @@ private slots:
     void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
     void splitterHandleContract();
+    void splitterGripPixelAlignment();
     void dockWidgetContract();
     void sliderGeometryContract();
     void sliderStateMotion();
@@ -176,8 +178,11 @@ private slots:
     void scrollAreaScrollBarIntegration();
     void tabViewContract();
     void listViewContract();
+    void itemViewGutterContract();
     void treeViewContract();
     void tableHeaderContract();
+    void tableSortIndicatorGeometryContract();
+    void tableEditingPaintContract();
     void richEditBoxContract();
     void contentDialogContract();
     void readOnlyActionRestoration();
@@ -845,6 +850,52 @@ void WinUI3StyleTest::settingsCardExpansion()
     const qreal reverse = card.property("expansionProgress").toReal();
     QVERIFY(reverse > 0.0 && reverse < 1.0);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
+}
+
+void WinUI3StyleTest::settingsCardChevronAndStableHeader()
+{
+    WinUI3::SettingsCard card;
+    card.setTitle(QStringLiteral("Advanced settings"));
+    card.setDescription(QStringLiteral("A description that remains in the same header while content expands."));
+    auto *trailing = new QLabel(QStringLiteral("On"));
+    card.setTrailingWidget(trailing);
+    card.setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    card.resize(460, card.sizeHint().height());
+    card.show();
+    QTRY_VERIFY(card.isVisible());
+
+    auto *headerHost = card.findChild<QWidget *>(
+        QStringLiteral("_winui_settings_card_headerHost"));
+    auto *title = card.findChild<QLabel *>(
+        QStringLiteral("_winui_settings_card_title"));
+    auto *chevron = card.findChild<QLabel *>(
+        QStringLiteral("_winui_settings_card_chevron"));
+    QVERIFY(headerHost);
+    QVERIFY(title);
+    QVERIFY(chevron);
+    QVERIFY(chevron->isVisible());
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronRight));
+    const QRect chevronInCard(chevron->mapTo(&card, chevron->rect().topLeft()),
+                              chevron->size());
+    const QRect trailingInCard(trailing->mapTo(&card, trailing->rect().topLeft()),
+                               trailing->size());
+    QVERIFY(!chevronInCard.intersects(trailingInCard));
+
+    const QRect titleGeometry = title->geometry();
+    card.setExpanded(true);
+    QTest::qWait(40);
+    QCOMPARE(title->geometry(), titleGeometry);
+    QVERIFY(card.property("expansionProgress").toReal() > 0.0);
+
+    card.setLayoutDirection(Qt::RightToLeft);
+    QTRY_COMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+                 static_cast<int>(WinUI3::Icon::ChevronDown));
+    card.setExpanded(false);
+    QTest::qWait(35);
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronLeft));
+    QVERIFY(card.property("expansionProgress").toReal() > 0.0);
 }
 
 void WinUI3StyleTest::navigationTransition()
@@ -1768,6 +1819,53 @@ void WinUI3StyleTest::splitterHandleContract()
     QVERIFY(vertical.sizes().at(1) >= 0);
 }
 
+void WinUI3StyleTest::splitterGripPixelAlignment()
+{
+    QSplitter splitter(Qt::Horizontal);
+    splitter.addWidget(new QLabel(QStringLiteral("Left")));
+    splitter.addWidget(new QLabel(QStringLiteral("Right")));
+
+    const auto gripCenter = [&splitter](int left, qreal dpr) {
+        constexpr int logicalWidth = 120;
+        constexpr int logicalHeight = 80;
+        QImage image(qCeil(logicalWidth * dpr), qCeil(logicalHeight * dpr),
+                     QImage::Format_ARGB32_Premultiplied);
+        image.setDevicePixelRatio(dpr);
+        image.fill(Qt::transparent);
+        QStyleOption option;
+        option.initFrom(&splitter);
+        option.rect = QRect(left, 0, 6, logicalHeight);
+        option.state = QStyle::State_Enabled | QStyle::State_Horizontal;
+        {
+            QPainter painter(&image);
+            splitter.style()->drawControl(QStyle::CE_Splitter, &option,
+                                          &painter, splitter.handle(1));
+        }
+        qreal weighted = 0.0;
+        qreal weight = 0.0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const qreal alpha = qAlpha(image.pixel(x, y));
+                weighted += alpha * x;
+                weight += alpha;
+            }
+        }
+        return weight > 0.0 ? weighted / weight : -1.0;
+    };
+
+    for (const qreal dpr : {1.0, 1.25, 1.5}) {
+        const qreal even = gripCenter(20, dpr);
+        const qreal odd = gripCenter(21, dpr);
+        QVERIFY(even >= 0.0);
+        QVERIFY(odd >= 0.0);
+        QVERIFY2(qAbs((odd - even) - dpr) < 1.5,
+                 qPrintable(QStringLiteral("DPR %1: even=%2 odd=%3")
+                                .arg(dpr).arg(even).arg(odd)));
+        QVERIFY(qAbs(even - (22.5 * dpr)) < 2.0);
+        QVERIFY(qAbs(odd - (23.5 * dpr)) < 2.0);
+    }
+}
+
 void WinUI3StyleTest::dockWidgetContract()
 {
     QMainWindow host;
@@ -2327,6 +2425,75 @@ void WinUI3StyleTest::listViewContract()
     QVERIFY(indicatorFound);
 }
 
+void WinUI3StyleTest::itemViewGutterContract()
+{
+    QListWidget list;
+    auto *item = new QListWidgetItem(QStringLiteral("Checked item"), &list);
+    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+    item->setCheckState(Qt::Checked);
+    list.resize(320, 80);
+    list.show();
+    QTRY_VERIFY(list.isVisible());
+
+    QStyleOptionViewItem option;
+    option.initFrom(list.viewport());
+    option.widget = list.viewport();
+    option.rect = QRect(0, 0, 300, 40);
+    option.index = list.model()->index(0, 0);
+    option.features = QStyleOptionViewItem::HasDisplay
+        | QStyleOptionViewItem::HasDecoration
+        | QStyleOptionViewItem::HasCheckIndicator;
+    option.decorationSize = QSize(16, 16);
+    option.direction = Qt::LeftToRight;
+    const QRect listCheck = list.style()->subElementRect(
+        QStyle::SE_ItemViewItemCheckIndicator, &option, list.viewport());
+    const QRect listDecoration = list.style()->subElementRect(
+        QStyle::SE_ItemViewItemDecoration, &option, list.viewport());
+    const QRect listText = list.style()->subElementRect(
+        QStyle::SE_ItemViewItemText, &option, list.viewport());
+    QVERIFY(listCheck.left() >= 12);
+    QVERIFY(listDecoration.left() >= 12);
+    QVERIFY(listText.left() >= 12);
+    QVERIFY(listCheck.right() < listText.left());
+
+    option.direction = Qt::RightToLeft;
+    const QRect rtlText = list.style()->subElementRect(
+        QStyle::SE_ItemViewItemText, &option, list.viewport());
+    QVERIFY(rtlText.right() <= option.rect.right() - 12);
+
+    QTreeWidget tree;
+    tree.setHeaderHidden(true);
+    auto *root = new QTreeWidgetItem(&tree, {QStringLiteral("Root")});
+    auto *child = new QTreeWidgetItem(root, {QStringLiteral("Child")});
+    tree.expandAll();
+    tree.resize(320, 120);
+    tree.show();
+    QTRY_VERIFY(tree.isVisible());
+
+    auto treeOption = option;
+    treeOption.widget = tree.viewport();
+    treeOption.direction = Qt::LeftToRight;
+    treeOption.index = tree.indexFromItem(root);
+    const QRect rootText = tree.style()->subElementRect(
+        QStyle::SE_ItemViewItemText, &treeOption, tree.viewport());
+    treeOption.index = tree.indexFromItem(child);
+    const QRect childText = tree.style()->subElementRect(
+        QStyle::SE_ItemViewItemText, &treeOption, tree.viewport());
+    QCOMPARE(childText.left() - rootText.left(), tree.indentation());
+
+    QTableWidget table(1, 1);
+    table.resize(320, 80);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+    auto tableOption = option;
+    tableOption.widget = table.viewport();
+    tableOption.index = table.model()->index(0, 0);
+    tableOption.direction = Qt::LeftToRight;
+    const QRect tableText = table.style()->subElementRect(
+        QStyle::SE_ItemViewItemText, &tableOption, table.viewport());
+    QVERIFY(tableText.left() < listText.left());
+}
+
 void WinUI3StyleTest::treeViewContract()
 {
     QTreeWidget tree;
@@ -2394,6 +2561,94 @@ void WinUI3StyleTest::tableHeaderContract()
     QVERIFY(!header.isNull());
     QVERIFY(header.pixelColor(option.rect.right() - 16,
                               option.rect.center().y()).alpha() > 0);
+}
+
+void WinUI3StyleTest::tableSortIndicatorGeometryContract()
+{
+    QTableWidget table(1, 1);
+    table.resize(240, 80);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+
+    const auto render = [&table](Qt::LayoutDirection direction, bool sorted,
+                                 int height) {
+        QStyleOptionHeader option;
+        option.initFrom(table.horizontalHeader());
+        option.rect = QRect(0, 0, 180, height);
+        option.direction = direction;
+        option.text.clear();
+        option.textAlignment = Qt::AlignLeft;
+        option.sortIndicator = sorted ? QStyleOptionHeader::SortDown
+                                      : QStyleOptionHeader::None;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        table.style()->drawControl(QStyle::CE_Header, &option, &painter,
+                                   table.horizontalHeader());
+        return image;
+    };
+
+    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
+                                                 Qt::RightToLeft}) {
+        const QImage sorted = render(direction, true, 33);
+        const QImage unsorted = render(direction, false, 33);
+        QRect difference;
+        for (int y = 0; y < sorted.height(); ++y) {
+            for (int x = 0; x < sorted.width(); ++x) {
+                if (sorted.pixel(x, y) != unsorted.pixel(x, y))
+                    difference |= QRect(x, y, 1, 1);
+            }
+        }
+        QVERIFY(!difference.isEmpty());
+        // The chevron ink does not fill its 16 px slot; verify that the ink
+        // remains inside the vertically centered slot for an odd header.
+        QVERIFY(difference.top() >= 8);
+        QVERIFY(difference.bottom() <= 24);
+        if (direction == Qt::LeftToRight)
+            QVERIFY(difference.left() > 130);
+        else
+            QVERIFY(difference.right() < 40);
+    }
+}
+
+void WinUI3StyleTest::tableEditingPaintContract()
+{
+    QTableWidget table(1, 1);
+    table.resize(320, 80);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.widget = table.viewport();
+    option.rect = QRect(0, 0, 240, 36);
+    option.index = table.model()->index(0, 0);
+    option.text = QStringLiteral("Painted underneath editor");
+    option.icon = WinUI3::icon(WinUI3::Icon::Settings);
+    option.features = QStyleOptionViewItem::HasDisplay
+        | QStyleOptionViewItem::HasDecoration;
+    option.state = QStyle::State_Enabled | QStyle::State_Selected
+        | QStyle::State_Editing;
+
+    const auto render = [&](const QStyleOptionViewItem &source) {
+        QImage image(source.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(table.palette().color(QPalette::Base));
+        QPainter painter(&image);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &source,
+                                   &painter, table.viewport());
+        return image;
+    };
+
+    const QImage editing = render(option);
+    auto withoutDisplay = option;
+    withoutDisplay.features &= ~QStyleOptionViewItem::HasDisplay;
+    const QImage expected = render(withoutDisplay);
+    QCOMPARE(editing, expected);
+
+    auto unselected = option;
+    unselected.state &= ~QStyle::State_Selected;
+    QVERIFY(editing.pixelColor(120, 18) != render(unselected).pixelColor(120, 18));
+    QVERIFY(editing.pixelColor(8, 18).alpha() > 0);
 }
 
 void WinUI3StyleTest::richEditBoxContract()
