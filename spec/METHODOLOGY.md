@@ -81,6 +81,14 @@ and non-overlap of those rectangles and the visual extent of focus indicators.
 - Use third-party repositories only as implementation clues, never as the
   visual contract.
 
+Platform values used by one token family must come from one coherent snapshot.
+In particular, never combine `SystemAccentColor` from one Windows API with
+Light/Dark accent-ramp entries read from a different or stale source. Record the
+raw runtime values, source, theme, Windows build, and Gallery frame together,
+then assert that every derived accent role stays in that same hue family. A
+test which only proves that `Highlight != Accent` is insufficient: it must also
+reject a mixed-source ramp.
+
 ### 3. Observe the live control with real input
 
 At 100% scaling, in both light and dark modes, inspect at least:
@@ -102,6 +110,12 @@ Still screenshots are insufficient for motion. Record the transition duration
 from the official XAML and inspect live start/mid/end frames. Mouse input must be
 sent as separate move, down, optional drag, and up actions so the pressed frame
 is observable rather than skipped by a synthetic click.
+
+Each live pass must identify the exact two active executables, their build or
+commit, the monitor DPR, theme, Windows accent, reduced-motion setting, and the
+control/page being compared. Capture the first presented frame as well as the
+settled frame. A later stable frame cannot validate a transition that briefly
+shows old content, an opaque pre-Acrylic surface, or stale geometry.
 
 Popup surfaces require a repeatability sequence, not one successful opening:
 
@@ -207,3 +221,10 @@ A row may be marked **verified** in `coverage.md` only when:
 
 Any later regression reopens the row. “Partial” is an acceptable status;
 unearned “verified” is not.
+
+A live defect report immediately invalidates the affected evidence even when
+CTest remains green. First reproduce it in the running Gallery, add a test that
+fails for the observed mechanism (not merely for the final screenshot), and
+only then apply the fix. The repaired build must be relaunched and the same
+input sequence repeated against the official Gallery before the row can return
+to **verified**.
