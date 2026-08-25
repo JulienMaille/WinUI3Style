@@ -90,6 +90,7 @@ constexpr auto buttonPressReleasePendingProperty = "_winui_button_press_release_
 constexpr auto focusProperty = "_winui_focus_progress";
 constexpr auto focusVisibleProperty = "_winui_focus_visible";
 constexpr auto checkProperty = "_winui_check_progress";
+constexpr auto tableEditorProperty = "_winui_table_editor";
 constexpr auto togglePositionProperty = "_winui_toggle_position";
 constexpr auto navigationIndicatorProperty = "_winui_navigation_indicator_y";
 constexpr auto navigationDelegateProperty = "_winui_navigation_delegate";
@@ -321,17 +322,98 @@ QRect itemSelectionGutterRect(const QStyleOptionViewItem &option,
 QRect selectionMarkerRect(const QStyleOptionViewItem &option,
                           const QAbstractItemView *view)
 {
-    const QRect gutter = itemSelectionGutterRect(option, view);
-    if (gutter.isEmpty())
+    if (!view || !view->viewport())
         return {};
+
+    // The TreeView marker belongs to the row's viewport, not to the tree
+    // content slot. Keeping it in the leading viewport gutter prevents the
+    // hierarchy indentation from moving the selection affordance.
+    const QRect viewport = view->viewport()->rect();
     const int y = option.rect.center().y() - 8;
     if (option.direction == Qt::RightToLeft) {
-        return QRect(gutter.right() - itemSelectionMarkerInset
+        return QRect(viewport.right() - itemSelectionMarkerInset
                          - itemSelectionMarkerWidth + 1,
                      y, itemSelectionMarkerWidth, 16);
     }
-    return QRect(gutter.left() + itemSelectionMarkerInset, y,
+    return QRect(viewport.left() + itemSelectionMarkerInset, y,
                  itemSelectionMarkerWidth, 16);
+}
+
+QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
+                          const QPainter *painter)
+{
+    if (!painter || !painter->device())
+        return QRectF(logicalBounds.center().x() - logicalDiameter / 2.0,
+                      logicalBounds.center().y() - logicalDiameter / 2.0,
+                      logicalDiameter, logicalDiameter);
+
+    const QTransform device = painter->deviceTransform();
+    const qreal sx = qAbs(device.m11());
+    const qreal sy = qAbs(device.m22());
+    if (sx <= 0.0 || sy <= 0.0 || !std::isfinite(sx) || !std::isfinite(sy))
+        return QRectF(logicalBounds.center().x() - logicalDiameter / 2.0,
+                      logicalBounds.center().y() - logicalDiameter / 2.0,
+                      logicalDiameter, logicalDiameter);
+
+    const QPointF physicalCenter = device.map(logicalBounds.center());
+    const qreal physicalWidth = qMax<qreal>(1.0, qRound(logicalDiameter * sx));
+    const qreal physicalHeight = qMax<qreal>(1.0, qRound(logicalDiameter * sy));
+    const qreal physicalLeft = qRound(physicalCenter.x() - physicalWidth / 2.0);
+    const qreal physicalTop = qRound(physicalCenter.y() - physicalHeight / 2.0);
+    const QPointF logicalTopLeft = device.inverted().map(
+        QPointF(physicalLeft, physicalTop));
+    return QRectF(logicalTopLeft.x(), logicalTopLeft.y(),
+                  physicalWidth / sx, physicalHeight / sy);
+}
+
+QPointF animatedAcceptPoint(const QRectF &indicator, qreal x, qreal y)
+{
+    // AnimatedAcceptVisualSource's 48 px canvas, scaled by 0.7 and offset by
+    // (24, 23), mapped into the logical 20 px CheckBox indicator.
+    constexpr qreal canvas = 48.0;
+    constexpr qreal sourceScale = 0.7;
+    return QPointF(indicator.left()
+                       + indicator.width() * (24.0 + sourceScale * x) / canvas,
+                   indicator.top()
+                       + indicator.height() * (23.0 + sourceScale * y) / canvas);
+}
+
+QPainterPath animatedAcceptPath(const QRectF &indicator)
+{
+    QPainterPath path;
+    path.moveTo(animatedAcceptPoint(indicator, -15.172, 0.016));
+    path.lineTo(animatedAcceptPoint(indicator, -5.0, 10.188));
+    path.lineTo(animatedAcceptPoint(indicator, 15.337, -10.337));
+    return path;
+}
+
+QPainterPath animatedAcceptTrimmedPath(const QRectF &indicator, qreal progress)
+{
+    const QPainterPath full = animatedAcceptPath(indicator);
+    const QPointF start = full.elementAt(0);
+    const QPointF middle = full.elementAt(1);
+    const QPointF end = full.elementAt(2);
+    const qreal firstLength = QLineF(start, middle).length();
+    const qreal secondLength = QLineF(middle, end).length();
+    const qreal totalLength = firstLength + secondLength;
+    const qreal visible = qBound<qreal>(0.0, progress, 1.0) * totalLength;
+
+    QPainterPath result;
+    result.moveTo(start);
+    if (visible <= firstLength) {
+        result.lineTo(QPointF(start.x() + (middle.x() - start.x())
+                                  * visible / firstLength,
+                              start.y() + (middle.y() - start.y())
+                                  * visible / firstLength));
+    } else {
+        result.lineTo(middle);
+        const qreal second = visible - firstLength;
+        result.lineTo(QPointF(middle.x() + (end.x() - middle.x())
+                                  * second / secondLength,
+                              middle.y() + (end.y() - middle.y())
+                                  * second / secondLength));
+    }
+    return result;
 }
 
 QRect headerSortIndicatorRect(const QStyleOptionHeader &header)
@@ -1692,6 +1774,72 @@ public:
         animation->start();
     }
 
+    void trackTableEditor(QTableView *table, QWidget *editor)
+    {
+        if (!table || !editor || editor == table || editor == table->viewport()
+            || editor->parentWidget() != table->viewport()) {
+            return;
+        }
+        editor->setProperty(tableEditorProperty, true);
+        auto &editors = tableEditors[table];
+        if (!editors.contains(editor))
+            editors.append(QPointer<QWidget>(editor));
+    }
+
+    void untrackTableEditor(QWidget *editor)
+    {
+        if (!editor)
+            return;
+        editor->setProperty(tableEditorProperty, {});
+        for (auto it = tableEditors.begin(); it != tableEditors.end();) {
+            auto &editors = it.value();
+            for (auto editorIt = editors.begin(); editorIt != editors.end();) {
+                if (editorIt->isNull() || editorIt->data() == editor)
+                    editorIt = editors.erase(editorIt);
+                else
+                    ++editorIt;
+            }
+            if (editors.isEmpty())
+                it = tableEditors.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    void untrackTable(QTableView *table)
+    {
+        if (table)
+            tableEditors.remove(table);
+    }
+
+    bool tableEditorOverlaps(const QTableView *table,
+                             const QModelIndex &index,
+                             const QRect &itemRect) const
+    {
+        if (!table || !table->viewport() || !index.isValid())
+            return false;
+        const auto it = tableEditors.constFind(const_cast<QTableView *>(table));
+        if (it == tableEditors.constEnd())
+            return false;
+
+        for (const QPointer<QWidget> &editor : it.value()) {
+            if (!editor || !editor->isVisible()
+                || !editor->property(tableEditorProperty).toBool()) {
+                continue;
+            }
+            const QRect editorRect(editor->mapTo(table->viewport(), QPoint()),
+                                   editor->size());
+            if (!editorRect.intersects(itemRect))
+                continue;
+            // The geometry check is deliberately paired with the model index.
+            // A custom delegate may use an editor larger than its cell; it
+            // must not suppress the display text of a neighbouring cell.
+            if (table->indexAt(itemRect.center()) == index)
+                return true;
+        }
+        return false;
+    }
+
     bool dark() const
     {
         return mode == ThemeMode::Dark || (mode == ThemeMode::System && systemUsesDarkTheme());
@@ -1709,6 +1857,7 @@ public:
     QHash<QWidget *, QMetaObject::Connection> toggleConnections;
     QHash<QRadioButton *, QMetaObject::Connection> radioConnections;
     QHash<QWidget *, QMetaObject::Connection> tableConnections;
+    QHash<QTableView *, QVector<QPointer<QWidget>>> tableEditors;
     QHash<QCheckBox *, ToggleDragState> toggleDragStates;
     bool keyboardInput = false;
     bool applicationStateSaved = false;
@@ -2117,11 +2266,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         const bool checked = option->state & (State_On | State_NoChange);
         const qreal checkAmount = progress(widget, checkProperty,
                                            checked ? 1.0 : 0.0);
-        // Keep the 20 px logical silhouette intact. The half-pixel inset
-        // keeps the one-pixel outline inside that silhouette when antialiasing
-        // is enabled, including at fractional device-pixel ratios.
-        const QRectF indicator = QRectF(option->rect).adjusted(0.5, 0.5,
-                                                                -0.5, -0.5);
+        // WinUI's template owns a 20 x 20 logical indicator. Do not shrink
+        // that layout slot before painting it: the one-pixel border is part
+        // of the template geometry and UseLayoutRounding is disabled there.
+        const QRectF indicator(option->rect);
         const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
         const qreal press = progress(widget, pressProperty,
                                      option->state & State_Sunken ? 1.0 : 0.0);
@@ -2147,43 +2295,45 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         if (element == PE_IndicatorRadioButton)
             painter->drawEllipse(indicator);
         else
-            painter->drawRoundedRect(indicator, 3, 3);
+            // Keep the template slot at 20 px while keeping the centered
+            // one-pixel border inside that slot, as the XAML Rectangle does.
+            painter->drawRoundedRect(indicator.adjusted(0.5, 0.5, -0.5, -0.5),
+                                     3, 3);
 
         if (checkAmount > 0.001) {
             const QColor onAccent = enabled ? t.textOnAccentPrimary
                                              : t.textOnAccentDisabled;
-            painter->setPen(QPen(onAccent, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             if (element == PE_IndicatorRadioButton) {
                 painter->setBrush(onAccent);
                 painter->setPen(Qt::NoPen);
                 // WinUI: 12 px at rest, 14 px on pointer-over, 10 px pressed.
                 const qreal diameter = ((12.0 + 2.0 * hover) * (1.0 - press)
                     + 10.0 * press) * checkAmount;
-                painter->drawEllipse(indicator.center(), diameter / 2.0, diameter / 2.0);
+                painter->drawEllipse(snappedEllipseRect(indicator, diameter,
+                                                        painter));
             } else if (option->state & State_NoChange) {
+                painter->setPen(QPen(onAccent, 1.1666667, Qt::SolidLine,
+                                     Qt::RoundCap, Qt::RoundJoin));
                 const qreal halfWidth = 5.0 * checkAmount;
                 painter->drawLine(QPointF(indicator.center().x() - halfWidth,
                                           indicator.center().y()),
                                   QPointF(indicator.center().x() + halfWidth,
                                           indicator.center().y()));
             } else {
-                // Approximate WinUI's AnimatedAcceptVisualSource by revealing
-                // the two check segments at a constant path velocity.
-                const QPointF a(indicator.left() + 4, indicator.center().y());
-                const QPointF b(indicator.center().x() - 1, indicator.bottom() - 4);
-                const QPointF c(indicator.right() - 4, indicator.top() + 4);
-                const QLineF first(a, b);
-                const QLineF second(b, c);
-                const qreal total = first.length() + second.length();
-                const qreal visible = total * checkAmount;
-                if (visible <= first.length()) {
-                    painter->drawLine(QLineF::fromPolar(visible, first.angle())
-                                          .translated(a));
-                } else {
-                    painter->drawLine(first);
-                    painter->drawLine(QLineF::fromPolar(visible - first.length(),
-                                                        second.angle()).translated(b));
-                }
+                // Port the generated AnimatedAcceptVisualSource geometry:
+                // a 48 px canvas, 0.7 scale, (24,23) offset, rounded 4-unit
+                // stroke. The source holds until 15/160 of its timeline and
+                // completes the NormalOffToNormalOn trim at 34/160.
+                constexpr qreal hold = 15.0 / 160.0;
+                constexpr qreal end = 34.0 / 160.0;
+                const qreal reveal = checkAmount <= hold
+                    ? 0.0
+                    : qBound<qreal>(0.0, (checkAmount - hold) / (end - hold),
+                                    1.0);
+                painter->setPen(QPen(onAccent, 4.0 * 0.7 * 20.0 / 48.0,
+                                     Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                if (reveal > 0.0)
+                    painter->drawPath(animatedAcceptTrimmedPath(indicator, reveal));
             }
         }
         painter->restore();
@@ -2683,7 +2833,7 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             }
             drawPrimitive(PE_PanelItemViewItem, source, painter, widget);
             const QAbstractItemView *view = itemView(widget);
-            const bool table = qobject_cast<const QTableView *>(view);
+            const auto *tableView = qobject_cast<const QTableView *>(view);
             const bool popup = widget && widget->window()
                 && widget->window()->windowType() == Qt::Popup;
             const bool comboPopup = popup && widget->window()->parentWidget()
@@ -2720,7 +2870,10 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                     source->state & State_Selected ? QIcon::On : QIcon::Off);
             }
 
-            const bool tableEditing = table && (source->state & State_Editing);
+            const bool tableEditing = tableView
+                && ((source->state & State_Editing)
+                    || d->tableEditorOverlaps(tableView, source->index,
+                                               source->rect));
             if ((source->features & QStyleOptionViewItem::HasDisplay)
                 && !tableEditing) {
                 const bool hasLeadingContent =
@@ -3947,8 +4100,21 @@ QRect Style::subElementRect(SubElement element, const QStyleOption *option,
         const QRect logical = option->rect.adjusted(32, 0, -4, 0);
         return visualRect(option->direction, option->rect, logical);
     }
-    if (element == SE_CheckBoxClickRect || element == SE_RadioButtonClickRect)
-        return option->rect;
+    if (element == SE_CheckBoxClickRect || element == SE_RadioButtonClickRect) {
+        // QCheckBox/QRadioButton use this style-owned rectangle in their
+        // actual hitButton() implementation. Return the complete visual
+        // control slot, including the intentional indicator/label gap, rather
+        // than allowing a base-style sub-rectangle to leave a dead strip.
+        const QRect indicator = subElementRect(
+            element == SE_CheckBoxClickRect ? SE_CheckBoxIndicator
+                                            : SE_RadioButtonIndicator,
+            option, widget);
+        const QRect contents = subElementRect(
+            element == SE_CheckBoxClickRect ? SE_CheckBoxContents
+                                            : SE_RadioButtonContents,
+            option, widget);
+        return option->rect.united(indicator).united(contents);
+    }
     if (element == SE_LineEditContents && !spinBoxEditor(widget)) {
         const QRect logical = option->rect.adjusted(10, 5, -6, -6);
         return visualRect(option->direction, option->rect, logical);
@@ -4348,13 +4514,19 @@ void Style::polish(QWidget *widget)
         d->toggleConnections.insert(widget,
             connect(checkBox, &QCheckBox::stateChanged, this,
                     [this, checkBox](int state) {
-                d->animate(checkBox, checkProperty,
-                           state == Qt::Unchecked ? 0.0 : 1.0,
-                           toggleSwitch(checkBox) ? Private::FastDuration
-                                                   : Private::CheckBoxDuration);
+                const bool on = state != Qt::Unchecked;
+                // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
+                // removes the stroke immediately. Only the acceptance path
+                // is animated; an on-transition remains interruptible by
+                // starting from its current progress.
+                d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
+                           on ? (toggleSwitch(checkBox)
+                                     ? Private::FastDuration
+                                     : Private::CheckBoxDuration)
+                              : 0);
                 if (toggleSwitch(checkBox))
                     d->animate(checkBox, togglePositionProperty,
-                               state == Qt::Unchecked ? 0.0 : 1.0,
+                               on ? 1.0 : 0.0,
                                Private::FasterDuration);
             }));
     } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
@@ -4414,6 +4586,16 @@ void Style::polish(QWidget *widget)
         palette.setColor(QPalette::Highlight, accentColor());
         palette.setColor(QPalette::HighlightedText, editorTokens.textOnAccentPrimary);
         editor->setPalette(palette);
+    }
+
+    if (auto *view = qobject_cast<QTableView *>(
+            const_cast<QAbstractItemView *>(itemView(widget))); view
+        && widget->parentWidget() == view->viewport()) {
+        // Editors are children of the viewport and are polished after the
+        // delegate creates them. Track that lifecycle in the style so item
+        // painting can suppress display text even when Qt omits
+        // State_Editing from the real delegate option.
+        d->trackTableEditor(view, widget);
     }
 
     if (auto *toolButton = qobject_cast<QAbstractButton *>(widget)) {
@@ -4502,6 +4684,10 @@ void Style::unpolish(QWidget *widget)
         }
         if (auto *view = qobject_cast<QAbstractItemView *>(widget))
             restoreNavigationView(view);
+        if (auto *table = qobject_cast<QTableView *>(widget))
+            d->untrackTable(table);
+        else if (qobject_cast<const QTableView *>(itemView(widget)))
+            d->untrackTableEditor(widget);
         if (const auto connection = d->toggleConnections.take(widget))
             disconnect(connection);
         if (auto *radio = qobject_cast<QRadioButton *>(widget))

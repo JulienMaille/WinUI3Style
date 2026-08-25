@@ -322,8 +322,10 @@ private slots:
     void verticalNumberBoxContract();
     void checkboxAcceptAnimation();
     void checkboxGlyphGeometryContract();
+    void checkboxGapHitTest();
     void checkboxDisabledStopsAnimation();
     void radioStateMotion();
+    void radioDotDpiGeometry();
     void menuSizingContract();
     void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
@@ -341,9 +343,11 @@ private slots:
     void listViewContract();
     void itemViewGutterContract();
     void treeViewContract();
+    void treeSelectionMarkerLeadingEdge();
     void tableHeaderContract();
     void tableSortIndicatorGeometryContract();
     void tableEditingPaintContract();
+    void tableLiveEditorSuppressesDisplay();
     void richEditBoxContract();
     void contentDialogContract();
     void readOnlyActionRestoration();
@@ -1928,6 +1932,33 @@ void WinUI3StyleTest::checkboxGlyphGeometryContract()
     QVERIFY(bounds.height() <= 21);
 }
 
+void WinUI3StyleTest::checkboxGapHitTest()
+{
+    QCheckBox check(QStringLiteral("A label with a real hit gap"));
+    check.resize(check.sizeHint());
+    check.show();
+    QTRY_VERIFY(check.isVisible());
+
+    QStyleOptionButton option;
+    option.initFrom(&check);
+    const QRect indicator = check.style()->subElementRect(
+        QStyle::SE_CheckBoxIndicator, &option, &check);
+    const QRect contents = check.style()->subElementRect(
+        QStyle::SE_CheckBoxContents, &option, &check);
+    const QRect clickRect = check.style()->subElementRect(
+        QStyle::SE_CheckBoxClickRect, &option, &check);
+    QVERIFY(indicator.right() + 1 < contents.left());
+    const QPoint gap((indicator.right() + contents.left()) / 2,
+                     indicator.center().y());
+    QVERIFY(check.rect().contains(gap));
+    QVERIFY(clickRect.contains(gap));
+
+    QSignalSpy clicked(&check, &QAbstractButton::clicked);
+    QTest::mouseClick(&check, Qt::LeftButton, Qt::NoModifier, gap);
+    QCOMPARE(clicked.count(), 1);
+    QVERIFY(check.isChecked());
+}
+
 void WinUI3StyleTest::checkboxDisabledStopsAnimation()
 {
     QCheckBox check(QStringLiteral("Disabled during transition"));
@@ -1958,6 +1989,60 @@ void WinUI3StyleTest::radioStateMotion()
     const qreal hover = radio.property("_winui_hover_progress").toReal();
     QVERIFY2(hover > 0.0 && hover < 1.0, qPrintable(QString::number(hover)));
     QTRY_VERIFY(radio.property("_winui_hover_progress").toReal() > 0.99);
+}
+
+void WinUI3StyleTest::radioDotDpiGeometry()
+{
+    QRadioButton radio(QStringLiteral("Radio"));
+    radio.resize(32, 32);
+    radio.show();
+    radio.setProperty("_winui_check_progress", 1.0);
+
+    const qreal dpr = radio.devicePixelRatioF();
+    const auto renderDot = [&](qreal hover, qreal press) {
+        radio.setProperty("_winui_hover_progress", hover);
+        radio.setProperty("_winui_press_progress", press);
+        QStyleOptionButton option;
+        option.initFrom(&radio);
+        option.rect = QRect(0, 0, 20, 20);
+        option.state = QStyle::State_Enabled | QStyle::State_On;
+        if (hover > 0.5)
+            option.state |= QStyle::State_MouseOver;
+        if (press > 0.5)
+            option.state |= QStyle::State_Sunken;
+
+        QImage image(QSize(qRound(20 * dpr), qRound(20 * dpr)),
+                     QImage::Format_ARGB32_Premultiplied);
+        image.setDevicePixelRatio(dpr);
+        image.fill(radio.palette().color(QPalette::Window));
+        QPainter painter(&image);
+        radio.style()->drawPrimitive(QStyle::PE_IndicatorRadioButton,
+                                     &option, &painter, &radio);
+
+        const QColor dot = image.pixelColor(image.width() / 2,
+                                            image.height() / 2);
+        QRect bounds;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (colorDistance(image.pixelColor(x, y), dot) < 18)
+                    bounds |= QRect(x, y, 1, 1);
+            }
+        }
+        return bounds;
+    };
+
+    const int expectedRest = qRound(12 * dpr);
+    const int expectedHover = qRound(14 * dpr);
+    const int expectedPressed = qRound(10 * dpr);
+    const QRect rest = renderDot(0.0, 0.0);
+    const QRect hover = renderDot(1.0, 0.0);
+    const QRect pressed = renderDot(1.0, 1.0);
+    QVERIFY(qAbs(rest.width() - expectedRest) <= 2);
+    QVERIFY(qAbs(rest.height() - expectedRest) <= 2);
+    QVERIFY(qAbs(hover.width() - expectedHover) <= 2);
+    QVERIFY(qAbs(hover.height() - expectedHover) <= 2);
+    QVERIFY(qAbs(pressed.width() - expectedPressed) <= 2);
+    QVERIFY(qAbs(pressed.height() - expectedPressed) <= 2);
 }
 
 void WinUI3StyleTest::menuSizingContract()
@@ -2795,6 +2880,53 @@ void WinUI3StyleTest::treeViewContract()
     QVERIFY(glyphFound);
 }
 
+void WinUI3StyleTest::treeSelectionMarkerLeadingEdge()
+{
+    QTreeWidget tree;
+    tree.setHeaderHidden(true);
+    auto *root = new QTreeWidgetItem(&tree, {QStringLiteral("Root")});
+    auto *child = new QTreeWidgetItem(root, {QStringLiteral("Indented child")});
+    tree.expandAll();
+    tree.resize(320, 120);
+    tree.show();
+    QTRY_VERIFY(tree.isVisible());
+
+    const auto renderSelected = [&](Qt::LayoutDirection direction) {
+        tree.setLayoutDirection(direction);
+        QStyleOptionViewItem option;
+        option.initFrom(tree.viewport());
+        option.widget = tree.viewport();
+        option.direction = direction;
+        option.rect = tree.visualRect(tree.indexFromItem(child));
+        option.index = tree.indexFromItem(child);
+        option.text = child->text(0);
+        option.features = QStyleOptionViewItem::HasDisplay;
+        option.state = QStyle::State_Enabled | QStyle::State_Selected;
+
+        QImage image(tree.viewport()->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(tree.palette().color(QPalette::Base));
+        QPainter painter(&image);
+        tree.style()->drawControl(QStyle::CE_ItemViewItem, &option,
+                                  &painter, tree.viewport());
+        return image;
+    };
+
+    const QColor accent = tree.palette().color(QPalette::Highlight);
+    const auto hasAccentNear = [&](const QImage &image, int left) {
+        const int y = tree.visualRect(tree.indexFromItem(child)).center().y();
+        for (int x = left; x < left + 8; ++x)
+            if (image.rect().contains(x, y)
+                && colorDistance(image.pixelColor(x, y), accent) < 18)
+                return true;
+        return false;
+    };
+    const QImage ltr = renderSelected(Qt::LeftToRight);
+    QVERIFY(hasAccentNear(ltr, 0));
+    const QImage rtl = renderSelected(Qt::RightToLeft);
+    const int rightLeading = rtl.width() - 8;
+    QVERIFY(hasAccentNear(rtl, rightLeading));
+}
+
 void WinUI3StyleTest::tableHeaderContract()
 {
     QTableWidget table(2, 2);
@@ -2914,6 +3046,45 @@ void WinUI3StyleTest::tableEditingPaintContract()
     unselected.state &= ~QStyle::State_Selected;
     QVERIFY(editing.pixelColor(120, 18) != render(unselected).pixelColor(120, 18));
     QVERIFY(editing.pixelColor(8, 18).alpha() > 0);
+}
+
+void WinUI3StyleTest::tableLiveEditorSuppressesDisplay()
+{
+    QTableWidget table(1, 1);
+    table.setItem(0, 0, new QTableWidgetItem(
+        QStringLiteral("Painted underneath the live editor")));
+    table.setEditTriggers(QAbstractItemView::AllEditTriggers);
+    table.resize(320, 80);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+
+    const QModelIndex index = table.model()->index(0, 0);
+    table.editItem(table.item(0, 0));
+    QTRY_VERIFY_WITH_TIMEOUT(!table.findChildren<QLineEdit *>().isEmpty(), 1000);
+    QLineEdit *editor = table.findChildren<QLineEdit *>().constFirst();
+    QVERIFY(editor->isVisible());
+    QVERIFY(editor->property("_winui_table_editor").toBool());
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.widget = table.viewport();
+    option.rect = table.visualRect(index);
+    option.index = index;
+    option.text = QStringLiteral("Painted underneath the live editor");
+    option.features = QStyleOptionViewItem::HasDisplay;
+    option.state = QStyle::State_Enabled;
+
+    const auto render = [&](const QStyleOptionViewItem &source) {
+        QImage image(source.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(table.palette().color(QPalette::Base));
+        QPainter painter(&image);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &source,
+                                   &painter, table.viewport());
+        return image;
+    };
+
+    auto withoutDisplay = option;
+    withoutDisplay.features &= ~QStyleOptionViewItem::HasDisplay;
+    QCOMPARE(render(option), render(withoutDisplay));
 }
 
 void WinUI3StyleTest::richEditBoxContract()
@@ -3518,11 +3689,9 @@ void WinUI3StyleTest::checkboxAndRadioUncheckMotion()
     QTRY_VERIFY(check.property("_winui_check_progress").toReal() > 0.99);
     const QImage checkedImage = check.grab().toImage();
     check.setChecked(false);
-    // The state change must not erase the glyph synchronously. A separate,
-    // deterministic 0.5 render below validates the actual reverse path
-    // without making the suite depend on scheduler timing.
-    QVERIFY(check.property("_winui_check_progress").toReal() > 0.99);
-    QTRY_VERIFY(check.property("_winui_check_progress").toReal() < 0.01);
+    // AnimatedAcceptVisualSource removes NormalOnToNormalOff immediately;
+    // only the acceptance path is animated.
+    QCOMPARE(check.property("_winui_check_progress").toReal(), 0.0);
     const QImage uncheckedImage = check.grab().toImage();
     check.setProperty("_winui_check_progress", 0.5);
     const QImage checkMidpoint = check.grab().toImage();
