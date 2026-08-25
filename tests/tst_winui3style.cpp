@@ -350,6 +350,7 @@ private slots:
     void textBoxStateMatrix();
     void indeterminateProgressDeterminism();
     void comboPopupContract();
+    void comboPopupAssociationLifecycle();
     void comboChevronMotion();
     void comboChevronGeometry();
     void numberBoxSubcontrolContract();
@@ -2121,6 +2122,39 @@ void WinUI3StyleTest::comboPopupContract()
                       Qt::NoModifier, second.center());
     QCOMPARE(combo.currentIndex(), 1);
     style->setAccentColor({});
+}
+
+void WinUI3StyleTest::comboPopupAssociationLifecycle()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget host;
+    host.resize(360, 240);
+    auto *combo = new QComboBox(&host);
+    combo->addItems({QStringLiteral("One"), QStringLiteral("Two"),
+                     QStringLiteral("Three")});
+    combo->setCurrentIndex(1);
+    host.show();
+    QTRY_VERIFY(host.isVisible());
+
+    combo->showPopup();
+    QTRY_VERIFY(combo->view()->isVisible());
+    QWidget *popup = combo->view()->window();
+    QVERIFY(popup);
+    combo->hidePopup();
+
+    // Re-polishing a combo must discard the old association and allow the
+    // next show cycle to establish it again without a first-frame jump.
+    style->unpolish(combo);
+    style->polish(combo);
+    combo->showPopup();
+    QTRY_VERIFY(combo->view()->isVisible());
+    QCOMPARE(combo->view()->window(), popup);
+    QVERIFY(combo->view()->visualRect(combo->model()->index(1, 0)).isValid());
+
+    QPointer<QComboBox> guardedCombo(combo);
+    delete combo;
+    QVERIFY(guardedCombo.isNull());
 }
 
 void WinUI3StyleTest::comboChevronMotion()

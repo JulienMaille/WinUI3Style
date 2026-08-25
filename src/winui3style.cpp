@@ -50,6 +50,7 @@
 #include <QRadioButton>
 #include <QScrollBar>
 #include <QScreen>
+#include <QSet>
 #include <QSettings>
 #include <QSlider>
 #include <QStyleOption>
@@ -1001,7 +1002,7 @@ void preparePopupSurface(QWidget *widget)
     }
 }
 
-void prepareComboPopupFirstFrame(QComboBox *combo)
+void prepareComboPopupFirstFrameImpl(QComboBox *combo)
 {
     if (!combo || combo->count() <= 0)
         return;
@@ -1492,6 +1493,86 @@ public:
         animation->start();
     }
 
+    void unregisterComboPopup(QWidget *popup)
+    {
+        if (!popup)
+            return;
+        const auto association = comboPopupAssociations.find(popup);
+        if (association == comboPopupAssociations.end())
+            return;
+        QComboBox *combo = association->data();
+        comboPopupAssociations.erase(association);
+        preparedComboPopups.remove(popup);
+        if (const auto connection = comboPopupPopupConnections.take(popup))
+            QObject::disconnect(connection);
+        if (combo && comboPopupByCombo.value(combo) == popup) {
+            comboPopupByCombo.remove(combo);
+            if (const auto connection = comboPopupComboConnections.take(combo))
+                QObject::disconnect(connection);
+        }
+    }
+
+    void unregisterComboPopup(QComboBox *combo)
+    {
+        if (!combo)
+            return;
+        QWidget *popup = comboPopupByCombo.value(combo);
+        if (popup)
+            unregisterComboPopup(popup);
+        else
+            comboPopupComboConnections.remove(combo);
+    }
+
+    void associateComboPopup(QComboBox *combo, QWidget *popup)
+    {
+        if (!combo || !popup || popup->windowType() != Qt::Popup)
+            return;
+        if (QWidget *previousPopup = comboPopupByCombo.value(combo);
+            previousPopup && previousPopup != popup) {
+            unregisterComboPopup(previousPopup);
+        }
+        if (const auto association = comboPopupAssociations.find(popup);
+            association != comboPopupAssociations.end()) {
+            if (association->data() == combo) {
+                comboPopupByCombo.insert(combo, popup);
+                return;
+            }
+            unregisterComboPopup(popup);
+        }
+        comboPopupAssociations.insert(popup, QPointer<QComboBox>(combo));
+        comboPopupByCombo.insert(combo, popup);
+        comboPopupPopupConnections.insert(popup,
+            QObject::connect(popup, &QObject::destroyed, q,
+                             [this, popup] { unregisterComboPopup(popup); }));
+        comboPopupComboConnections.insert(combo,
+            QObject::connect(combo, &QObject::destroyed, q,
+                             [this, combo] { unregisterComboPopup(combo); }));
+    }
+
+    void prepareComboPopupFirstFrame(QComboBox *combo)
+    {
+        if (!combo || !combo->view())
+            return;
+        QWidget *popup = combo->view()->window();
+        associateComboPopup(combo, popup);
+        if (!popup || preparedComboPopups.contains(popup))
+            return;
+        preparedComboPopups.insert(popup);
+        prepareComboPopupFirstFrameImpl(combo);
+    }
+
+    void finishComboPopupCycle(QWidget *popup)
+    {
+        if (!popup)
+            return;
+        if (const auto association = comboPopupAssociations.constFind(popup);
+            association != comboPopupAssociations.constEnd()) {
+            if (QComboBox *combo = association->data())
+                releaseComboChevron(combo);
+            preparedComboPopups.remove(popup);
+        }
+    }
+
     void trackTableEditor(QTableView *table, QWidget *editor)
     {
         if (!table || !editor || editor == table || editor == table->viewport()
@@ -1577,6 +1658,11 @@ public:
     QHash<QWidget *, QMetaObject::Connection> tableConnections;
     QHash<QTableView *, QVector<QPointer<QWidget>>> tableEditors;
     QHash<QCheckBox *, ToggleDragState> toggleDragStates;
+    QHash<QWidget *, QPointer<QComboBox>> comboPopupAssociations;
+    QHash<QComboBox *, QWidget *> comboPopupByCombo;
+    QHash<QWidget *, QMetaObject::Connection> comboPopupPopupConnections;
+    QHash<QComboBox *, QMetaObject::Connection> comboPopupComboConnections;
+    QSet<QWidget *> preparedComboPopups;
     bool keyboardInput = false;
     bool applicationStateSaved = false;
     bool lastSystemDark = false;
@@ -4394,6 +4480,10 @@ void Style::unpolish(QApplication *application)
 
 void Style::unpolish(QWidget *widget)
 {
+    if (auto *combo = qobject_cast<QComboBox *>(widget))
+        d->unregisterComboPopup(combo);
+    if (widget && widget->isWindow() && widget->windowType() == Qt::Popup)
+        d->unregisterComboPopup(widget);
     // Let the base style release its state before restoring application-owned
     // values. Some Qt widgets (notably item views) recompute frame margins in
     // QCommonStyle::unpolish(); restoring first would immediately lose the
@@ -4640,7 +4730,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton) {
                 d->animate(combo, comboChevronProperty, 1.0, 150);
-                prepareComboPopupFirstFrame(combo);
+                d->prepareComboPopupFirstFrame(combo);
             }
         }
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
@@ -4808,7 +4898,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                     && key->modifiers().testFlag(Qt::AltModifier));
             if (activates) {
                 d->animate(combo, comboChevronProperty, 1.0, 150);
-                prepareComboPopupFirstFrame(combo);
+                d->prepareComboPopupFirstFrame(combo);
             }
         }
         if (const auto *key = static_cast<QKeyEvent *>(event);
@@ -4840,10 +4930,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         // observably too late when the selected item is not row zero.
         if (qobject_cast<QAbstractItemView *>(widget))
             if (auto *combo = comboForPopupWidget(widget))
-                prepareComboPopupFirstFrame(combo);
+                d->prepareComboPopupFirstFrame(combo);
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
             if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget()))
-                prepareComboPopupFirstFrame(combo);
+                d->prepareComboPopupFirstFrame(combo);
         }
         if (auto *dialog = qobject_cast<QDialog *>(widget);
             dialog && (qobject_cast<QMessageBox *>(dialog)
@@ -4893,13 +4983,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             hideSliderValueToolTip(slider);
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-            for (QWidget *candidate : qApp->allWidgets()) {
-                if (auto *combo = qobject_cast<QComboBox *>(candidate);
-                    combo && combo->view() && combo->view()->window() == widget) {
-                    d->releaseComboChevron(combo);
-                    break;
-                }
-            }
+            d->finishComboPopupCycle(widget);
         }
         if (auto *dialog = qobject_cast<QDialog *>(widget);
             dialog && dialog->property("_winui_dialog_animating").toBool()) {
