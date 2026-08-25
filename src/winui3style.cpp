@@ -2420,28 +2420,6 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
                               option->rect.right(), option->rect.bottom() - 1);
             painter->restore();
         }
-        if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget)) {
-            // QLineEditIconButton overrides QToolButton::paintEvent and draws
-            // only its icon. Paint WinUI's DeleteButton state into the parent
-            // surface, behind that private child, using the child's real
-            // interaction progress.
-            for (const QAbstractButton *button
-                 : lineEdit->findChildren<QAbstractButton *>(
-                     QString(), Qt::FindDirectChildrenOnly)) {
-                const qreal helperHover = progress(button, hoverProperty, 0.0);
-                const qreal helperPress = progress(button, pressProperty, 0.0);
-                if (helperHover <= 0.001 && helperPress <= 0.001)
-                    continue;
-                QRect local = button->rect().adjusted(0, 4, -4, -4);
-                local = visualRect(button->layoutDirection(), button->rect(), local);
-                QRect surface = local.translated(button->geometry().topLeft());
-                QColor helperFill = mix(Qt::transparent, t.subtleHover,
-                                        helperHover);
-                helperFill = mix(helperFill, t.subtlePressed, helperPress);
-                roundedRect(painter, surface, helperFill, Qt::transparent,
-                            ControlRadius);
-            }
-        }
         return;
     }
 
@@ -4881,6 +4859,29 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         break;
     }
     case QEvent::Paint:
+        if (auto *button = qobject_cast<QToolButton *>(widget);
+            button && textBoxHelperButton(button)) {
+            // QLineEditIconButton has a private paintEvent that bypasses
+            // QToolButton's CC_ToolButton path. Own its complete rendering so
+            // the WinUI DeleteButton surface is refreshed on real pointer
+            // transitions, not only during a forced parent render.
+            QStyleOptionToolButton option;
+            option.initFrom(button);
+            option.rect = button->rect();
+            option.icon = button->icon();
+            option.iconSize = button->iconSize();
+            option.text = button->text();
+            option.toolButtonStyle = button->toolButtonStyle();
+            option.arrowType = button->arrowType();
+            option.features = QStyleOptionToolButton::None;
+            QPainter painter(button);
+            const QVariant opacity = button->property("opacity");
+            if (opacity.isValid())
+                painter.setOpacity(opacity.toReal());
+            drawPrimitive(PE_PanelButtonTool, &option, &painter, button);
+            drawControl(CE_ToolButtonLabel, &option, &painter, button);
+            return true;
+        }
         break;
     case QEvent::UpdateRequest:
         // QProgressBar exposes no rangeChanged signal. Refresh only while the
@@ -5282,21 +5283,6 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         break;
     default:
         break;
-    }
-    if (textBoxHelperButton(widget)) {
-        switch (event->type()) {
-        case QEvent::Enter:
-        case QEvent::Leave:
-        case QEvent::MouseButtonPress:
-        case QEvent::MouseButtonRelease:
-            // The helper's hover background belongs to the parent TextBox
-            // surface; repaint it when the private child changes state.
-            if (widget->parentWidget())
-                widget->parentWidget()->update();
-            break;
-        default:
-            break;
-        }
     }
     return QProxyStyle::eventFilter(watched, event);
 }

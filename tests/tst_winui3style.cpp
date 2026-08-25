@@ -1819,15 +1819,38 @@ void WinUI3StyleTest::clearButtonStateContract()
     QAbstractButton *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
     QVERIFY(clearButton);
     QTRY_VERIFY(clearButton->testAttribute(Qt::WA_Hover));
+    QTest::mouseMove(&edit, QPoint(8, edit.rect().center().y()));
+    QTRY_VERIFY(!clearButton->underMouse());
     const QImage runtimeNormal = edit.grab().toImage();
-    QEvent enter(QEvent::Enter);
-    QCoreApplication::sendEvent(clearButton, &enter);
+    QTest::mouseMove(clearButton, clearButton->rect().center());
+    QTRY_VERIFY(clearButton->underMouse());
     QTRY_COMPARE(clearButton->property("_winui_hover_progress").toReal(), 1.0);
     QCoreApplication::processEvents();
     const QImage runtimeHover = edit.grab().toImage();
     QVERIFY(runtimeNormal != runtimeHover);
-    QEvent leave(QEvent::Leave);
-    QCoreApplication::sendEvent(clearButton, &leave);
+    int visiblyChangedPixels = 0;
+    int maximumChannelDelta = 0;
+    const QRect helperArea = clearButton->geometry().intersected(edit.rect());
+    for (int y = helperArea.top(); y <= helperArea.bottom(); ++y) {
+        for (int x = helperArea.left(); x <= helperArea.right(); ++x) {
+            const QColor before = runtimeNormal.pixelColor(x, y);
+            const QColor after = runtimeHover.pixelColor(x, y);
+            const int delta = std::max({qAbs(before.red() - after.red()),
+                                        qAbs(before.green() - after.green()),
+                                        qAbs(before.blue() - after.blue())});
+            maximumChannelDelta = qMax(maximumChannelDelta, delta);
+            if (delta >= 3)
+                ++visiblyChangedPixels;
+        }
+    }
+    QVERIFY2(visiblyChangedPixels >= 100,
+             qPrintable(QStringLiteral("changed=%1 maxDelta=%2")
+                            .arg(visiblyChangedPixels)
+                            .arg(maximumChannelDelta)));
+    QVERIFY2(maximumChannelDelta >= 6,
+             qPrintable(QStringLiteral("maxDelta=%1")
+                            .arg(maximumChannelDelta)));
+    QTest::mouseMove(&edit, QPoint(8, edit.rect().center().y()));
     QTRY_COMPARE(clearButton->property("_winui_hover_progress").toReal(), 0.0);
     clearButton->setProperty("_winui_hover_progress", 0.0);
     clearButton->setProperty("_winui_press_progress", 0.0);
