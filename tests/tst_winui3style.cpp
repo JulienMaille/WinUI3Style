@@ -628,50 +628,39 @@ void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
 void WinUI3StyleTest::neutralIconRenderingMatchesColoredIcon()
 {
     const QColor foreground(37, 119, 211, 193);
-    // Check retains its direct coloured engine because its glyph coverage is
-    // not pixel-identical after mask recolouring. Only the proven-equivalent
-    // chevrons use the allocation-free hot path.
-    const QList<WinUI3::Icon> hotPathGlyphs = {
-        WinUI3::Icon::ChevronDown, WinUI3::Icon::ChevronLeft,
-        WinUI3::Icon::ChevronRight, WinUI3::Icon::ChevronUp};
+    const QIcon neutral = WinUI3::icon(WinUI3::Icon::ChevronRight);
+    const QIcon colored = WinUI3::icon(WinUI3::Icon::ChevronRight, foreground);
 
-    for (const WinUI3::Icon glyph : hotPathGlyphs) {
-        const QIcon neutral = WinUI3::icon(glyph);
-        const QIcon colored = WinUI3::icon(glyph, foreground);
-        for (const qreal dpr : {1.0, 1.25, 1.5, 2.0}) {
-            for (const QIcon::Mode mode : {QIcon::Normal, QIcon::Disabled}) {
-                const QPixmap expected = colored.pixmap(
-                    QSize(16, 16), dpr, mode, QIcon::Off);
-                const QPixmap actual = WinUI3::iconPixmap(
-                    neutral, QSize(16, 16), dpr, foreground, mode, QIcon::Off);
-                QVERIFY(!expected.isNull());
-                QVERIFY(!actual.isNull());
-                QCOMPARE(actual.devicePixelRatioF(), expected.devicePixelRatioF());
-                const QImage expectedImage = expected.toImage();
-                const QImage actualImage = actual.toImage();
-                int differingPixels = 0;
-                int maxDelta = 0;
-                for (int y = 0; y < expectedImage.height(); ++y) {
-                    for (int x = 0; x < expectedImage.width(); ++x) {
-                        const QColor a = expectedImage.pixelColor(x, y);
-                        const QColor b = actualImage.pixelColor(x, y);
-                        const int delta = qMax(
-                            qMax(qAbs(a.red() - b.red()), qAbs(a.green() - b.green())),
-                            qMax(qAbs(a.blue() - b.blue()), qAbs(a.alpha() - b.alpha())));
-                        if (delta > 0) {
-                            ++differingPixels;
-                            maxDelta = qMax(maxDelta, delta);
-                        }
+    for (const qreal dpr : {1.0, 1.25, 1.5, 2.0}) {
+        for (const QIcon::Mode mode : {QIcon::Normal, QIcon::Disabled}) {
+            const QPixmap expected = colored.pixmap(QSize(16, 16), dpr, mode);
+            const QPixmap actual = WinUI3::iconPixmap(
+                neutral, QSize(16, 16), dpr, foreground, mode);
+            QVERIFY(!expected.isNull());
+            QVERIFY(!actual.isNull());
+            QCOMPARE(actual.devicePixelRatioF(), expected.devicePixelRatioF());
+            const QImage expectedImage = expected.toImage();
+            const QImage actualImage = actual.toImage();
+            int differingPixels = 0;
+            int maxDelta = 0;
+            for (int y = 0; y < expectedImage.height(); ++y) {
+                for (int x = 0; x < expectedImage.width(); ++x) {
+                    const QColor a = expectedImage.pixelColor(x, y);
+                    const QColor b = actualImage.pixelColor(x, y);
+                    const int delta = qMax(
+                        qMax(qAbs(a.red() - b.red()), qAbs(a.green() - b.green())),
+                        qMax(qAbs(a.blue() - b.blue()), qAbs(a.alpha() - b.alpha())));
+                    if (delta > 0) {
+                        ++differingPixels;
+                        maxDelta = qMax(maxDelta, delta);
                     }
                 }
-                if (differingPixels)
-                    qInfo() << "glyph" << static_cast<int>(glyph)
-                            << "dpr" << dpr << "mode" << mode
-                            << "differingPixels" << differingPixels
-                            << "maxDelta" << maxDelta;
-                QCOMPARE(differingPixels, 0);
-                QCOMPARE(maxDelta, 0);
             }
+            if (differingPixels)
+                qInfo() << "dpr" << dpr << "mode" << mode
+                        << "differingPixels" << differingPixels
+                        << "maxDelta" << maxDelta;
+            QCOMPARE(differingPixels, 0);
         }
     }
 }

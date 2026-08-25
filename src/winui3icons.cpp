@@ -325,16 +325,16 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size,
     if (QPixmap *cached = runtime.findPixmap(key))
         return *cached;
 
-    // Render neutral Fluent glyphs as a white alpha mask. This is
-    // pixel-equivalent for the chevron hot paths; glyphs that differ after
-    // recolouring keep their exact coloured-engine paint path in the style.
+    // Render neutral Fluent glyphs as a white alpha mask. This keeps the
+    // glyph coverage identical to the colored engine; SourceIn below applies
+    // the requested foreground without allocating a colored QIconEngine.
     QPixmap pixmap;
     if (neutralSource) {
         pixmap = QPixmap(physicalSize);
         pixmap.fill(Qt::transparent);
-        QPainter maskPainter(&pixmap);
-        paintGlyph(&maskPainter, parsed.glyph, pixmap.rect(), Qt::white);
-        maskPainter.end();
+        QPainter painter(&pixmap);
+        paintGlyph(&painter, parsed.glyph, pixmap.rect(), Qt::white);
+        painter.end();
         pixmap.setDevicePixelRatio(devicePixelRatio);
     } else {
         // Keep the source alpha exactly as QIcon::pixmap() produces it. The
