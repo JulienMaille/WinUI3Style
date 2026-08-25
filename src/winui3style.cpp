@@ -596,6 +596,33 @@ void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit)
     });
 }
 
+void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style)
+{
+    if (!lineEdit || !style)
+        return;
+    const QPointer<QLineEdit> guardedLineEdit(lineEdit);
+    const QPointer<Style> guardedStyle(style);
+    QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle] {
+        if (!guardedLineEdit || !guardedStyle)
+            return;
+        for (QAbstractButton *button
+             : guardedLineEdit->findChildren<QAbstractButton *>()) {
+            // QLineEdit creates its private clear affordance lazily. Depending
+            // on that timing, it can miss the parent's polish pass and never
+            // deliver hover events to the style. Prepare both the private
+            // affordance and QAction helper buttons as soon as they exist.
+            button->setAttribute(Qt::WA_Hover, true);
+            button->installEventFilter(guardedStyle);
+            if (!button->property(hoverProperty).isValid())
+                button->setProperty(hoverProperty,
+                                    button->isEnabled() && button->underMouse()
+                                        ? 1.0 : 0.0);
+            if (!button->property(pressProperty).isValid())
+                button->setProperty(pressProperty, 0.0);
+        }
+    });
+}
+
 void showSliderValueToolTip(QSlider *slider)
 {
     if (!slider || !slider->isEnabled())
@@ -2343,9 +2370,13 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
                 // Port the generated AnimatedAcceptVisualSource geometry:
                 // a 48 px canvas, 0.7 scale, (24,23) offset, rounded 4-unit
                 // stroke. The source holds until 15/160 of its timeline and
-                // completes the NormalOffToNormalOn trim at 34/160.
+                // completes the visible reveal over the fast transition.
                 constexpr qreal hold = 15.0 / 160.0;
-                constexpr qreal end = 34.0 / 160.0;
+                // Mapping the generated 34/160 keyframe directly onto our
+                // normalized progress compressed the stroke to about 20 ms,
+                // making it appear instantaneous. Keep the official hold,
+                // then use the remainder of the 167 ms transition.
+                constexpr qreal end = 1.0;
                 const qreal reveal = checkAmount <= hold
                     ? 0.0
                     : qBound<qreal>(0.0, (checkAmount - hold) / (end - hold),
@@ -2388,6 +2419,28 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
             painter->drawLine(option->rect.left(), option->rect.bottom() - 1,
                               option->rect.right(), option->rect.bottom() - 1);
             painter->restore();
+        }
+        if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget)) {
+            // QLineEditIconButton overrides QToolButton::paintEvent and draws
+            // only its icon. Paint WinUI's DeleteButton state into the parent
+            // surface, behind that private child, using the child's real
+            // interaction progress.
+            for (const QAbstractButton *button
+                 : lineEdit->findChildren<QAbstractButton *>(
+                     QString(), Qt::FindDirectChildrenOnly)) {
+                const qreal helperHover = progress(button, hoverProperty, 0.0);
+                const qreal helperPress = progress(button, pressProperty, 0.0);
+                if (helperHover <= 0.001 && helperPress <= 0.001)
+                    continue;
+                QRect local = button->rect().adjusted(0, 4, -4, -4);
+                local = visualRect(button->layoutDirection(), button->rect(), local);
+                QRect surface = local.translated(button->geometry().topLeft());
+                QColor helperFill = mix(Qt::transparent, t.subtleHover,
+                                        helperHover);
+                helperFill = mix(helperFill, t.subtlePressed, helperPress);
+                roundedRect(painter, surface, helperFill, Qt::transparent,
+                            ControlRadius);
+            }
         }
         return;
     }
@@ -4402,8 +4455,17 @@ QStyle::SubControl Style::hitTestComplexControl(
             return SC_ComboBoxEditField;
         return SC_ComboBoxFrame;
     case CC_GroupBox:
-        if (contains(SC_GroupBoxCheckBox))
-            return SC_GroupBoxCheckBox;
+        if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option);
+            group && (group->subControls & SC_GroupBoxCheckBox)) {
+            const QRect check = subControlRect(CC_GroupBox, group,
+                                                SC_GroupBoxCheckBox, widget);
+            const QRect label = subControlRect(CC_GroupBox, group,
+                                                SC_GroupBoxLabel, widget);
+            // Match the CheckBox click surface: spacing between the indicator
+            // and text is part of the header, not a dead strip.
+            if (check.united(label).contains(position))
+                return SC_GroupBoxCheckBox;
+        }
         if (contains(SC_GroupBoxLabel))
             return SC_GroupBoxLabel;
         if (contains(SC_GroupBoxContents))
@@ -4526,6 +4588,8 @@ void Style::polish(QWidget *widget)
     widget->setProperty(focusProperty, widget->hasFocus() ? 1.0 : 0.0);
     widget->setProperty(focusVisibleProperty,
                         widget->hasFocus() && d->keyboardInput);
+    if (auto *lineEdit = qobject_cast<QLineEdit *>(widget))
+        prepareLineEditHelperButtons(lineEdit, this);
     if (qobject_cast<QScrollBar *>(widget)) {
         widget->setProperty(scrollBarInsideProperty, widget->underMouse());
         widget->setProperty(scrollBarGenerationProperty, 0);
@@ -4573,7 +4637,7 @@ void Style::polish(QWidget *widget)
             connect(groupBox, &QGroupBox::toggled, this,
                     [this, groupBox](bool checked) {
                 d->animate(groupBox, checkProperty, checked ? 1.0 : 0.0,
-                           Private::FastDuration);
+                           checked ? Private::CheckBoxDuration : 0);
                     }));
     }
 
@@ -5050,6 +5114,12 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         // read-only. QLineEdit keeps the private clear button visible, so
         // suppress it after Qt has processed the property change.
         updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+        prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget), this);
+        break;
+    case QEvent::ChildAdded:
+        // The private QLineEdit clear button is created after the line edit in
+        // common construction orders; catch that lifecycle deterministically.
+        prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget), this);
         break;
     case QEvent::KeyPress:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
@@ -5086,6 +5156,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         break;
     case QEvent::Show:
         updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+        prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget), this);
         // The view is shown before its popup window. Prepare selection and
         // scroll position here so even a programmatic first showPopup() has a
         // stable first composited frame; waiting for the popup Show event is
@@ -5211,6 +5282,21 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         break;
     default:
         break;
+    }
+    if (textBoxHelperButton(widget)) {
+        switch (event->type()) {
+        case QEvent::Enter:
+        case QEvent::Leave:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+            // The helper's hover background belongs to the parent TextBox
+            // surface; repaint it when the private child changes state.
+            if (widget->parentWidget())
+                widget->parentWidget()->update();
+            break;
+        default:
+            break;
+        }
     }
     return QProxyStyle::eventFilter(watched, event);
 }

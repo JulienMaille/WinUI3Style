@@ -544,6 +544,12 @@ QWidget *GalleryWindow::controlsPage()
     verticalSpin->setValue(42);
     verticalSpin->setFixedWidth(150);
     WinUI3::Style::setVerticalSpinButtons(verticalSpin);
+    auto *disabledSpin = new QSpinBox;
+    disabledSpin->setObjectName(QStringLiteral("galleryDisabledSpinBox"));
+    disabledSpin->setRange(0, 100);
+    disabledSpin->setValue(42);
+    disabledSpin->setFixedWidth(150);
+    disabledSpin->setEnabled(false);
     inputs->addRow(tr("Text box"), line);
     inputs->addRow(tr("Password"), password);
     inputs->addRow(tr("Read-only"), readOnlyLine);
@@ -552,6 +558,7 @@ QWidget *GalleryWindow::controlsPage()
     inputs->addRow(tr("Combo box"), combo);
     inputs->addRow(tr("Number box (WinUI)"), spin);
     inputs->addRow(tr("Number box (vertical)"), verticalSpin);
+    inputs->addRow(tr("Number box (disabled)"), disabledSpin);
     content->addWidget(section(tr("Input"), inputs));
 
     auto *values = new QVBoxLayout;

@@ -1818,6 +1818,17 @@ void WinUI3StyleTest::clearButtonStateContract()
     QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
     QAbstractButton *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
     QVERIFY(clearButton);
+    QTRY_VERIFY(clearButton->testAttribute(Qt::WA_Hover));
+    const QImage runtimeNormal = edit.grab().toImage();
+    QEvent enter(QEvent::Enter);
+    QCoreApplication::sendEvent(clearButton, &enter);
+    QTRY_COMPARE(clearButton->property("_winui_hover_progress").toReal(), 1.0);
+    QCoreApplication::processEvents();
+    const QImage runtimeHover = edit.grab().toImage();
+    QVERIFY(runtimeNormal != runtimeHover);
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(clearButton, &leave);
+    QTRY_COMPARE(clearButton->property("_winui_hover_progress").toReal(), 0.0);
     clearButton->setProperty("_winui_hover_progress", 0.0);
     clearButton->setProperty("_winui_press_progress", 0.0);
 
@@ -2366,6 +2377,9 @@ void WinUI3StyleTest::checkboxAcceptAnimation()
     QTest::qWait(55);
     const qreal midway = check.property("_winui_check_progress").toReal();
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
+    // After the initial generated hold, the accept stroke must still be in a
+    // visibly partial state instead of completing in an imperceptible ~20 ms.
+    QVERIFY2(midway < 0.90, qPrintable(QString::number(midway)));
     QTRY_VERIFY(check.property("_winui_check_progress").toReal() > 0.99);
 }
 
@@ -2639,11 +2653,26 @@ void WinUI3StyleTest::groupBoxContract()
     const QRect indicator = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
                                                           QStyle::SC_GroupBoxCheckBox,
                                                           &group);
+    const QRect label = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
+                                                      QStyle::SC_GroupBoxLabel,
+                                                      &group);
     const QRect contents = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
                                                          QStyle::SC_GroupBoxContents,
                                                          &group);
     QCOMPARE(indicator.size(), QSize(20, 20));
     QVERIFY(contents.top() > indicator.bottom());
+
+    const QPoint gap((indicator.right() + label.left()) / 2,
+                     indicator.center().y());
+    QVERIFY(!indicator.contains(gap));
+    QVERIFY(!label.contains(gap));
+    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option,
+                                                   gap, &group),
+             QStyle::SC_GroupBoxCheckBox);
+    QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier, gap);
+    QVERIFY(group.isChecked());
+    QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier, gap);
+    QVERIFY(!group.isChecked());
 
     group.setChecked(true);
     QTest::qWait(55);
@@ -2654,9 +2683,22 @@ void WinUI3StyleTest::groupBoxContract()
     QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier,
                       indicator.center());
     QVERIFY(!group.isChecked());
-    QTest::qWait(55);
-    const qreal reverse = group.property("_winui_check_progress").toReal();
-    QVERIFY(reverse > 0.0 && reverse < 1.0);
+    QCOMPARE(group.property("_winui_check_progress").toReal(), 0.0);
+
+    group.setLayoutDirection(Qt::RightToLeft);
+    option.initFrom(&group);
+    option.text = group.title();
+    option.subControls = QStyle::SC_GroupBoxFrame | QStyle::SC_GroupBoxLabel
+        | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxContents;
+    const QRect rtlIndicator = group.style()->subControlRect(
+        QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxCheckBox, &group);
+    const QRect rtlLabel = group.style()->subControlRect(
+        QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxLabel, &group);
+    const QPoint rtlGap((rtlLabel.right() + rtlIndicator.left()) / 2,
+                        rtlIndicator.center().y());
+    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option,
+                                                   rtlGap, &group),
+             QStyle::SC_GroupBoxCheckBox);
 }
 
 void WinUI3StyleTest::splitterHandleContract()
