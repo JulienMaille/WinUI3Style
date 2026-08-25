@@ -812,6 +812,18 @@ void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
     painter->drawPixmap(topLeft, pixmap);
 }
 
+void paintFluentIcon(QPainter *painter, Icon glyph, const QRectF &rect,
+                     Qt::Alignment alignment, const QColor &foreground,
+                     QIcon::Mode mode = QIcon::Normal,
+                     QIcon::State state = QIcon::Off)
+{
+    // Keep the engine allocation out of paint paths. icon(Icon) returns the
+    // shared neutral engine; iconPixmap() applies the current foreground and
+    // keeps DPR, mode/state and palette identity in its cache key.
+    paintThemedIcon(painter, icon(glyph), rect, alignment, foreground, mode,
+                    state);
+}
+
 QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds,
                    const QRectF &logical)
 {
@@ -2211,9 +2223,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
 
     if (element == PE_IndicatorArrowDown || element == PE_IndicatorArrowLeft
         || element == PE_IndicatorArrowRight || element == PE_IndicatorArrowUp) {
-        WinUI3::icon(arrowIcon(element), enabled ? t.textPrimary : t.textDisabled)
-            .paint(painter, option->rect, Qt::AlignCenter,
-                   enabled ? QIcon::Normal : QIcon::Disabled);
+        paintFluentIcon(painter, arrowIcon(element), option->rect,
+                        Qt::AlignCenter,
+                        enabled ? t.textPrimary : t.textDisabled,
+                        enabled ? QIcon::Normal : QIcon::Disabled);
         return;
     }
 
@@ -2313,9 +2326,9 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
             const QRect checkRect = visualRect(option->direction, option->rect,
                 QRect(option->rect.left() + 12,
                       option->rect.center().y() - 8, 16, 16));
-            icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-                checkRect,
-                Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+            paintFluentIcon(painter, Icon::Check, checkRect, Qt::AlignCenter,
+                            enabled ? t.textPrimary : t.textDisabled,
+                            enabled ? QIcon::Normal : QIcon::Disabled);
         } else if (selected && viewOption && selectionMarkerView(widget)
                    && firstColumn) {
             painter->save();
@@ -2338,20 +2351,25 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
             : option->direction == Qt::RightToLeft ? Icon::ChevronLeft
                                                    : Icon::ChevronRight;
         const int extent = 12;
-        icon(glyph, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-            QRect(option->rect.center().x() - extent / 2,
-                  option->rect.center().y() - extent / 2, extent, extent),
-            Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+        paintFluentIcon(painter, glyph,
+                        QRect(option->rect.center().x() - extent / 2,
+                              option->rect.center().y() - extent / 2,
+                              extent, extent),
+                        Qt::AlignCenter,
+                        enabled ? t.textPrimary : t.textDisabled,
+                        enabled ? QIcon::Normal : QIcon::Disabled);
         return;
     }
 
     if (element == PE_IndicatorHeaderArrow) {
         const Icon glyph = option->state & State_UpArrow
             ? Icon::ChevronUp : Icon::ChevronDown;
-        icon(glyph, enabled ? t.textSecondary : t.textDisabled).paint(painter,
-            QRect(option->rect.center().x() - 6, option->rect.center().y() - 6,
-                  12, 12), Qt::AlignCenter,
-            enabled ? QIcon::Normal : QIcon::Disabled);
+        paintFluentIcon(painter, glyph,
+                        QRect(option->rect.center().x() - 6,
+                              option->rect.center().y() - 6, 12, 12),
+                        Qt::AlignCenter,
+                        enabled ? t.textSecondary : t.textDisabled,
+                        enabled ? QIcon::Normal : QIcon::Disabled);
         return;
     }
 
@@ -2425,12 +2443,13 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             if (button->features & QStyleOptionButton::HasMenu) {
                 const QRect logical(button->rect.right() - 22,
                                     button->rect.center().y() - 7, 14, 14);
-                icon(Icon::ChevronDown,
-                     button->state & State_Enabled ? t.textPrimary : t.textDisabled)
-                    .paint(painter, visualRect(button->direction, button->rect, logical),
-                           Qt::AlignCenter,
-                           button->state & State_Enabled
-                               ? QIcon::Normal : QIcon::Disabled);
+                paintFluentIcon(
+                    painter, Icon::ChevronDown,
+                    visualRect(button->direction, button->rect, logical),
+                    Qt::AlignCenter,
+                    button->state & State_Enabled ? t.textPrimary : t.textDisabled,
+                    button->state & State_Enabled
+                        ? QIcon::Normal : QIcon::Disabled);
             }
             return;
         }
@@ -2898,8 +2917,9 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
                 const QRect menuRect = subControlRect(CC_ToolButton, tool,
                                                        SC_ToolButtonMenu, widget);
-                icon(Icon::ChevronDown, textColor).paint(painter, menuRect, Qt::AlignCenter,
-                                             enabled ? QIcon::Normal : QIcon::Disabled);
+                paintFluentIcon(painter, Icon::ChevronDown, menuRect,
+                                Qt::AlignCenter, textColor,
+                                enabled ? QIcon::Normal : QIcon::Disabled);
             }
             return;
         }
@@ -3293,9 +3313,9 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                     1.5, 1.5);
                 painter->restore();
             } else if (menu->checked) {
-                icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-                    leading,
-                    Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+                paintFluentIcon(painter, Icon::Check, leading, Qt::AlignCenter,
+                                enabled ? t.textPrimary : t.textDisabled,
+                                enabled ? QIcon::Normal : QIcon::Disabled);
             } else if (!menu->icon.isNull()) {
                 paintThemedIcon(painter, menu->icon, leading, Qt::AlignCenter,
                     enabled ? t.textPrimary : t.textDisabled,
@@ -3337,10 +3357,13 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 const QRect submenu = visualRect(menu->direction, menu->rect,
                     QRect(menu->rect.right() - 24, menu->rect.center().y() - 8,
                           16, 16));
-                icon(menu->direction == Qt::RightToLeft ? Icon::ChevronLeft
-                                                         : Icon::ChevronRight,
-                     enabled ? t.textPrimary : t.textDisabled).paint(painter, submenu,
-                    Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+                paintFluentIcon(
+                    painter,
+                    menu->direction == Qt::RightToLeft ? Icon::ChevronLeft
+                                                       : Icon::ChevronRight,
+                    submenu, Qt::AlignCenter,
+                    enabled ? t.textPrimary : t.textDisabled,
+                    enabled ? QIcon::Normal : QIcon::Disabled);
             }
             return;
         }
@@ -3507,9 +3530,11 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
                                 Qt::transparent, ControlRadius);
                 }
                 const QPoint center = visualRect.center().toPoint();
-                icon(glyph, stepEnabled ? t.textPrimary : t.textDisabled).paint(
-                    painter, QRect(center.x() - 6, center.y() - 6, 12, 12),
-                    Qt::AlignCenter, stepEnabled ? QIcon::Normal : QIcon::Disabled);
+                paintFluentIcon(
+                    painter, glyph, QRect(center.x() - 6, center.y() - 6, 12, 12),
+                    Qt::AlignCenter,
+                    stepEnabled ? t.textPrimary : t.textDisabled,
+                    stepEnabled ? QIcon::Normal : QIcon::Disabled);
             };
             drawStep(SC_SpinBoxUp, Icon::ChevronUp);
             drawStep(SC_SpinBoxDown, Icon::ChevronDown);
@@ -3688,9 +3713,8 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
                     if (active && pressed)
                         glyphRect = QRect(rect.center().x() - 3,
                                           rect.center().y() - 3, 7, 7);
-                    icon(glyph, t.textPrimary).paint(painter, glyphRect,
-                                                     Qt::AlignCenter,
-                                                     QIcon::Normal);
+                    paintFluentIcon(painter, glyph, glyphRect, Qt::AlignCenter,
+                                    t.textPrimary, QIcon::Normal);
                     painter->restore();
                 };
                 if (horizontal) {

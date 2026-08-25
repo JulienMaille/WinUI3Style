@@ -168,6 +168,19 @@ bool canUseGuiCache()
     return application && QThread::currentThread() == application->thread();
 }
 
+void paintGlyph(QPainter *painter, Icon glyph, const QRect &rect,
+                const QColor &color)
+{
+    painter->save();
+    painter->setRenderHint(QPainter::TextAntialiasing);
+    QFont font(iconRuntime().fluentFontFamily());
+    font.setPixelSize(qMax(8, qMin(rect.width(), rect.height())));
+    painter->setFont(font);
+    painter->setPen(color);
+    painter->drawText(rect, Qt::AlignCenter, QString(codePoint(glyph)));
+    painter->restore();
+}
+
 QString pixmapKey(const ParsedFluentIcon &parsed, const QSize &logicalSize,
                   const QSize &physicalSize, qreal devicePixelRatio,
                   const QColor &foreground, QIcon::Mode mode,
@@ -217,13 +230,6 @@ public:
     void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode,
                QIcon::State) override
     {
-        painter->save();
-        painter->setRenderHint(QPainter::TextAntialiasing);
-
-        QFont font(iconRuntime().fluentFontFamily());
-        font.setPixelSize(qMax(8, qMin(rect.width(), rect.height())));
-        painter->setFont(font);
-
         // QIconEngine is not given the palette of the control asking for a
         // pixmap. Keep the uncoloured overload as a neutral alpha mask; the
         // style resolves the actual foreground through iconPixmap() using the
@@ -237,9 +243,7 @@ public:
                                       ? QPalette::Disabled : QPalette::Active,
                                   QPalette::WindowText);
         }
-        painter->setPen(color);
-        painter->drawText(rect, Qt::AlignCenter, QString(codePoint(m_icon)));
-        painter->restore();
+        paintGlyph(painter, m_icon, rect, color);
     }
 
     QSize actualSize(const QSize &size, QIcon::Mode, QIcon::State) override
@@ -321,10 +325,23 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size,
     if (QPixmap *cached = runtime.findPixmap(key))
         return *cached;
 
-    // Keep the source alpha exactly as QIcon::pixmap() produces it. The
-    // foreground and application-palette identities are part of the key, so
-    // local-palette recolouring cannot reuse a stale mask.
-    QPixmap pixmap = source.pixmap(size, devicePixelRatio, mode, state);
+    // Render neutral Fluent glyphs as a white alpha mask. This keeps the
+    // glyph coverage identical to the colored engine; SourceIn below applies
+    // the requested foreground without allocating a colored QIconEngine.
+    QPixmap pixmap;
+    if (neutralSource) {
+        pixmap = QPixmap(physicalSize);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        paintGlyph(&painter, parsed.glyph, pixmap.rect(), Qt::white);
+        painter.end();
+        pixmap.setDevicePixelRatio(devicePixelRatio);
+    } else {
+        // Keep the source alpha exactly as QIcon::pixmap() produces it. The
+        // foreground and application-palette identities are part of the key,
+        // so local-palette recolouring cannot reuse a stale mask.
+        pixmap = source.pixmap(size, devicePixelRatio, mode, state);
+    }
     if (pixmap.isNull())
         return pixmap;
 
