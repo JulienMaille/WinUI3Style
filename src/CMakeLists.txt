@@ -12,6 +12,8 @@ add_library(winui3style SHARED
     ${winui3style_public_headers}
     winui3style.cpp
     winui3tokens_p.h
+    navigationview_p.h
+    navigationview_p.cpp
     winui3backdrop_p.h
     winui3backdrop.cpp
     winui3icons.cpp
