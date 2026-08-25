@@ -7,6 +7,7 @@
 #include <QPixmap>
 
 class QParallelAnimationGroup;
+class QHideEvent;
 class QResizeEvent;
 class QVariantAnimation;
 
@@ -41,6 +42,7 @@ signals:
     void transitionFinished(int index);
 
 protected:
+    void hideEvent(QHideEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
@@ -48,6 +50,7 @@ private:
     void cancelTransition();
     void finishTransition();
     void destroyTransitionObjects();
+    void updateOverlayGeometry(qreal progress);
 
     int m_duration = 250;
     int m_from = -1;
@@ -59,6 +62,10 @@ private:
     QPointer<QVariantAnimation> m_geometryAnimation;
     QRect m_overlayStartGeometry;
     QRect m_overlayEndGeometry;
+    qreal m_transitionProgress = 0.0;
+    bool m_transitionStarting = false;
+    int m_deferredIndex = -1;
+    Transition m_deferredTransition = Transition::Automatic;
 };
 
 } // namespace WinUI3

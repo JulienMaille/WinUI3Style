@@ -34,13 +34,25 @@ set_tests_properties(winui3style_unit PROPERTIES
 )
 
 add_test(NAME winui3style_dpi_100
-         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts radioDotDpiGeometry)
+         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts
+                 radioDotDpiGeometry
+                 splitterGripPixelAlignment settingsCardInteractiveFrames
+                 navigationInteractiveFrames)
 add_test(NAME winui3style_dpi_125
-         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts radioDotDpiGeometry)
+         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts
+                 radioDotDpiGeometry
+                 splitterGripPixelAlignment settingsCardInteractiveFrames
+                 navigationInteractiveFrames)
 add_test(NAME winui3style_dpi_150
-         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts radioDotDpiGeometry)
+         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts
+                 radioDotDpiGeometry
+                 splitterGripPixelAlignment settingsCardInteractiveFrames
+                 navigationInteractiveFrames)
 add_test(NAME winui3style_dpi_200
-         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts radioDotDpiGeometry)
+         COMMAND winui3style_tests dpiGeometry dpiHitTestContracts
+                 radioDotDpiGeometry
+                 splitterGripPixelAlignment settingsCardInteractiveFrames
+                 navigationInteractiveFrames)
 set_tests_properties(
     winui3style_dpi_100 winui3style_dpi_125
     winui3style_dpi_150 winui3style_dpi_200

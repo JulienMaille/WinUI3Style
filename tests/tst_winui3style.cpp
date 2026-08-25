@@ -127,6 +127,34 @@ public:
     using QSplitter::moveSplitter;
 };
 
+class SolidPage final : public QWidget
+{
+public:
+    SolidPage(const QColor &color, const QString &text,
+              QWidget *parent = nullptr)
+        : QWidget(parent)
+        , m_color(color)
+        , m_text(text)
+    {
+        setAutoFillBackground(false);
+    }
+
+protected:
+    QSize sizeHint() const override { return QSize(300, 80); }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), m_color);
+        painter.setPen(Qt::white);
+        painter.drawText(rect(), Qt::AlignCenter, m_text);
+    }
+
+private:
+    QColor m_color;
+    QString m_text;
+};
+
 class CountingHintWidget final : public QWidget
 {
 public:
@@ -309,7 +337,9 @@ private slots:
     void settingsCardExpansion();
     void settingsCardChevronAndStableHeader();
     void settingsCardExpansionLoad();
+    void settingsCardInteractiveFrames();
     void navigationTransition();
+    void navigationInteractiveFrames();
     void renderCommonStates();
     void pluginFactory();
     void inputModalityFocus();
@@ -1310,6 +1340,99 @@ void WinUI3StyleTest::settingsCardExpansionLoad()
     }
 }
 
+void WinUI3StyleTest::settingsCardInteractiveFrames()
+{
+    WinUI3::SettingsCard card;
+    card.setTitle(QStringLiteral("Display").toUpper());
+    card.setDescription(QStringLiteral(
+        "The header must keep its geometry while the details are revealed."));
+    card.setExpandableWidget(new SolidPage(QColor(40, 120, 200),
+                                           QStringLiteral("Details")));
+    card.resize(480, 240);
+    card.show();
+    QCoreApplication::processEvents();
+
+    auto *header = card.findChild<QWidget *>(
+        QStringLiteral("_winui_settings_card_headerHost"));
+    auto *title = card.findChild<QLabel *>(
+        QStringLiteral("_winui_settings_card_title"));
+    auto *description = card.findChild<QLabel *>(
+        QStringLiteral("_winui_settings_card_description"));
+    auto *chevron = card.findChild<QLabel *>(
+        QStringLiteral("_winui_settings_card_chevron"));
+    auto *animation = card.findChild<QVariantAnimation *>(
+        QStringLiteral("_winui_settings_card_expansion_animation"));
+    QVERIFY(header);
+    QVERIFY(title);
+    QVERIFY(description);
+    QVERIFY(chevron);
+    QVERIFY(animation);
+    QVERIFY(chevron->isVisible());
+    QVERIFY(!chevron->pixmap(Qt::ReturnByValue).isNull());
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronRight));
+
+    const QRect headerGeometry = header->geometry();
+    const QRect titleGeometry = title->geometry();
+    const QRect descriptionGeometry = description->geometry();
+    const QImage collapsed = card.grab().toImage();
+    const QPixmap collapsedChevron = chevron->pixmap(Qt::ReturnByValue);
+
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier,
+                      header->geometry().center());
+    QCOMPARE(card.isExpanded(), true);
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    const QImage first = card.grab().toImage();
+    QVERIFY(chevron->pixmap(Qt::ReturnByValue).toImage() !=
+            collapsedChevron.toImage());
+    QCOMPARE(header->geometry(), headerGeometry);
+    QCOMPARE(title->geometry(), titleGeometry);
+    QCOMPARE(description->geometry(), descriptionGeometry);
+
+    animation->setCurrentTime(animation->duration() / 2);
+    QCoreApplication::processEvents();
+    const QImage midpoint = card.grab().toImage();
+    QVERIFY(midpoint != collapsed);
+    QVERIFY(midpoint != first);
+    QCOMPARE(header->geometry(), headerGeometry);
+    QCOMPARE(title->geometry(), titleGeometry);
+    QCOMPARE(description->geometry(), descriptionGeometry);
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+
+    QPalette palette = card.palette();
+    palette.setColor(QPalette::WindowText, QColor(210, 40, 70));
+    card.setPalette(palette);
+    QCoreApplication::processEvents();
+    QVERIFY(!chevron->pixmap(Qt::ReturnByValue).isNull());
+    QEvent dprChange(QEvent::DevicePixelRatioChange);
+    QCoreApplication::sendEvent(&card, &dprChange);
+    QVERIFY(!chevron->pixmap(Qt::ReturnByValue).isNull());
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+
+    // Reversing and expanding again must reuse the current progress without
+    // losing the header or leaving the chevron in the collapsed state.
+    card.setExpanded(false);
+    card.setExpanded(true);
+    QCOMPARE(card.isExpanded(), true);
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    card.hide();
+    QVERIFY(animation->state() == QAbstractAnimation::Stopped);
+    card.show();
+    QCoreApplication::processEvents();
+    QVERIFY(card.isExpanded());
+    QVERIFY(animation->state() == QAbstractAnimation::Stopped);
+    QCOMPARE(card.property("expansionProgress").toReal(), 1.0);
+    QCOMPARE(header->geometry(), headerGeometry);
+    QCOMPARE(title->geometry(), titleGeometry);
+    QCOMPARE(description->geometry(), descriptionGeometry);
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+}
+
 void WinUI3StyleTest::navigationTransition()
 {
     WinUI3::NavigationView view;
@@ -1336,6 +1459,134 @@ void WinUI3StyleTest::navigationTransition()
     QTRY_VERIFY(qAbs(view.navigationList()->viewport()->property(
                          "_winui_navigation_indicator_y").toReal()
                      - second.top()) < 0.5);
+}
+
+void WinUI3StyleTest::navigationInteractiveFrames()
+{
+    WinUI3::NavigationView view;
+    view.resize(720, 420);
+    auto *one = new SolidPage(QColor(180, 55, 55), QStringLiteral("One"));
+    auto *two = new SolidPage(QColor(55, 165, 85), QStringLiteral("Two"));
+    auto *three = new SolidPage(QColor(55, 85, 190), QStringLiteral("Three"));
+    view.addPage(one, QIcon(), QStringLiteral("One"));
+    view.addPage(two, QIcon(), QStringLiteral("Two"));
+    view.addPage(three, QIcon(), QStringLiteral("Three"));
+    view.stack()->setDuration(120);
+    view.show();
+    QCoreApplication::processEvents();
+
+    auto *stack = view.stack();
+    const QPoint sample(8, 8);
+    const QRect pageRect = stack->rect();
+    QVERIFY(!pageRect.isEmpty());
+    QCOMPARE(one->geometry(), pageRect);
+    QCOMPARE(two->geometry(), pageRect);
+    QCOMPARE(three->geometry(), pageRect);
+
+    const QRect secondItem = view.navigationList()->visualItemRect(
+        view.navigationList()->item(1));
+    QTest::mouseClick(view.navigationList()->viewport(), Qt::LeftButton,
+                      Qt::NoModifier, secondItem.center());
+    QCoreApplication::processEvents();
+    QVERIFY(stack->isAnimating());
+    QCOMPARE(stack->currentWidget(), two);
+    QCOMPARE(one->isVisible(), false);
+    QCOMPARE(two->isVisible(), true);
+    QCOMPARE(three->isVisible(), false);
+    QCOMPARE(one->geometry(), pageRect);
+    QCOMPARE(two->geometry(), pageRect);
+    QCOMPARE(three->geometry(), pageRect);
+    auto overlays = stack->findChildren<QWidget *>(
+        QStringLiteral("_winui_animated_stack_overlay"),
+        Qt::FindDirectChildrenOnly);
+    QCOMPARE(overlays.size(), 1);
+    QVERIFY(overlays.constFirst()->graphicsEffect() == nullptr);
+    const QImage first = stack->grab().toImage();
+    const QColor firstPixel = first.pixelColor(sample);
+    QVERIFY(colorDistance(firstPixel, QColor(180, 55, 55))
+            < colorDistance(firstPixel, QColor(55, 165, 85)));
+
+    auto *group = stack->findChild<QParallelAnimationGroup *>(
+        QStringLiteral("_winui_animated_stack_group"),
+        Qt::FindDirectChildrenOnly);
+    QVERIFY(group);
+    group->setCurrentTime(group->duration() / 2);
+    QCoreApplication::processEvents();
+    const QImage midpoint = stack->grab().toImage();
+    QVERIFY(midpoint != first);
+    const QColor midpointPixel = midpoint.pixelColor(sample);
+    QVERIFY(colorDistance(midpointPixel, QColor(55, 165, 85))
+            < colorDistance(midpointPixel, QColor(180, 55, 55)));
+
+    // Interrupt before completion, then immediately reverse again. There is
+    // always one composited snapshot and one current page; no stale page or
+    // effect is allowed to remain visible underneath the new target.
+    view.setCurrentIndex(2);
+    QCoreApplication::processEvents();
+    QCOMPARE(stack->currentWidget(), three);
+    QCOMPARE(stack->isAnimating(), true);
+    view.setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    QCOMPARE(stack->currentWidget(), one);
+    QCOMPARE(stack->isAnimating(), true);
+    overlays = stack->findChildren<QWidget *>(
+        QStringLiteral("_winui_animated_stack_overlay"),
+        Qt::FindDirectChildrenOnly);
+    QCOMPARE(overlays.size(), 1);
+    QCOMPARE(one->isVisible(), true);
+    QCOMPARE(two->isVisible(), false);
+    QCOMPARE(three->isVisible(), false);
+    QCOMPARE(one->geometry(), stack->rect());
+    QCOMPARE(two->geometry(), stack->rect());
+    QCOMPARE(three->geometry(), stack->rect());
+
+    group = stack->findChild<QParallelAnimationGroup *>(
+        QStringLiteral("_winui_animated_stack_group"),
+        Qt::FindDirectChildrenOnly);
+    QVERIFY(group);
+    group->setCurrentTime(group->duration());
+    QCoreApplication::processEvents();
+    QVERIFY(!stack->isAnimating());
+    QCOMPARE(stack->currentWidget(), one);
+    QVERIFY(one->graphicsEffect() == nullptr);
+    QVERIFY(two->graphicsEffect() == nullptr);
+    QVERIFY(three->graphicsEffect() == nullptr);
+    stack->hide();
+    QVERIFY(!stack->isAnimating());
+    stack->show();
+    QCOMPARE(stack->currentWidget(), one);
+
+    // currentChanged is synchronous. A consumer may redirect navigation from
+    // that signal while the first transition is still being constructed.
+    WinUI3::AnimatedStack reentrant;
+    reentrant.setDuration(60);
+    reentrant.addWidget(new SolidPage(QColor(190, 70, 70), QStringLiteral("A")));
+    reentrant.addWidget(new SolidPage(QColor(70, 190, 90), QStringLiteral("B")));
+    reentrant.addWidget(new SolidPage(QColor(70, 90, 190), QStringLiteral("C")));
+    reentrant.resize(320, 160);
+    reentrant.show();
+    bool redirected = false;
+    connect(&reentrant, &QStackedWidget::currentChanged,
+            [&reentrant, &redirected](int index) {
+        if (index == 1 && !redirected) {
+            redirected = true;
+            reentrant.setCurrentIndex(2);
+        }
+    });
+    reentrant.setCurrentIndex(1);
+    QCoreApplication::processEvents();
+    auto *reentrantGroup = reentrant.findChild<QParallelAnimationGroup *>(
+        QStringLiteral("_winui_animated_stack_group"),
+        Qt::FindDirectChildrenOnly);
+    QVERIFY(reentrantGroup);
+    reentrantGroup->setCurrentTime(reentrantGroup->duration());
+    QCoreApplication::processEvents();
+    QVERIFY(redirected);
+    QCOMPARE(reentrant.currentIndex(), 2);
+    QVERIFY(!reentrant.isAnimating());
+    QCOMPARE(reentrant.findChildren<QWidget *>(
+                 QStringLiteral("_winui_animated_stack_overlay"),
+                 Qt::FindDirectChildrenOnly).size(), 0);
 }
 
 void WinUI3StyleTest::renderCommonStates()
@@ -2382,17 +2633,20 @@ void WinUI3StyleTest::splitterGripPixelAlignment()
     splitter.addWidget(new QLabel(QStringLiteral("Left")));
     splitter.addWidget(new QLabel(QStringLiteral("Right")));
 
-    const auto gripCenter = [&splitter](int left, qreal dpr) {
-        constexpr int logicalWidth = 120;
-        constexpr int logicalHeight = 80;
+    const auto gripCenter = [&splitter](const QRect &rect, bool horizontal,
+                                        qreal dpr) {
+        constexpr int logicalWidth = 180;
+        constexpr int logicalHeight = 140;
         QImage image(qCeil(logicalWidth * dpr), qCeil(logicalHeight * dpr),
                      QImage::Format_ARGB32_Premultiplied);
         image.setDevicePixelRatio(dpr);
         image.fill(Qt::transparent);
         QStyleOption option;
         option.initFrom(&splitter);
-        option.rect = QRect(left, 0, 6, logicalHeight);
-        option.state = QStyle::State_Enabled | QStyle::State_Horizontal;
+        option.rect = rect;
+        option.state = QStyle::State_Enabled;
+        if (horizontal)
+            option.state |= QStyle::State_Horizontal;
         {
             QPainter painter(&image);
             splitter.style()->drawControl(QStyle::CE_Splitter, &option,
@@ -2403,23 +2657,40 @@ void WinUI3StyleTest::splitterGripPixelAlignment()
         for (int y = 0; y < image.height(); ++y) {
             for (int x = 0; x < image.width(); ++x) {
                 const qreal alpha = qAlpha(image.pixel(x, y));
-                weighted += alpha * x;
+                weighted += alpha * (horizontal ? x + 0.5 : y + 0.5);
                 weight += alpha;
             }
         }
-        return weight > 0.0 ? weighted / weight : -1.0;
+        const qreal actual = weight > 0.0 ? weighted / weight : -1.0;
+        const qreal logicalCenter = horizontal
+            ? QRectF(rect).center().x() : QRectF(rect).center().y();
+        const qreal expected = qRound(logicalCenter * dpr - 0.5) + 0.5;
+        return qMakePair(actual, expected);
     };
 
-    for (const qreal dpr : {1.0, 1.25, 1.5}) {
-        const qreal even = gripCenter(20, dpr);
-        const qreal odd = gripCenter(21, dpr);
-        QVERIFY(even >= 0.0);
-        QVERIFY(odd >= 0.0);
-        QVERIFY2(qAbs((odd - even) - dpr) < 1.5,
-                 qPrintable(QStringLiteral("DPR %1: even=%2 odd=%3")
-                                .arg(dpr).arg(even).arg(odd)));
-        QVERIFY(qAbs(even - (22.5 * dpr)) < 2.0);
-        QVERIFY(qAbs(odd - (23.5 * dpr)) < 2.0);
+    for (const qreal dpr : {1.0, 1.25, 1.5, 2.0}) {
+        for (const bool horizontal : {true, false}) {
+            const QRect even = horizontal ? QRect(20, 20, 6, 100)
+                                          : QRect(20, 20, 100, 6);
+            const QRect odd = horizontal ? QRect(21, 21, 7, 99)
+                                         : QRect(21, 21, 99, 7);
+            const auto evenCenter = gripCenter(even, horizontal, dpr);
+            const auto oddCenter = gripCenter(odd, horizontal, dpr);
+            QVERIFY2(evenCenter.first >= 0.0,
+                     qPrintable(QStringLiteral("DPR %1 %2 even empty")
+                                    .arg(dpr).arg(horizontal ? "H" : "V")));
+            QVERIFY2(oddCenter.first >= 0.0,
+                     qPrintable(QStringLiteral("DPR %1 %2 odd empty")
+                                    .arg(dpr).arg(horizontal ? "H" : "V")));
+            QVERIFY2(qAbs(evenCenter.first - evenCenter.second) < 0.75,
+                     qPrintable(QStringLiteral("DPR %1 %2 even=%3 expected=%4")
+                                    .arg(dpr).arg(horizontal ? "H" : "V")
+                                    .arg(evenCenter.first).arg(evenCenter.second)));
+            QVERIFY2(qAbs(oddCenter.first - oddCenter.second) < 0.75,
+                     qPrintable(QStringLiteral("DPR %1 %2 odd=%3 expected=%4")
+                                    .arg(dpr).arg(horizontal ? "H" : "V")
+                                    .arg(oddCenter.first).arg(oddCenter.second)));
+        }
     }
 }
 

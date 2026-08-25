@@ -8,6 +8,8 @@
 
 class QLabel;
 class QGridLayout;
+class QHideEvent;
+class QResizeEvent;
 class QVBoxLayout;
 class QVariantAnimation;
 class QWidget;
@@ -55,10 +57,12 @@ signals:
 protected:
     void changeEvent(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     qreal expansionProgress() const;
@@ -68,6 +72,7 @@ private:
     void refreshChevronPixmap();
     void invalidateExpandableHeight();
     void scheduleExpandableHeightRefresh();
+    void refreshHeaderGeometry();
     int expandableContentHeight();
     void resetExpansionState(bool notify);
 
@@ -87,6 +92,8 @@ private:
     qreal m_expansionProgress = 0.0;
     int m_expandableContentHeight = 0;
     int m_expandableContentWidth = -1;
+    int m_headerHeight = 0;
+    int m_headerWidth = -1;
     bool m_expandableHeightValid = false;
     bool m_expandableHeightRefreshPending = false;
     bool m_expanded = false;

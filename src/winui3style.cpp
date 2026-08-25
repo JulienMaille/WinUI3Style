@@ -435,26 +435,26 @@ QRectF snappedSplitterGrip(const QRectF &grip, bool horizontal,
         return grip;
 
     const QTransform device = painter->deviceTransform();
-    const qreal scale = horizontal ? qAbs(device.m11()) : qAbs(device.m22());
-    if (scale <= 0.0 || !std::isfinite(scale))
+    const qreal signedScale = horizontal ? device.m11() : device.m22();
+    const qreal scale = qAbs(signedScale);
+    if (scale <= 0.0 || !std::isfinite(scale)
+        || !std::isfinite(signedScale))
         return grip;
 
     const qreal origin = horizontal ? device.dx() : device.dy();
     const qreal center = horizontal ? grip.center().x() : grip.center().y();
-    const qreal half = (horizontal ? grip.width() : grip.height()) * 0.5;
-    const qreal physicalStart = origin + (center - half) * scale;
-    const qreal physicalEnd = origin + (center + half) * scale;
-    const qreal snappedStart = qRound(physicalStart);
-    const qreal snappedEnd = qRound(physicalEnd);
-    const qreal snappedCenter = (snappedStart + snappedEnd) * 0.5;
-    const qreal physicalOffset = snappedCenter - (origin + center * scale);
 
-    // Only translate the painted grip when its physical edges prove that the
-    // rasterizer would otherwise split the grip asymmetrically. The splitter
-    // handle geometry, pane sizes and hit testing remain untouched.
-    if (qAbs(physicalOffset) < 0.01)
+    // CE_Splitter paints a filled grip, so its visual center belongs on a
+    // physical pixel center. Snapping the two edges independently is not
+    // equivalent: odd/even logical handle rectangles and fractional DPRs can
+    // produce an average that is half a device pixel off. This is deliberately
+    // a paint-only translation; splitter geometry and hit testing stay intact.
+    const qreal physicalCenter = origin + center * signedScale;
+    const qreal snappedCenter = qRound(physicalCenter - 0.5) + 0.5;
+    const qreal physicalOffset = snappedCenter - physicalCenter;
+    if (qAbs(physicalOffset) < 0.001)
         return grip;
-    const qreal logicalOffset = physicalOffset / scale;
+    const qreal logicalOffset = physicalOffset / signedScale;
     QRectF result = grip;
     if (horizontal)
         result.translate(logicalOffset, 0.0);
@@ -3222,13 +3222,15 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         QRectF handle;
         if (horizontal) {
             const qreal length = qMin<qreal>(100.0, qMax(0, option->rect.height() - 12));
-            handle = QRectF(option->rect.center().x() - thickness / 2.0,
-                            option->rect.center().y() - length / 2.0,
+            const QRectF splitterRect(option->rect);
+            handle = QRectF(splitterRect.center().x() - thickness / 2.0,
+                            splitterRect.center().y() - length / 2.0,
                             thickness, length);
         } else {
             const qreal length = qMin<qreal>(100.0, qMax(0, option->rect.width() - 12));
-            handle = QRectF(option->rect.center().x() - length / 2.0,
-                            option->rect.center().y() - thickness / 2.0,
+            const QRectF splitterRect(option->rect);
+            handle = QRectF(splitterRect.center().x() - length / 2.0,
+                            splitterRect.center().y() - thickness / 2.0,
                             length, thickness);
         }
         handle = snappedSplitterGrip(handle, horizontal, painter);

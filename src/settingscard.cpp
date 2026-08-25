@@ -6,9 +6,11 @@
 
 #include <QGridLayout>
 #include <QEvent>
+#include <QHideEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QResizeEvent>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
 
@@ -67,6 +69,12 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_headerHost->setLayout(m_headerLayout);
     m_rootLayout->addWidget(m_headerHost);
     m_rootLayout->addWidget(m_expandableHost);
+    // Keep the header anchored to the top of the card. Without a trailing
+    // stretch, QBoxLayout can redistribute a card's spare height between the
+    // fixed header and the expanding host, moving the title as expansion
+    // starts even though the header itself is fixed-height.
+    m_rootLayout->addStretch(1);
+    m_expandableHost->installEventFilter(this);
     m_expandableHost->setMaximumHeight(0);
     m_expandableHost->setVisible(false);
 
@@ -75,6 +83,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_expansionAnimation->setObjectName(
         QStringLiteral("_winui_settings_card_expansion_animation"));
     refreshChevronPixmap();
+    refreshHeaderGeometry();
 }
 
 SettingsCard::~SettingsCard()
@@ -90,6 +99,8 @@ void SettingsCard::setTitle(const QString &title)
 {
     if (this->title() == title) return;
     m_titleLabel->setText(title);
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
     emit titleChanged(title);
 }
 
@@ -99,6 +110,8 @@ void SettingsCard::setDescription(const QString &description)
     if (this->description() == description) return;
     m_descriptionLabel->setText(description);
     m_descriptionLabel->setVisible(!description.isEmpty());
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
     emit descriptionChanged(description);
 }
 
@@ -109,6 +122,8 @@ void SettingsCard::setIcon(const QIcon &icon)
     m_icon = icon;
     refreshIconPixmap();
     m_iconLabel->setVisible(!icon.isNull());
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
     emit iconChanged(icon);
 }
 
@@ -153,6 +168,8 @@ void SettingsCard::setTrailingWidget(QWidget *widget)
         widget->setParent(this);
         m_headerLayout->addWidget(widget, 0, 3, 2, 1, Qt::AlignVCenter);
     }
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
 }
 
 QWidget *SettingsCard::expandableWidget() const { return m_expandableWidget; }
@@ -190,6 +207,8 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
     }
     invalidateExpandableHeight();
     refreshChevronPixmap();
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
     updateGeometry();
     if (wasExpanded)
         emit expandedChanged(false);
@@ -231,6 +250,28 @@ void SettingsCard::setExpansionProgress(qreal progress)
     update();
 }
 
+void SettingsCard::refreshHeaderGeometry()
+{
+    if (!m_headerHost || !m_headerLayout)
+        return;
+
+    m_headerLayout->activate();
+    const int width = m_headerHost->width();
+    if (width <= 0 && m_headerHeight > 0)
+        return;
+
+    const int preferredHeight = m_headerLayout->sizeHint().height();
+    if (preferredHeight <= 0)
+        return;
+
+    if (m_headerWidth == width && m_headerHeight == preferredHeight)
+        return;
+    m_headerWidth = width;
+    m_headerHeight = preferredHeight;
+    if (m_headerHost->height() != preferredHeight)
+        m_headerHost->setFixedHeight(preferredHeight);
+}
+
 void SettingsCard::invalidateExpandableHeight()
 {
     m_expandableHeightValid = false;
@@ -239,8 +280,7 @@ void SettingsCard::invalidateExpandableHeight()
 
 void SettingsCard::scheduleExpandableHeightRefresh()
 {
-    if (!m_expanded || m_expansionAnimation->state() != QAbstractAnimation::Stopped
-        || m_expandableHeightRefreshPending) {
+    if (!m_expanded || m_expandableHeightRefreshPending) {
         return;
     }
     m_expandableHeightRefreshPending = true;
@@ -282,7 +322,7 @@ void SettingsCard::resetExpansionState(bool notify)
 
 bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_expandableWidget
+    if ((watched == m_expandableWidget || watched == m_expandableHost)
         && (event->type() == QEvent::LayoutRequest
             || event->type() == QEvent::Resize)) {
         invalidateExpandableHeight();
@@ -298,12 +338,13 @@ bool SettingsCard::headerContains(const QPoint &position) const
 
 void SettingsCard::changeEvent(QEvent *event)
 {
-    if (event->type() == QEvent::ApplicationPaletteChange
+    const bool refreshHeader = event->type() == QEvent::ApplicationPaletteChange
         || event->type() == QEvent::PaletteChange
         || event->type() == QEvent::StyleChange
         || event->type() == QEvent::DevicePixelRatioChange
         || event->type() == QEvent::EnabledChange
-        || event->type() == QEvent::LayoutDirectionChange) {
+        || event->type() == QEvent::LayoutDirectionChange;
+    if (refreshHeader) {
         refreshIconPixmap();
         if (event->type() == QEvent::LayoutDirectionChange
             && m_expandableHost->layout()) {
@@ -313,6 +354,28 @@ void SettingsCard::changeEvent(QEvent *event)
         }
     }
     QFrame::changeEvent(event);
+    if (refreshHeader) {
+        m_headerWidth = -1;
+        refreshHeaderGeometry();
+        refreshChevronPixmap();
+    }
+}
+
+void SettingsCard::hideEvent(QHideEvent *event)
+{
+    if (m_expansionAnimation->state() != QAbstractAnimation::Stopped) {
+        m_expansionAnimation->stop();
+        setExpansionProgress(m_expanded ? 1.0 : 0.0);
+    }
+    refreshChevronPixmap();
+    QFrame::hideEvent(event);
+}
+
+void SettingsCard::resizeEvent(QResizeEvent *event)
+{
+    QFrame::resizeEvent(event);
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
 }
 
 void SettingsCard::leaveEvent(QEvent *event)
