@@ -2,6 +2,7 @@
 #include <winui3style/winui3style.h>
 
 #include <QHideEvent>
+#include <QLayout>
 #include <QPainter>
 #include <QParallelAnimationGroup>
 #include <QPaintEvent>
@@ -22,13 +23,18 @@ public:
         setAttribute(Qt::WA_NoSystemBackground);
         setAttribute(Qt::WA_TransparentForMouseEvents);
         setObjectName(QStringLiteral("_winui_animated_stack_overlay"));
-        setProperty("_winui_animated_stack_opacity", 1.0);
+        const QImage image = m_pixmap.toImage();
+        m_background = image.isNull() ? palette().color(QPalette::Window)
+                                      : image.pixelColor(0, 0);
+        if (m_background.alpha() < 255)
+            m_background = palette().color(QPalette::Window);
+        setProperty("_winui_animated_stack_offset", 0.0);
     }
 
-    void setOpacity(qreal opacity)
+    void setOffset(qreal offset)
     {
-        m_opacity = qBound<qreal>(0.0, opacity, 1.0);
-        setProperty("_winui_animated_stack_opacity", m_opacity);
+        m_offset = offset;
+        setProperty("_winui_animated_stack_offset", m_offset);
         update();
     }
 
@@ -36,17 +42,19 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
+        painter.fillRect(rect(), m_background);
         const QSize target(qRound(width() * devicePixelRatioF()),
                            qRound(height() * devicePixelRatioF()));
         painter.setRenderHint(QPainter::SmoothPixmapTransform,
                                m_pixmap.size() != target);
-        painter.setOpacity(m_opacity);
-        painter.drawPixmap(rect(), m_pixmap);
+        painter.drawPixmap(QRectF(rect()).translated(m_offset, 0.0),
+                           m_pixmap, QRectF(m_pixmap.rect()));
     }
 
 private:
     QPixmap m_pixmap;
-    qreal m_opacity = 1.0;
+    QColor m_background;
+    qreal m_offset = 0.0;
 };
 
 } // namespace
@@ -89,12 +97,7 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         m_deferredTransition = transition;
         return;
     }
-    QPixmap interruptedFrame;
     if (isAnimating()) {
-        // Capture the actually composited frame before committing the
-        // interrupted transition. The replacement transition starts from
-        // this image, so reversing direction cannot flash an opaque page.
-        interruptedFrame = grab();
         cancelTransition();
     }
     if (m_duration == 0 || !isVisible() || !Style::animationsAllowed()) {
@@ -127,27 +130,16 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     const int direction = transition == Transition::Backward ? -1 : 1;
     const int distance = transition == Transition::Entrance ? 28 : 36;
     const QRect finalGeometry = rect();
-    const QRect outgoingEnd = finalGeometry.translated(-direction * distance / 2, 0);
 
-    // Never attach an effect to an application page. Fading the opaque
-    // outgoing snapshot above the already-visible incoming page is the same
-    // source-over cross-fade, without borrowing QGraphicsEffect ownership or
-    // leaving QPropertyAnimation with a destroyed target if the application
-    // installs/replaces an effect during the transition.
+    // Never attach an effect to an application page. More importantly, do
+    // not cross-fade an outgoing snapshot over the incoming page: text from
+    // both pages remains readable during that blend and produces a visible
+    // ghost. We switch first, capture the fully laid-out incoming page, then
+    // slide that opaque snapshot over an opaque background.
     m_outgoing = outgoing;
     m_incoming = incoming;
-    m_overlayStartGeometry = finalGeometry;
-    m_overlayEndGeometry = outgoingEnd;
+    m_overlayStartOffset = direction * distance;
     m_transitionProgress = 0.0;
-
-    QPixmap frame = interruptedFrame;
-    if (frame.isNull())
-        frame = grab();
-    if (frame.isNull())
-        frame = outgoing->grab();
-    auto *overlay = new SnapshotOverlay(frame, this);
-    overlay->setGeometry(finalGeometry);
-    m_overlay = overlay;
 
     m_transitionStarting = true;
     QStackedWidget::setCurrentIndex(m_to);
@@ -178,6 +170,20 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     // from causing layout churn or a second geometry negotiation.
     incoming->setGeometry(finalGeometry);
     incoming->show();
+    incoming->ensurePolished();
+    if (incoming->layout())
+        incoming->layout()->activate();
+    QPixmap frame = incoming->grab();
+    if (frame.isNull())
+        frame = grab();
+    // The snapshot is the only visible representation of the entering page
+    // while it moves. Leaving the real page visible underneath would draw
+    // every label twice at different horizontal positions.
+    incoming->hide();
+    auto *overlay = new SnapshotOverlay(frame, this);
+    overlay->setGeometry(finalGeometry);
+    overlay->setOffset(m_overlayStartOffset);
+    m_overlay = overlay;
     overlay->show();
     overlay->raise();
 
@@ -196,17 +202,6 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     });
     m_group->addAnimation(geometry);
 
-    auto *opacity = new QVariantAnimation(m_group);
-    opacity->setStartValue(1.0);
-    opacity->setEndValue(0.0);
-    opacity->setDuration(m_duration);
-    opacity->setEasingCurve(QEasingCurve::OutCubic);
-    connect(opacity, &QVariantAnimation::valueChanged, this,
-            [this](const QVariant &value) {
-        if (auto *overlay = dynamic_cast<SnapshotOverlay *>(m_overlay.data()))
-            overlay->setOpacity(value.toReal());
-    });
-    m_group->addAnimation(opacity);
     connect(m_group, &QParallelAnimationGroup::finished,
             this, &AnimatedStack::finishTransition);
     m_group->start();
@@ -237,10 +232,6 @@ void AnimatedStack::resizeEvent(QResizeEvent *event)
             page->setGeometry(rect());
     }
     if (m_overlay) {
-        const QPoint offset = m_overlayEndGeometry.topLeft()
-            - m_overlayStartGeometry.topLeft();
-        m_overlayStartGeometry = rect();
-        m_overlayEndGeometry = rect().translated(offset);
         updateOverlayGeometry(m_transitionProgress);
     }
 }
@@ -249,14 +240,10 @@ void AnimatedStack::updateOverlayGeometry(qreal progress)
 {
     if (!m_overlay)
         return;
-    const QRectF start(m_overlayStartGeometry);
-    const QRectF end(m_overlayEndGeometry);
-    const QRectF frame(
-        start.left() + (end.left() - start.left()) * progress,
-        start.top() + (end.top() - start.top()) * progress,
-        start.width() + (end.width() - start.width()) * progress,
-        start.height() + (end.height() - start.height()) * progress);
-    m_overlay->setGeometry(frame.toRect());
+    m_overlay->setGeometry(rect());
+    if (auto *overlay = dynamic_cast<SnapshotOverlay *>(m_overlay.data())) {
+        overlay->setOffset(m_overlayStartOffset * (1.0 - progress));
+    }
 }
 
 void AnimatedStack::handleWidgetRemoved(int index)
@@ -312,13 +299,17 @@ void AnimatedStack::cancelTransition()
     if (finalPage && indexOf(finalPage) >= 0) {
         QStackedWidget::setCurrentWidget(finalPage);
         finalPage->setGeometry(rect());
+        finalPage->show();
     } else if (count() > 0) {
         const int fallback = qBound(0, currentIndex(), count() - 1);
         QStackedWidget::setCurrentIndex(fallback);
-        if (QWidget *page = widget(fallback))
+        if (QWidget *page = widget(fallback)) {
             page->setGeometry(rect());
+            page->show();
+        }
     }
     m_from = m_to = -1;
+    m_overlayStartOffset = 0.0;
     m_transitionProgress = 0.0;
 }
 
@@ -335,10 +326,13 @@ void AnimatedStack::finishTransition()
     m_outgoing = nullptr;
     if (completed >= 0) {
         QStackedWidget::setCurrentIndex(completed);
-        if (QWidget *page = widget(completed))
+        if (QWidget *page = widget(completed)) {
             page->setGeometry(rect());
+            page->show();
+        }
     }
     m_from = m_to = -1;
+    m_overlayStartOffset = 0.0;
     m_transitionProgress = 0.0;
     if (completed >= 0)
         emit transitionFinished(completed);

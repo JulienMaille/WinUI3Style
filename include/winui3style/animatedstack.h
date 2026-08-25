@@ -60,8 +60,7 @@ private:
     QPointer<QWidget> m_incoming;
     QPointer<QWidget> m_overlay;
     QPointer<QVariantAnimation> m_geometryAnimation;
-    QRect m_overlayStartGeometry;
-    QRect m_overlayEndGeometry;
+    qreal m_overlayStartOffset = 0.0;
     qreal m_transitionProgress = 0.0;
     bool m_transitionStarting = false;
     int m_deferredIndex = -1;

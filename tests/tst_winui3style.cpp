@@ -1491,7 +1491,7 @@ void WinUI3StyleTest::navigationInteractiveFrames()
     QVERIFY(stack->isAnimating());
     QCOMPARE(stack->currentWidget(), two);
     QCOMPARE(one->isVisible(), false);
-    QCOMPARE(two->isVisible(), true);
+    QCOMPARE(two->isVisible(), false);
     QCOMPARE(three->isVisible(), false);
     QCOMPARE(one->geometry(), pageRect);
     QCOMPARE(two->geometry(), pageRect);
@@ -1500,11 +1500,25 @@ void WinUI3StyleTest::navigationInteractiveFrames()
         QStringLiteral("_winui_animated_stack_overlay"),
         Qt::FindDirectChildrenOnly);
     QCOMPARE(overlays.size(), 1);
+    QCOMPARE(overlays.constFirst()->isVisible(), true);
     QVERIFY(overlays.constFirst()->graphicsEffect() == nullptr);
     const QImage first = stack->grab().toImage();
     const QColor firstPixel = first.pixelColor(sample);
-    QVERIFY(colorDistance(firstPixel, QColor(180, 55, 55))
-            < colorDistance(firstPixel, QColor(55, 165, 85)));
+    QVERIFY(colorDistance(firstPixel, QColor(55, 165, 85))
+            < colorDistance(firstPixel, QColor(180, 55, 55)));
+
+    const auto containsOutgoingPageColor = [](const QImage &image) {
+        const QColor outgoing(180, 55, 55);
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (colorDistance(image.pixelColor(x, y), outgoing) < 12)
+                    return true;
+            }
+        }
+        return false;
+    };
+    QVERIFY2(!containsOutgoingPageColor(first),
+             "The first transition frame still contains outgoing-page pixels");
 
     auto *group = stack->findChild<QParallelAnimationGroup *>(
         QStringLiteral("_winui_animated_stack_group"),
@@ -1517,6 +1531,8 @@ void WinUI3StyleTest::navigationInteractiveFrames()
     const QColor midpointPixel = midpoint.pixelColor(sample);
     QVERIFY(colorDistance(midpointPixel, QColor(55, 165, 85))
             < colorDistance(midpointPixel, QColor(180, 55, 55)));
+    QVERIFY2(!containsOutgoingPageColor(midpoint),
+             "The midpoint still blends outgoing and incoming page content");
 
     // Interrupt before completion, then immediately reverse again. There is
     // always one composited snapshot and one current page; no stale page or
@@ -1533,7 +1549,7 @@ void WinUI3StyleTest::navigationInteractiveFrames()
         QStringLiteral("_winui_animated_stack_overlay"),
         Qt::FindDirectChildrenOnly);
     QCOMPARE(overlays.size(), 1);
-    QCOMPARE(one->isVisible(), true);
+    QCOMPARE(one->isVisible(), false);
     QCOMPARE(two->isVisible(), false);
     QCOMPARE(three->isVisible(), false);
     QCOMPARE(one->geometry(), stack->rect());
@@ -1548,6 +1564,7 @@ void WinUI3StyleTest::navigationInteractiveFrames()
     QCoreApplication::processEvents();
     QVERIFY(!stack->isAnimating());
     QCOMPARE(stack->currentWidget(), one);
+    QCOMPARE(one->isVisible(), true);
     QVERIFY(one->graphicsEffect() == nullptr);
     QVERIFY(two->graphicsEffect() == nullptr);
     QVERIFY(three->graphicsEffect() == nullptr);
