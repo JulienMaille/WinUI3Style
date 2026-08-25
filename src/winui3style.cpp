@@ -824,6 +824,17 @@ void paintFluentIcon(QPainter *painter, Icon glyph, const QRectF &rect,
                     state);
 }
 
+void paintFluentIconExact(QPainter *painter, Icon glyph, const QRectF &rect,
+                          Qt::Alignment alignment, const QColor &foreground,
+                          QIcon::Mode mode)
+{
+    // QIcon::paint() is the snapshot contract for menu Check/submenu glyphs.
+    // Their direct colored engine path has subtly different glyph coverage
+    // from a recoloured pixmap, so retain that path for these menu items.
+    icon(glyph, foreground).paint(painter, rect.toRect(), alignment, mode,
+                                  QIcon::Off);
+}
+
 QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds,
                    const QRectF &logical)
 {
@@ -2326,9 +2337,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
             const QRect checkRect = visualRect(option->direction, option->rect,
                 QRect(option->rect.left() + 12,
                       option->rect.center().y() - 8, 16, 16));
-            paintFluentIcon(painter, Icon::Check, checkRect, Qt::AlignCenter,
-                            enabled ? t.textPrimary : t.textDisabled,
-                            enabled ? QIcon::Normal : QIcon::Disabled);
+            paintFluentIconExact(painter, Icon::Check, checkRect,
+                                 Qt::AlignCenter,
+                                 enabled ? t.textPrimary : t.textDisabled,
+                                 enabled ? QIcon::Normal : QIcon::Disabled);
         } else if (selected && viewOption && selectionMarkerView(widget)
                    && firstColumn) {
             painter->save();
@@ -3313,9 +3325,10 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                     1.5, 1.5);
                 painter->restore();
             } else if (menu->checked) {
-                paintFluentIcon(painter, Icon::Check, leading, Qt::AlignCenter,
-                                enabled ? t.textPrimary : t.textDisabled,
-                                enabled ? QIcon::Normal : QIcon::Disabled);
+                paintFluentIconExact(
+                    painter, Icon::Check, leading, Qt::AlignCenter,
+                    enabled ? t.textPrimary : t.textDisabled,
+                    enabled ? QIcon::Normal : QIcon::Disabled);
             } else if (!menu->icon.isNull()) {
                 paintThemedIcon(painter, menu->icon, leading, Qt::AlignCenter,
                     enabled ? t.textPrimary : t.textDisabled,
@@ -3357,7 +3370,7 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 const QRect submenu = visualRect(menu->direction, menu->rect,
                     QRect(menu->rect.right() - 24, menu->rect.center().y() - 8,
                           16, 16));
-                paintFluentIcon(
+                paintFluentIconExact(
                     painter,
                     menu->direction == Qt::RightToLeft ? Icon::ChevronLeft
                                                        : Icon::ChevronRight,
