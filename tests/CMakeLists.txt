@@ -9,6 +9,7 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_link_libraries(winui3style_native_tests PRIVATE
         WinUI3::Widgets Qt6::Test Qt6::Widgets)
+    target_link_libraries(winui3style_native_tests PRIVATE dwmapi)
     if(WINUI3STYLE_BUILD_PLUGIN)
         add_dependencies(winui3style_native_tests winui3styleplugin)
     endif()

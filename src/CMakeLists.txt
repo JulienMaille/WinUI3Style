@@ -12,6 +12,7 @@ add_library(winui3style SHARED
     ${winui3style_public_headers}
     winui3style.cpp
     winui3tokens_p.h
+    winui3backdrop_p.h
     winui3backdrop.cpp
     winui3icons.cpp
     toggleswitch.cpp

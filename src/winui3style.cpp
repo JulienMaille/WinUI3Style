@@ -3,6 +3,7 @@
 #include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3icons.h>
 
+#include "winui3backdrop_p.h"
 #include "winui3tokens_p.h"
 
 #include <QAbstractButton>
@@ -1012,28 +1013,42 @@ SystemAccentRamp systemAccentRamp()
     // Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, complement.
     // These are the same SystemAccentColor* roles consumed by WinUI's
     // Common_themeresources_any.xaml.
-    QSettings settings(QStringLiteral(
-        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent"),
-        QSettings::NativeFormat);
-    const QByteArray bytes = settings.value(QStringLiteral("AccentPalette")).toByteArray();
-    const auto entry = [&bytes](int index) {
-        const int offset = index * 4;
-        if (bytes.size() < offset + 3)
-            return QColor{};
-        return QColor(quint8(bytes.at(offset + 2)), quint8(bytes.at(offset + 1)),
-                      quint8(bytes.at(offset)));
-    };
-    ramp.light2 = entry(1);
-    ramp.accent = entry(3);
-    ramp.dark1 = entry(4);
-
+    // DWM is the live system source used by the shell and WinUI Gallery. Do
+    // not combine its current base with Explorer's cached role entries: that
+    // produces a ramp whose selection and control-fill roles belong to
+    // different accent families when the registry lags behind the shell.
     DWORD color = 0;
     BOOL opaque = FALSE;
+    bool dwmAccentAvailable = false;
     if (SUCCEEDED(DwmGetColorizationColor(&color, &opaque))) {
         QColor result = QColor::fromRgba(color);
         result.setAlpha(255);
-        if (result.isValid())
+        if (result.isValid()) {
             ramp.accent = result;
+            ramp.light2 = Private::mix(ramp.accent, QColor(Qt::white), 0.32);
+            ramp.dark1 = Private::mix(ramp.accent, QColor(Qt::black), 0.18);
+            dwmAccentAvailable = true;
+        }
+    }
+
+    if (!dwmAccentAvailable) {
+        // AccentPalette is a complete fallback source. It is intentionally
+        // read only when DWM cannot provide the live family, so the three
+        // roles remain atomic.
+        QSettings settings(QStringLiteral(
+            "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent"),
+            QSettings::NativeFormat);
+        const QByteArray bytes = settings.value(QStringLiteral("AccentPalette")).toByteArray();
+        const auto entry = [&bytes](int index) {
+            const int offset = index * 4;
+            if (bytes.size() < offset + 3)
+                return QColor{};
+            return QColor(quint8(bytes.at(offset + 2)), quint8(bytes.at(offset + 1)),
+                          quint8(bytes.at(offset)));
+        };
+        ramp.light2 = entry(1);
+        ramp.accent = entry(3);
+        ramp.dark1 = entry(4);
     }
 #endif
     if (!ramp.accent.isValid())
@@ -2185,8 +2200,13 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     const bool pressed = enabled && (option->state & State_Sunken);
     const qreal hover = enabled
         ? progress(widget, hoverProperty, hovered ? 1.0 : 0.0) : 0.0;
+    // State_Sunken is the authoritative instantaneous state. The property is
+    // an animation/pulse cache and can briefly still contain zero when Qt has
+    // entered the pressed state (notably on rapid press/reversal sequences).
     const qreal press = enabled
-        ? progress(widget, pressProperty, pressed ? 1.0 : 0.0) : 0.0;
+        ? qMax(progress(widget, pressProperty, pressed ? 1.0 : 0.0),
+              pressed ? 1.0 : 0.0)
+        : 0.0;
 
     if (element == PE_PanelMenuBar) {
         painter->fillRect(option->rect, t.surface);
@@ -3013,7 +3033,10 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             const bool accent = role == ControlRole::Accent
                 || role == ControlRole::Destructive
                 || ((tool->state & State_On) && role == ControlRole::Standard);
+            const bool textHelper = textBoxHelperButton(widget);
+            const bool pressed = tool->state & State_Sunken;
             const QColor textColor = !enabled ? t.textDisabled
+                : textHelper ? (pressed ? t.textTertiary : t.textSecondary)
                 : accent ? t.textOnAccentPrimary : t.textPrimary;
             const QRectF content = QRectF(subControlRect(CC_ToolButton, tool,
                                                          SC_ToolButton, widget))
@@ -4607,9 +4630,18 @@ void Style::polish(QWidget *widget)
     if (qobject_cast<QComboBox *>(widget))
         widget->setProperty(comboChevronProperty, 0.0);
 
+    // Qt creates popup windows lazily, after polish and before Show. Prepare
+    // the alpha-capable backing surface here; the native DWM attributes are
+    // applied once Qt has created the HWND (WinIdChange/Show).
+    if (widget->isWindow()
+        && (widget->windowType() == Qt::Popup
+            || widget->windowType() == Qt::ToolTip)) {
+        Private::prepareBackdropSurface(widget, Backdrop::Acrylic);
+    }
+
     // QMenu computes its first popup geometry after polish but before Show.
-    // Install only the layout inset here; native backdrop and palette work
-    // remain in the Show path to avoid creating a handle recursively.
+    // Install the layout inset here; palette/material tint waits for Show so
+    // it is based on the current application appearance.
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
         remember(menu, originalMarginsProperty,
                  QVariant::fromValue(menu->contentsMargins()));
@@ -5091,6 +5123,15 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             || (widget->isWindow() && widget->windowType() == Qt::ToolTip))
             applyBackdrop(widget, Backdrop::Acrylic);
         preparePopupSurface(widget);
+        break;
+    case QEvent::WinIdChange:
+        if (widget->isWindow()
+            && (widget->windowType() == Qt::Popup
+                || widget->windowType() == Qt::ToolTip)
+            && widget->property("_winui_backdrop").isValid()) {
+            applyBackdrop(widget, static_cast<Backdrop>(
+                widget->property("_winui_backdrop").toInt()));
+        }
         break;
     case QEvent::Hide:
         if (qobject_cast<QProgressBar *>(widget))

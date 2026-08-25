@@ -18,6 +18,12 @@
 #include <QToolTip>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_WIN
+#  define NOMINMAX
+#  include <windows.h>
+#  include <dwmapi.h>
+#endif
+
 class NativePopupProbe final : public QObject
 {
 public:
@@ -83,6 +89,7 @@ private slots:
     void tooltipSurface();
     void menuSurface();
     void comboPopupSurface();
+    void systemBackdropAttributes();
     void backdropStateRestoration();
     void dialogThemeUpdate();
     void dockFloatingFocusCleanup();
@@ -187,6 +194,56 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     QCOMPARE(probe.resizesAfterPaint, 0);
     QTest::keyClick(combo->view(), Qt::Key_Escape);
     QTRY_VERIFY(!combo->view()->isVisible());
+}
+
+void WinUI3StyleNativeTest::systemBackdropAttributes()
+{
+#ifdef Q_OS_WIN
+    QWidget window;
+    window.resize(320, 120);
+    WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Acrylic);
+    QVERIFY(window.testAttribute(Qt::WA_TranslucentBackground));
+    QVERIFY(window.testAttribute(Qt::WA_NoSystemBackground));
+    QVERIFY(!window.testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(!window.autoFillBackground());
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const HWND hwnd = reinterpret_cast<HWND>(window.winId());
+    BOOL hostBackdrop = TRUE;
+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 17, &hostBackdrop,
+                                        sizeof(hostBackdrop))))
+        QCOMPARE(hostBackdrop, FALSE);
+    int systemBackdrop = 0;
+    if (FAILED(DwmGetWindowAttribute(hwnd, 38, &systemBackdrop,
+                                     sizeof(systemBackdrop)))) {
+        QSKIP("Windows does not expose system backdrop attributes");
+    }
+    QCOMPARE(systemBackdrop, 3); // DWMSBT_TRANSIENTWINDOW / Desktop Acrylic.
+
+    QMenu menu;
+    menu.addAction(QStringLiteral("Acrylic popup"));
+    menu.ensurePolished();
+    QVERIFY(menu.testAttribute(Qt::WA_TranslucentBackground));
+    menu.popup(window.mapToGlobal(QPoint(20, 20)));
+    QTRY_VERIFY(menu.isVisible());
+    QCOMPARE(menu.palette().color(QPalette::Window).alpha(), 0);
+    const HWND popupHwnd = reinterpret_cast<HWND>(menu.winId());
+    BOOL popupHostBackdrop = TRUE;
+    if (SUCCEEDED(DwmGetWindowAttribute(popupHwnd, 17,
+                                        &popupHostBackdrop,
+                                        sizeof(popupHostBackdrop))))
+        QCOMPARE(popupHostBackdrop, FALSE);
+    int popupSystemBackdrop = 0;
+    QVERIFY(SUCCEEDED(DwmGetWindowAttribute(popupHwnd, 38,
+                                             &popupSystemBackdrop,
+                                             sizeof(popupSystemBackdrop))));
+    QCOMPARE(popupSystemBackdrop, 3);
+    menu.close();
+#else
+    QSKIP("Native Windows backdrop test requires Windows");
+#endif
 }
 
 void WinUI3StyleNativeTest::backdropStateRestoration()

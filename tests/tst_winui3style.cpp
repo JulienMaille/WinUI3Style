@@ -292,7 +292,9 @@ private slots:
     void init();
     void cleanup();
     void palettes();
+    void systemAccentRampIsAtomic();
     void buttonToolButtonAndIconContracts();
+    void buttonPressedStateFollowsQtState();
     void iconPixmapCacheDprAndPalette();
     void buttonPressedPulseContract();
     void disabledButtonHasNoInteractionState();
@@ -313,6 +315,7 @@ private slots:
     void inputModalityFocus();
     void hoverAnimationProgresses();
     void textBoxInteraction();
+    void clearButtonStateContract();
     void textBoxStateMatrix();
     void indeterminateProgressDeterminism();
     void comboPopupContract();
@@ -411,6 +414,41 @@ void WinUI3StyleTest::palettes()
     QCOMPARE(dark.standardPalette().color(QPalette::Button), QColor(255, 255, 255, 15));
     QCOMPARE(dark.standardPalette().color(QPalette::PlaceholderText),
              QColor(255, 255, 255, 197));
+}
+
+void WinUI3StyleTest::systemAccentRampIsAtomic()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setAccentColor({});
+
+    const QColor systemAccent = style->accentColor();
+    QVERIFY(systemAccent.isValid());
+    const auto sameHueFamily = [](const QColor &a, const QColor &b) {
+        const QColor first = a.toHsv();
+        const QColor second = b.toHsv();
+        // A near-gray accent has no stable hue; its roles are still coherent
+        // when both are achromatic.
+        if (first.saturation() < 16 || second.saturation() < 16)
+            return first.saturation() < 16 && second.saturation() < 16;
+        const int distance = qAbs(first.hue() - second.hue());
+        return qMin(distance, 360 - distance) <= 8;
+    };
+
+    QCOMPARE(style->standardPalette().color(QPalette::Highlight), systemAccent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
+                                         WinUI3::ThemeMode::Dark}) {
+        style->setThemeMode(mode);
+        const QPalette palette = style->standardPalette();
+        const QColor controlAccent = palette.color(QPalette::Accent);
+        QVERIFY(controlAccent.isValid());
+        QVERIFY2(sameHueFamily(systemAccent, controlAccent),
+                 qPrintable(QStringLiteral("system %1, control %2")
+                                .arg(systemAccent.name(), controlAccent.name())));
+    }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+#endif
 }
 
 void WinUI3StyleTest::buttonToolButtonAndIconContracts()
@@ -610,6 +648,48 @@ void WinUI3StyleTest::buttonPressedPulseContract()
                         tool.rect().center());
     QTest::qWait(130);
     QVERIFY(tool.property("_winui_press_progress").toReal() < 0.1);
+}
+
+void WinUI3StyleTest::buttonPressedStateFollowsQtState()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
+                                           WinUI3::ControlRole::Subtle}) {
+        QPushButton button(QStringLiteral("Pressed"));
+        WinUI3::Style::setControlRole(&button, role);
+        button.resize(120, 32);
+        button.ensurePolished();
+        button.setProperty("_winui_hover_progress", 1.0);
+        button.setProperty("_winui_press_progress", 0.0);
+
+        QStyleOptionButton option;
+        option.initFrom(&button);
+        option.rect = button.rect();
+        option.palette = button.palette();
+        option.state = QStyle::State_Enabled | QStyle::State_MouseOver;
+        const auto render = [&](QStyle::State state) {
+            option.state = state;
+            QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            image.fill(option.palette.color(QPalette::Window));
+            QPainter painter(&image);
+            style->drawControl(QStyle::CE_PushButton, &option, &painter, &button);
+            return image;
+        };
+
+        const QImage rest = render(QStyle::State_Enabled | QStyle::State_MouseOver);
+        const QImage pressed = render(QStyle::State_Enabled | QStyle::State_MouseOver
+                                      | QStyle::State_Sunken);
+        int changed = 0;
+        for (int y = 0; y < rest.height(); ++y)
+            for (int x = 0; x < rest.width(); ++x)
+                changed += rest.pixelColor(x, y) != pressed.pixelColor(x, y);
+        QVERIFY2(changed > 0,
+                 role == WinUI3::ControlRole::Standard
+                     ? "standard State_Sunken frame is not visible"
+                     : "subtle State_Sunken frame is not visible");
+    }
 }
 
 void WinUI3StyleTest::disabledButtonHasNoInteractionState()
@@ -1390,6 +1470,70 @@ void WinUI3StyleTest::textBoxInteraction()
     QFocusEvent tabFocus(QEvent::FocusIn, Qt::TabFocusReason);
     QCoreApplication::sendEvent(&edit, &tabFocus);
     QVERIFY(edit.property("_winui_focus_visible").toBool());
+}
+
+void WinUI3StyleTest::clearButtonStateContract()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    QLineEdit edit(QStringLiteral("Clear me"));
+    edit.setClearButtonEnabled(true);
+    edit.resize(240, 32);
+    edit.show();
+    QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
+    QAbstractButton *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
+    QVERIFY(clearButton);
+    clearButton->setProperty("_winui_hover_progress", 0.0);
+    clearButton->setProperty("_winui_press_progress", 0.0);
+
+    QStyleOptionToolButton option;
+    option.initFrom(clearButton);
+    option.rect = QRect(QPoint(), QSize(30, 32));
+    option.palette = clearButton->palette();
+    option.icon = clearButton->icon().isNull()
+        ? style->standardIcon(QStyle::SP_LineEditClearButton, nullptr, &edit)
+        : clearButton->icon();
+    option.iconSize = QSize(16, 16);
+
+    const auto render = [&](QStyle::State state, qreal hover, qreal press) {
+        clearButton->setProperty("_winui_hover_progress", hover);
+        clearButton->setProperty("_winui_press_progress", press);
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(edit.palette().color(QPalette::Window));
+        option.state = state;
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelButtonTool, &option,
+                             &painter, clearButton);
+        style->drawControl(QStyle::CE_ToolButtonLabel, &option,
+                           &painter, clearButton);
+        return image;
+    };
+
+    const QImage normal = render(QStyle::State_Enabled, 0.0, 0.0);
+    const QImage pointerOver = render(QStyle::State_Enabled | QStyle::State_MouseOver,
+                                      1.0, 0.0);
+    const QImage pressed = render(QStyle::State_Enabled | QStyle::State_MouseOver
+                                  | QStyle::State_Sunken, 1.0, 1.0);
+    QVERIFY(normal != pointerOver);
+    QVERIFY(pointerOver != pressed);
+
+    // DeleteButton keeps the secondary glyph on pointer-over and switches to
+    // the tertiary foreground only while pressed.
+    const auto glyphOnly = [&](QStyle::State state) {
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        option.state = state;
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_ToolButtonLabel, &option,
+                           &painter, clearButton);
+        return image;
+    };
+    const QImage normalGlyph = glyphOnly(QStyle::State_Enabled);
+    const QImage hoverGlyph = glyphOnly(QStyle::State_Enabled | QStyle::State_MouseOver);
+    const QImage pressedGlyph = glyphOnly(QStyle::State_Enabled | QStyle::State_Sunken);
+    QCOMPARE(normalGlyph, hoverGlyph);
+    QVERIFY(normalGlyph != pressedGlyph);
 }
 
 void WinUI3StyleTest::textBoxStateMatrix()

@@ -21,6 +21,7 @@ struct Tokens {
     bool dark = false;
     QColor textPrimary;
     QColor textSecondary;
+    QColor textTertiary;
     QColor textDisabled;
     QColor surface;
     QColor layer;
@@ -92,6 +93,7 @@ inline Tokens tokens(const QPalette &palette)
     t.dark = qGray(palette.color(QPalette::Window).rgb()) < 128;
     t.textPrimary = t.dark ? QColor(255, 255, 255) : QColor(0, 0, 0, 228);
     t.textSecondary = t.dark ? QColor(255, 255, 255, 197) : QColor(0, 0, 0, 158);
+    t.textTertiary = t.dark ? QColor(255, 255, 255, 135) : QColor(0, 0, 0, 114);
     t.textDisabled = t.dark ? QColor(255, 255, 255, 93) : QColor(0, 0, 0, 92);
     t.surface = palette.color(QPalette::Window);
     t.layer = t.dark ? QColor(58, 58, 58, 76) : QColor(255, 255, 255, 128);
