@@ -335,6 +335,7 @@ private slots:
     void toggleInteraction();
     void toggleDragInteraction();
     void settingsCardExpansion();
+    void settingsCardTrailingWidgetsReceiveClicks();
     void settingsCardChevronAndStableHeader();
     void settingsCardExpansionLoad();
     void settingsCardInteractiveFrames();
@@ -1175,6 +1176,71 @@ void WinUI3StyleTest::settingsCardExpansion()
     const qreal reverse = card.property("expansionProgress").toReal();
     QVERIFY(reverse > 0.0 && reverse < 1.0);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
+}
+
+void WinUI3StyleTest::settingsCardTrailingWidgetsReceiveClicks()
+{
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+
+    auto *toggleCard = new WinUI3::SettingsCard;
+    toggleCard->setTitle(QStringLiteral("Notifications"));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    toggle->setChecked(true);
+    toggleCard->setTrailingWidget(toggle);
+    layout->addWidget(toggleCard);
+
+    auto *comboCard = new WinUI3::SettingsCard;
+    comboCard->setTitle(QStringLiteral("Updates"));
+    auto *combo = new QComboBox;
+    combo->addItems({QStringLiteral("Automatic"),
+                     QStringLiteral("Manual")});
+    comboCard->setTrailingWidget(combo);
+    layout->addWidget(comboCard);
+
+    auto *expandableCard = new WinUI3::SettingsCard;
+    expandableCard->setTitle(QStringLiteral("Advanced"));
+    expandableCard->setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    layout->addWidget(expandableCard);
+
+    host.resize(560, host.sizeHint().height());
+    host.show();
+    QCoreApplication::processEvents();
+
+    const auto targetAt = [](QWidget *widget) {
+        return QApplication::widgetAt(
+            widget->mapToGlobal(widget->rect().center()));
+    };
+
+    QWidget *toggleTarget = targetAt(toggle);
+    QVERIFY2(toggleTarget == toggle || toggle->isAncestorOf(toggleTarget),
+             "SettingsCard swallowed the trailing toggle hit area");
+    const QPoint togglePoint = toggleTarget->mapFromGlobal(
+        toggle->mapToGlobal(toggle->rect().center()));
+    QTest::mouseClick(toggleTarget, Qt::LeftButton, Qt::NoModifier,
+                      togglePoint);
+    QCOMPARE(toggle->isChecked(), false);
+
+    QWidget *comboTarget = targetAt(combo);
+    QVERIFY2(comboTarget == combo || combo->isAncestorOf(comboTarget),
+             "SettingsCard swallowed the trailing combo-box hit area");
+    const QPoint comboPoint = comboTarget->mapFromGlobal(
+        combo->mapToGlobal(combo->rect().center()));
+    QTest::mouseClick(comboTarget, Qt::LeftButton, Qt::NoModifier,
+                      comboPoint);
+    QTRY_VERIFY(combo->view()->isVisible());
+    combo->hidePopup();
+
+    auto *title = expandableCard->findChild<QLabel *>(
+        QStringLiteral("_winui_settings_card_title"));
+    QVERIFY(title);
+    QWidget *headerTarget = targetAt(title);
+    QVERIFY(headerTarget);
+    QTest::mouseClick(headerTarget, Qt::LeftButton, Qt::NoModifier,
+                      headerTarget->mapFromGlobal(
+                          title->mapToGlobal(title->rect().center())));
+    QCOMPARE(expandableCard->isExpanded(), true);
 }
 
 void WinUI3StyleTest::settingsCardChevronAndStableHeader()

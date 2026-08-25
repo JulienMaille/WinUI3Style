@@ -39,7 +39,8 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_headerHost->setObjectName(QStringLiteral("_winui_settings_card_headerHost"));
     m_expandableHost->setObjectName(
         QStringLiteral("_winui_settings_card_expandableHost"));
-    m_headerHost->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_headerHost->setMouseTracking(true);
+    m_headerHost->installEventFilter(this);
     m_headerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_headerLayout->setContentsMargins(0, 12, 0, 12);
     m_headerLayout->setHorizontalSpacing(12);
@@ -55,6 +56,14 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_chevronLabel->setFixedWidth(20);
     m_chevronLabel->setAlignment(Qt::AlignCenter);
     m_chevronLabel->setVisible(false);
+    // Decorative header children let the header host receive the gesture so
+    // it can activate the card. The trailing widget deliberately remains a
+    // normal mouse target (a transparent ancestor would disable its entire
+    // subtree, including toggles and combo boxes).
+    m_iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_descriptionLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_chevronLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     QFont titleFont = m_titleLabel->font();
     titleFont.setWeight(QFont::DemiBold);
     m_titleLabel->setFont(titleFont);
@@ -322,6 +331,25 @@ void SettingsCard::resetExpansionState(bool notify)
 
 bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_headerHost) {
+        if (event->type() == QEvent::MouseButtonPress
+            || event->type() == QEvent::MouseButtonRelease) {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            const QPointF cardPosition = m_headerHost->mapTo(
+                this, mouse->position().toPoint());
+            QMouseEvent forwarded(event->type(), cardPosition,
+                                  mouse->globalPosition(), mouse->button(),
+                                  mouse->buttons(), mouse->modifiers(),
+                                  mouse->pointingDevice());
+            QCoreApplication::sendEvent(this, &forwarded);
+            event->accept();
+            return true;
+        }
+        if (event->type() == QEvent::Leave) {
+            m_pressed = false;
+            update();
+        }
+    }
     if ((watched == m_expandableWidget || watched == m_expandableHost)
         && (event->type() == QEvent::LayoutRequest
             || event->type() == QEvent::Resize)) {
