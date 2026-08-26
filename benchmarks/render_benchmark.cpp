@@ -1,6 +1,8 @@
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
+#include "winui3tokens_p.h"
+
 #include <QApplication>
 #include <QDebug>
 #include <QElapsedTimer>
@@ -32,6 +34,33 @@ struct Options {
     int iterations = DefaultIterations;
     bool icons = true;
 };
+
+void benchmarkTokens()
+{
+    QPalette palette;
+    palette.setColor(QPalette::Window, QColor(243, 243, 243));
+    palette.setColor(QPalette::Highlight, QColor(0, 95, 184));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    palette.setColor(QPalette::Accent, QColor(0, 120, 212));
+#endif
+    constexpr int iterations = 250000;
+    const auto run = [&](const char *name, const auto &factory) {
+        quint64 checksum = 0;
+        QElapsedTimer timer;
+        timer.start();
+        for (int iteration = 0; iteration < iterations; ++iteration) {
+            const WinUI3::Private::Tokens tokens = factory(palette);
+            checksum += tokens.accentFill.rgba();
+        }
+        const qreal nanoseconds = qreal(timer.nsecsElapsed()) / iterations;
+        qInfo().noquote() << QStringLiteral("%1 ns/call=%2 checksum=%3")
+                                 .arg(QString::fromLatin1(name))
+                                 .arg(nanoseconds, 0, 'f', 1)
+                                 .arg(checksum);
+    };
+    run("tokens-uncached", WinUI3::Private::buildTokens);
+    run("tokens-cached", WinUI3::Private::tokens);
+}
 
 double percentile(std::vector<double> values, double fraction)
 {
@@ -238,6 +267,7 @@ int main(int argc, char **argv)
     application.setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
     const Options options = parseOptions(application);
 
+    benchmarkTokens();
     benchmarkList(options);
     benchmarkTree(options);
     benchmarkTable(options);

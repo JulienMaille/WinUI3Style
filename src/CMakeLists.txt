@@ -13,6 +13,8 @@ add_library(winui3style SHARED
     winui3style.cpp
     winui3paint_p.h
     winui3paint_p.cpp
+    winui3geometry_p.h
+    winui3geometry_p.cpp
     winui3tokens_p.h
     navigationview_p.h
     navigationview_p.cpp

@@ -4,6 +4,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "winui3backdrop_p.h"
+#include "winui3geometry_p.h"
 #include "navigationview_p.h"
 #include "winui3paint_p.h"
 #include "winui3tokens_p.h"
@@ -3526,46 +3527,11 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
 int Style::pixelMetric(PixelMetric metric, const QStyleOption *option,
                        const QWidget *widget) const
 {
-    if (toggleSwitch(widget)) {
-        if (metric == PM_IndicatorWidth)
-            return 40;
-        if (metric == PM_IndicatorHeight)
-            return 20;
-    }
-    switch (metric) {
-    case PM_ButtonMargin: return 8;
-    case PM_ButtonDefaultIndicator: return 0;
-    case PM_DefaultFrameWidth: return 1;
-    case PM_ComboBoxFrameWidth: return 1;
-    case PM_SpinBoxFrameWidth: return 1;
-    case PM_IndicatorWidth:
-    case PM_IndicatorHeight:
-    case PM_ExclusiveIndicatorWidth:
-    case PM_ExclusiveIndicatorHeight: return 20;
-    case PM_ScrollBarExtent: return 12;
-    case PM_ScrollBarSliderMin: return 30;
-    case PM_SliderThickness:
-    case PM_SliderLength: return 20;
-    case PM_TabCloseIndicatorWidth: return 32;
-    case PM_TabCloseIndicatorHeight: return 24;
-    case PM_SmallIconSize: return 16;
-    case PM_ButtonIconSize: return 16;
-    case PM_ToolBarIconSize: return 20;
-    case PM_DockWidgetSeparatorExtent:
-    case PM_DockWidgetHandleExtent:
-    case PM_SplitterWidth: return 6;
-    case PM_DockWidgetFrameWidth: return 1;
-    case PM_DockWidgetTitleMargin: return 8;
-    case PM_DockWidgetTitleBarButtonMargin: return 4;
-    case PM_HeaderMargin: return 12;
-    case PM_HeaderMarkSize: return 12;
-    case PM_HeaderGripMargin: return 4;
-    case PM_HeaderDefaultSectionSizeVertical: return 36;
-    case PM_HeaderDefaultSectionSizeHorizontal: return 100;
-    default: return QProxyStyle::pixelMetric(metric, option, widget);
-    }
+    if (const auto value = Private::pixelMetricValue(metric,
+                                                      toggleSwitch(widget)))
+        return *value;
+    return QProxyStyle::pixelMetric(metric, option, widget);
 }
-
 QSize Style::sizeFromContents(ContentsType type, const QStyleOption *option,
                               const QSize &contentsSize, const QWidget *widget) const
 {
@@ -3779,272 +3745,25 @@ QRect Style::subElementRect(SubElement element, const QStyleOption *option,
     return result;
 }
 
-QRect Style::subControlRect(ComplexControl control, const QStyleOptionComplex *option,
+QRect Style::subControlRect(ComplexControl control,
+                            const QStyleOptionComplex *option,
                             SubControl subControl, const QWidget *widget) const
 {
-    if (control == CC_Slider) {
-        if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
-            const bool horizontal = slider->orientation == Qt::Horizontal;
-            const int preMargin = 14;
-            QRect groove;
-            if (horizontal) {
-                groove = QRect(slider->rect.left() + preMargin,
-                               slider->rect.center().y() - 2,
-                               qMax(1, slider->rect.width() - 2 * preMargin), 4);
-            } else {
-                groove = QRect(slider->rect.center().x() - 2,
-                               slider->rect.top() + preMargin, 4,
-                               qMax(1, slider->rect.height() - 2 * preMargin));
-            }
-            if (subControl == SC_SliderGroove)
-                return groove;
-            if (subControl == SC_SliderHandle) {
-                const int span = qMax(0, (horizontal ? groove.width()
-                                                      : groove.height()) - 1);
-                const int offset = QStyle::sliderPositionFromValue(
-                    slider->minimum, slider->maximum, slider->sliderPosition,
-                    span, slider->upsideDown);
-                const QPoint center = horizontal
-                    ? QPoint(groove.left() + offset, groove.center().y())
-                    : QPoint(groove.center().x(), groove.top() + offset);
-                return QRect(center.x() - 8, center.y() - 8, 18, 18);
-            }
-            if (subControl == SC_SliderTickmarks)
-                return slider->rect;
-        }
-    }
-    if (control == CC_ScrollBar) {
-        if (const auto *scroll = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
-            const bool horizontal = scroll->orientation == Qt::Horizontal;
-            const int buttonLength = 12;
-            const int axisLength = horizontal ? scroll->rect.width()
-                                              : scroll->rect.height();
-            const int grooveLength = qMax(0, axisLength - 2 * buttonLength);
-            const QRect logicalSub = horizontal
-                ? QRect(scroll->rect.left(), scroll->rect.top(), buttonLength,
-                        scroll->rect.height())
-                : QRect(scroll->rect.left(), scroll->rect.top(),
-                        scroll->rect.width(), buttonLength);
-            const QRect logicalAdd = horizontal
-                ? QRect(scroll->rect.right() - buttonLength + 1,
-                        scroll->rect.top(), buttonLength, scroll->rect.height())
-                : QRect(scroll->rect.left(), scroll->rect.bottom() - buttonLength + 1,
-                        scroll->rect.width(), buttonLength);
-            const QRect groove = horizontal
-                ? QRect(scroll->rect.left() + buttonLength, scroll->rect.top(),
-                        grooveLength, scroll->rect.height())
-                : QRect(scroll->rect.left(), scroll->rect.top() + buttonLength,
-                        scroll->rect.width(), grooveLength);
-            if (subControl == SC_ScrollBarSubLine)
-                return visualRect(scroll->direction, scroll->rect, logicalSub);
-            if (subControl == SC_ScrollBarAddLine)
-                return visualRect(scroll->direction, scroll->rect, logicalAdd);
-            if (subControl == SC_ScrollBarGroove)
-                return groove;
-
-            const qint64 range = qMax<qint64>(0,
-                qint64(scroll->maximum) - qint64(scroll->minimum));
-            int thumbLength = grooveLength;
-            if (range > 0) {
-                const qint64 denominator = qint64(range) + scroll->pageStep;
-                thumbLength = denominator > 0
-                    ? int(qint64(grooveLength) * scroll->pageStep / denominator)
-                    : 0;
-                const int minimumThumb = qMin(30, grooveLength);
-                thumbLength = qBound(minimumThumb, thumbLength, grooveLength);
-            }
-            const int available = qMax(0, grooveLength - thumbLength);
-            const int offset = QStyle::sliderPositionFromValue(
-                scroll->minimum, scroll->maximum, scroll->sliderPosition,
-                available, scroll->upsideDown);
-            const QRect thumb = horizontal
-                ? QRect(groove.left() + offset, groove.top(), thumbLength,
-                        groove.height())
-                : QRect(groove.left(), groove.top() + offset, groove.width(),
-                        thumbLength);
-            if (subControl == SC_ScrollBarSlider)
-                return thumb;
-
-            if (subControl == SC_ScrollBarSubPage) {
-                if (horizontal) {
-                    return scroll->upsideDown
-                        ? QRect(thumb.right() + 1, groove.top(),
-                                qMax(0, groove.right() - thumb.right()),
-                                groove.height())
-                        : QRect(groove.left(), groove.top(),
-                                qMax(0, thumb.left() - groove.left()),
-                                groove.height());
-                }
-                return scroll->upsideDown
-                    ? QRect(groove.left(), thumb.bottom() + 1, groove.width(),
-                            qMax(0, groove.bottom() - thumb.bottom()))
-                    : QRect(groove.left(), groove.top(), groove.width(),
-                            qMax(0, thumb.top() - groove.top()));
-            }
-            if (subControl == SC_ScrollBarAddPage) {
-                if (horizontal) {
-                    return scroll->upsideDown
-                        ? QRect(groove.left(), groove.top(),
-                                qMax(0, thumb.left() - groove.left()),
-                                groove.height())
-                        : QRect(thumb.right() + 1, groove.top(),
-                                qMax(0, groove.right() - thumb.right()),
-                                groove.height());
-                }
-                return scroll->upsideDown
-                    ? QRect(groove.left(), groove.top(), groove.width(),
-                            qMax(0, thumb.top() - groove.top()))
-                    : QRect(groove.left(), thumb.bottom() + 1, groove.width(),
-                            qMax(0, groove.bottom() - thumb.bottom()));
-            }
-        }
-    }
-    if (control == CC_GroupBox) {
-        if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option)) {
-            const bool checkable = group->subControls & SC_GroupBoxCheckBox;
-            if (subControl == SC_GroupBoxFrame)
-                return group->rect;
-            if (subControl == SC_GroupBoxCheckBox)
-                return visualRect(group->direction, group->rect,
-                                  QRect(group->rect.left() + 12,
-                                        group->rect.top() + 8, 20, 20));
-            if (subControl == SC_GroupBoxLabel) {
-                const int left = group->rect.left() + (checkable ? 40 : 12);
-                return visualRect(group->direction, group->rect,
-                                  QRect(left, group->rect.top() + 4,
-                                        qMax(0, group->rect.right() - left - 12),
-                                        28));
-            }
-            if (subControl == SC_GroupBoxContents)
-                return visualRect(group->direction, group->rect,
-                                  group->rect.adjusted(12, 36, -12, -12));
-        }
-    }
-    if (control == CC_ComboBox) {
-        if (subControl == SC_ComboBoxArrow) {
-            const QRect logical(option->rect.right() - 37, option->rect.top(),
-                                38, option->rect.height());
-            return visualRect(option->direction, option->rect, logical);
-        }
-        if (subControl == SC_ComboBoxEditField) {
-            const QRect logical = option->rect.adjusted(12, 1, -38, -1);
-            return visualRect(option->direction, option->rect, logical);
-        }
-    }
-    if (control == CC_ToolButton) {
-        const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option);
-        if (subControl == SC_ToolButton) {
-            if (tool && (tool->features & QStyleOptionToolButton::MenuButtonPopup)) {
-                const QRect logical = option->rect.adjusted(0, 0, -24, 0);
-                return visualRect(option->direction, option->rect, logical);
-            }
-            return option->rect;
-        }
-        if (subControl == SC_ToolButtonMenu) {
-            const QRect logical(option->rect.right() - 23, option->rect.top(),
-                                24, option->rect.height());
-            return visualRect(option->direction, option->rect, logical);
-        }
-    }
-    if (control == CC_SpinBox) {
-        const bool verticalButtons = verticalSpinButtons(widget);
-        const int buttonWidth = verticalButtons ? 32 : 36;
-        QRect logical;
-        if (verticalButtons && subControl == SC_SpinBoxUp) {
-            const int upperHeight = option->rect.height() / 2;
-            logical = QRect(option->rect.right() - buttonWidth + 1,
-                            option->rect.top(), buttonWidth, upperHeight);
-        } else if (verticalButtons && subControl == SC_SpinBoxDown) {
-            const int upperHeight = option->rect.height() / 2;
-            logical = QRect(option->rect.right() - buttonWidth + 1,
-                            option->rect.top() + upperHeight, buttonWidth,
-                            option->rect.height() - upperHeight);
-        } else if (verticalButtons && subControl == SC_SpinBoxEditField) {
-            logical = option->rect.adjusted(12, 1, -buttonWidth, -1);
-        } else if (subControl == SC_SpinBoxUp) {
-            logical = QRect(option->rect.right() - 2 * buttonWidth + 1,
-                            option->rect.top(), buttonWidth,
-                            option->rect.height());
-        } else if (subControl == SC_SpinBoxDown) {
-            logical = QRect(option->rect.right() - buttonWidth + 1,
-                            option->rect.top(), buttonWidth,
-                            option->rect.height());
-        } else if (subControl == SC_SpinBoxEditField) {
-            logical = option->rect.adjusted(12, 1, -2 * buttonWidth, -1);
-        }
-        if (logical.isValid())
-            return visualRect(option->direction, option->rect, logical);
-        if (subControl == SC_SpinBoxFrame)
-            return option->rect;
-    }
+    if (const auto rect = Private::complexControlRect(
+            control, option, subControl, widget))
+        return *rect;
     return QProxyStyle::subControlRect(control, option, subControl, widget);
 }
-
 QStyle::SubControl Style::hitTestComplexControl(
     ComplexControl control, const QStyleOptionComplex *option,
     const QPoint &position, const QWidget *widget) const
 {
-    if (!option || !option->rect.contains(position))
-        return SC_None;
-
-    const auto contains = [&](SubControl subControl) {
-        return subControlRect(control, option, subControl, widget)
-            .contains(position);
-    };
-    switch (control) {
-    case CC_ToolButton:
-        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option);
-            tool && (tool->features & QStyleOptionToolButton::MenuButtonPopup)
-            && contains(SC_ToolButtonMenu))
-            return SC_ToolButtonMenu;
-        return contains(SC_ToolButton) ? SC_ToolButton : SC_None;
-    case CC_ComboBox:
-        if (contains(SC_ComboBoxArrow))
-            return SC_ComboBoxArrow;
-        if (contains(SC_ComboBoxEditField))
-            return SC_ComboBoxEditField;
-        return SC_ComboBoxFrame;
-    case CC_GroupBox:
-        if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option);
-            group && (group->subControls & SC_GroupBoxCheckBox)) {
-            const QRect check = subControlRect(CC_GroupBox, group,
-                                                SC_GroupBoxCheckBox, widget);
-            const QRect label = subControlRect(CC_GroupBox, group,
-                                                SC_GroupBoxLabel, widget);
-            // Match the CheckBox click surface: spacing between the indicator
-            // and text is part of the header, not a dead strip.
-            if (check.united(label).contains(position))
-                return SC_GroupBoxCheckBox;
-        }
-        if (contains(SC_GroupBoxLabel))
-            return SC_GroupBoxLabel;
-        if (contains(SC_GroupBoxContents))
-            return SC_GroupBoxContents;
-        return SC_GroupBoxFrame;
-    case CC_SpinBox:
-        if (contains(SC_SpinBoxUp))
-            return SC_SpinBoxUp;
-        if (contains(SC_SpinBoxDown))
-            return SC_SpinBoxDown;
-        if (contains(SC_SpinBoxEditField))
-            return SC_SpinBoxEditField;
-        return SC_SpinBoxFrame;
-    case CC_Slider:
-        if (contains(SC_SliderHandle))
-            return SC_SliderHandle;
-        return contains(SC_SliderGroove) ? SC_SliderGroove : SC_None;
-    case CC_ScrollBar:
-        for (SubControl sub : {SC_ScrollBarSubLine, SC_ScrollBarAddLine,
-                               SC_ScrollBarSlider, SC_ScrollBarSubPage,
-                               SC_ScrollBarAddPage, SC_ScrollBarGroove})
-            if (contains(sub))
-                return sub;
-        return SC_None;
-    default:
-        return QProxyStyle::hitTestComplexControl(control, option, position, widget);
-    }
+    if (const auto result = Private::complexControlHitTest(
+            control, option, position, widget))
+        return *result;
+    return QProxyStyle::hitTestComplexControl(
+        control, option, position, widget);
 }
-
 int Style::styleHint(StyleHint hint, const QStyleOption *option,
                      const QWidget *widget, QStyleHintReturn *returnData) const
 {

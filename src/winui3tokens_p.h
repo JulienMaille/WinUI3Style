@@ -2,6 +2,8 @@
 
 #include <QColor>
 #include <QPalette>
+#include <array>
+#include <cstddef>
 #include <cmath>
 
 namespace WinUI3::Private {
@@ -87,7 +89,7 @@ inline QColor contrastText(const QColor &background)
                                                    : QColor(Qt::white);
 }
 
-inline Tokens tokens(const QPalette &palette)
+inline Tokens buildTokens(const QPalette &palette)
 {
     Tokens t;
     t.dark = qGray(palette.color(QPalette::Window).rgb()) < 128;
@@ -142,6 +144,33 @@ inline Tokens tokens(const QPalette &palette)
     t.textOnAccentDisabled.setAlpha(135);
     t.danger = QColor(196, 43, 28);
     return t;
+}
+
+inline Tokens tokens(const QPalette &palette)
+{
+    // QPalette::cacheKey() changes with the palette's contents, including
+    // widget-local overrides and runtime accent/theme updates. A small
+    // thread-local ring avoids locks and heap allocations in paint paths
+    // while bounding retained palette variants.
+    struct CacheEntry {
+        qint64 key = 0;
+        bool valid = false;
+        Tokens value;
+    };
+    thread_local std::array<CacheEntry, 8> cache;
+    thread_local std::size_t next = 0;
+
+    const qint64 key = palette.cacheKey();
+    for (const CacheEntry &entry : cache) {
+        if (entry.valid && entry.key == key)
+            return entry.value;
+    }
+
+    CacheEntry &entry = cache[next++ % cache.size()];
+    entry.value = buildTokens(palette);
+    entry.key = key;
+    entry.valid = true;
+    return entry.value;
 }
 
 } // namespace WinUI3::Private
