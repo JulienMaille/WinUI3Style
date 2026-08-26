@@ -18,6 +18,10 @@ namespace {
 constexpr auto fluentIconNamePrefix = "winui3-fluent-icon:";
 constexpr int fluentIconCount = static_cast<int>(Icon::Warning) + 1;
 constexpr int MaxPixmapCacheCost = 4096;
+// Coloured QIcons are normally requested from paint paths. Keep this cache
+// deliberately bounded because callers can provide arbitrary accent colors,
+// while still avoiding a QIconEngine allocation for every paint event.
+constexpr int MaxColoredIconCacheCost = 256;
 
 QString colorKey(const QColor &color)
 {
@@ -89,6 +93,7 @@ public:
     IconRuntime()
     {
         m_pixmaps.setMaxCost(MaxPixmapCacheCost);
+        m_coloredIcons.setMaxCost(MaxColoredIconCacheCost);
     }
 
     void syncApplication()
@@ -140,12 +145,23 @@ public:
         m_pixmaps.insert(key, new QPixmap(pixmap), cost);
     }
 
+    QIcon *findColoredIcon(const QString &key)
+    {
+        return m_coloredIcons.object(key);
+    }
+
+    void insertColoredIcon(const QString &key, const QIcon &icon)
+    {
+        m_coloredIcons.insert(key, new QIcon(icon));
+    }
+
 private:
     void invalidate()
     {
         m_fontFamily.clear();
         m_fontFamilyResolved = false;
         m_pixmaps.clear();
+        m_coloredIcons.clear();
     }
 
     QPointer<QGuiApplication> m_application;
@@ -153,6 +169,7 @@ private:
     QString m_fontFamily;
     bool m_fontFamilyResolved = false;
     QCache<QString, QPixmap> m_pixmaps;
+    QCache<QString, QIcon> m_coloredIcons;
 };
 
 IconRuntime &iconRuntime()
@@ -181,6 +198,13 @@ QString pixmapKey(const ParsedFluentIcon &parsed, const QSize &logicalSize,
         .arg(physicalSize.width()).arg(physicalSize.height())
         .arg(colorKey(foreground))
         .arg(static_cast<int>(mode)).arg(static_cast<int>(state));
+}
+
+QString coloredIconKey(Icon glyph, const QColor &color)
+{
+    return QStringLiteral("winui3-fluent-colored-icon:%1:%2")
+        .arg(static_cast<int>(glyph))
+        .arg(colorKey(color));
 }
 
 class FluentIconEngine final : public QIconEngine
@@ -274,7 +298,25 @@ QIcon icon(Icon glyph, const QColor &color)
 {
     if (!color.isValid())
         return icon(glyph);
-    return QIcon(new FluentIconEngine(glyph, color));
+
+    // QStyle paint paths are GUI-thread-only. Keep the fallback for callers
+    // that use this public helper before a GUI application exists or from a
+    // worker thread; those calls retain the exact historical engine path.
+    if (!canUseGuiCache())
+        return QIcon(new FluentIconEngine(glyph, color));
+
+    IconRuntime &runtime = iconRuntime();
+    runtime.syncApplication();
+    const QString key = coloredIconKey(glyph, color);
+    if (QIcon *cached = runtime.findColoredIcon(key))
+        return *cached;
+
+    // The cached value owns the same FluentIconEngine implementation that
+    // the old per-call path created. Only the lifetime changes: rasterization
+    // and QIconEngine::pixmap() behavior remain byte-for-byte identical.
+    const QIcon colored(new FluentIconEngine(glyph, color));
+    runtime.insertColoredIcon(key, colored);
+    return colored;
 }
 
 bool isFluentIcon(const QIcon &icon)

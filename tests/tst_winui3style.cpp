@@ -323,6 +323,7 @@ private slots:
     void systemAccentRampIsAtomic();
     void buttonToolButtonAndIconContracts();
     void buttonPressedStateFollowsQtState();
+    void coloredIconCacheReuseAndPixelContract();
     void iconPixmapCacheDprAndPalette();
     void buttonPressedPulseContract();
     void disabledButtonHasNoInteractionState();
@@ -622,6 +623,53 @@ void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
     const QImage light = renderArrow(Qt::white);
     const QImage dark = renderArrow(Qt::black);
     QVERIFY(light != dark);
+}
+
+void WinUI3StyleTest::coloredIconCacheReuseAndPixelContract()
+{
+    const QColor foreground(27, 108, 219, 231);
+    const QSize logicalSize(20, 20);
+    const qreal devicePixelRatio = 1.5;
+
+    const QIcon first = WinUI3::icon(WinUI3::Icon::ChevronDown, foreground);
+    const QPixmap firstPixmap = first.pixmap(logicalSize, devicePixelRatio,
+                                             QIcon::Normal, QIcon::Off);
+    QVERIFY(!firstPixmap.isNull());
+
+    // A repeated request for the same glyph/color must reuse the cached
+    // engine. cacheKey equality is the allocation/lifetime proxy; comparing
+    // every raster state guards the public output at the same time.
+    const QIcon second = WinUI3::icon(WinUI3::Icon::ChevronDown, foreground);
+    QCOMPARE(first.cacheKey(), second.cacheKey());
+    for (const QIcon::Mode mode : {QIcon::Normal, QIcon::Disabled,
+                                   QIcon::Active, QIcon::Selected}) {
+        for (const QIcon::State state : {QIcon::Off, QIcon::On}) {
+            QCOMPARE(first.pixmap(logicalSize, devicePixelRatio, mode, state)
+                         .toImage(),
+                     second.pixmap(logicalSize, devicePixelRatio, mode, state)
+                         .toImage());
+        }
+    }
+
+    QCOMPARE(firstPixmap.devicePixelRatio(), devicePixelRatio);
+    QVERIFY(first.cacheKey() != WinUI3::icon(WinUI3::Icon::ChevronDown,
+                                               QColor(28, 108, 219, 231))
+                 .cacheKey());
+
+    // Force the bounded cache past its capacity and compare a newly-created
+    // engine with the original. This catches accidental changes to the
+    // QIconEngine raster path while exercising the eviction policy.
+    for (int index = 0; index < 300; ++index) {
+        const QColor uniqueColor((index * 53) % 256, (index * 97) % 256,
+                                 (index * 193) % 256, 200 + (index % 56));
+        (void)WinUI3::icon(WinUI3::Icon::ChevronDown, uniqueColor);
+    }
+    const QIcon rebuilt = WinUI3::icon(WinUI3::Icon::ChevronDown, foreground);
+    QVERIFY(rebuilt.cacheKey() != first.cacheKey());
+    QCOMPARE(rebuilt.pixmap(logicalSize, devicePixelRatio, QIcon::Normal,
+                            QIcon::Off)
+                 .toImage(),
+             firstPixmap.toImage());
 }
 
 void WinUI3StyleTest::buttonPressedPulseContract()
