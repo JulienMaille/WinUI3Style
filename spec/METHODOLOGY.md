@@ -115,7 +115,7 @@ Each live pass must identify the exact two active executables, their build or
 commit, the monitor DPR, theme, Windows accent, reduced-motion setting, and the
 control/page being compared. Capture the first presented frame as well as the
 settled frame. A later stable frame cannot validate a transition that briefly
-shows old content, an opaque pre-Acrylic surface, or stale geometry.
+shows old content, an uninitialized popup surface, or stale geometry.
 
 Popup surfaces require a repeatability sequence, not one successful opening:
 
@@ -165,8 +165,8 @@ Live compositor inspection remains mandatory.
 3. **Deterministic visual matrix** — light/dark captures for rest, hover,
    pressed, checked, disabled, keyboard focus, popup, and transition midpoint.
 4. **Live side-by-side pass** — compare Qt with the pinned Gallery using the
-   same theme, scale, input sequence, and logical crop. Mica/Acrylic are only
-   accepted in this live compositor pass.
+   same theme, scale, input sequence, and logical crop. Qt popup and window
+   surfaces remain opaque; native compositor materials are out of scope.
 
 Image RMS is a regression signal, not the acceptance criterion. Geometry,
 state semantics, motion, and focus modality can fail even when RMS is small.

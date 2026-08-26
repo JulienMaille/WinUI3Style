@@ -23,7 +23,7 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QListView` / `QListWidget` | ListView | Direct | source-audited | official 40 px rows, padding, subtle hover/selected/down layers, accent selection pill, icons/checks, editing, disabled and keyboard focus; live pointer sequence remains |
 | `QTreeView` / `QTreeWidget` | TreeView | Direct | source-audited | official 28 px rows, 4×2 margin, Fluent expanders, hierarchy, selected pill and keyboard focus; multi-column header is a consistency extension; live pointer sequence remains |
 | `QTableView` / `QTableWidget` / headers | DataGrid-like extension | Consistency extension | source-audited | 36 px rows, subtle row selection, flat 32 px headers, sorting glyph, editing and scrolling tested; no core WinUI DataGrid is claimed; live pointer/resize pass remains |
-| `QMenu` / `QMenuBar` | MenuFlyout / menu bar extension | Direct + extension | source-audited | check, icon, shortcut, submenu, long text, hover/down, Acrylic |
+| `QMenu` / `QMenuBar` | MenuFlyout / menu bar extension | Direct + extension | source-audited | check, icon, shortcut, submenu, long text, hover/down, opaque popup surface |
 | `QScrollBar` | ScrollBar | Direct | source-audited | official 12 px extent, 8→12 px reveal, 400/500 ms delays, 167 ms reversal-safe expand/contract, arrows, 30 px thumb, RTL, disabled-zero-opacity and real `QScrollArea` interaction covered by offscreen contracts; native light/dark comparison remains |
 | `QGroupBox` | Fluent card grouping | Consistency extension | source-audited | plain/checkable, hover/down check, disabled, focus |
 | `QSplitter` | Fluent separator | Consistency extension | source-audited | both axes, hover, drag, clamp, release |
@@ -52,9 +52,8 @@ per-control live-verification status above:
 | Check/radio reverse motion | fill, check path and radio dot all consume the animated progress in both directions | `checkboxAndRadioUncheckMotion` |
 | Navigation model lifecycle | delegate reconnects to replacement model and selection model and resynchronizes on scroll | `navigationModelReconnectAndScroll` |
 | Dialog lifecycle | opacity-only show motion avoids layout geometry changes; hide/reopen clears animation state | `runtimeAppearanceAndDialogLifecycle`, `contentDialogContract` |
-| Runtime theme/accent | system scheme/accent watcher refreshes application palette, owned palettes, open windows, backdrops and popups | `runtimeAppearanceAndDialogLifecycle`, native `dialogThemeUpdate`, `comboPopupContract` |
+| Runtime theme/accent | system scheme/accent watcher refreshes application palette, owned palettes, open windows and opaque popups | `runtimeAppearanceAndDialogLifecycle`, native `dialogThemeUpdate`, `comboPopupContract` |
 | Popup first frame | ComboBox selection/scroll are prepared before presentation; MenuFlyout insets are installed before its first size negotiation | `comboPopupContract`, `menuSizingContract`, native `comboPopupSurface` |
-| Backdrop teardown | Mica/Acrylic preserve explicit or inherited palettes plus all QWidget background attributes; a direct `None` request is idempotent | native `backdropStateRestoration` |
 
 Rows marked `partial` or `not covered` are explicitly not claims of complete
 WinUI fidelity. The audit must either close their missing states or narrow the

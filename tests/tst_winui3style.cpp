@@ -979,7 +979,7 @@ void WinUI3StyleTest::styleMutationRestoration()
     QTRY_VERIFY(popup.isVisible());
     QCOMPARE(popup.contentsMargins(), popupMargins);
     QCOMPARE(popup.spacing(), 0);
-    QVERIFY(!popup.viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(popup.viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
     style->unpolish(popup.viewport());
     style->unpolish(&popup);
     QCOMPARE(popup.contentsMargins(), popupMargins);

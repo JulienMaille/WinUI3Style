@@ -1,9 +1,7 @@
 #include <winui3style/winui3style.h>
 
-#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3icons.h>
 
-#include "winui3backdrop_p.h"
 #include "winui3geometry_p.h"
 #include "navigationview_p.h"
 #include "winui3paint_p.h"
@@ -115,6 +113,10 @@ constexpr auto originalSpacingProperty = "_winui_original_layout_spacing";
 constexpr auto originalRoleProperty = "_winui_original_control_role";
 constexpr auto originalRoleWasValidProperty = "_winui_original_control_role_valid";
 constexpr auto originalOpaquePaintProperty = "_winui_original_opaque_paint";
+constexpr auto originalTranslucentBackgroundProperty =
+    "_winui_original_translucent_background";
+constexpr auto originalNoSystemBackgroundProperty =
+    "_winui_original_no_system_background";
 constexpr auto originalListSpacingProperty = "_winui_original_list_spacing";
 constexpr auto ownedPaletteProperty = "_winui_theme_owned_palette";
 
@@ -413,7 +415,6 @@ public:
                                  available.bottom() - height() + 1));
         }
         move(position);
-        WinUI3::applyBackdrop(this, WinUI3::Backdrop::Acrylic);
         show();
         raise();
         update();
@@ -770,21 +771,23 @@ void preparePopupSurface(QWidget *widget)
     QWidget *popup = widget->window();
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
-    // Creating a native handle from inside QWidget::polish() recursively
-    // polishes an unopened QMenu. Apply the DWM material from the Show path;
-    // palette and layout preparation can safely happen before visibility.
-    if (popup->isVisible())
-        applyBackdrop(popup, Backdrop::Acrylic);
+    remember(popup, originalTranslucentBackgroundProperty,
+             popup->testAttribute(Qt::WA_TranslucentBackground));
+    remember(popup, originalNoSystemBackgroundProperty,
+             popup->testAttribute(Qt::WA_NoSystemBackground));
     // Popup widgets keep an explicit palette after their first polish. Rebase
     // every show on the current application palette so runtime theme changes
-    // cannot leave dark text roles on a light Acrylic surface (or vice versa).
+    // cannot leave stale text or surface roles behind.
     QPalette popupPalette = effectivePopupPalette(popup, QApplication::palette());
-    QColor transparentWindow = popupPalette.color(QPalette::Window);
-    transparentWindow.setAlpha(0);
-    popupPalette.setColor(QPalette::Window, transparentWindow);
-    popupPalette.setColor(QPalette::Base, Qt::transparent);
+    const Private::Tokens popupTokens = Private::tokens(popupPalette);
+    const QColor popupSurface = popupTokens.dark ? QColor(44, 44, 44)
+                                                 : QColor(252, 252, 252);
+    popupPalette.setColor(QPalette::Window, popupSurface);
+    popupPalette.setColor(QPalette::Base, popupSurface);
     popup->setPalette(popupPalette);
-    popup->setAutoFillBackground(false);
+    popup->setAutoFillBackground(true);
+    popup->setAttribute(Qt::WA_TranslucentBackground, false);
+    popup->setAttribute(Qt::WA_NoSystemBackground, false);
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
         remember(popup, originalMarginsProperty,
                  QVariant::fromValue(popup->contentsMargins()));
@@ -804,8 +807,8 @@ void preparePopupSurface(QWidget *widget)
                  view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
         view->viewport()->setPalette(
             effectivePopupPalette(view->viewport(), viewPalette));
-        view->viewport()->setAutoFillBackground(false);
-        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
+        view->viewport()->setAutoFillBackground(true);
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
         if (auto *list = qobject_cast<QListView *>(view)) {
             remember(list, originalListSpacingProperty, list->spacing());
             list->setSpacing(0);
@@ -1572,12 +1575,6 @@ void Style::refreshApplicationAppearance()
         widget->update();
     }
     for (QWidget *window : qApp->topLevelWidgets()) {
-        const QVariant backdrop = window->property("_winui_backdrop");
-        if (backdrop.isValid()) {
-            QTimer::singleShot(0, window, [window, backdrop] {
-                applyBackdrop(window, static_cast<Backdrop>(backdrop.toInt()));
-            });
-        }
         if (window->windowType() == Qt::Popup)
             preparePopupSurface(window);
     }
@@ -2037,9 +2034,9 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
 
     if (element == PE_Frame && widget && widget->window()
         && widget->window()->windowType() == Qt::Popup) {
-        const QColor acrylic = t.dark ? QColor(44, 44, 44, 230)
-                                      : QColor(252, 252, 252, 230);
-        controlSurface(painter, option->rect, acrylic,
+        const QColor popupSurface = t.dark ? QColor(44, 44, 44)
+                                           : QColor(252, 252, 252);
+        controlSurface(painter, option->rect, popupSurface,
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
                        OverlayRadius);
@@ -3965,18 +3962,8 @@ void Style::polish(QWidget *widget)
     if (qobject_cast<QComboBox *>(widget))
         widget->setProperty(comboChevronProperty, 0.0);
 
-    // Qt creates popup windows lazily, after polish and before Show. Prepare
-    // the alpha-capable backing surface here; the native DWM attributes are
-    // applied once Qt has created the HWND (WinIdChange/Show).
-    if (widget->isWindow()
-        && (widget->windowType() == Qt::Popup
-            || widget->windowType() == Qt::ToolTip)) {
-        Private::prepareBackdropSurface(widget, Backdrop::Acrylic);
-    }
-
     // QMenu computes its first popup geometry after polish but before Show.
-    // Install the layout inset here; palette/material tint waits for Show so
-    // it is based on the current application appearance.
+    // Install the layout inset here; the opaque palette is refreshed on Show.
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
         remember(menu, originalMarginsProperty,
                  QVariant::fromValue(menu->contentsMargins()));
@@ -4020,8 +4007,6 @@ void Style::unpolish(QWidget *widget)
     QProxyStyle::unpolish(widget);
     if (widget) {
         d->stopAnimations(widget);
-        if (widget->property("_winui_backdrop").isValid())
-            applyBackdrop(widget, Backdrop::None);
         restoreRememberedPalette(widget);
         if (widget->property(originalAutoFillProperty).isValid())
             widget->setAutoFillBackground(
@@ -4032,6 +4017,14 @@ void Style::unpolish(QWidget *widget)
         if (widget->property(originalOpaquePaintProperty).isValid())
             widget->setAttribute(Qt::WA_OpaquePaintEvent,
                 widget->property(originalOpaquePaintProperty).toBool());
+        if (widget->property(originalTranslucentBackgroundProperty).isValid())
+            widget->setAttribute(
+                Qt::WA_TranslucentBackground,
+                widget->property(originalTranslucentBackgroundProperty).toBool());
+        if (widget->property(originalNoSystemBackgroundProperty).isValid())
+            widget->setAttribute(
+                Qt::WA_NoSystemBackground,
+                widget->property(originalNoSystemBackgroundProperty).toBool());
         if (widget->property(originalMarginsProperty).isValid()
             && !qobject_cast<QDialog *>(widget))
             widget->setContentsMargins(
@@ -4099,6 +4092,8 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalAutoFillProperty, {});
         widget->setProperty(originalHoverAttributeProperty, {});
         widget->setProperty(originalOpaquePaintProperty, {});
+        widget->setProperty(originalTranslucentBackgroundProperty, {});
+        widget->setProperty(originalNoSystemBackgroundProperty, {});
         widget->setProperty("_winui_original_mouse_tracking", {});
         widget->setProperty(originalListSpacingProperty, {});
         widget->setProperty(originalMinimumSizeProperty, {});
@@ -4488,19 +4483,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         }
         if (qobject_cast<QProgressBar *>(widget))
             d->refreshProgressTimer();
-        if (qobject_cast<QMenu *>(widget)
-            || (widget->isWindow() && widget->windowType() == Qt::ToolTip))
-            applyBackdrop(widget, Backdrop::Acrylic);
         preparePopupSurface(widget);
-        break;
-    case QEvent::WinIdChange:
-        if (widget->isWindow()
-            && (widget->windowType() == Qt::Popup
-                || widget->windowType() == Qt::ToolTip)
-            && widget->property("_winui_backdrop").isValid()) {
-            applyBackdrop(widget, static_cast<Backdrop>(
-                widget->property("_winui_backdrop").toInt()));
-        }
         break;
     case QEvent::Hide:
         if (qobject_cast<QProgressBar *>(widget))

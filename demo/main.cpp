@@ -1,6 +1,5 @@
 #include "gallerywindow.h"
 
-#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3style.h>
 
 #include <QApplication>
@@ -34,7 +33,6 @@ int main(int argc, char *argv[])
 
     GalleryWindow window;
     window.resize(1180, 780);
-    WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica);
     window.show();
     if (captureMode) {
         QTimer::singleShot(250, &application, [&application, &window, &parser, captureOption] {

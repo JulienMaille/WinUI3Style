@@ -3,7 +3,6 @@
 #include <winui3style/navigationview.h>
 #include <winui3style/animatedstack.h>
 #include <winui3style/settingscard.h>
-#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
@@ -188,9 +187,10 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
     const QByteArray previousAnimationSetting = qgetenv(
         "WINUI3STYLE_DISABLE_ANIMATIONS");
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
-    const QVariant previousBackdrop = property("_winui_backdrop");
-    WinUI3::applyBackdrop(this, WinUI3::Backdrop::None);
-    setProperty("_winui_backdrop", QVariant());
+    // Snapshots must not depend on the host's current Windows accent. Keep the
+    // interactive gallery system-aware, but use Fluent's reference blue for
+    // deterministic visual baselines across machines.
+    winuiStyle->setAccentColor(QColor(0, 120, 212));
     setPalette(QPalette());
     setAutoFillBackground(true);
     const bool mouseEventsWereTransparent =
@@ -204,13 +204,6 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
             qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
         else
             qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
-        if (previousBackdrop.isValid())
-            WinUI3::applyBackdrop(this,
-                static_cast<WinUI3::Backdrop>(previousBackdrop.toInt()));
-        else {
-            WinUI3::applyBackdrop(this, WinUI3::Backdrop::None);
-            setProperty("_winui_backdrop", QVariant());
-        }
         setPalette(previousPalette);
         setAutoFillBackground(previousAutoFill);
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
@@ -790,5 +783,4 @@ void GalleryWindow::setTheme(int index)
     const auto mode = index == 1 ? WinUI3::ThemeMode::Light
         : index == 2 ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::System;
     winuiStyle->setThemeMode(mode);
-    WinUI3::applyBackdrop(this, WinUI3::Backdrop::Mica);
 }

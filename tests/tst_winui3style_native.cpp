@@ -1,5 +1,4 @@
 #include <winui3style/winui3style.h>
-#include <winui3style/winui3backdrop.h>
 
 #include <QComboBox>
 #include <QAbstractItemView>
@@ -18,12 +17,6 @@
 #include <QToolTip>
 #include <QVBoxLayout>
 
-#ifdef Q_OS_WIN
-#  define NOMINMAX
-#  include <windows.h>
-#  include <dwmapi.h>
-#endif
-
 class NativePopupProbe final : public QObject
 {
 public:
@@ -38,7 +31,8 @@ public:
 
     bool eventFilter(QObject *object, QEvent *event) override
     {
-        auto *popup = qobject_cast<QWidget *>(object);
+        QWidget *popup = combo ? combo->view()->window()
+                               : qobject_cast<QWidget *>(object);
         if (event->type() == QEvent::Show)
             visible = true;
         else if (event->type() == QEvent::Hide)
@@ -52,9 +46,11 @@ public:
             selectedCenterAtFirstPaint = combo->view()->viewport()->mapToGlobal(
                 combo->view()->visualRect(selected).center());
             scrollAtFirstPaint = combo->view()->verticalScrollBar()->value();
-        } else if (painted && visible && event->type() == QEvent::Move)
+        } else if (object == popup && painted && visible
+                   && event->type() == QEvent::Move)
             ++movesAfterPaint;
-        else if (painted && visible && event->type() == QEvent::Resize)
+        else if (object == popup && painted && visible
+                 && event->type() == QEvent::Resize)
             ++resizesAfterPaint;
         return false;
     }
@@ -89,8 +85,6 @@ private slots:
     void tooltipSurface();
     void menuSurface();
     void comboPopupSurface();
-    void systemBackdropAttributes();
-    void backdropStateRestoration();
     void dialogThemeUpdate();
     void dockFloatingFocusCleanup();
     void scrollBarNativeInputDiagnostic();
@@ -153,6 +147,10 @@ void WinUI3StyleNativeTest::menuSurface()
     submenu->addAction(QStringLiteral("Child"));
     menu.popup(window.mapToGlobal(QPoint(20, 20)));
     QTRY_VERIFY(menu.isVisible());
+    QCOMPARE(menu.palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(menu.palette().color(QPalette::Base).alpha(), 255);
+    QVERIFY(menu.autoFillBackground());
+    QVERIFY(!menu.testAttribute(Qt::WA_TranslucentBackground));
     const QRect actionRect = menu.actionGeometry(action);
     QTest::mouseMove(&menu, actionRect.center());
     QVERIFY(actionRect.isValid());
@@ -176,11 +174,18 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     probe.combo = combo;
     QWidget *popup = combo->view()->window();
     popup->installEventFilter(&probe);
+    combo->view()->viewport()->installEventFilter(&probe);
     QSignalSpy scrollChanges(combo->view()->verticalScrollBar(),
                              &QScrollBar::valueChanged);
     combo->showPopup();
     QTRY_VERIFY(combo->view()->isVisible());
     QVERIFY(popup->isVisible());
+    QCOMPARE(popup->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(combo->view()->viewport()->palette()
+                 .color(QPalette::Base).alpha(), 255);
+    QVERIFY(popup->autoFillBackground());
+    QVERIFY(combo->view()->viewport()->autoFillBackground());
+    QVERIFY(!popup->testAttribute(Qt::WA_TranslucentBackground));
     QTRY_VERIFY(probe.painted);
     const QModelIndex selected = combo->model()->index(1, 0);
     QVERIFY(combo->view()->visualRect(selected).isValid());
@@ -194,95 +199,6 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     QCOMPARE(probe.resizesAfterPaint, 0);
     QTest::keyClick(combo->view(), Qt::Key_Escape);
     QTRY_VERIFY(!combo->view()->isVisible());
-}
-
-void WinUI3StyleNativeTest::systemBackdropAttributes()
-{
-#ifdef Q_OS_WIN
-    QWidget window;
-    window.resize(320, 120);
-    WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Acrylic);
-    QVERIFY(window.testAttribute(Qt::WA_TranslucentBackground));
-    QVERIFY(window.testAttribute(Qt::WA_NoSystemBackground));
-    QVERIFY(!window.testAttribute(Qt::WA_OpaquePaintEvent));
-    QVERIFY(!window.autoFillBackground());
-    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
-    window.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&window));
-
-    const HWND hwnd = reinterpret_cast<HWND>(window.winId());
-    BOOL hostBackdrop = TRUE;
-    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 17, &hostBackdrop,
-                                        sizeof(hostBackdrop))))
-        QCOMPARE(hostBackdrop, FALSE);
-    int systemBackdrop = 0;
-    if (FAILED(DwmGetWindowAttribute(hwnd, 38, &systemBackdrop,
-                                     sizeof(systemBackdrop)))) {
-        QSKIP("Windows does not expose system backdrop attributes");
-    }
-    QCOMPARE(systemBackdrop, 3); // DWMSBT_TRANSIENTWINDOW / Desktop Acrylic.
-
-    QMenu menu;
-    menu.addAction(QStringLiteral("Acrylic popup"));
-    menu.ensurePolished();
-    QVERIFY(menu.testAttribute(Qt::WA_TranslucentBackground));
-    menu.popup(window.mapToGlobal(QPoint(20, 20)));
-    QTRY_VERIFY(menu.isVisible());
-    QCOMPARE(menu.palette().color(QPalette::Window).alpha(), 0);
-    const HWND popupHwnd = reinterpret_cast<HWND>(menu.winId());
-    BOOL popupHostBackdrop = TRUE;
-    if (SUCCEEDED(DwmGetWindowAttribute(popupHwnd, 17,
-                                        &popupHostBackdrop,
-                                        sizeof(popupHostBackdrop))))
-        QCOMPARE(popupHostBackdrop, FALSE);
-    int popupSystemBackdrop = 0;
-    QVERIFY(SUCCEEDED(DwmGetWindowAttribute(popupHwnd, 38,
-                                             &popupSystemBackdrop,
-                                             sizeof(popupSystemBackdrop))));
-    QCOMPARE(popupSystemBackdrop, 3);
-    menu.close();
-#else
-    QSKIP("Native Windows backdrop test requires Windows");
-#endif
-}
-
-void WinUI3StyleNativeTest::backdropStateRestoration()
-{
-    QWidget window;
-    QPalette explicitPalette = window.palette();
-    explicitPalette.setColor(QPalette::Window, QColor(31, 73, 119));
-    window.setPalette(explicitPalette);
-    window.setAutoFillBackground(false);
-    window.setAttribute(Qt::WA_TranslucentBackground, false);
-    window.setAttribute(Qt::WA_NoSystemBackground, false);
-    window.setAttribute(Qt::WA_OpaquePaintEvent, true);
-
-    WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica);
-    QVERIFY(window.property("_winui_backdrop").isValid());
-    WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None);
-    QVERIFY(!window.property("_winui_backdrop").isValid());
-    QCOMPARE(window.palette(), explicitPalette);
-    QVERIFY(window.testAttribute(Qt::WA_SetPalette));
-    QVERIFY(!window.autoFillBackground());
-    QVERIFY(!window.testAttribute(Qt::WA_TranslucentBackground));
-    QVERIFY(!window.testAttribute(Qt::WA_NoSystemBackground));
-    QVERIFY(window.testAttribute(Qt::WA_OpaquePaintEvent));
-
-    QWidget inheritedPaletteWindow;
-    inheritedPaletteWindow.setAutoFillBackground(false);
-    QVERIFY(!inheritedPaletteWindow.testAttribute(Qt::WA_SetPalette));
-    WinUI3::applyBackdrop(&inheritedPaletteWindow, WinUI3::Backdrop::Acrylic);
-    WinUI3::applyBackdrop(&inheritedPaletteWindow, WinUI3::Backdrop::None);
-    QVERIFY(!inheritedPaletteWindow.testAttribute(Qt::WA_SetPalette));
-    QVERIFY(!inheritedPaletteWindow.autoFillBackground());
-
-    // Disabling a backdrop that was never installed must also be a no-op on
-    // application-owned widget state.
-    inheritedPaletteWindow.setAttribute(Qt::WA_OpaquePaintEvent, true);
-    WinUI3::applyBackdrop(&inheritedPaletteWindow, WinUI3::Backdrop::None);
-    QVERIFY(!inheritedPaletteWindow.testAttribute(Qt::WA_SetPalette));
-    QVERIFY(!inheritedPaletteWindow.autoFillBackground());
-    QVERIFY(inheritedPaletteWindow.testAttribute(Qt::WA_OpaquePaintEvent));
 }
 
 void WinUI3StyleNativeTest::dialogThemeUpdate()
