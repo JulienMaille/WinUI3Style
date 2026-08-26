@@ -1,0 +1,381 @@
+#include "winui3surfaces_p.h"
+
+#include "winui3paint_p.h"
+#include "winui3style_properties_p.h"
+#include "winui3tokens_p.h"
+
+#include <winui3style/winui3style.h>
+
+#include <QAbstractButton>
+#include <QAbstractItemView>
+#include <QAction>
+#include <QApplication>
+#include <QComboBox>
+#include <QDialog>
+#include <QFontMetrics>
+#include <QGuiApplication>
+#include <QLayout>
+#include <QLineEdit>
+#include <QListView>
+#include <QMenu>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QParallelAnimationGroup>
+#include <QPointer>
+#include <QScreen>
+#include <QSlider>
+#include <QStyleOptionSlider>
+#include <QTimer>
+#include <QWidget>
+
+namespace WinUI3::Private {
+using namespace PaintPrivate;
+
+void remember(QWidget *widget, const char *property, const QVariant &value)
+{
+    if (widget && !widget->property(property).isValid())
+        widget->setProperty(property, value);
+}
+
+void rememberPalette(QWidget *widget)
+{
+    if (!widget)
+        return;
+    remember(widget, originalPaletteExplicitProperty,
+             widget->testAttribute(Qt::WA_SetPalette));
+    remember(widget, originalPaletteProperty,
+             QVariant::fromValue(widget->palette()));
+}
+
+void restoreRememberedPalette(QWidget *widget)
+{
+    if (!widget || !widget->property(originalPaletteProperty).isValid())
+        return;
+    if (widget->property(originalPaletteExplicitProperty).toBool())
+        widget->setPalette(widget->property(originalPaletteProperty).value<QPalette>());
+    else
+        widget->setPalette(QPalette());
+}
+
+QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback)
+{
+    if (!widget || !widget->property(originalPaletteExplicitProperty).toBool())
+        return fallback;
+    return widget->property(originalPaletteProperty).value<QPalette>().resolve(fallback);
+}
+
+void stopDialogAnimations(QDialog *dialog)
+{
+    if (!dialog)
+        return;
+    const auto groups = dialog->findChildren<QParallelAnimationGroup *>(
+        QStringLiteral("_winui_dialog_animation"), Qt::FindDirectChildrenOnly);
+    for (QParallelAnimationGroup *group : groups) {
+        group->stop();
+        delete group;
+    }
+    dialog->setWindowOpacity(1.0);
+    dialog->setProperty("_winui_dialog_animating", false);
+}
+
+void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
+{
+    if (!dialog)
+        return;
+    stopDialogAnimations(dialog);
+    restoreRememberedPalette(dialog);
+    if (dialog->property(originalAutoFillProperty).isValid())
+        dialog->setAutoFillBackground(
+            dialog->property(originalAutoFillProperty).toBool());
+    if (dialog->property(originalMinimumSizeProperty).isValid())
+        dialog->setMinimumSize(
+            dialog->property(originalMinimumSizeProperty).value<QSize>());
+    if (QLayout *layout = dialog->layout()) {
+        if (dialog->property(originalMarginsProperty).isValid())
+            layout->setContentsMargins(
+                dialog->property(originalMarginsProperty).value<QMargins>());
+        if (dialog->property(originalSpacingProperty).isValid())
+            layout->setSpacing(dialog->property(originalSpacingProperty).toInt());
+    }
+    dialog->setProperty(ownedPaletteProperty, {});
+    if (clearSavedState) {
+        dialog->setProperty(originalPaletteProperty, {});
+        dialog->setProperty(originalPaletteExplicitProperty, {});
+        dialog->setProperty(originalAutoFillProperty, {});
+        dialog->setProperty(originalMinimumSizeProperty, {});
+        dialog->setProperty(originalMarginsProperty, {});
+        dialog->setProperty(originalSpacingProperty, {});
+    }
+}
+
+void prepareContentDialogState(QDialog *dialog, bool dark)
+{
+    if (!dialog)
+        return;
+    rememberPalette(dialog);
+    remember(dialog, originalAutoFillProperty, dialog->autoFillBackground());
+    remember(dialog, originalMinimumSizeProperty,
+             QVariant::fromValue(dialog->minimumSize()));
+    if (QLayout *layout = dialog->layout()) {
+        remember(dialog, originalMarginsProperty,
+                 QVariant::fromValue(layout->contentsMargins()));
+        remember(dialog, originalSpacingProperty, layout->spacing());
+        layout->setContentsMargins(24, 24, 24, 24);
+        layout->setSpacing(12);
+    }
+    dialog->setProperty(ownedPaletteProperty, true);
+    QPalette palette = dialog->palette();
+    palette.setColor(QPalette::Window,
+                     dark ? QColor(32, 32, 32) : QColor(255, 255, 255));
+    dialog->setPalette(palette);
+    dialog->setAutoFillBackground(true);
+    dialog->setMinimumSize(320, 184);
+}
+
+namespace {
+
+class SliderValueTip final : public QWidget
+{
+public:
+    explicit SliderValueTip(QSlider *slider)
+        : QWidget(slider, Qt::Tool | Qt::FramelessWindowHint
+                            | Qt::WindowDoesNotAcceptFocus
+                            | Qt::WindowTransparentForInput)
+    {
+        setObjectName(QStringLiteral("_winui_slider_value_tip"));
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+    }
+
+    void showValue(const QString &text, const QPoint &anchor, bool horizontal)
+    {
+        m_text = text;
+        const QFontMetrics metrics(font());
+        resize(qMax(32, metrics.horizontalAdvance(text) + 16), 32);
+        QPoint position = horizontal
+            ? QPoint(anchor.x() - width() / 2, anchor.y() - height())
+            : QPoint(anchor.x(), anchor.y() - height() / 2);
+        if (QScreen *screen = QGuiApplication::screenAt(anchor)) {
+            const QRect available = screen->availableGeometry();
+            position.setX(qBound(available.left(), position.x(),
+                                 available.right() - width() + 1));
+            position.setY(qBound(available.top(), position.y(),
+                                 available.bottom() - height() + 1));
+        }
+        move(position);
+        show();
+        raise();
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        const Private::Tokens t = Private::tokens(palette());
+        QColor fill = palette().color(QPalette::ToolTipBase);
+        fill.setAlpha(242);
+        QPainter painter(this);
+        roundedRect(&painter, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5),
+                    fill, t.strokeSecondary, Private::ControlRadius);
+        painter.setPen(palette().color(QPalette::ToolTipText));
+        painter.drawText(rect().adjusted(8, 0, -8, 0),
+                         Qt::AlignCenter, m_text);
+    }
+
+private:
+    QString m_text;
+};
+
+bool isLineEditClearButton(const QLineEdit *lineEdit,
+                           const QAbstractButton *button)
+{
+    if (!lineEdit || !button)
+        return false;
+    for (QAction *action : lineEdit->actions())
+        if (action->associatedObjects().contains(button))
+            return false;
+    // QLineEdit's private clear affordance is deliberately not a QAction;
+    // custom leading/trailing actions are associated above.
+    return true;
+}
+
+} // namespace
+
+void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit)
+{
+    if (!lineEdit)
+        return;
+    const QPointer<QLineEdit> guarded(lineEdit);
+    QTimer::singleShot(0, lineEdit, [guarded] {
+        if (!guarded)
+            return;
+        for (QAbstractButton *button : guarded->findChildren<QAbstractButton *>())
+            if (isLineEditClearButton(guarded, button))
+                button->setVisible(!guarded->isReadOnly()
+                                   && guarded->isEnabled()
+                                   && guarded->isClearButtonEnabled()
+                                   && !guarded->text().isEmpty());
+    });
+}
+
+void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style)
+{
+    if (!lineEdit || !style)
+        return;
+    const QPointer<QLineEdit> guardedLineEdit(lineEdit);
+    const QPointer<Style> guardedStyle(style);
+    QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle] {
+        if (!guardedLineEdit || !guardedStyle)
+            return;
+        for (QAbstractButton *button
+             : guardedLineEdit->findChildren<QAbstractButton *>()) {
+            // QLineEdit creates its private clear affordance lazily. Depending
+            // on that timing, it can miss the parent's polish pass and never
+            // deliver hover events to the style. Prepare both the private
+            // affordance and QAction helper buttons as soon as they exist.
+            button->setAttribute(Qt::WA_Hover, true);
+            button->installEventFilter(guardedStyle);
+            if (!button->property(hoverProperty).isValid())
+                button->setProperty(hoverProperty,
+                                    button->isEnabled() && button->underMouse()
+                                        ? 1.0 : 0.0);
+            if (!button->property(pressProperty).isValid())
+                button->setProperty(pressProperty, 0.0);
+        }
+    });
+}
+
+void showSliderValueToolTip(QSlider *slider)
+{
+    if (!slider || !slider->isEnabled())
+        return;
+    QStyleOptionSlider option;
+    option.initFrom(slider);
+    option.orientation = slider->orientation();
+    option.minimum = slider->minimum();
+    option.maximum = slider->maximum();
+    option.sliderPosition = slider->sliderPosition();
+    option.sliderValue = slider->value();
+    option.singleStep = slider->singleStep();
+    option.pageStep = slider->pageStep();
+    option.upsideDown = slider->orientation() == Qt::Horizontal
+        ? (slider->invertedAppearance()
+           != (slider->layoutDirection() == Qt::RightToLeft))
+        : !slider->invertedAppearance();
+    const QRect handle = slider->style()->subControlRect(
+        QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
+    const QPoint anchor = slider->orientation() == Qt::Horizontal
+        ? QPoint(handle.center().x(), handle.top() - 8)
+        : QPoint(handle.right() + 8, handle.center().y());
+    const QString valueText = QString::number(slider->value());
+    slider->setProperty(sliderToolTipVisibleProperty, true);
+    slider->setProperty(sliderToolTipValueProperty, valueText);
+    // The headless platform cannot host a non-activating tool window and
+    // synthesizes a FocusOut when one is shown. State/value remain testable;
+    // the popup itself is covered by the native Windows test path.
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return;
+    auto *tip = static_cast<SliderValueTip *>(slider->findChild<QWidget *>(
+        QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
+    if (!tip)
+        tip = new SliderValueTip(slider);
+    tip->showValue(valueText, slider->mapToGlobal(anchor),
+                   slider->orientation() == Qt::Horizontal);
+}
+
+void hideSliderValueToolTip(QSlider *slider)
+{
+    if (slider) {
+        slider->setProperty(sliderToolTipVisibleProperty, false);
+        slider->setProperty(sliderToolTipValueProperty, {});
+        if (auto *tip = slider->findChild<QWidget *>(
+                QStringLiteral("_winui_slider_value_tip"),
+                Qt::FindDirectChildrenOnly)) {
+            tip->hide();
+        }
+    }
+}
+
+void preparePopupSurface(QWidget *widget)
+{
+    if (!widget || !widget->window() || widget->window()->windowType() != Qt::Popup)
+        return;
+    QWidget *popup = widget->window();
+    rememberPalette(popup);
+    remember(popup, originalAutoFillProperty, popup->autoFillBackground());
+    remember(popup, originalTranslucentBackgroundProperty,
+             popup->testAttribute(Qt::WA_TranslucentBackground));
+    remember(popup, originalNoSystemBackgroundProperty,
+             popup->testAttribute(Qt::WA_NoSystemBackground));
+    // Popup widgets keep an explicit palette after their first polish. Rebase
+    // every show on the current application palette so runtime theme changes
+    // cannot leave stale text or surface roles behind.
+    QPalette popupPalette = effectivePopupPalette(popup, QApplication::palette());
+    const Private::Tokens popupTokens = Private::tokens(popupPalette);
+    const QColor popupSurface = popupTokens.dark ? QColor(44, 44, 44)
+                                                 : QColor(252, 252, 252);
+    popupPalette.setColor(QPalette::Window, popupSurface);
+    popupPalette.setColor(QPalette::Base, popupSurface);
+    popup->setPalette(popupPalette);
+    popup->setAutoFillBackground(true);
+    popup->setAttribute(Qt::WA_TranslucentBackground, false);
+    popup->setAttribute(Qt::WA_NoSystemBackground, false);
+    if (auto *menu = qobject_cast<QMenu *>(widget)) {
+        remember(popup, originalMarginsProperty,
+                 QVariant::fromValue(popup->contentsMargins()));
+        menu->setContentsMargins(0, 2, 0, 2);
+    }
+    QAbstractItemView *view = qobject_cast<QAbstractItemView *>(widget);
+    if (!view)
+        view = popup->findChild<QAbstractItemView *>();
+    if (view) {
+        rememberPalette(view);
+        const QPalette viewPalette = effectivePopupPalette(view, popupPalette);
+        view->setPalette(viewPalette);
+        rememberPalette(view->viewport());
+        remember(view->viewport(), originalAutoFillProperty,
+                 view->viewport()->autoFillBackground());
+        remember(view->viewport(), originalOpaquePaintProperty,
+                 view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
+        view->viewport()->setPalette(
+            effectivePopupPalette(view->viewport(), viewPalette));
+        view->viewport()->setAutoFillBackground(true);
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        if (auto *list = qobject_cast<QListView *>(view)) {
+            remember(list, originalListSpacingProperty, list->spacing());
+            list->setSpacing(0);
+        }
+    }
+}
+
+void prepareComboPopupFirstFrameImpl(QComboBox *combo)
+{
+    if (!combo || combo->count() <= 0)
+        return;
+
+    QAbstractItemView *view = combo->view();
+    if (!view)
+        return;
+
+    preparePopupSurface(view);
+    const QModelIndex current = combo->model()->index(
+        combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
+    if (!current.isValid())
+        return;
+
+    view->setCurrentIndex(current);
+    view->doItemsLayout();
+    view->scrollTo(current, QAbstractItemView::PositionAtCenter);
+}
+
+QComboBox *comboForPopupWidget(QWidget *widget)
+{
+    if (!widget)
+        return nullptr;
+    QWidget *popup = widget->window();
+    if (!popup || popup->windowType() != Qt::Popup)
+        return nullptr;
+    return qobject_cast<QComboBox *>(popup->parentWidget());
+}
+
+} // namespace WinUI3::Private

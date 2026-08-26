@@ -18,6 +18,7 @@ namespace {
 constexpr auto fluentIconNamePrefix = "winui3-fluent-icon:";
 constexpr int fluentIconCount = static_cast<int>(Icon::Warning) + 1;
 constexpr int MaxPixmapCacheCost = 4096;
+constexpr int MaxFontCacheCost = 64;
 // Coloured QIcons are normally requested from paint paths. Keep this cache
 // deliberately bounded because callers can provide arbitrary accent colors,
 // while still avoiding a QIconEngine allocation for every paint event.
@@ -93,6 +94,7 @@ public:
     IconRuntime()
     {
         m_pixmaps.setMaxCost(MaxPixmapCacheCost);
+        m_fonts.setMaxCost(MaxFontCacheCost);
         m_coloredIcons.setMaxCost(MaxColoredIconCacheCost);
     }
 
@@ -131,6 +133,18 @@ public:
         return m_fontFamily;
     }
 
+    const QFont &fluentFont(int pixelSize)
+    {
+        syncApplication();
+        if (QFont *cached = m_fonts.object(pixelSize))
+            return *cached;
+
+        QFont font(fluentFontFamily());
+        font.setPixelSize(pixelSize);
+        m_fonts.insert(pixelSize, new QFont(font));
+        return *m_fonts.object(pixelSize);
+    }
+
     QPixmap *findPixmap(const QString &key)
     {
         return m_pixmaps.object(key);
@@ -160,6 +174,7 @@ private:
     {
         m_fontFamily.clear();
         m_fontFamilyResolved = false;
+        m_fonts.clear();
         m_pixmaps.clear();
         m_coloredIcons.clear();
     }
@@ -168,6 +183,7 @@ private:
     QMetaObject::Connection m_fontDatabaseConnection;
     QString m_fontFamily;
     bool m_fontFamilyResolved = false;
+    QCache<int, QFont> m_fonts;
     QCache<QString, QPixmap> m_pixmaps;
     QCache<QString, QIcon> m_coloredIcons;
 };
@@ -176,6 +192,19 @@ IconRuntime &iconRuntime()
 {
     static IconRuntime runtime;
     return runtime;
+}
+
+const QString &glyphString(Icon glyph)
+{
+    static const QString empty;
+    static const std::array<QString, fluentIconCount> glyphs = [] {
+        std::array<QString, fluentIconCount> result;
+        for (int index = 0; index < fluentIconCount; ++index)
+            result[index] = QString(codePoint(static_cast<Icon>(index)));
+        return result;
+    }();
+    const int index = static_cast<int>(glyph);
+    return index >= 0 && index < fluentIconCount ? glyphs[index] : empty;
 }
 
 bool canUseGuiCache()
@@ -244,9 +273,18 @@ public:
         painter->save();
         painter->setRenderHint(QPainter::TextAntialiasing);
 
-        QFont font(iconRuntime().fluentFontFamily());
-        font.setPixelSize(qMax(8, qMin(rect.width(), rect.height())));
-        painter->setFont(font);
+        const int pixelSize = qMax(8, qMin(rect.width(), rect.height()));
+        if (canUseGuiCache()) {
+            // The cached font is created with the exact same family and
+            // pixel-size operations as the historical per-paint path. Keep
+            // the old construction for non-GUI callers because QCache is
+            // intentionally confined to the application thread.
+            painter->setFont(iconRuntime().fluentFont(pixelSize));
+        } else {
+            QFont font(iconRuntime().fluentFontFamily());
+            font.setPixelSize(pixelSize);
+            painter->setFont(font);
+        }
 
         // QIconEngine is not given the palette of the control asking for a
         // pixmap. Keep the uncoloured overload as a neutral alpha mask; the
@@ -262,7 +300,7 @@ public:
                                   QPalette::WindowText);
         }
         painter->setPen(color);
-        painter->drawText(rect, Qt::AlignCenter, QString(codePoint(m_icon)));
+        painter->drawText(rect, Qt::AlignCenter, glyphString(m_icon));
         painter->restore();
     }
 
@@ -278,13 +316,15 @@ private:
 
 const QIcon &cachedIcon(Icon glyph)
 {
+    static const QIcon empty;
     static const std::array<QIcon, fluentIconCount> icons = [] {
         std::array<QIcon, fluentIconCount> result;
         for (int index = 0; index < fluentIconCount; ++index)
             result[index] = QIcon(new FluentIconEngine(static_cast<Icon>(index)));
         return result;
     }();
-    return icons[static_cast<int>(glyph)];
+    const int index = static_cast<int>(glyph);
+    return index >= 0 && index < fluentIconCount ? icons[index] : empty;
 }
 
 } // namespace

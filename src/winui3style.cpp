@@ -3,8 +3,12 @@
 #include <winui3style/winui3icons.h>
 
 #include "winui3geometry_p.h"
+#include "winui3complex_p.h"
 #include "navigationview_p.h"
 #include "winui3paint_p.h"
+#include "winui3style_properties_p.h"
+#include "winui3surfaces_p.h"
+#include "winui3theme_p.h"
 #include "winui3tokens_p.h"
 
 #include <QAbstractButton>
@@ -34,7 +38,6 @@
 #include <QLineEdit>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
-#include <QLayout>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMessageBox>
@@ -49,9 +52,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
-#include <QScreen>
 #include <QSet>
-#include <QSettings>
 #include <QSlider>
 #include <QStyleOption>
 #include <QStyleOptionButton>
@@ -59,7 +60,6 @@
 #include <QStyleOptionFocusRect>
 #include <QStyleOptionGroupBox>
 #include <QStyleOptionProgressBar>
-#include <QStyleOptionSlider>
 #include <QStyleOptionTab>
 #include <QStyleOptionToolButton>
 #include <QStyleHints>
@@ -76,150 +76,10 @@
 
 #include <cmath>
 
-#ifdef Q_OS_WIN
-#  define NOMINMAX
-#  include <windows.h>
-#  include <dwmapi.h>
-#endif
-
 namespace WinUI3 {
 using namespace PaintPrivate;
+using namespace Private;
 namespace {
-
-constexpr auto roleProperty = "_winui_control_role";
-constexpr auto hoverProperty = "_winui_hover_progress";
-constexpr auto pressProperty = "_winui_press_progress";
-constexpr auto buttonPressGenerationProperty = "_winui_button_press_generation";
-constexpr auto buttonPressReleasePendingProperty = "_winui_button_press_release_pending";
-constexpr auto focusProperty = "_winui_focus_progress";
-constexpr auto focusVisibleProperty = "_winui_focus_visible";
-constexpr auto checkProperty = "_winui_check_progress";
-constexpr auto tableEditorProperty = "_winui_table_editor";
-constexpr auto togglePositionProperty = "_winui_toggle_position";
-constexpr auto scrollBarInsideProperty = "_winui_scrollbar_inside";
-constexpr auto scrollBarGenerationProperty = "_winui_scrollbar_generation";
-constexpr auto sliderToolTipVisibleProperty = "_winui_slider_tooltip_visible";
-constexpr auto sliderToolTipValueProperty = "_winui_slider_tooltip_value";
-constexpr auto progressPhaseProperty = "_winui_progress_phase";
-constexpr auto comboChevronProperty = "_winui_combo_chevron_progress";
-constexpr auto originalPaletteProperty = "_winui_original_palette";
-constexpr auto originalPaletteExplicitProperty = "_winui_original_palette_explicit";
-constexpr auto originalAutoFillProperty = "_winui_original_auto_fill";
-constexpr auto originalHoverAttributeProperty = "_winui_original_hover_attribute";
-constexpr auto originalMinimumSizeProperty = "_winui_original_minimum_size";
-constexpr auto originalFrameShapeProperty = "_winui_original_frame_shape";
-constexpr auto originalMarginsProperty = "_winui_original_layout_margins";
-constexpr auto originalSpacingProperty = "_winui_original_layout_spacing";
-constexpr auto originalRoleProperty = "_winui_original_control_role";
-constexpr auto originalRoleWasValidProperty = "_winui_original_control_role_valid";
-constexpr auto originalOpaquePaintProperty = "_winui_original_opaque_paint";
-constexpr auto originalTranslucentBackgroundProperty =
-    "_winui_original_translucent_background";
-constexpr auto originalNoSystemBackgroundProperty =
-    "_winui_original_no_system_background";
-constexpr auto originalListSpacingProperty = "_winui_original_list_spacing";
-constexpr auto ownedPaletteProperty = "_winui_theme_owned_palette";
-
-void remember(QWidget *widget, const char *property, const QVariant &value)
-{
-    if (widget && !widget->property(property).isValid())
-        widget->setProperty(property, value);
-}
-
-void rememberPalette(QWidget *widget)
-{
-    if (!widget)
-        return;
-    remember(widget, originalPaletteExplicitProperty,
-             widget->testAttribute(Qt::WA_SetPalette));
-    remember(widget, originalPaletteProperty,
-             QVariant::fromValue(widget->palette()));
-}
-
-void restoreRememberedPalette(QWidget *widget)
-{
-    if (!widget || !widget->property(originalPaletteProperty).isValid())
-        return;
-    if (widget->property(originalPaletteExplicitProperty).toBool())
-        widget->setPalette(widget->property(originalPaletteProperty).value<QPalette>());
-    else
-        widget->setPalette(QPalette());
-}
-
-QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback)
-{
-    if (!widget || !widget->property(originalPaletteExplicitProperty).toBool())
-        return fallback;
-    return widget->property(originalPaletteProperty).value<QPalette>().resolve(fallback);
-}
-
-void stopDialogAnimations(QDialog *dialog)
-{
-    if (!dialog)
-        return;
-    const auto groups = dialog->findChildren<QParallelAnimationGroup *>(
-        QStringLiteral("_winui_dialog_animation"), Qt::FindDirectChildrenOnly);
-    for (QParallelAnimationGroup *group : groups) {
-        group->stop();
-        delete group;
-    }
-    dialog->setWindowOpacity(1.0);
-    dialog->setProperty("_winui_dialog_animating", false);
-}
-
-void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
-{
-    if (!dialog)
-        return;
-    stopDialogAnimations(dialog);
-    restoreRememberedPalette(dialog);
-    if (dialog->property(originalAutoFillProperty).isValid())
-        dialog->setAutoFillBackground(
-            dialog->property(originalAutoFillProperty).toBool());
-    if (dialog->property(originalMinimumSizeProperty).isValid())
-        dialog->setMinimumSize(
-            dialog->property(originalMinimumSizeProperty).value<QSize>());
-    if (QLayout *layout = dialog->layout()) {
-        if (dialog->property(originalMarginsProperty).isValid())
-            layout->setContentsMargins(
-                dialog->property(originalMarginsProperty).value<QMargins>());
-        if (dialog->property(originalSpacingProperty).isValid())
-            layout->setSpacing(dialog->property(originalSpacingProperty).toInt());
-    }
-    dialog->setProperty(ownedPaletteProperty, {});
-    if (clearSavedState) {
-        dialog->setProperty(originalPaletteProperty, {});
-        dialog->setProperty(originalPaletteExplicitProperty, {});
-        dialog->setProperty(originalAutoFillProperty, {});
-        dialog->setProperty(originalMinimumSizeProperty, {});
-        dialog->setProperty(originalMarginsProperty, {});
-        dialog->setProperty(originalSpacingProperty, {});
-    }
-}
-
-void prepareContentDialogState(QDialog *dialog, bool dark)
-{
-    if (!dialog)
-        return;
-    rememberPalette(dialog);
-    remember(dialog, originalAutoFillProperty, dialog->autoFillBackground());
-    remember(dialog, originalMinimumSizeProperty,
-             QVariant::fromValue(dialog->minimumSize()));
-    if (QLayout *layout = dialog->layout()) {
-        remember(dialog, originalMarginsProperty,
-                 QVariant::fromValue(layout->contentsMargins()));
-        remember(dialog, originalSpacingProperty, layout->spacing());
-        layout->setContentsMargins(24, 24, 24, 24);
-        layout->setSpacing(12);
-    }
-    dialog->setProperty(ownedPaletteProperty, true);
-    QPalette palette = dialog->palette();
-    palette.setColor(QPalette::Window,
-                     dark ? QColor(32, 32, 32) : QColor(255, 255, 255));
-    dialog->setPalette(palette);
-    dialog->setAutoFillBackground(true);
-    dialog->setMinimumSize(320, 184);
-}
 
 bool toggleSwitch(const QWidget *widget)
 {
@@ -386,166 +246,6 @@ const QEasingCurve &fluentCurve();
 bool keyboardFocusVisible(const QWidget *widget);
 bool animationsAllowed();
 
-class SliderValueTip final : public QWidget
-{
-public:
-    explicit SliderValueTip(QSlider *slider)
-        : QWidget(slider, Qt::Tool | Qt::FramelessWindowHint
-                            | Qt::WindowDoesNotAcceptFocus
-                            | Qt::WindowTransparentForInput)
-    {
-        setObjectName(QStringLiteral("_winui_slider_value_tip"));
-        setAttribute(Qt::WA_TranslucentBackground);
-        setAttribute(Qt::WA_ShowWithoutActivating);
-    }
-
-    void showValue(const QString &text, const QPoint &anchor, bool horizontal)
-    {
-        m_text = text;
-        const QFontMetrics metrics(font());
-        resize(qMax(32, metrics.horizontalAdvance(text) + 16), 32);
-        QPoint position = horizontal
-            ? QPoint(anchor.x() - width() / 2, anchor.y() - height())
-            : QPoint(anchor.x(), anchor.y() - height() / 2);
-        if (QScreen *screen = QGuiApplication::screenAt(anchor)) {
-            const QRect available = screen->availableGeometry();
-            position.setX(qBound(available.left(), position.x(),
-                                 available.right() - width() + 1));
-            position.setY(qBound(available.top(), position.y(),
-                                 available.bottom() - height() + 1));
-        }
-        move(position);
-        show();
-        raise();
-        update();
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override
-    {
-        const Private::Tokens t = Private::tokens(palette());
-        QColor fill = palette().color(QPalette::ToolTipBase);
-        fill.setAlpha(242);
-        QPainter painter(this);
-        roundedRect(&painter, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5),
-                    fill, t.strokeSecondary, Private::ControlRadius);
-        painter.setPen(palette().color(QPalette::ToolTipText));
-        painter.drawText(rect().adjusted(8, 0, -8, 0),
-                         Qt::AlignCenter, m_text);
-    }
-
-private:
-    QString m_text;
-};
-
-bool isLineEditClearButton(const QLineEdit *lineEdit,
-                           const QAbstractButton *button)
-{
-    if (!lineEdit || !button)
-        return false;
-    for (QAction *action : lineEdit->actions())
-        if (action->associatedObjects().contains(button))
-            return false;
-    // QLineEdit's private clear affordance is deliberately not a QAction;
-    // custom leading/trailing actions are associated above.
-    return true;
-}
-
-void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit)
-{
-    if (!lineEdit)
-        return;
-    const QPointer<QLineEdit> guarded(lineEdit);
-    QTimer::singleShot(0, lineEdit, [guarded] {
-        if (!guarded)
-            return;
-        for (QAbstractButton *button : guarded->findChildren<QAbstractButton *>())
-            if (isLineEditClearButton(guarded, button))
-                button->setVisible(!guarded->isReadOnly()
-                                   && guarded->isEnabled()
-                                   && guarded->isClearButtonEnabled()
-                                   && !guarded->text().isEmpty());
-    });
-}
-
-void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style)
-{
-    if (!lineEdit || !style)
-        return;
-    const QPointer<QLineEdit> guardedLineEdit(lineEdit);
-    const QPointer<Style> guardedStyle(style);
-    QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle] {
-        if (!guardedLineEdit || !guardedStyle)
-            return;
-        for (QAbstractButton *button
-             : guardedLineEdit->findChildren<QAbstractButton *>()) {
-            // QLineEdit creates its private clear affordance lazily. Depending
-            // on that timing, it can miss the parent's polish pass and never
-            // deliver hover events to the style. Prepare both the private
-            // affordance and QAction helper buttons as soon as they exist.
-            button->setAttribute(Qt::WA_Hover, true);
-            button->installEventFilter(guardedStyle);
-            if (!button->property(hoverProperty).isValid())
-                button->setProperty(hoverProperty,
-                                    button->isEnabled() && button->underMouse()
-                                        ? 1.0 : 0.0);
-            if (!button->property(pressProperty).isValid())
-                button->setProperty(pressProperty, 0.0);
-        }
-    });
-}
-
-void showSliderValueToolTip(QSlider *slider)
-{
-    if (!slider || !slider->isEnabled())
-        return;
-    QStyleOptionSlider option;
-    option.initFrom(slider);
-    option.orientation = slider->orientation();
-    option.minimum = slider->minimum();
-    option.maximum = slider->maximum();
-    option.sliderPosition = slider->sliderPosition();
-    option.sliderValue = slider->value();
-    option.singleStep = slider->singleStep();
-    option.pageStep = slider->pageStep();
-    option.upsideDown = slider->orientation() == Qt::Horizontal
-        ? (slider->invertedAppearance()
-           != (slider->layoutDirection() == Qt::RightToLeft))
-        : !slider->invertedAppearance();
-    const QRect handle = slider->style()->subControlRect(
-        QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
-    const QPoint anchor = slider->orientation() == Qt::Horizontal
-        ? QPoint(handle.center().x(), handle.top() - 8)
-        : QPoint(handle.right() + 8, handle.center().y());
-    const QString valueText = QString::number(slider->value());
-    slider->setProperty(sliderToolTipVisibleProperty, true);
-    slider->setProperty(sliderToolTipValueProperty, valueText);
-    // The headless platform cannot host a non-activating tool window and
-    // synthesizes a FocusOut when one is shown. State/value remain testable;
-    // the popup itself is covered by the native Windows test path.
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return;
-    auto *tip = static_cast<SliderValueTip *>(slider->findChild<QWidget *>(
-        QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
-    if (!tip)
-        tip = new SliderValueTip(slider);
-    tip->showValue(valueText, slider->mapToGlobal(anchor),
-                   slider->orientation() == Qt::Horizontal);
-}
-
-void hideSliderValueToolTip(QSlider *slider)
-{
-    if (slider) {
-        slider->setProperty(sliderToolTipVisibleProperty, false);
-        slider->setProperty(sliderToolTipValueProperty, {});
-        if (auto *tip = slider->findChild<QWidget *>(
-                QStringLiteral("_winui_slider_value_tip"),
-                Qt::FindDirectChildrenOnly)) {
-            tip->hide();
-        }
-    }
-}
-
 qreal progress(const QWidget *widget, const char *name, qreal fallback)
 {
     if (!widget)
@@ -563,85 +263,6 @@ const QEasingCurve &fluentCurve()
         return result;
     }();
     return curve;
-}
-
-bool systemUsesDarkTheme()
-{
-#ifdef Q_OS_WIN
-    QSettings settings(QStringLiteral(
-        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
-        QSettings::NativeFormat);
-    return settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
-#else
-    return qGray(QApplication::palette().color(QPalette::Window).rgb()) < 128;
-#endif
-}
-
-struct SystemAccentRamp
-{
-    QColor accent;
-    QColor light2;
-    QColor dark1;
-};
-
-SystemAccentRamp systemAccentRamp()
-{
-    SystemAccentRamp ramp;
-#ifdef Q_OS_WIN
-    // Explorer stores the Windows accent ramp as BGRA entries ordered
-    // Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, complement.
-    // These are the same SystemAccentColor* roles consumed by WinUI's
-    // Common_themeresources_any.xaml.
-    // DWM is the live system source used by the shell and WinUI Gallery. Do
-    // not combine its current base with Explorer's cached role entries: that
-    // produces a ramp whose selection and control-fill roles belong to
-    // different accent families when the registry lags behind the shell.
-    DWORD color = 0;
-    BOOL opaque = FALSE;
-    bool dwmAccentAvailable = false;
-    if (SUCCEEDED(DwmGetColorizationColor(&color, &opaque))) {
-        QColor result = QColor::fromRgba(color);
-        result.setAlpha(255);
-        if (result.isValid()) {
-            ramp.accent = result;
-            ramp.light2 = Private::mix(ramp.accent, QColor(Qt::white), 0.32);
-            ramp.dark1 = Private::mix(ramp.accent, QColor(Qt::black), 0.18);
-            dwmAccentAvailable = true;
-        }
-    }
-
-    if (!dwmAccentAvailable) {
-        // AccentPalette is a complete fallback source. It is intentionally
-        // read only when DWM cannot provide the live family, so the three
-        // roles remain atomic.
-        QSettings settings(QStringLiteral(
-            "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent"),
-            QSettings::NativeFormat);
-        const QByteArray bytes = settings.value(QStringLiteral("AccentPalette")).toByteArray();
-        const auto entry = [&bytes](int index) {
-            const int offset = index * 4;
-            if (bytes.size() < offset + 3)
-                return QColor{};
-            return QColor(quint8(bytes.at(offset + 2)), quint8(bytes.at(offset + 1)),
-                          quint8(bytes.at(offset)));
-        };
-        ramp.light2 = entry(1);
-        ramp.accent = entry(3);
-        ramp.dark1 = entry(4);
-    }
-#endif
-    if (!ramp.accent.isValid())
-        ramp.accent = QColor(0, 120, 212);
-    if (!ramp.light2.isValid())
-        ramp.light2 = Private::mix(ramp.accent, QColor(Qt::white), 0.32);
-    if (!ramp.dark1.isValid())
-        ramp.dark1 = Private::mix(ramp.accent, QColor(Qt::black), 0.18);
-    return ramp;
-}
-
-QColor systemAccentColor()
-{
-    return systemAccentRamp().accent;
 }
 
 bool animationsAllowed()
@@ -749,103 +370,6 @@ bool coveredControl(QStyle::ControlElement element)
     }
 }
 
-bool coveredComplex(QStyle::ComplexControl control)
-{
-    switch (control) {
-    case QStyle::CC_ToolButton:
-    case QStyle::CC_GroupBox:
-    case QStyle::CC_ComboBox:
-    case QStyle::CC_SpinBox:
-    case QStyle::CC_Slider:
-    case QStyle::CC_ScrollBar:
-        return true;
-    default:
-        return false;
-    }
-}
-
-void preparePopupSurface(QWidget *widget)
-{
-    if (!widget || !widget->window() || widget->window()->windowType() != Qt::Popup)
-        return;
-    QWidget *popup = widget->window();
-    rememberPalette(popup);
-    remember(popup, originalAutoFillProperty, popup->autoFillBackground());
-    remember(popup, originalTranslucentBackgroundProperty,
-             popup->testAttribute(Qt::WA_TranslucentBackground));
-    remember(popup, originalNoSystemBackgroundProperty,
-             popup->testAttribute(Qt::WA_NoSystemBackground));
-    // Popup widgets keep an explicit palette after their first polish. Rebase
-    // every show on the current application palette so runtime theme changes
-    // cannot leave stale text or surface roles behind.
-    QPalette popupPalette = effectivePopupPalette(popup, QApplication::palette());
-    const Private::Tokens popupTokens = Private::tokens(popupPalette);
-    const QColor popupSurface = popupTokens.dark ? QColor(44, 44, 44)
-                                                 : QColor(252, 252, 252);
-    popupPalette.setColor(QPalette::Window, popupSurface);
-    popupPalette.setColor(QPalette::Base, popupSurface);
-    popup->setPalette(popupPalette);
-    popup->setAutoFillBackground(true);
-    popup->setAttribute(Qt::WA_TranslucentBackground, false);
-    popup->setAttribute(Qt::WA_NoSystemBackground, false);
-    if (auto *menu = qobject_cast<QMenu *>(widget)) {
-        remember(popup, originalMarginsProperty,
-                 QVariant::fromValue(popup->contentsMargins()));
-        menu->setContentsMargins(0, 2, 0, 2);
-    }
-    QAbstractItemView *view = qobject_cast<QAbstractItemView *>(widget);
-    if (!view)
-        view = popup->findChild<QAbstractItemView *>();
-    if (view) {
-        rememberPalette(view);
-        const QPalette viewPalette = effectivePopupPalette(view, popupPalette);
-        view->setPalette(viewPalette);
-        rememberPalette(view->viewport());
-        remember(view->viewport(), originalAutoFillProperty,
-                 view->viewport()->autoFillBackground());
-        remember(view->viewport(), originalOpaquePaintProperty,
-                 view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
-        view->viewport()->setPalette(
-            effectivePopupPalette(view->viewport(), viewPalette));
-        view->viewport()->setAutoFillBackground(true);
-        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
-        if (auto *list = qobject_cast<QListView *>(view)) {
-            remember(list, originalListSpacingProperty, list->spacing());
-            list->setSpacing(0);
-        }
-    }
-}
-
-void prepareComboPopupFirstFrameImpl(QComboBox *combo)
-{
-    if (!combo || combo->count() <= 0)
-        return;
-
-    QAbstractItemView *view = combo->view();
-    if (!view)
-        return;
-
-    preparePopupSurface(view);
-    const QModelIndex current = combo->model()->index(
-        combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
-    if (!current.isValid())
-        return;
-
-    view->setCurrentIndex(current);
-    view->doItemsLayout();
-    view->scrollTo(current, QAbstractItemView::PositionAtCenter);
-}
-
-QComboBox *comboForPopupWidget(QWidget *widget)
-{
-    if (!widget)
-        return nullptr;
-    QWidget *popup = widget->window();
-    if (!popup || popup->windowType() != Qt::Popup)
-        return nullptr;
-    return qobject_cast<QComboBox *>(popup->parentWidget());
-}
-
 } // namespace
 
 class StylePrivate
@@ -876,9 +400,9 @@ public:
             return;
         }
         if (mode == ThemeMode::System)
-            lastSystemDark = systemUsesDarkTheme();
+            lastSystemDark = Private::systemUsesDarkTheme();
         if (!accent.isValid())
-            lastSystemAccent = systemAccentColor();
+            lastSystemAccent = Private::systemAccentColor();
         systemAppearanceTimer->start();
     }
 
@@ -1455,7 +979,8 @@ public:
 
     bool dark() const
     {
-        return mode == ThemeMode::Dark || (mode == ThemeMode::System && systemUsesDarkTheme());
+        return mode == ThemeMode::Dark
+            || (mode == ThemeMode::System && Private::systemUsesDarkTheme());
     }
 
     Style *q = nullptr;
@@ -1528,7 +1053,7 @@ void Style::setThemeMode(ThemeMode mode)
 
 QColor Style::accentColor() const
 {
-    return d->accent.isValid() ? d->accent : systemAccentColor();
+    return d->accent.isValid() ? d->accent : Private::systemAccentColor();
 }
 
 bool Style::animationsAllowed()
@@ -1550,25 +1075,25 @@ void Style::refreshApplicationAppearance()
 {
     if (!qApp)
         return;
-    qApp->setPalette(standardPalette());
+    const QPalette applicationPalette = standardPalette();
+    const Private::Tokens applicationTokens = Private::tokens(applicationPalette);
+    const QColor applicationAccent = accentColor();
+    const bool darkTheme = d->dark();
+    qApp->setPalette(applicationPalette);
     for (QWidget *widget : qApp->allWidgets()) {
         if (widget->property(ownedPaletteProperty).toBool()) {
-            QPalette palette = standardPalette();
+            QPalette palette = applicationPalette;
             if (qobject_cast<QTableView *>(widget)) {
-                const Private::Tokens tableTokens =
-                    Private::tokens(standardPalette());
-                palette.setColor(QPalette::Highlight, tableTokens.subtleHover);
-                palette.setColor(QPalette::HighlightedText, tableTokens.textPrimary);
+                palette.setColor(QPalette::Highlight, applicationTokens.subtleHover);
+                palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
             } else if (auto *editor = qobject_cast<QLineEdit *>(widget);
                        editor && itemView(editor)) {
-                const Private::Tokens editorTokens =
-                    Private::tokens(standardPalette());
-                palette.setColor(QPalette::Highlight, accentColor());
+                palette.setColor(QPalette::Highlight, applicationAccent);
                 palette.setColor(QPalette::HighlightedText,
-                                 editorTokens.textOnAccentPrimary);
+                                 applicationTokens.textOnAccentPrimary);
             } else if (qobject_cast<QDialog *>(widget)) {
                 palette.setColor(QPalette::Window,
-                    d->dark() ? QColor(32, 32, 32) : QColor(255, 255, 255));
+                    darkTheme ? QColor(32, 32, 32) : QColor(255, 255, 255));
             }
             widget->setPalette(palette);
         }
@@ -1590,12 +1115,12 @@ void Style::checkSystemAppearance()
     bool accentChangedAtRuntime = false;
     QColor systemAccent;
     if (d->mode == ThemeMode::System) {
-        const bool systemDark = systemUsesDarkTheme();
+        const bool systemDark = Private::systemUsesDarkTheme();
         themeChangedAtRuntime = d->lastSystemDark != systemDark;
         d->lastSystemDark = systemDark;
     }
     if (!d->accent.isValid()) {
-        systemAccent = systemAccentColor();
+        systemAccent = Private::systemAccentColor();
         accentChangedAtRuntime = d->lastSystemAccent != systemAccent;
         d->lastSystemAccent = systemAccent;
     }
@@ -1720,71 +1245,7 @@ QPalette Style::standardPalette() const
 {
     const bool darkTheme = d->dark();
     const QColor accent = accentColor();
-    const SystemAccentRamp systemRamp = systemAccentRamp();
-    const QColor accentFill = d->accent.isValid()
-        ? Private::mix(accent, darkTheme ? QColor(Qt::white) : QColor(Qt::black),
-                       darkTheme ? 0.32 : 0.18)
-        : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
-    QPalette palette;
-
-    if (darkTheme) {
-        palette.setColor(QPalette::Window, QColor(32, 32, 32));
-        palette.setColor(QPalette::WindowText, QColor(255, 255, 255));
-        palette.setColor(QPalette::Base, QColor(58, 58, 58, 76));
-        palette.setColor(QPalette::AlternateBase, QColor(255, 255, 255, 13));
-        palette.setColor(QPalette::Button, QColor(255, 255, 255, 15));
-        palette.setColor(QPalette::ButtonText, QColor(255, 255, 255));
-        palette.setColor(QPalette::Text, QColor(255, 255, 255));
-        palette.setColor(QPalette::PlaceholderText, QColor(255, 255, 255, 197));
-        palette.setColor(QPalette::Mid, QColor(255, 255, 255, 18));
-        palette.setColor(QPalette::Midlight, QColor(255, 255, 255, 24));
-        palette.setColor(QPalette::Dark, QColor(0, 0, 0, 80));
-        palette.setColor(QPalette::Shadow, QColor(0, 0, 0, 160));
-        palette.setColor(QPalette::ToolTipBase, QColor(44, 44, 44));
-        palette.setColor(QPalette::ToolTipText, Qt::white);
-        palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(255, 255, 255, 92));
-        palette.setColor(QPalette::Disabled, QPalette::Text, QColor(255, 255, 255, 92));
-        palette.setColor(QPalette::Disabled, QPalette::PlaceholderText,
-                         QColor(255, 255, 255, 93));
-        palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(255, 255, 255, 92));
-        palette.setColor(QPalette::Disabled, QPalette::Button, QColor(255, 255, 255, 11));
-        palette.setColor(QPalette::Disabled, QPalette::Base, QColor(255, 255, 255, 8));
-    } else {
-        palette.setColor(QPalette::Window, QColor(243, 243, 243));
-        palette.setColor(QPalette::WindowText, QColor(0, 0, 0, 228));
-        palette.setColor(QPalette::Base, QColor(255, 255, 255, 128));
-        palette.setColor(QPalette::AlternateBase, QColor(246, 246, 246, 128));
-        palette.setColor(QPalette::Button, QColor(255, 255, 255, 179));
-        palette.setColor(QPalette::ButtonText, QColor(0, 0, 0, 228));
-        palette.setColor(QPalette::Text, QColor(0, 0, 0, 228));
-        palette.setColor(QPalette::PlaceholderText, QColor(0, 0, 0, 158));
-        palette.setColor(QPalette::Mid, QColor(0, 0, 0, 15));
-        palette.setColor(QPalette::Midlight, QColor(0, 0, 0, 41));
-        palette.setColor(QPalette::Dark, QColor(0, 0, 0, 41));
-        palette.setColor(QPalette::Shadow, QColor(0, 0, 0, 90));
-        palette.setColor(QPalette::ToolTipBase, QColor(249, 249, 249));
-        palette.setColor(QPalette::ToolTipText, QColor(26, 26, 26));
-        palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0, 0, 0, 92));
-        palette.setColor(QPalette::Disabled, QPalette::Text, QColor(0, 0, 0, 92));
-        palette.setColor(QPalette::Disabled, QPalette::PlaceholderText,
-                         QColor(0, 0, 0, 92));
-        palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0, 0, 0, 92));
-        palette.setColor(QPalette::Disabled, QPalette::Button, QColor(249, 249, 249, 77));
-        palette.setColor(QPalette::Disabled, QPalette::Base, QColor(246, 246, 246, 128));
-    }
-
-    const QColor textOnAccent = Private::contrastText(accent);
-    palette.setColor(QPalette::Highlight, accent); // system selection accent
-    palette.setColor(QPalette::HighlightedText, textOnAccent);
-    palette.setColor(QPalette::Link, accent);
-    palette.setColor(QPalette::LinkVisited, accent.darker(112));
-    palette.setColor(QPalette::BrightText, textOnAccent);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
-    // WinUI uses SystemAccentColor for selection, but Light2 in dark mode and
-    // Dark1 in light mode for AccentFillColorDefault.
-    palette.setColor(QPalette::Accent, accentFill);
-#endif
-    return palette;
+    return Private::standardPalette(darkTheme, accent, d->accent.isValid());
 }
 
 void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
@@ -3162,364 +2623,14 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
 void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex *option,
                                QPainter *painter, const QWidget *widget) const
 {
-    using namespace Private;
-    const Tokens t = tokens(option->palette);
+    if (Private::drawComplexControl(this, control, option, painter, widget))
+        return;
 
-    if (control == CC_ToolButton) {
-        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
-            drawPrimitive(PE_PanelButtonTool, tool, painter, widget);
-            drawControl(CE_ToolButtonLabel, tool, painter, widget);
-            if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
-                const QRect menuRect = subControlRect(CC_ToolButton, tool,
-                                                       SC_ToolButtonMenu, widget);
-                painter->save();
-                painter->setPen(t.stroke);
-                const int x = option->direction == Qt::RightToLeft
-                    ? menuRect.right() : menuRect.left();
-                painter->drawLine(x, menuRect.top() + 5, x, menuRect.bottom() - 5);
-                painter->restore();
-            }
-            return;
-        }
-    }
-
-    if (control == CC_GroupBox) {
-        if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option)) {
-            const bool enabled = group->state & State_Enabled;
-            roundedRect(painter, group->rect, t.layer, t.stroke, 6.0);
-
-            if (group->subControls & SC_GroupBoxCheckBox) {
-                QStyleOptionButton indicator;
-                indicator.rect = subControlRect(CC_GroupBox, group,
-                                                SC_GroupBoxCheckBox, widget);
-                indicator.state = group->state;
-                indicator.palette = group->palette;
-                drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
-            }
-            if (group->subControls & SC_GroupBoxLabel) {
-                const QRect label = subControlRect(CC_GroupBox, group,
-                                                   SC_GroupBoxLabel, widget);
-                painter->save();
-                QFont titleFont = widget ? widget->font() : QApplication::font();
-                titleFont.setWeight(QFont::DemiBold);
-                painter->setFont(titleFont);
-                painter->setPen(enabled ? t.textPrimary : t.textDisabled);
-                painter->drawText(label,
-                                  visualAlignment(group->direction,
-                                                  Qt::AlignLeft | Qt::AlignVCenter),
-                                  group->text);
-                painter->restore();
-            }
-            return;
-        }
-    }
-
-    if (control == CC_ComboBox) {
-        if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
-            const bool enabled = combo->state & State_Enabled;
-            const bool hovered = combo->state & State_MouseOver;
-            const bool pressed = combo->state & (State_Sunken | State_On);
-            const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
-            const qreal press = progress(widget, pressProperty, pressed ? 1.0 : 0.0);
-            QColor fill = enabled ? t.control : t.controlDisabled;
-            fill = mix(fill, t.controlHover, hover);
-            fill = mix(fill, t.controlPressed, press);
-            if (combo->subControls & SC_ComboBoxFrame)
-                controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
-                               ControlRadius);
-            if (combo->subControls & SC_ComboBoxArrow) {
-                // Keep the chevron rectangle logical; paintThemedIcon resolves
-                // the pixmap's DPR without changing this geometry.
-                const QRect logicalArrow(combo->rect.right() - 37,
-                                         combo->rect.top(), 38,
-                                         combo->rect.height());
-                const QRect logicalChevron(
-                    logicalArrow.left() + (logicalArrow.width() - 12) / 2,
-                    logicalArrow.top() + (logicalArrow.height() - 12) / 2,
-                    12, 12);
-                const QRect chevronRect = visualRect(combo->direction,
-                                                     combo->rect,
-                                                     logicalChevron);
-                const qreal chevron = progress(widget, comboChevronProperty, 0.0);
-                painter->save();
-                painter->translate(0.0, 1.875 * chevron);
-                paintThemedIcon(painter, icon(Icon::ChevronDown), chevronRect,
-                                Qt::AlignCenter,
-                                enabled ? t.textPrimary : t.textDisabled,
-                                enabled ? QIcon::Normal : QIcon::Disabled);
-                painter->restore();
-            }
-            if (keyboardFocusVisible(widget)) {
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2));
-                painter->drawRoundedRect(QRectF(combo->rect).adjusted(1, 1, -1, -1), 7, 7);
-                painter->setPen(QPen(t.focusInner, 1));
-                painter->drawRoundedRect(QRectF(combo->rect).adjusted(3, 3, -3, -3), 5, 5);
-                painter->restore();
-            }
-            return;
-        }
-    }
-    if (control == CC_SpinBox) {
-        if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
-            const bool enabled = spin->state & State_Enabled;
-            const bool focused = spin->state & State_HasFocus;
-            const bool verticalButtons = verticalSpinButtons(widget);
-            const qreal hover = progress(widget, hoverProperty,
-                                         spin->state & State_MouseOver ? 1.0 : 0.0);
-            QColor fill = !enabled ? t.controlDisabled
-                : focused ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
-                          : mix(t.control, t.controlHover, hover);
-            controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary,
-                           ControlRadius);
-            if (verticalButtons) {
-                const QRect editField = subControlRect(CC_SpinBox, spin,
-                                                       SC_SpinBoxEditField,
-                                                       widget);
-                const int separatorX = spin->direction == Qt::RightToLeft
-                    ? editField.left() : editField.right();
-                painter->save();
-                painter->setPen(QPen(t.stroke, 1, Qt::SolidLine, Qt::FlatCap));
-                painter->drawLine(separatorX, spin->rect.top() + 1,
-                                  separatorX, spin->rect.bottom() - 1);
-                painter->restore();
-            }
-            if (focused) {
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setPen(QPen(t.accentFill, 2, Qt::SolidLine, Qt::FlatCap));
-                const int underlineY = spin->rect.bottom() - 1;
-                painter->drawLine(spin->rect.left(), underlineY,
-                                  spin->rect.right(), underlineY);
-                painter->restore();
-            }
-            const auto drawStep = [&](SubControl subControl, Icon glyph) {
-                if (!(spin->subControls & subControl)) return;
-                const QRect rect = subControlRect(CC_SpinBox, spin, subControl, widget);
-                const bool stepEnabled = enabled && (subControl == SC_SpinBoxUp
-                    ? spin->stepEnabled & QAbstractSpinBox::StepUpEnabled
-                    : spin->stepEnabled & QAbstractSpinBox::StepDownEnabled);
-                const QRectF visualRect = verticalButtons
-                    ? (subControl == SC_SpinBoxUp
-                        ? QRectF(rect).adjusted(4, 3, -4, 0)
-                        : QRectF(rect).adjusted(4, 0, -4, -3))
-                    : (subControl == SC_SpinBoxUp
-                        ? QRectF(rect).adjusted(4, 4, 0, -4)
-                        : QRectF(rect).adjusted(0, 4, -4, -4));
-                if (stepEnabled && (spin->activeSubControls & subControl)
-                    && (spin->state & State_MouseOver)) {
-                    roundedRect(painter, visualRect,
-                                spin->state & State_Sunken ? t.subtlePressed : t.subtleHover,
-                                Qt::transparent, ControlRadius);
-                }
-                const QPoint center = visualRect.center().toPoint();
-                icon(glyph, stepEnabled ? t.textPrimary : t.textDisabled).paint(
-                    painter, QRect(center.x() - 6, center.y() - 6, 12, 12),
-                    Qt::AlignCenter, stepEnabled ? QIcon::Normal : QIcon::Disabled);
-            };
-            drawStep(SC_SpinBoxUp, Icon::ChevronUp);
-            drawStep(SC_SpinBoxDown, Icon::ChevronDown);
-            return;
-        }
-    }
-
-    if (control == CC_Slider) {
-        if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
-            const bool horizontal = slider->orientation == Qt::Horizontal;
-            QRect groove = subControlRect(CC_Slider, slider, SC_SliderGroove, widget);
-            const QRect handle = subControlRect(CC_Slider, slider, SC_SliderHandle,
-                                                widget);
-            const qreal hover = progress(widget, hoverProperty,
-                option->state & State_MouseOver ? 1.0 : 0.0);
-            const qreal pressed = progress(widget, pressProperty,
-                option->state & State_Sunken ? 1.0 : 0.0);
-            const bool enabled = option->state & State_Enabled;
-            QColor track = enabled ? t.strokeStrong : t.textDisabled;
-            QColor valueColor = enabled
-                ? Private::mix(t.accentFill, t.accentFillHover, hover)
-                : t.accentFillDisabled;
-            valueColor = Private::mix(valueColor, t.accentFillPressed, pressed);
-            roundedRect(painter, groove, track, Qt::transparent, 2);
-
-            QRect value = groove;
-            if (horizontal) {
-                if (slider->upsideDown)
-                    value.setLeft(handle.center().x());
-                else
-                    value.setRight(handle.center().x());
-            } else {
-                if (slider->upsideDown)
-                    value.setTop(handle.center().y());
-                else
-                    value.setBottom(handle.center().y());
-            }
-            roundedRect(painter, value, valueColor, Qt::transparent, 2);
-
-            if (slider->tickPosition != QSlider::NoTicks
-                && slider->maximum > slider->minimum) {
-                const qint64 minimum = slider->minimum;
-                const qint64 maximum = slider->maximum;
-                const qint64 range = maximum - minimum;
-                const qint64 requested = slider->tickInterval > 0
-                    ? qint64(slider->tickInterval)
-                    : qint64(qMax(1, slider->pageStep));
-                const qint64 interval = qMax<qint64>(1, qMax(requested,
-                    (range + 99) / 100));
-                painter->save();
-                painter->setPen(QPen(enabled ? t.strokeStrong : t.textDisabled, 1));
-                for (qint64 tick = minimum;;) {
-                    const int span = horizontal ? groove.width() - 1
-                                                 : groove.height() - 1;
-                    const int offset = QStyle::sliderPositionFromValue(
-                        slider->minimum, slider->maximum,
-                        int(qBound(minimum, tick, maximum)), span,
-                        slider->upsideDown);
-                    if (horizontal) {
-                        const int x = groove.left() + offset;
-                        if (slider->tickPosition & QSlider::TicksAbove)
-                            painter->drawLine(x, groove.top() - 8, x,
-                                              groove.top() - 5);
-                        if (slider->tickPosition & QSlider::TicksBelow)
-                            painter->drawLine(x, groove.bottom() + 5, x,
-                                              groove.bottom() + 8);
-                    } else {
-                        const int y = groove.top() + offset;
-                        if (slider->tickPosition & QSlider::TicksLeft)
-                            painter->drawLine(groove.left() - 8, y,
-                                              groove.left() - 5, y);
-                        if (slider->tickPosition & QSlider::TicksRight)
-                            painter->drawLine(groove.right() + 5, y,
-                                              groove.right() + 8, y);
-                    }
-                    if (tick >= maximum || interval > maximum - tick)
-                        break;
-                    tick += interval;
-                }
-                painter->restore();
-            }
-
-            qreal innerDiameter = 10.32 + (14.0 - 10.32) * hover;
-            innerDiameter += (8.52 - innerDiameter) * pressed;
-            if (!enabled)
-                innerDiameter = 14.0;
-            QColor thumbColor = enabled ? valueColor : t.accentFillDisabled;
-            const QColor outerThumb = t.dark ? QColor(69, 69, 69)
-                                             : QColor(255, 255, 255);
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setBrush(outerThumb);
-            painter->setPen(QPen(t.strokeSecondary, 1));
-            painter->drawEllipse(QPointF(handle.center()), 10.5, 10.5);
-            painter->setBrush(thumbColor);
-            painter->setPen(Qt::NoPen);
-            painter->drawEllipse(QPointF(handle.center()), innerDiameter / 2.0,
-                                 innerDiameter / 2.0);
-            if ((option->state & State_HasFocus) && keyboardFocusVisible(widget)) {
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2));
-                painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1),
-                                         ControlRadius, ControlRadius);
-                painter->setPen(QPen(t.focusInner, 1));
-                painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
-                                         ControlRadius - 1, ControlRadius - 1);
-            }
-            painter->restore();
-            return;
-        }
-    }
-
-    if (control == CC_ScrollBar) {
-        if (const auto *scroll = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
-            // QAbstractSlider's paint path does not guarantee that a standalone
-            // scrollbar's backing store was cleared. WinUI's transparent rest
-            // state therefore has to be composited over the widget surface here.
-            QColor background = option->palette.color(QPalette::Window);
-            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr;
-                 ancestor; ancestor = ancestor->parentWidget()) {
-                if (!qobject_cast<const QGroupBox *>(ancestor))
-                    continue;
-                QColor opaqueLayer = t.layer;
-                const qreal opacity = opaqueLayer.alphaF();
-                opaqueLayer.setAlpha(255);
-                background = Private::mix(background, opaqueLayer, opacity);
-            }
-            painter->fillRect(option->rect, background);
-            const bool enabled = option->state & State_Enabled;
-            // The WinUI ScrollBarThumb template fades the thumb to zero in
-            // its Disabled state; arrows and track are suppressed with it.
-            if (!enabled)
-                return;
-            const QRect thumb = subControlRect(CC_ScrollBar, scroll, SC_ScrollBarSlider, widget);
-            const qreal expanded = progress(widget, hoverProperty,
-                option->state & State_MouseOver ? 1.0 : 0.0);
-            const bool horizontal = scroll->orientation == Qt::Horizontal;
-            if (expanded > 0.001) {
-                QColor track = t.layer;
-                track.setAlphaF(track.alphaF() * expanded);
-                roundedRect(painter, option->rect, track, Qt::transparent, 3);
-            }
-
-            const qreal thickness = 8.0 + 4.0 * expanded;
-            QRectF visualThumb(thumb);
-            if (horizontal)
-                visualThumb.setTop(thumb.bottom() + 1.0 - thickness);
-            else
-                visualThumb.setLeft(thumb.right() + 1.0 - thickness);
-            const QColor thumbColor = t.strokeStrong;
-            roundedRect(painter, visualThumb, thumbColor, Qt::transparent,
-                        thickness / 2.0);
-
-            if (expanded > 0.001) {
-                const QRect decrease = subControlRect(CC_ScrollBar, scroll,
-                    SC_ScrollBarSubLine, widget);
-                const QRect increase = subControlRect(CC_ScrollBar, scroll,
-                    SC_ScrollBarAddLine, widget);
-                const bool pressed = option->state & State_Sunken;
-                const auto drawArrow = [&](const QRect &rect, SubControl sub,
-                                           Icon glyph) {
-                    if (!(scroll->subControls & sub))
-                        return;
-                    const bool active = (scroll->activeSubControls & sub)
-                        && (option->state & State_MouseOver);
-                    if (active) {
-                        const QColor fill = pressed ? t.subtlePressed
-                                                    : t.subtleHover;
-                        roundedRect(painter, QRectF(rect).adjusted(2, 2, -2, -2),
-                                    fill, Qt::transparent, 3);
-                    }
-                    painter->save();
-                    painter->setOpacity(expanded);
-                    QRect glyphRect(rect.center().x() - 4, rect.center().y() - 4,
-                                    8, 8);
-                    if (active && pressed)
-                        glyphRect = QRect(rect.center().x() - 3,
-                                          rect.center().y() - 3, 7, 7);
-                    icon(glyph, t.textPrimary).paint(painter, glyphRect,
-                                                     Qt::AlignCenter,
-                                                     QIcon::Normal);
-                    painter->restore();
-                };
-                if (horizontal) {
-                    const bool rtl = option->direction == Qt::RightToLeft;
-                    drawArrow(decrease, SC_ScrollBarSubLine,
-                              rtl ? Icon::ChevronRight : Icon::ChevronLeft);
-                    drawArrow(increase, SC_ScrollBarAddLine,
-                              rtl ? Icon::ChevronLeft : Icon::ChevronRight);
-                } else {
-                    drawArrow(decrease, SC_ScrollBarSubLine, Icon::ChevronUp);
-                    drawArrow(increase, SC_ScrollBarAddLine, Icon::ChevronDown);
-                }
-            }
-            return;
-        }
-    }
-
-    Q_ASSERT_X(!coveredComplex(control), "WinUI3::Style::drawComplexControl",
+    Q_ASSERT_X(!Private::coveredComplex(control), "WinUI3::Style::drawComplexControl",
                "a covered complex control reached QCommonStyle");
     QProxyStyle::drawComplexControl(control, option, painter, widget);
 }
+
 
 int Style::pixelMetric(PixelMetric metric, const QStyleOption *option,
                        const QWidget *widget) const

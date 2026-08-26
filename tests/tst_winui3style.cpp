@@ -627,6 +627,9 @@ void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
 
 void WinUI3StyleTest::coloredIconCacheReuseAndPixelContract()
 {
+    QVERIFY(WinUI3::icon(static_cast<WinUI3::Icon>(-1)).isNull());
+    QVERIFY(WinUI3::icon(static_cast<WinUI3::Icon>(999)).isNull());
+
     const QColor foreground(27, 108, 219, 231);
     const QSize logicalSize(20, 20);
     const qreal devicePixelRatio = 1.5;
@@ -635,6 +638,17 @@ void WinUI3StyleTest::coloredIconCacheReuseAndPixelContract()
     const QPixmap firstPixmap = first.pixmap(logicalSize, devicePixelRatio,
                                              QIcon::Normal, QIcon::Off);
     QVERIFY(!firstPixmap.isNull());
+
+    const auto paintDirect = [logicalSize](const QIcon &source) {
+        QImage image(logicalSize, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        source.paint(&painter, QRect(QPoint(), logicalSize), Qt::AlignCenter,
+                     QIcon::Normal, QIcon::Off);
+        return image;
+    };
+    const QImage firstDirectPaint = paintDirect(first);
+    QVERIFY(!firstDirectPaint.isNull());
 
     // A repeated request for the same glyph/color must reuse the cached
     // engine. cacheKey equality is the allocation/lifetime proxy; comparing
@@ -670,6 +684,7 @@ void WinUI3StyleTest::coloredIconCacheReuseAndPixelContract()
                             QIcon::Off)
                  .toImage(),
              firstPixmap.toImage());
+    QCOMPARE(paintDirect(rebuilt), firstDirectPaint);
 }
 
 void WinUI3StyleTest::buttonPressedPulseContract()

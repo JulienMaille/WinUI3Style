@@ -130,6 +130,7 @@ void SettingsCard::setIcon(const QIcon &icon)
     if (m_icon.cacheKey() == icon.cacheKey()) return;
     m_icon = icon;
     refreshIconPixmap();
+    refreshChevronPixmap();
     m_iconLabel->setVisible(!icon.isNull());
     m_headerWidth = -1;
     refreshHeaderGeometry();
@@ -144,7 +145,6 @@ void SettingsCard::refreshIconPixmap()
             devicePixelRatioF(), isEnabled() ? t.textPrimary : t.textDisabled,
             isEnabled() ? QIcon::Normal : QIcon::Disabled));
     }
-    refreshChevronPixmap();
 }
 
 void SettingsCard::refreshChevronPixmap()
