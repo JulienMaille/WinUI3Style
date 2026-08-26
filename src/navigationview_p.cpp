@@ -1,5 +1,6 @@
 #include "navigationview_p.h"
 
+#include "winui3paint_p.h"
 #include "winui3tokens_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -16,6 +17,8 @@
 
 namespace WinUI3::NavigationPrivate {
 namespace {
+
+using namespace WinUI3::PaintPrivate;
 
 constexpr auto navigationIndicatorProperty = "_winui_navigation_indicator_y";
 constexpr auto navigationDelegateProperty = "_winui_navigation_delegate";
@@ -34,45 +37,6 @@ qreal progress(const QWidget *widget, const char *name, qreal fallback)
 bool animationsAllowed()
 {
     return Style::animationsAllowed();
-}
-
-void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill,
-                 const QColor &stroke, qreal radius, qreal strokeWidth = 1.0)
-{
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setBrush(fill);
-    painter->setPen(stroke.alpha() > 0 ? QPen(stroke, strokeWidth) : Qt::NoPen);
-    const qreal half = stroke.alpha() > 0 ? strokeWidth / 2.0 : 0.0;
-    painter->drawRoundedRect(rect.adjusted(half, half, -half, -half), radius, radius);
-    painter->restore();
-}
-
-void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
-                     Qt::Alignment alignment, const QColor &foreground,
-                     QIcon::Mode mode = QIcon::Normal,
-                     QIcon::State state = QIcon::Off)
-{
-    if (source.isNull() || rect.isEmpty())
-        return;
-    const qreal dpr = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
-    const QSize requestedSize(qMax(1, qRound(rect.width())),
-                              qMax(1, qRound(rect.height())));
-    const QPixmap pixmap = iconPixmap(source, requestedSize, dpr, foreground,
-                                      mode, state);
-    if (pixmap.isNull())
-        return;
-    const QSizeF logicalSize = pixmap.deviceIndependentSize();
-    QPointF topLeft = rect.topLeft();
-    if (alignment & Qt::AlignRight)
-        topLeft.setX(rect.right() - logicalSize.width());
-    else if (alignment & Qt::AlignHCenter)
-        topLeft.setX(rect.center().x() - logicalSize.width() / 2.0);
-    if (alignment & Qt::AlignBottom)
-        topLeft.setY(rect.bottom() - logicalSize.height());
-    else if (alignment & Qt::AlignVCenter)
-        topLeft.setY(rect.center().y() - logicalSize.height() / 2.0);
-    painter->drawPixmap(topLeft, pixmap);
 }
 
 bool keyboardFocusVisible(const QWidget *widget)
