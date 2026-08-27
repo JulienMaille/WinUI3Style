@@ -7,13 +7,16 @@
 #include <QDockWidget>
 #include <QLabel>
 #include <QMainWindow>
+#include <QMouseEvent>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSignalSpy>
+#include <QSlider>
 #include <QStyleOptionSlider>
 #include <QTest>
+#include <QTimer>
 #include <QToolTip>
 #include <QVBoxLayout>
 
@@ -88,6 +91,7 @@ private slots:
     void dialogThemeUpdate();
     void dockFloatingFocusCleanup();
     void scrollBarNativeInputDiagnostic();
+    void sliderToolTipDebounceSurface();
 };
 
 void WinUI3StyleNativeTest::initTestCase()
@@ -131,6 +135,54 @@ void WinUI3StyleNativeTest::tooltipSurface()
         }
         return false;
     }(), 1800);
+}
+
+void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
+{
+    QSlider slider(Qt::Horizontal);
+    slider.setRange(0, 100);
+    slider.resize(320, 40);
+    slider.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&slider));
+
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
+                      slider.rect().center());
+    QTRY_VERIFY_WITH_TIMEOUT(
+        slider.property("_winui_slider_tooltip_visible").toBool(), 500);
+
+    // The first tooltip display is immediate. Once visible, a burst of
+    // pointer updates must use one trailing surface timer instead of moving
+    // and repainting the native popup for every mouse event.
+    for (int i = 0; i < 200; ++i) {
+        slider.setValue(i % 100);
+        QMouseEvent move(QEvent::MouseMove,
+                         QPointF(slider.rect().center()), Qt::NoButton,
+                         Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(&slider, &move);
+    }
+    QCoreApplication::processEvents();
+    auto *timer = slider.findChild<QTimer *>(
+        QStringLiteral("_winui_slider_tooltip_debounce_timer"),
+        Qt::FindDirectChildrenOnly);
+    QVERIFY(timer);
+    QVERIFY(timer->isSingleShot());
+    QTRY_VERIFY_WITH_TIMEOUT(!timer->isActive(), 500);
+
+    QSignalSpy callbacks(timer, &QTimer::timeout);
+    for (int i = 0; i < 200; ++i) {
+        slider.setValue((i + 37) % 100);
+        QMouseEvent move(QEvent::MouseMove,
+                         QPointF(slider.rect().center()), Qt::NoButton,
+                         Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(&slider, &move);
+    }
+    QCoreApplication::processEvents();
+    QTRY_COMPARE_WITH_TIMEOUT(callbacks.count(), 1, 500);
+
+    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
+                        slider.rect().center());
+    QVERIFY(!timer->isActive());
+    QVERIFY(!slider.property("_winui_slider_tooltip_visible").toBool());
 }
 
 void WinUI3StyleNativeTest::menuSurface()

@@ -186,6 +186,77 @@ private:
     QString m_text;
 };
 
+constexpr auto sliderToolTipDebounceTimerName =
+    "_winui_slider_tooltip_debounce_timer";
+constexpr int sliderToolTipDebounceInterval = 16;
+
+SliderValueTip *sliderValueTip(QSlider *slider)
+{
+    if (!slider)
+        return nullptr;
+    return static_cast<SliderValueTip *>(slider->findChild<QWidget *>(
+        QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
+}
+
+void updateSliderValueToolTipNow(QSlider *slider)
+{
+    if (!slider || !slider->isEnabled())
+        return;
+
+    QStyleOptionSlider option;
+    option.initFrom(slider);
+    option.orientation = slider->orientation();
+    option.minimum = slider->minimum();
+    option.maximum = slider->maximum();
+    option.sliderPosition = slider->sliderPosition();
+    option.sliderValue = slider->value();
+    option.singleStep = slider->singleStep();
+    option.pageStep = slider->pageStep();
+    option.upsideDown = slider->orientation() == Qt::Horizontal
+        ? (slider->invertedAppearance()
+           != (slider->layoutDirection() == Qt::RightToLeft))
+        : !slider->invertedAppearance();
+    const QRect handle = slider->style()->subControlRect(
+        QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
+    const QPoint anchor = slider->orientation() == Qt::Horizontal
+        ? QPoint(handle.center().x(), handle.top() - 8)
+        : QPoint(handle.right() + 8, handle.center().y());
+    const QString valueText = QString::number(slider->value());
+    slider->setProperty(sliderToolTipVisibleProperty, true);
+    slider->setProperty(sliderToolTipValueProperty, valueText);
+    // The headless platform cannot host a non-activating tool window and
+    // synthesizes a FocusOut when one is shown. State/value remain testable;
+    // the popup itself is covered by the native Windows test path.
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return;
+    auto *tip = sliderValueTip(slider);
+    if (!tip)
+        tip = new SliderValueTip(slider);
+    tip->showValue(valueText, slider->mapToGlobal(anchor),
+                   slider->orientation() == Qt::Horizontal);
+}
+
+QTimer *sliderToolTipDebounceTimer(QSlider *slider)
+{
+    if (!slider)
+        return nullptr;
+    if (auto *timer = slider->findChild<QTimer *>(
+            QString::fromLatin1(sliderToolTipDebounceTimerName),
+            Qt::FindDirectChildrenOnly)) {
+        return timer;
+    }
+    auto *timer = new QTimer(slider);
+    timer->setObjectName(QString::fromLatin1(sliderToolTipDebounceTimerName));
+    timer->setSingleShot(true);
+    timer->setInterval(sliderToolTipDebounceInterval);
+    const QPointer<QSlider> guarded(slider);
+    QObject::connect(timer, &QTimer::timeout, slider, [guarded] {
+        if (guarded && guarded->isEnabled())
+            updateSliderValueToolTipNow(guarded);
+    });
+    return timer;
+}
+
 bool isLineEditClearButton(const QLineEdit *lineEdit,
                            const QAbstractButton *button)
 {
@@ -289,50 +360,44 @@ void showSliderValueToolTip(QSlider *slider)
 {
     if (!slider || !slider->isEnabled())
         return;
-    QStyleOptionSlider option;
-    option.initFrom(slider);
-    option.orientation = slider->orientation();
-    option.minimum = slider->minimum();
-    option.maximum = slider->maximum();
-    option.sliderPosition = slider->sliderPosition();
-    option.sliderValue = slider->value();
-    option.singleStep = slider->singleStep();
-    option.pageStep = slider->pageStep();
-    option.upsideDown = slider->orientation() == Qt::Horizontal
-        ? (slider->invertedAppearance()
-           != (slider->layoutDirection() == Qt::RightToLeft))
-        : !slider->invertedAppearance();
-    const QRect handle = slider->style()->subControlRect(
-        QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
-    const QPoint anchor = slider->orientation() == Qt::Horizontal
-        ? QPoint(handle.center().x(), handle.top() - 8)
-        : QPoint(handle.right() + 8, handle.center().y());
-    const QString valueText = QString::number(slider->value());
+    // Keep the inspectable state synchronous, but coalesce the expensive
+    // native tooltip geometry/window update while a drag is in progress.
+    // The first show remains immediate so pressing the handle has no visible
+    // latency; subsequent moves use a trailing 16 ms frame debounce.
+    const bool alreadyVisible =
+        slider->property(sliderToolTipVisibleProperty).toBool();
     slider->setProperty(sliderToolTipVisibleProperty, true);
-    slider->setProperty(sliderToolTipValueProperty, valueText);
-    // The headless platform cannot host a non-activating tool window and
-    // synthesizes a FocusOut when one is shown. State/value remain testable;
-    // the popup itself is covered by the native Windows test path.
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+    slider->setProperty(sliderToolTipValueProperty,
+                        QString::number(slider->value()));
+    if (!alreadyVisible || !sliderValueTip(slider)) {
+        if (auto *timer = slider->findChild<QTimer *>(
+                QString::fromLatin1(sliderToolTipDebounceTimerName),
+                Qt::FindDirectChildrenOnly)) {
+            timer->stop();
+        }
+        updateSliderValueToolTipNow(slider);
         return;
-    auto *tip = static_cast<SliderValueTip *>(slider->findChild<QWidget *>(
-        QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
-    if (!tip)
-        tip = new SliderValueTip(slider);
-    tip->showValue(valueText, slider->mapToGlobal(anchor),
-                   slider->orientation() == Qt::Horizontal);
+    }
+    // On the offscreen platform no tip is created, so the branch above keeps
+    // state synchronous and avoids allocating a timer that cannot fire useful
+    // work. Native platforms restart the one-shot timer for trailing-edge
+    // coalescing of high-frequency slider moves.
+    if (auto *timer = sliderToolTipDebounceTimer(slider))
+        timer->start();
 }
 
 void hideSliderValueToolTip(QSlider *slider)
 {
     if (slider) {
+        if (auto *timer = slider->findChild<QTimer *>(
+                QString::fromLatin1(sliderToolTipDebounceTimerName),
+                Qt::FindDirectChildrenOnly)) {
+            timer->stop();
+        }
         slider->setProperty(sliderToolTipVisibleProperty, false);
         slider->setProperty(sliderToolTipValueProperty, {});
-        if (auto *tip = slider->findChild<QWidget *>(
-                QStringLiteral("_winui_slider_value_tip"),
-                Qt::FindDirectChildrenOnly)) {
+        if (auto *tip = sliderValueTip(slider))
             tip->hide();
-        }
     }
 }
 

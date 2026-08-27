@@ -3,6 +3,7 @@
 #include "winui3tokens_p.h"
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QSettings>
 
 #ifdef Q_OS_WIN
@@ -13,13 +14,63 @@
 
 namespace WinUI3::Private {
 
+namespace {
+
+#ifdef Q_OS_WIN
+// Reading the native registry through QSettings and querying DWM are both
+// comparatively expensive for calls made from the style's paint/palette
+// paths. Keep the latest system values for one polling slice. The style's
+// appearance watcher runs every 750 ms, so this still observes changes on the
+// next poll while avoiding duplicate reads from dark(), standardPalette(),
+// and accentColor() during the same frame.
+constexpr qint64 systemAppearanceCacheLifetimeMs = 250;
+
+struct SystemAppearanceCache
+{
+    QElapsedTimer darkAge;
+    bool darkInitialized = false;
+    bool dark = false;
+    QElapsedTimer accentAge;
+    bool accentInitialized = false;
+    SystemAccentRamp accentRamp;
+
+    bool darkFresh() const
+    {
+        return darkAge.isValid()
+            && darkAge.elapsed() < systemAppearanceCacheLifetimeMs;
+    }
+
+    bool accentFresh() const
+    {
+        return accentAge.isValid()
+            && accentAge.elapsed() < systemAppearanceCacheLifetimeMs;
+    }
+};
+
+SystemAppearanceCache &systemAppearanceCache()
+{
+    // All callers are on Qt's GUI thread. Keeping this cache process-local
+    // also avoids sharing QSettings instances across threads.
+    static SystemAppearanceCache cache;
+    return cache;
+}
+#endif
+
+} // namespace
+
 bool systemUsesDarkTheme()
 {
 #ifdef Q_OS_WIN
+    auto &cache = systemAppearanceCache();
+    if (cache.darkInitialized && cache.darkFresh())
+        return cache.dark;
     QSettings settings(QStringLiteral(
         "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
         QSettings::NativeFormat);
-    return settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
+    cache.dark = settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
+    cache.darkInitialized = true;
+    cache.darkAge.start();
+    return cache.dark;
 #else
     return qGray(QApplication::palette().color(QPalette::Window).rgb()) < 128;
 #endif
@@ -29,6 +80,9 @@ SystemAccentRamp systemAccentRamp()
 {
     SystemAccentRamp ramp;
 #ifdef Q_OS_WIN
+    auto &cache = systemAppearanceCache();
+    if (cache.accentInitialized && cache.accentFresh())
+        return cache.accentRamp;
     // Explorer stores the Windows accent ramp as BGRA entries ordered
     // Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, complement.
     // These are the same SystemAccentColor* roles consumed by WinUI's
@@ -77,6 +131,11 @@ SystemAccentRamp systemAccentRamp()
         ramp.light2 = mix(ramp.accent, QColor(Qt::white), 0.32);
     if (!ramp.dark1.isValid())
         ramp.dark1 = mix(ramp.accent, QColor(Qt::black), 0.18);
+#ifdef Q_OS_WIN
+    cache.accentRamp = ramp;
+    cache.accentInitialized = true;
+    cache.accentAge.start();
+#endif
     return ramp;
 }
 
