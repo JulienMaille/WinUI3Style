@@ -17,6 +17,11 @@ namespace WinUI3::Private {
 // entries are removed when the object emits destroyed().  The store is
 // bounded so a caller that continually creates objects or property names
 // cannot make it grow without limit.
+//
+// All access is GUI-thread-only.  This is intentional: the registry is read
+// from widget paint paths, so it has no mutex.  Callers must not use it from a
+// worker thread; debug builds assert this contract and release builds reject
+// off-thread accesses without touching the shared state.
 class FramePropertyRegistry final
 {
 public:

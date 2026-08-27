@@ -183,6 +183,30 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
                         slider.rect().center());
     QVERIFY(!timer->isActive());
     QVERIFY(!slider.property("_winui_slider_tooltip_visible").toBool());
+
+    // Disabling during the trailing debounce must clear both the inspectable
+    // state and the already-created native popup, rather than leaving the last
+    // value visible until another pointer event arrives.
+    slider.setEnabled(true);
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
+                      slider.rect().center());
+    QTRY_VERIFY_WITH_TIMEOUT(
+        slider.property("_winui_slider_tooltip_visible").toBool(), 500);
+    QMouseEvent move(QEvent::MouseMove,
+                     QPointF(slider.rect().center()), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&slider, &move);
+    QCoreApplication::processEvents();
+    QVERIFY(timer->isActive());
+    slider.setEnabled(false);
+    QTRY_VERIFY_WITH_TIMEOUT(!timer->isActive(), 500);
+    QVERIFY(!slider.property("_winui_slider_tooltip_visible").toBool());
+    QVERIFY(!slider.property("_winui_slider_tooltip_value").isValid());
+    if (auto *tip = slider.findChild<QWidget *>(
+            QStringLiteral("_winui_slider_value_tip"),
+            Qt::FindDirectChildrenOnly)) {
+        QVERIFY(!tip->isVisible());
+    }
 }
 
 void WinUI3StyleNativeTest::menuSurface()

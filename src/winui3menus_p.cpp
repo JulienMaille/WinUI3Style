@@ -134,14 +134,37 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
                     enabled ? t.textPrimary : t.textDisabled,
                     enabled ? QIcon::Normal : QIcon::Disabled);
             }
-            const QStringList parts = menu->text.split(QLatin1Char('\t'));
+            // Keep the first two fields of the historical split('\t')
+            // contract, but parse them as non-owning views.  Menu paint is a
+            // hot path and QString::split() allocates a QStringList and one
+            // QString per field on every repaint.  A third field remains
+            // intentionally ignored, just as parts.value(1) was before.
+            const QStringView menuText(menu->text);
+            const qsizetype firstTab = menuText.indexOf(QLatin1Char('\t'));
+            const qsizetype secondTab = firstTab >= 0
+                ? menuText.indexOf(QLatin1Char('\t'), firstTab + 1) : -1;
+            const bool hasShortcut = firstTab >= 0;
+            // QFontMetrics and QPainter in the supported Qt baseline take
+            // QString rather than QStringView. fromRawData() gives them a
+            // non-owning view, so neither field is copied just for paint.
+            const QString itemText = hasShortcut
+                ? QString::fromRawData(menu->text.constData(), firstTab)
+                : menu->text;
+            const qsizetype shortcutLength = hasShortcut
+                ? (secondTab >= 0 ? secondTab - firstTab - 1
+                                  : menuText.size() - firstTab - 1)
+                : 0;
+            const QString shortcutText = hasShortcut
+                ? QString::fromRawData(menu->text.constData() + firstTab + 1,
+                                       shortcutLength)
+                : QString();
             painter->setFont(menu->font);
             painter->setPen(enabled ? t.textPrimary : t.textDisabled);
             const QFontMetrics metrics(menu->font);
             const int submenuWidth = menu->menuItemType == QStyleOptionMenuItem::SubMenu
                 ? 24 : 0;
-            const int shortcutWidth = parts.size() > 1
-                ? metrics.horizontalAdvance(parts.value(1)) : 0;
+            const int shortcutWidth = hasShortcut
+                ? metrics.horizontalAdvance(shortcutText) : 0;
             const int shortcutRight = menu->rect.right() - 16 - submenuWidth;
             const int shortcutLeft = shortcutRight - shortcutWidth;
             const int textRight = shortcutWidth > 0
@@ -154,9 +177,9 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
             painter->drawText(textRect,
                               QStyle::visualAlignment(menu->direction,
                                               Qt::AlignLeft | Qt::AlignVCenter),
-                              metrics.elidedText(parts.value(0), Qt::ElideRight,
+                              metrics.elidedText(itemText, Qt::ElideRight,
                                                  textRect.width()));
-            if (parts.size() > 1) {
+            if (hasShortcut) {
                 painter->setPen(enabled ? t.textSecondary : t.textDisabled);
                 const QRect shortcutRect = QStyle::visualRect(menu->direction, menu->rect,
                     QRect(shortcutLeft, menu->rect.top(), shortcutWidth,
@@ -164,7 +187,7 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
                 painter->drawText(shortcutRect,
                                   QStyle::visualAlignment(menu->direction,
                                                   Qt::AlignRight | Qt::AlignVCenter),
-                                  parts.value(1));
+                                  shortcutText);
             }
             if (menu->menuItemType == QStyleOptionMenuItem::SubMenu) {
                 const QRect submenu = QStyle::visualRect(menu->direction, menu->rect,

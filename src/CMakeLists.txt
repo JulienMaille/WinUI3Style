@@ -29,6 +29,8 @@ add_library(winui3style SHARED
     winui3surfaces_p.cpp
     winui3complex_p.h
     winui3complex_p.cpp
+    winui3viewrenderers_p.h
+    winui3viewrenderers_p.cpp
     winui3tokens_p.h
     navigationview_p.h
     navigationview_p.cpp

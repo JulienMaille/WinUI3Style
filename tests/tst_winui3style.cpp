@@ -363,6 +363,7 @@ private slots:
     void radioStateMotion();
     void radioDotDpiGeometry();
     void menuSizingContract();
+    void menuPaintTabParsing();
     void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
     void splitterHandleContract();
@@ -2721,6 +2722,37 @@ void WinUI3StyleTest::menuSizingContract()
     QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier,
                       actionRect.center());
     QVERIFY(action->isChecked());
+}
+
+void WinUI3StyleTest::menuPaintTabParsing()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    auto render = [style](const QString &text) {
+        QStyleOptionMenuItem option;
+        option.rect = QRect(0, 0, 320, 36);
+        option.direction = Qt::LeftToRight;
+        option.palette = qApp->palette();
+        option.state = QStyle::State_Enabled;
+        option.menuItemType = QStyleOptionMenuItem::Normal;
+        option.font = qApp->font();
+        option.fontMetrics = QFontMetrics(option.font);
+        option.text = text;
+
+        QImage result(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        result.fill(Qt::transparent);
+        QPainter painter(&result);
+        style->drawControl(QStyle::CE_MenuItem, &option, &painter);
+        return result;
+    };
+
+    // QString::split() historically rendered only fields 0 and 1. Keep a
+    // third tabbed field from changing pixels while replacing that allocation
+    // heavy parsing in the paint path.
+    const QImage twoFields = render(QStringLiteral("Open\tCtrl+O"));
+    const QImage extraField = render(QStringLiteral("Open\tCtrl+O\tignored"));
+    QVERIFY(twoFields == extraField);
 }
 
 void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()

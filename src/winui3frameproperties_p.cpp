@@ -1,10 +1,25 @@
 #include "winui3frameproperties_p.h"
 
 #include <algorithm>
+#include <QCoreApplication>
 #include <QObject>
+#include <QThread>
 #include <utility>
 
 namespace WinUI3::Private {
+
+namespace {
+
+bool checkGuiThread(const char *operation)
+{
+    const QCoreApplication *application = QCoreApplication::instance();
+    const bool onGuiThread = !application
+        || QThread::currentThread() == application->thread();
+    Q_ASSERT_X(onGuiThread, "FramePropertyRegistry", operation);
+    return onGuiThread;
+}
+
+} // namespace
 
 FramePropertyRegistry &FramePropertyRegistry::instance()
 {
@@ -18,7 +33,7 @@ FramePropertyRegistry &FramePropertyRegistry::instance()
 QVariant FramePropertyRegistry::value(const QObject *object,
                                       const QByteArray &name) const
 {
-    if (!object || name.isEmpty())
+    if (!checkGuiThread(Q_FUNC_INFO) || !object || name.isEmpty())
         return {};
 
     const auto objectIt = m_objects.constFind(const_cast<QObject *>(object));
@@ -32,6 +47,8 @@ QVariant FramePropertyRegistry::value(const QObject *object,
 qreal FramePropertyRegistry::real(const QObject *object, const QByteArray &name,
                                   qreal fallback) const
 {
+    if (!checkGuiThread(Q_FUNC_INFO))
+        return fallback;
     const QVariant stored = value(object, name);
     if (!stored.isValid())
         return fallback;
@@ -89,7 +106,7 @@ void FramePropertyRegistry::trimObject(ObjectState *state)
 void FramePropertyRegistry::set(QObject *object, const QByteArray &name,
                                 const QVariant &value)
 {
-    if (!object || name.isEmpty())
+    if (!checkGuiThread(Q_FUNC_INFO) || !object || name.isEmpty())
         return;
 
     // Match QObject::setProperty's useful "invalid means remove" behavior,
@@ -111,7 +128,7 @@ void FramePropertyRegistry::set(QObject *object, const QByteArray &name,
 
 void FramePropertyRegistry::clear(QObject *object, const QByteArray &name)
 {
-    if (!object || name.isEmpty())
+    if (!checkGuiThread(Q_FUNC_INFO) || !object || name.isEmpty())
         return;
 
     auto objectIt = m_objects.find(object);
@@ -154,6 +171,8 @@ void FramePropertyRegistry::removeObject(QObject *object,
 
 void FramePropertyRegistry::clearObject(QObject *object)
 {
+    if (!checkGuiThread(Q_FUNC_INFO))
+        return;
     removeObject(object, true);
 }
 

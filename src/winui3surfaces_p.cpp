@@ -198,10 +198,33 @@ SliderValueTip *sliderValueTip(QSlider *slider)
         QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
 }
 
+void clearSliderValueToolTip(QSlider *slider)
+{
+    if (!slider)
+        return;
+
+    if (auto *timer = slider->findChild<QTimer *>(
+            QString::fromLatin1(sliderToolTipDebounceTimerName),
+            Qt::FindDirectChildrenOnly)) {
+        timer->stop();
+    }
+    slider->setProperty(sliderToolTipVisibleProperty, false);
+    slider->setProperty(sliderToolTipValueProperty, {});
+    if (auto *tip = sliderValueTip(slider))
+        tip->hide();
+}
+
 void updateSliderValueToolTipNow(QSlider *slider)
 {
-    if (!slider || !slider->isEnabled())
+    if (!slider)
         return;
+    if (!slider->isEnabled()) {
+        // A slider can be disabled while the trailing debounce timer is
+        // pending. Clear both the inspectable state and the native popup;
+        // otherwise the last value remains visible until the next drag.
+        clearSliderValueToolTip(slider);
+        return;
+    }
 
     QStyleOptionSlider option;
     option.initFrom(slider);
@@ -251,7 +274,7 @@ QTimer *sliderToolTipDebounceTimer(QSlider *slider)
     timer->setInterval(sliderToolTipDebounceInterval);
     const QPointer<QSlider> guarded(slider);
     QObject::connect(timer, &QTimer::timeout, slider, [guarded] {
-        if (guarded && guarded->isEnabled())
+        if (guarded)
             updateSliderValueToolTipNow(guarded);
     });
     return timer;
@@ -388,17 +411,7 @@ void showSliderValueToolTip(QSlider *slider)
 
 void hideSliderValueToolTip(QSlider *slider)
 {
-    if (slider) {
-        if (auto *timer = slider->findChild<QTimer *>(
-                QString::fromLatin1(sliderToolTipDebounceTimerName),
-                Qt::FindDirectChildrenOnly)) {
-            timer->stop();
-        }
-        slider->setProperty(sliderToolTipVisibleProperty, false);
-        slider->setProperty(sliderToolTipValueProperty, {});
-        if (auto *tip = sliderValueTip(slider))
-            tip->hide();
-    }
+    clearSliderValueToolTip(slider);
 }
 
 void preparePopupSurface(QWidget *widget)

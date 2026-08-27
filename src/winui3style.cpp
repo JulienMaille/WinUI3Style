@@ -7,6 +7,7 @@
 #include "winui3menus_p.h"
 #include "winui3style_contracts_p.h"
 #include "winui3complex_p.h"
+#include "winui3viewrenderers_p.h"
 #include "navigationview_p.h"
 #include "winui3paint_p.h"
 #include "winui3style_properties_p.h"
@@ -125,80 +126,6 @@ const QAbstractItemView *itemView(const QWidget *widget)
             return view;
     }
     return nullptr;
-}
-
-constexpr int itemSelectionGutter = 12;
-constexpr int itemSelectionMarkerWidth = 3;
-constexpr int itemSelectionMarkerInset = 2;
-
-const QAbstractItemView *selectionMarkerView(const QWidget *widget)
-{
-    const QAbstractItemView *view = itemView(widget);
-    if (!view || (view->window() && view->window()->windowType() == Qt::Popup))
-        return nullptr;
-    if (qobject_cast<const QTableView *>(view))
-        return nullptr;
-    if (!qobject_cast<const QListView *>(view)
-        && !qobject_cast<const QTreeView *>(view))
-        return nullptr;
-    return view;
-}
-
-int treeItemIndent(const QStyleOptionViewItem &option,
-                   const QAbstractItemView *view)
-{
-    const auto *tree = qobject_cast<const QTreeView *>(view);
-    if (!tree || !option.index.isValid() || option.index.column() != 0)
-        return 0;
-
-    int depth = 0;
-    for (QModelIndex parent = option.index.parent(); parent.isValid();
-         parent = parent.parent()) {
-        ++depth;
-    }
-    // QTreeView reserves one indentation level for top-level items while
-    // rootIsDecorated is enabled. The branch area is not part of the item
-    // delegate's option.rect, so content must explicitly start after it.
-    if (tree->rootIsDecorated())
-        ++depth;
-    return depth * tree->indentation();
-}
-
-QRect itemSelectionGutterRect(const QStyleOptionViewItem &option,
-                              const QAbstractItemView *view)
-{
-    const int indent = treeItemIndent(option, view);
-    if (option.direction == Qt::RightToLeft) {
-        const int right = qMin(option.rect.right(), option.rect.right() - indent);
-        const int left = qMax(option.rect.left(), right - itemSelectionGutter + 1);
-        return QRect(left, option.rect.top(), qMax(0, right - left + 1),
-                     option.rect.height());
-    }
-    const int left = qMin(option.rect.right() + 1,
-                          option.rect.left() + indent);
-    const int right = qMin(option.rect.right(), left + itemSelectionGutter - 1);
-    return QRect(left, option.rect.top(), qMax(0, right - left + 1),
-                 option.rect.height());
-}
-
-QRect selectionMarkerRect(const QStyleOptionViewItem &option,
-                          const QAbstractItemView *view)
-{
-    if (!view || !view->viewport())
-        return {};
-
-    // The TreeView marker belongs to the row's viewport, not to the tree
-    // content slot. Keeping it in the leading viewport gutter prevents the
-    // hierarchy indentation from moving the selection affordance.
-    const QRect viewport = view->viewport()->rect();
-    const int y = option.rect.center().y() - 8;
-    if (option.direction == Qt::RightToLeft) {
-        return QRect(viewport.right() - itemSelectionMarkerInset
-                         - itemSelectionMarkerWidth + 1,
-                     y, itemSelectionMarkerWidth, 16);
-    }
-    return QRect(viewport.left() + itemSelectionMarkerInset, y,
-                 itemSelectionMarkerWidth, 16);
 }
 
 const QWidget *richTextEditor(const QWidget *widget)
@@ -1274,20 +1201,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         : 0.0;
 
 
-    if (element == PE_FrameTabBarBase) {
-        painter->setPen(t.strokeSecondary);
-        painter->drawLine(option->rect.bottomLeft(), option->rect.bottomRight());
+    if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
-    }
-
-    if (element == PE_FrameTabWidget) {
-        roundedRect(painter, QRectF(option->rect).adjusted(0, 0, -1, -1),
-                    t.control, t.stroke, ControlRadius);
-        return;
-    }
-
-
-
 
     if (element == PE_FrameFocusRect) {
         if (!keyboardFocusVisible(widget))
@@ -1365,94 +1280,6 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         return;
     }
 
-    if (element == PE_PanelItemViewItem) {
-        const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
-        const QAbstractItemView *view = itemView(widget);
-        const bool popup = widget && widget->window()
-            && widget->window()->windowType() == Qt::Popup;
-        const bool comboPopup = popup && widget->window()->parentWidget()
-            && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
-        const Tokens itemTokens = tokens(option->palette);
-        const bool tree = qobject_cast<const QTreeView *>(view);
-        const bool table = qobject_cast<const QTableView *>(view);
-        const bool selected = option->state & State_Selected;
-        const bool hovered = option->state & State_MouseOver;
-        const bool pressedItem = hovered && (option->state & State_Sunken);
-        QColor fill = Qt::transparent;
-        if (pressedItem)
-            fill = itemTokens.subtlePressed;
-        else if (selected && hovered)
-            fill = itemTokens.subtlePressed;
-        else if (selected || hovered)
-            fill = itemTokens.subtleHover;
-        QRectF itemRect = popup
-            ? QRectF(option->rect).adjusted(5, 2, -5, -2)
-            : tree ? QRectF(option->rect).adjusted(4, 2, -4, -2)
-                   : table ? QRectF(option->rect)
-                           : QRectF(option->rect).adjusted(2, 1, -2, -1);
-        if (fill.alpha() > 0)
-            roundedRect(painter, itemRect, fill, Qt::transparent,
-                        popup ? 3.0 : table ? 0.0 : ControlRadius);
-        const bool firstColumn = !viewOption || !viewOption->index.isValid()
-            || viewOption->index.column() == 0;
-        if (selected && comboPopup && firstColumn) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? itemTokens.selectionAccent
-                                       : itemTokens.accentFillDisabled);
-            const qreal indicatorX = option->direction == Qt::RightToLeft
-                ? itemRect.right() - 3.0 : itemRect.left();
-            painter->drawRoundedRect(
-                QRectF(indicatorX, option->rect.center().y() - 8.0,
-                       3.0, 16.0), 1.5, 1.5);
-            painter->restore();
-        } else if (selected && popup && firstColumn) {
-            const QRect checkRect = visualRect(option->direction, option->rect,
-                QRect(option->rect.left() + 12,
-                      option->rect.center().y() - 8, 16, 16));
-            icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-                checkRect,
-                Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
-        } else if (selected && viewOption && selectionMarkerView(widget)
-                   && firstColumn) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? itemTokens.selectionAccent
-                                       : itemTokens.accentFillDisabled);
-            const QRectF indicator = selectionMarkerRect(*viewOption, view);
-            painter->drawRoundedRect(indicator, 1.5, 1.5);
-            painter->restore();
-        }
-        return;
-    }
-
-    if (element == PE_IndicatorBranch) {
-        if (!(option->state & State_Children))
-            return;
-        const bool open = option->state & State_Open;
-        const Icon glyph = open ? Icon::ChevronDown
-            : option->direction == Qt::RightToLeft ? Icon::ChevronLeft
-                                                   : Icon::ChevronRight;
-        const int extent = 12;
-        icon(glyph, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-            QRect(option->rect.center().x() - extent / 2,
-                  option->rect.center().y() - extent / 2, extent, extent),
-            Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
-        return;
-    }
-
-    if (element == PE_IndicatorHeaderArrow) {
-        const Icon glyph = option->state & State_UpArrow
-            ? Icon::ChevronUp : Icon::ChevronDown;
-        icon(glyph, enabled ? t.textSecondary : t.textDisabled).paint(painter,
-            QRect(option->rect.center().x() - 6, option->rect.center().y() - 6,
-                  12, 12), Qt::AlignCenter,
-            enabled ? QIcon::Normal : QIcon::Disabled);
-        return;
-    }
-
     if (element == PE_IndicatorToolBarSeparator) {
         painter->save();
         painter->setPen(QPen(t.stroke, 1));
@@ -1466,24 +1293,6 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
                               option->rect.right() - 8, y);
         }
         painter->restore();
-        return;
-    }
-
-    if (element == PE_FrameDockWidget) {
-        painter->save();
-        painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(t.stroke, 1));
-        painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
-        painter->restore();
-        return;
-    }
-
-    if (element == PE_IndicatorDockWidgetResizeHandle) {
-        QStyleOption splitter = *option;
-        // Qt describes dock separators in the opposite axis to CE_Splitter.
-        splitter.state.setFlag(State_Horizontal,
-                               !(option->state & State_Horizontal));
-        drawControl(CE_Splitter, &splitter, painter, widget);
         return;
     }
 
@@ -1512,17 +1321,14 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         }
     }
 
-    if (element == CE_TabBarTab) {
-        if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option)) {
-            drawControl(CE_TabBarTabShape, tab, painter, widget);
-            drawControl(CE_TabBarTabLabel, tab, painter, widget);
-            return;
-        }
+    if (Private::drawViewControl(this, element, option, painter, widget,
+                                 [this](const QTableView *table,
+                                        const QModelIndex &index,
+                                        const QRect &rect) {
+        return d->tableEditorOverlaps(table, index, rect);
+    })) {
+        return;
     }
-
-
-
-
 
     if (element == CE_ShapedFrame
         && widget && widget->property(SettingsCardProperty).toBool()) {
@@ -1547,107 +1353,6 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             painter->restore();
         }
         return;
-    }
-
-    if (element == CE_ItemViewItem) {
-        if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
-            if (source->backgroundBrush.style() != Qt::NoBrush) {
-                painter->fillRect(source->rect, source->backgroundBrush);
-            } else if (source->features & QStyleOptionViewItem::Alternate) {
-                painter->fillRect(source->rect,
-                                  source->palette.brush(QPalette::AlternateBase));
-            }
-            drawPrimitive(PE_PanelItemViewItem, source, painter, widget);
-            const QAbstractItemView *view = itemView(widget);
-            const auto *tableView = qobject_cast<const QTableView *>(view);
-            const bool popup = widget && widget->window()
-                && widget->window()->windowType() == Qt::Popup;
-            const bool comboPopup = popup && widget->window()->parentWidget()
-                && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
-            const Tokens itemTokens = tokens(option->palette);
-            const bool enabled = source->state & State_Enabled;
-            const bool checkedPopupSelection = popup && !comboPopup
-                && (source->state & State_Selected);
-
-            if (source->features & QStyleOptionViewItem::HasCheckIndicator) {
-                QStyleOptionButton check;
-                check.rect = subElementRect(SE_ItemViewItemCheckIndicator,
-                                            source, widget);
-                check.palette = source->palette;
-                check.state = source->state;
-                check.state.setFlag(State_Selected, false);
-                check.state.setFlag(State_On,
-                    source->checkState == Qt::Checked);
-                check.state.setFlag(State_NoChange,
-                    source->checkState == Qt::PartiallyChecked);
-                check.state.setFlag(State_Off,
-                    source->checkState == Qt::Unchecked);
-                drawPrimitive(PE_IndicatorCheckBox, &check, painter, widget);
-            }
-
-            if ((source->features & QStyleOptionViewItem::HasDecoration)
-                && !source->icon.isNull() && !checkedPopupSelection) {
-                const QRect decoration = subElementRect(
-                    SE_ItemViewItemDecoration, source, widget);
-                paintThemedIcon(painter, source->icon, decoration,
-                    source->decorationAlignment,
-                    enabled ? itemTokens.textPrimary : itemTokens.textDisabled,
-                    enabled ? QIcon::Normal : QIcon::Disabled,
-                    source->state & State_Selected ? QIcon::On : QIcon::Off);
-            }
-
-            const bool tableEditing = tableView
-                && ((source->state & State_Editing)
-                    || d->tableEditorOverlaps(tableView, source->index,
-                                               source->rect));
-            if ((source->features & QStyleOptionViewItem::HasDisplay)
-                && !tableEditing) {
-                const bool hasLeadingContent =
-                    (source->features & QStyleOptionViewItem::HasDecoration)
-                    || (source->features & QStyleOptionViewItem::HasCheckIndicator);
-                QRect textRect = popup
-                    ? source->rect.adjusted(
-                        comboPopup && !hasLeadingContent ? 16 : 42, 0, -12, 0)
-                    : subElementRect(SE_ItemViewItemText, source, widget);
-                painter->save();
-                painter->setFont(source->font);
-                painter->setPen(enabled ? itemTokens.textPrimary
-                                        : itemTokens.textDisabled);
-                Qt::Alignment alignment = Qt::Alignment(source->displayAlignment)
-                    | Qt::AlignVCenter;
-                alignment = visualAlignment(source->direction, alignment);
-                const bool wraps = source->features & QStyleOptionViewItem::WrapText;
-                const int textFlags = int(alignment)
-                    | (wraps ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine));
-                const QString text = wraps ? source->text
-                    : source->fontMetrics.elidedText(source->text,
-                        source->textElideMode, textRect.width());
-                painter->drawText(textRect, textFlags, text);
-                painter->restore();
-            }
-
-            if ((source->state & State_HasFocus) && keyboardFocusVisible(view)) {
-                const bool tree = qobject_cast<const QTreeView *>(view);
-                const bool table = qobject_cast<const QTableView *>(view);
-                const QRectF focusRect = tree
-                    ? QRectF(source->rect).adjusted(4, 2, -4, -2)
-                    : table ? QRectF(source->rect).adjusted(1, 1, -1, -1)
-                            : QRectF(source->rect).adjusted(2, 1, -2, -1);
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(itemTokens.focusOuter, 2.0));
-                painter->drawRoundedRect(focusRect.adjusted(1, 1, -1, -1),
-                                         table ? 0.0 : 5.0,
-                                         table ? 0.0 : 5.0);
-                painter->setPen(QPen(itemTokens.focusInner, 1.0));
-                painter->drawRoundedRect(focusRect.adjusted(3, 3, -3, -3),
-                                         table ? 0.0 : 3.0,
-                                         table ? 0.0 : 3.0);
-                painter->restore();
-            }
-            return;
-        }
     }
 
     if (element == CE_ComboBoxLabel) {
@@ -1781,258 +1486,6 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         return;
     }
 
-    if (element == CE_Splitter) {
-        const qreal hover = progress(widget, hoverProperty,
-                                     option->state & State_MouseOver ? 1.0 : 0.0);
-        const qreal press = progress(widget, pressProperty,
-                                     option->state & State_Sunken ? 1.0 : 0.0);
-        QColor color = mix(t.stroke, t.strokeStrong, hover);
-        color = mix(color, t.accentFill, press);
-        const qreal thickness = 1.0 + hover + press;
-        const bool horizontal = option->state & State_Horizontal;
-        QRectF handle;
-        if (horizontal) {
-            const qreal length = qMin<qreal>(100.0, qMax(0, option->rect.height() - 12));
-            const QRectF splitterRect(option->rect);
-            handle = QRectF(splitterRect.center().x() - thickness / 2.0,
-                            splitterRect.center().y() - length / 2.0,
-                            thickness, length);
-        } else {
-            const qreal length = qMin<qreal>(100.0, qMax(0, option->rect.width() - 12));
-            const QRectF splitterRect(option->rect);
-            handle = QRectF(splitterRect.center().x() - length / 2.0,
-                            splitterRect.center().y() - thickness / 2.0,
-                            length, thickness);
-        }
-        handle = snappedSplitterGrip(handle, horizontal, painter);
-        roundedRect(painter, handle, color, Qt::transparent, thickness / 2.0);
-        return;
-    }
-
-    if (element == CE_DockWidgetTitle) {
-        if (const auto *dock = qstyleoption_cast<const QStyleOptionDockWidget *>(option)) {
-            painter->save();
-            painter->fillRect(dock->rect, t.layer);
-            painter->setPen(t.stroke);
-            if (dock->verticalTitleBar)
-                painter->drawLine(dock->rect.topRight(), dock->rect.bottomRight());
-            else
-                painter->drawLine(dock->rect.bottomLeft(), dock->rect.bottomRight());
-
-            QRect titleRect = subElementRect(SE_DockWidgetTitleBarText, dock, widget);
-            if (dock->verticalTitleBar) {
-                const QRect transposed = dock->rect.transposed();
-                titleRect = QRect(transposed.left() + dock->rect.bottom() - titleRect.bottom(),
-                                  transposed.top() + titleRect.left() - dock->rect.left(),
-                                  titleRect.height(), titleRect.width());
-                painter->translate(transposed.left(), transposed.top() + transposed.width());
-                painter->rotate(-90);
-                painter->translate(-transposed.left(), -transposed.top());
-            }
-            QFont font = widget ? widget->font() : QApplication::font();
-            font.setWeight(QFont::DemiBold);
-            painter->setFont(font);
-            painter->setPen(dock->state & State_Enabled ? t.textPrimary : t.textDisabled);
-            painter->drawText(titleRect,
-                              visualAlignment(dock->direction,
-                                              Qt::AlignLeft | Qt::AlignVCenter),
-                              painter->fontMetrics().elidedText(
-                                  dock->title, Qt::ElideRight, titleRect.width()));
-            painter->restore();
-            return;
-        }
-    }
-
-
-    if (element == CE_TabBarTabShape) {
-        const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option);
-        const bool selected = option->state & State_Selected;
-        const bool north = !tab || tab->shape == QTabBar::RoundedNorth
-            || tab->shape == QTabBar::TriangularNorth;
-        if (selected && north) {
-            const QColor selectedFill = t.dark ? QColor(44, 44, 44)
-                                                : QColor(251, 251, 251);
-            const QRectF rect = QRectF(option->rect).adjusted(1, 1, -1, 0);
-            const qreal radius = 8.0;
-            QPainterPath surface;
-            surface.moveTo(rect.left(), rect.bottom());
-            surface.lineTo(rect.left(), rect.top() + radius);
-            surface.quadTo(rect.left(), rect.top(), rect.left() + radius,
-                           rect.top());
-            surface.lineTo(rect.right() - radius, rect.top());
-            surface.quadTo(rect.right(), rect.top(), rect.right(),
-                           rect.top() + radius);
-            surface.lineTo(rect.right(), rect.bottom());
-            surface.lineTo(rect.left(), rect.bottom());
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->fillPath(surface, selectedFill);
-            QPainterPath border;
-            border.moveTo(rect.left(), rect.bottom());
-            border.lineTo(rect.left(), rect.top() + radius);
-            border.quadTo(rect.left(), rect.top(), rect.left() + radius,
-                          rect.top());
-            border.lineTo(rect.right() - radius, rect.top());
-            border.quadTo(rect.right(), rect.top(), rect.right(),
-                          rect.top() + radius);
-            border.lineTo(rect.right(), rect.bottom());
-            painter->setBrush(Qt::NoBrush);
-            painter->setPen(QPen(t.stroke, 1));
-            painter->drawPath(border);
-            painter->restore();
-        } else {
-            QColor fill = Qt::transparent;
-            if (option->state & State_Sunken)
-                fill = t.controlPressed;
-            else if (option->state & State_MouseOver)
-                fill = t.layer;
-            roundedRect(painter, QRectF(option->rect).adjusted(2, 2, -2, -2),
-                        fill, Qt::transparent, ControlRadius);
-            if (!selected && !(option->state & State_MouseOver)) {
-                painter->setPen(t.stroke);
-                const int separatorX = option->direction == Qt::RightToLeft
-                    ? option->rect.left() : option->rect.right();
-                painter->drawLine(separatorX, option->rect.top() + 8,
-                                  separatorX, option->rect.bottom() - 8);
-            }
-        }
-        if ((option->state & State_HasFocus) && keyboardFocusVisible(widget)) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setBrush(Qt::NoBrush);
-            painter->setPen(QPen(t.focusOuter, 2));
-            painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
-                                     ControlRadius, ControlRadius);
-            painter->setPen(QPen(t.focusInner, 1));
-            painter->drawRoundedRect(QRectF(option->rect).adjusted(5, 5, -5, -5),
-                                     ControlRadius - 1, ControlRadius - 1);
-            painter->restore();
-        }
-        return;
-    }
-
-    if (element == CE_TabBarTabLabel) {
-        if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option)) {
-            const bool enabled = tab->state & State_Enabled;
-            const bool selected = tab->state & State_Selected;
-            QRect textRect = tab->rect.adjusted(8, 0, -8, 0);
-            if (tab->leftButtonSize.isValid())
-                textRect.adjust(tab->leftButtonSize.width() + 4, 0, 0, 0);
-            if (tab->rightButtonSize.isValid())
-                textRect.adjust(0, 0, -tab->rightButtonSize.width() - 4, 0);
-            painter->save();
-            QFont font = widget ? widget->font() : QApplication::font();
-            font.setPixelSize(12);
-            font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
-            painter->setFont(font);
-            painter->setPen(enabled
-                ? (selected ? t.textPrimary : t.textSecondary)
-                : t.textDisabled);
-            if (!tab->icon.isNull()) {
-                const QRect logicalIcon(textRect.left(), textRect.center().y() - 8,
-                                        16, 16);
-                const QRect iconRect = visualRect(tab->direction, tab->rect,
-                                                  logicalIcon);
-                paintThemedIcon(painter, tab->icon, iconRect, Qt::AlignCenter,
-                    enabled ? t.textPrimary : t.textDisabled,
-                    enabled ? QIcon::Normal : QIcon::Disabled,
-                    selected ? QIcon::On : QIcon::Off);
-                if (tab->direction == Qt::RightToLeft)
-                    textRect.setRight(iconRect.left() - 10);
-                else
-                    textRect.setLeft(iconRect.right() + 10);
-            }
-            painter->drawText(textRect,
-                              visualAlignment(tab->direction,
-                                              Qt::AlignLeft | Qt::AlignVCenter),
-                              tab->fontMetrics.elidedText(tab->text, Qt::ElideRight,
-                                                          textRect.width()));
-            painter->restore();
-            return;
-        }
-    }
-
-    if (element == CE_HeaderSection) {
-        QColor fill = t.layer;
-        if (option->state & State_Sunken)
-            fill = t.subtlePressed;
-        else if (option->state & State_MouseOver)
-            fill = t.subtleHover;
-        painter->fillRect(option->rect, fill);
-        painter->save();
-        painter->setPen(QPen(t.stroke, 1));
-        painter->drawLine(option->rect.bottomLeft(), option->rect.bottomRight());
-        const int separatorX = option->direction == Qt::RightToLeft
-            ? option->rect.left() : option->rect.right();
-        painter->drawLine(separatorX, option->rect.top(),
-                          separatorX, option->rect.bottom());
-        painter->restore();
-        return;
-    }
-
-    if (element == CE_Header) {
-        if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
-            drawControl(CE_HeaderSection, header, painter, widget);
-            QStyleOptionHeader label = *header;
-            label.sortIndicator = QStyleOptionHeader::None;
-            if (header->sortIndicator != QStyleOptionHeader::None) {
-                const QRect arrowRect = headerSortIndicatorRect(*header);
-                if (header->direction == Qt::RightToLeft)
-                    label.rect.setLeft(qMin(label.rect.right(), arrowRect.right() + 6));
-                else
-                    label.rect.setRight(qMax(label.rect.left(), arrowRect.left() - 6));
-            }
-            drawControl(CE_HeaderLabel, &label, painter, widget);
-            if (header->sortIndicator != QStyleOptionHeader::None) {
-                QStyleOption arrow;
-                arrow.rect = headerSortIndicatorRect(*header);
-                arrow.palette = header->palette;
-                arrow.state = header->state;
-                arrow.state.setFlag(State_UpArrow,
-                    header->sortIndicator == QStyleOptionHeader::SortUp);
-                drawPrimitive(PE_IndicatorHeaderArrow, &arrow, painter, widget);
-            }
-            return;
-        }
-    }
-
-    if (element == CE_HeaderLabel) {
-        if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
-            QRect content = header->rect.adjusted(12, 0, -10, 0);
-            painter->save();
-            QFont font = widget ? widget->font() : QApplication::font();
-            font.setPixelSize(12);
-            font.setWeight(QFont::DemiBold);
-            painter->setFont(font);
-            painter->setPen(header->state & State_Enabled
-                                ? t.textSecondary : t.textDisabled);
-            if (!header->icon.isNull()) {
-                const QRect logicalIcon(content.left(), content.center().y() - 8,
-                                        16, 16);
-                const QRect iconRect = visualRect(header->direction, header->rect,
-                                                  logicalIcon);
-                paintThemedIcon(painter, header->icon, iconRect,
-                    Qt::AlignCenter, header->state & State_Enabled
-                        ? t.textSecondary : t.textDisabled,
-                    header->state & State_Enabled
-                        ? QIcon::Normal : QIcon::Disabled);
-                if (header->direction == Qt::RightToLeft)
-                    content.setRight(iconRect.left() - 8);
-                else
-                    content.setLeft(iconRect.right() + 8);
-            }
-            const Qt::Alignment horizontal = header->textAlignment
-                & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
-            painter->drawText(content,
-                visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
-                    | Qt::TextSingleLine,
-                header->fontMetrics.elidedText(header->text, Qt::ElideRight,
-                                                content.width()));
-            painter->restore();
-            return;
-        }
-        return;
-    }
 
 
     Q_ASSERT_X(!coveredControl(element), "WinUI3::Style::drawControl",
