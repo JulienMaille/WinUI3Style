@@ -12,6 +12,7 @@
 #include "winui3paint_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
+#include "winui3tableeditors_p.h"
 #include "winui3theme_p.h"
 #include "winui3tokens_p.h"
 
@@ -312,7 +313,7 @@ public:
     };
 
     explicit StylePrivate(Style *owner, ThemeMode initialMode)
-        : q(owner), mode(initialMode)
+        : q(owner), mode(initialMode), tableEditorTracker(owner)
     {
     }
 
@@ -843,68 +844,24 @@ public:
 
     void trackTableEditor(QTableView *table, QWidget *editor)
     {
-        if (!table || !editor || editor == table || editor == table->viewport()
-            || editor->parentWidget() != table->viewport()) {
-            return;
-        }
-        editor->setProperty(tableEditorProperty, true);
-        auto &editors = tableEditors[table];
-        if (!editors.contains(editor))
-            editors.append(QPointer<QWidget>(editor));
+        tableEditorTracker.track(table, editor);
     }
 
-    void untrackTableEditor(QWidget *editor)
+    void untrackTableEditor(QWidget *editor, bool clearProperty = true)
     {
-        if (!editor)
-            return;
-        editor->setProperty(tableEditorProperty, {});
-        for (auto it = tableEditors.begin(); it != tableEditors.end();) {
-            auto &editors = it.value();
-            for (auto editorIt = editors.begin(); editorIt != editors.end();) {
-                if (editorIt->isNull() || editorIt->data() == editor)
-                    editorIt = editors.erase(editorIt);
-                else
-                    ++editorIt;
-            }
-            if (editors.isEmpty())
-                it = tableEditors.erase(it);
-            else
-                ++it;
-        }
+        tableEditorTracker.untrackEditor(editor, clearProperty);
     }
 
-    void untrackTable(QTableView *table)
+    void untrackTable(QTableView *table, bool clearProperties = true)
     {
-        if (table)
-            tableEditors.remove(table);
+        tableEditorTracker.untrackTable(table, clearProperties);
     }
 
     bool tableEditorOverlaps(const QTableView *table,
                              const QModelIndex &index,
-                             const QRect &itemRect) const
+                             const QRect &itemRect)
     {
-        if (!table || !table->viewport() || !index.isValid())
-            return false;
-        const auto it = tableEditors.constFind(const_cast<QTableView *>(table));
-        if (it == tableEditors.constEnd())
-            return false;
-
-        for (const QPointer<QWidget> &editor : it.value()) {
-            if (!editor || !editor->isVisible()
-                || !editor->property(tableEditorProperty).toBool()) {
-                continue;
-            }
-            const QRect editorRect(editor->mapTo(table->viewport(), QPoint()),
-                                   editor->size());
-            if (!editorRect.intersects(itemRect))
-                continue;
-            // The geometry check is deliberately paired with the model index.
-            // A custom delegate may use an editor larger than its cell; it
-            // must not suppress the display text of a neighbouring cell.
-            if (table->indexAt(itemRect.center()) == index)
-                return true;
-        }
-        return false;
+        return tableEditorTracker.overlaps(table, index, itemRect);
     }
 
     bool dark() const
@@ -925,7 +882,7 @@ public:
     QHash<QWidget *, QMetaObject::Connection> toggleConnections;
     QHash<QRadioButton *, QMetaObject::Connection> radioConnections;
     QHash<QWidget *, QMetaObject::Connection> tableConnections;
-    QHash<QTableView *, QVector<QPointer<QWidget>>> tableEditors;
+    TableEditorTracker tableEditorTracker;
     QHash<QCheckBox *, ToggleDragState> toggleDragStates;
     QHash<QWidget *, QPointer<QComboBox>> comboPopupAssociations;
     QHash<QComboBox *, QWidget *> comboPopupByCombo;

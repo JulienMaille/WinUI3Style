@@ -23,6 +23,8 @@ add_library(winui3style SHARED
     winui3theme_p.h
     winui3theme_p.cpp
     winui3style_properties_p.h
+    winui3tableeditors_p.h
+    winui3tableeditors_p.cpp
     winui3frameproperties_p.h
     winui3frameproperties_p.cpp
     winui3surfaces_p.h
