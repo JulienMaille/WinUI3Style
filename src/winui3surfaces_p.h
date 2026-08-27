@@ -25,6 +25,7 @@ void prepareContentDialogState(QDialog *dialog, bool dark);
 
 void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit);
 void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style);
+void cancelLineEditHelperUpdate(QLineEdit *lineEdit);
 void showSliderValueToolTip(QSlider *slider);
 void hideSliderValueToolTip(QSlider *slider);
 

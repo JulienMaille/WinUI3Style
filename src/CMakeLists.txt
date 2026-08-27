@@ -14,6 +14,8 @@ add_library(winui3style SHARED
     winui3paint_p.cpp
     winui3geometry_p.h
     winui3geometry_p.cpp
+    winui3style_contracts_p.h
+    winui3style_contracts_p.cpp
     winui3theme_p.h
     winui3theme_p.cpp
     winui3style_properties_p.h

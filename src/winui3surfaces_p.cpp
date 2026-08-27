@@ -199,50 +199,90 @@ bool isLineEditClearButton(const QLineEdit *lineEdit,
     return true;
 }
 
+constexpr auto lineEditHelperUpdatePendingProperty =
+    "_winui_line_edit_helper_update_pending";
+
+qulonglong nextLineEditHelperUpdateToken()
+{
+    // QWidget lifecycle and style events are confined to the GUI thread.
+    static qulonglong token = 0;
+    return ++token;
+}
+
+void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
+{
+    if (!lineEdit
+        || lineEdit->property(lineEditHelperUpdatePendingProperty).isValid())
+        return;
+
+    const qulonglong token = nextLineEditHelperUpdateToken();
+    lineEdit->setProperty(lineEditHelperUpdatePendingProperty,
+                          QVariant::fromValue(token));
+    const QPointer<QLineEdit> guardedLineEdit(lineEdit);
+    const QPointer<Style> guardedStyle(style);
+    QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle, token] {
+        if (!guardedLineEdit
+            || guardedLineEdit->property(lineEditHelperUpdatePendingProperty)
+                   .toULongLong() != token)
+            return;
+
+        // updateReadOnlyDeleteAffordance() has no style parameter for callers
+        // that only need the visibility contract. Resolve it at execution time
+        // so a preceding update call can still be coalesced with preparation.
+        Style *helperStyle = guardedStyle.data();
+        if (!helperStyle)
+            helperStyle = qobject_cast<Style *>(guardedLineEdit->style());
+
+        for (QAbstractButton *button
+             : guardedLineEdit->findChildren<QAbstractButton *>()) {
+            if (helperStyle) {
+                // QLineEdit creates its private clear affordance lazily. Depending
+                // on that timing, it can miss the parent's polish pass and never
+                // deliver hover events to the style. Prepare both the private
+                // affordance and QAction helper buttons as soon as they exist.
+                button->setAttribute(Qt::WA_Hover, true);
+                button->installEventFilter(helperStyle);
+                if (!button->property(hoverProperty).isValid())
+                    button->setProperty(hoverProperty,
+                                        button->isEnabled()
+                                                && button->underMouse()
+                                            ? 1.0
+                                            : 0.0);
+                if (!button->property(pressProperty).isValid())
+                    button->setProperty(pressProperty, 0.0);
+            }
+
+            if (isLineEditClearButton(guardedLineEdit, button))
+                button->setVisible(!guardedLineEdit->isReadOnly()
+                                   && guardedLineEdit->isEnabled()
+                                   && guardedLineEdit->isClearButtonEnabled()
+                                   && !guardedLineEdit->text().isEmpty());
+        }
+        if (guardedLineEdit->property(lineEditHelperUpdatePendingProperty)
+                .toULongLong() == token) {
+            // Remove the temporary dynamic property instead of retaining one
+            // allocation after the coalesced update completes.
+            guardedLineEdit->setProperty(lineEditHelperUpdatePendingProperty, {});
+        }
+    });
+}
+
 } // namespace
 
 void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit)
 {
-    if (!lineEdit)
-        return;
-    const QPointer<QLineEdit> guarded(lineEdit);
-    QTimer::singleShot(0, lineEdit, [guarded] {
-        if (!guarded)
-            return;
-        for (QAbstractButton *button : guarded->findChildren<QAbstractButton *>())
-            if (isLineEditClearButton(guarded, button))
-                button->setVisible(!guarded->isReadOnly()
-                                   && guarded->isEnabled()
-                                   && guarded->isClearButtonEnabled()
-                                   && !guarded->text().isEmpty());
-    });
+    scheduleLineEditHelperUpdate(lineEdit, nullptr);
 }
 
 void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style)
 {
-    if (!lineEdit || !style)
-        return;
-    const QPointer<QLineEdit> guardedLineEdit(lineEdit);
-    const QPointer<Style> guardedStyle(style);
-    QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle] {
-        if (!guardedLineEdit || !guardedStyle)
-            return;
-        for (QAbstractButton *button
-             : guardedLineEdit->findChildren<QAbstractButton *>()) {
-            // QLineEdit creates its private clear affordance lazily. Depending
-            // on that timing, it can miss the parent's polish pass and never
-            // deliver hover events to the style. Prepare both the private
-            // affordance and QAction helper buttons as soon as they exist.
-            button->setAttribute(Qt::WA_Hover, true);
-            button->installEventFilter(guardedStyle);
-            if (!button->property(hoverProperty).isValid())
-                button->setProperty(hoverProperty,
-                                    button->isEnabled() && button->underMouse()
-                                        ? 1.0 : 0.0);
-            if (!button->property(pressProperty).isValid())
-                button->setProperty(pressProperty, 0.0);
-        }
-    });
+    scheduleLineEditHelperUpdate(lineEdit, style);
+}
+
+void cancelLineEditHelperUpdate(QLineEdit *lineEdit)
+{
+    if (lineEdit)
+        lineEdit->setProperty(lineEditHelperUpdatePendingProperty, {});
 }
 
 void showSliderValueToolTip(QSlider *slider)

@@ -923,6 +923,19 @@ void WinUI3StyleTest::styleMutationRestoration()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
 
+    QCommonStyle replacementStyle;
+    QLineEdit pendingHelperUpdate;
+    style->polish(&pendingHelperUpdate);
+    QVERIFY(pendingHelperUpdate.property(
+        "_winui_line_edit_helper_update_pending").isValid());
+    style->unpolish(&pendingHelperUpdate);
+    QVERIFY(!pendingHelperUpdate.property(
+        "_winui_line_edit_helper_update_pending").isValid());
+    pendingHelperUpdate.setStyle(&replacementStyle);
+    QCoreApplication::processEvents();
+    QVERIFY(!pendingHelperUpdate.property(
+        "_winui_line_edit_helper_update_pending").isValid());
+
     QWidget widget;
     const QPalette originalPalette = widget.palette();
     widget.setAttribute(Qt::WA_Hover, false);

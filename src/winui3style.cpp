@@ -3,6 +3,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "winui3geometry_p.h"
+#include "winui3style_contracts_p.h"
 #include "winui3complex_p.h"
 #include "navigationview_p.h"
 #include "winui3paint_p.h"
@@ -2635,232 +2636,25 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
 int Style::pixelMetric(PixelMetric metric, const QStyleOption *option,
                        const QWidget *widget) const
 {
-    if (const auto value = Private::pixelMetricValue(metric,
-                                                      toggleSwitch(widget)))
-        return *value;
-    return QProxyStyle::pixelMetric(metric, option, widget);
+    return Private::pixelMetric(this, metric, option, widget);
 }
 QSize Style::sizeFromContents(ContentsType type, const QStyleOption *option,
                               const QSize &contentsSize, const QWidget *widget) const
 {
-    QSize size = contentsSize;
-    switch (type) {
-    case CT_PushButton:
-        size += QSize(24, 12);
-        if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);
-            button && (button->features & QStyleOptionButton::HasMenu))
-            size.rwidth() += 22;
-        size.setWidth(qMax(size.width(), 32));
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_ComboBox:
-        size += QSize(50, 12);
-        size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_LineEdit:
-        size += QSize(16, 12);
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_SpinBox:
-        size += QSize(verticalSpinButtons(widget) ? 44 : 84, 0);
-        size.setHeight(qMax(size.height(), 32));
-        size.setWidth(qMax(size.width(), 120));
-        break;
-    case CT_ToolButton:
-        if (textBoxHelperButton(widget))
-            return QSize(30, 32);
-        if (widget && qobject_cast<const QTabBar *>(widget->parentWidget()))
-            return QSize(32, 24);
-        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
-            const QFontMetrics metrics(tool->fontMetrics);
-            const int textWidth = metrics.horizontalAdvance(tool->text);
-            const int iconWidth = tool->icon.isNull() ? 0
-                : (tool->iconSize.isValid() ? tool->iconSize.width() : 16);
-            if (const auto *toolButton = qobject_cast<const QToolButton *>(widget)) {
-                if (toolButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
-                    && textWidth > 0 && iconWidth > 0)
-                    size.setWidth(qMax(size.width(), textWidth + iconWidth + 22));
-                else if (toolButton->toolButtonStyle() == Qt::ToolButtonTextOnly)
-                    size.setWidth(qMax(size.width(), textWidth + 16));
-            }
-            if (tool->features & QStyleOptionToolButton::MenuButtonPopup)
-                size.rwidth() += 24;
-        }
-        if (size.isEmpty())
-            size = QSize(20, 20);
-        size += QSize(12, 12);
-        size.setHeight(qMax(size.height(), 32));
-        size.setWidth(qMax(size.width(), 32));
-        break;
-    case CT_MenuBarItem:
-        size = contentsSize + QSize(24, 12);
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_TabBarTab:
-        size += QSize(16, 8);
-        size.setHeight(32);
-        size.setWidth(qBound(100, size.width(), 240));
-        break;
-    case CT_MenuItem:
-        if (const auto *menu = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
-            if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
-                size.setHeight(7);
-                break;
-            }
-            const QStringList parts = menu->text.split(QLatin1Char('\t'));
-            const QFontMetrics metrics(menu->font);
-            const int mainWidth = metrics.horizontalAdvance(parts.value(0));
-            const int shortcutWidth = parts.size() > 1
-                ? metrics.horizontalAdvance(parts.value(1)) : 0;
-            const int trailing = menu->menuItemType == QStyleOptionMenuItem::SubMenu
-                ? 24 : 0;
-            const bool comboItem = qobject_cast<const QComboBox *>(widget);
-            const int leading = comboItem && menu->icon.isNull() ? 16 : 42;
-            const int requiredWidth = leading + mainWidth + 16 + trailing
-                + (shortcutWidth > 0 ? 20 + shortcutWidth : 0);
-            size.setWidth(qMax(size.width(), qMax(requiredWidth, 120)));
-            // Qt may pass the popup's provisional viewport height here on
-            // the first layout. Never preserve that transient value as an
-            // item height: it produces a one-frame, full-screen row followed
-            // by a visible reposition when the selected row is not zero.
-            size.setHeight(comboItem ? 40 : 36);
-        }
-        break;
-    case CT_ItemViewItem:
-        if (widget && widget->window()
-            && widget->window()->windowType() == Qt::Popup) {
-            size.setHeight(40);
-        } else if (qobject_cast<const QTreeView *>(itemView(widget))) {
-            size.setHeight(28);
-        } else if (qobject_cast<const QTableView *>(itemView(widget))) {
-            size.setHeight(36);
-        } else {
-            size.setHeight(40);
-        }
-        break;
-    case CT_HeaderSection:
-        size += QSize(24, 8);
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_CheckBox:
-        if (toggleSwitch(widget)) {
-            const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option);
-            QString onText = widget->property(ToggleSwitchOnTextProperty).toString();
-            QString offText = widget->property(ToggleSwitchOffTextProperty).toString();
-            if (check && onText.isEmpty() && offText.isEmpty())
-                onText = offText = check->text;
-            const QFontMetrics metrics = check ? check->fontMetrics
-                                               : widget->fontMetrics();
-            const int labelWidth = qMax(metrics.horizontalAdvance(onText),
-                                        metrics.horizontalAdvance(offText));
-            size = QSize(labelWidth > 0 ? qMax(154, 50 + labelWidth) : 40, 40);
-            break;
-        }
-        size += QSize(32, 8);
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_RadioButton:
-        size += QSize(32, 8);
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_ProgressBar:
-        size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), 20));
-        break;
-    case CT_Slider:
-        size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), 32));
-        break;
-    case CT_ScrollBar:
-        size.setWidth(qMax(size.width(), 12));
-        size.setHeight(qMax(size.height(), 12));
-        break;
-    case CT_GroupBox:
-        size.setWidth(qMax(size.width(), contentsSize.width() + 24));
-        size.setHeight(qMax(size.height(), contentsSize.height() + 48));
-        break;
-    default:
-        return QProxyStyle::sizeFromContents(type, option, contentsSize, widget);
-    }
-    return size;
+    return Private::sizeFromContents(this, type, option, contentsSize, widget);
 }
 
 QRect Style::subElementRect(SubElement element, const QStyleOption *option,
                             const QWidget *widget) const
 {
-    if (element == SE_PushButtonContents)
-        return option->rect.adjusted(8, 4, -8, -4);
-    if (element == SE_ToolButtonLayoutItem)
-        return option->rect.adjusted(4, 2, -4, -2);
-    if (element == SE_CheckBoxIndicator || element == SE_RadioButtonIndicator) {
-        const QRect logical(option->rect.left() + 4,
-                            option->rect.center().y() - 10, 20, 20);
-        return visualRect(option->direction, option->rect, logical);
-    }
-    if (element == SE_CheckBoxContents || element == SE_RadioButtonContents) {
-        const QRect logical = option->rect.adjusted(32, 0, -4, 0);
-        return visualRect(option->direction, option->rect, logical);
-    }
-    if (element == SE_CheckBoxClickRect || element == SE_RadioButtonClickRect) {
-        // QCheckBox/QRadioButton use this style-owned rectangle in their
-        // actual hitButton() implementation. Return the complete visual
-        // control slot, including the intentional indicator/label gap, rather
-        // than allowing a base-style sub-rectangle to leave a dead strip.
-        const QRect indicator = subElementRect(
-            element == SE_CheckBoxClickRect ? SE_CheckBoxIndicator
-                                            : SE_RadioButtonIndicator,
-            option, widget);
-        const QRect contents = subElementRect(
-            element == SE_CheckBoxClickRect ? SE_CheckBoxContents
-                                            : SE_RadioButtonContents,
-            option, widget);
-        return option->rect.united(indicator).united(contents);
-    }
-    if (element == SE_LineEditContents && !spinBoxEditor(widget)) {
-        const QRect logical = option->rect.adjusted(10, 5, -6, -6);
-        return visualRect(option->direction, option->rect, logical);
-    }
-    QRect result = QProxyStyle::subElementRect(element, option, widget);
-    if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
-        const QAbstractItemView *view = selectionMarkerView(widget);
-        if (view && (element == SE_ItemViewItemCheckIndicator
-                     || element == SE_ItemViewItemDecoration
-                     || element == SE_ItemViewItemText)) {
-            const int offset = treeItemIndent(*source, view) + itemSelectionGutter;
-            const int delta = source->direction == Qt::RightToLeft ? -offset : offset;
-            result.translate(delta, 0);
-
-            // Keep the reserved gutter stable even when the base style
-            // changes its default item padding. The content slot is the
-            // same for selected and unselected rows.
-            QRect content = source->rect;
-            if (source->direction == Qt::RightToLeft)
-                content.setRight(qMax(content.left() - 1,
-                                      content.right() - offset));
-            else
-                content.setLeft(qMin(content.right() + 1,
-                                     content.left() + offset));
-            result = result.intersected(content);
-        }
-    }
-    const bool popup = widget && widget->window()
-        && widget->window()->windowType() == Qt::Popup;
-    if (popup && element == SE_ItemViewItemText) {
-        result.setLeft(qMax(result.left(), option->rect.left() + 42));
-        result.setRight(qMin(result.right(), option->rect.right() - 12));
-    }
-    return result;
+    return Private::subElementRect(this, element, option, widget);
 }
 
 QRect Style::subControlRect(ComplexControl control,
                             const QStyleOptionComplex *option,
                             SubControl subControl, const QWidget *widget) const
 {
-    if (const auto rect = Private::complexControlRect(
-            control, option, subControl, widget))
-        return *rect;
-    return QProxyStyle::subControlRect(control, option, subControl, widget);
+    return Private::subControlRect(this, control, option, subControl, widget);
 }
 QStyle::SubControl Style::hitTestComplexControl(
     ComplexControl control, const QStyleOptionComplex *option,
@@ -2875,59 +2669,13 @@ QStyle::SubControl Style::hitTestComplexControl(
 int Style::styleHint(StyleHint hint, const QStyleOption *option,
                      const QWidget *widget, QStyleHintReturn *returnData) const
 {
-    switch (hint) {
-    case SH_Widget_Animate: return animationsAllowed() ? 1 : 0;
-    case SH_ScrollBar_Transient: return 1;
-    case SH_ComboBox_Popup: return 1;
-    case SH_ComboBox_PopupFrameStyle: return QFrame::NoFrame;
-    case SH_ComboBox_ListMouseTracking:
-    case SH_MenuBar_MouseTracking:
-    case SH_Menu_MouseTracking: return 1;
-    case SH_Menu_SubMenuPopupDelay: return 400;
-    case SH_Slider_AbsoluteSetButtons: return Qt::LeftButton;
-    case SH_ToolButtonStyle: return Qt::ToolButtonFollowStyle;
-    default: return QProxyStyle::styleHint(hint, option, widget, returnData);
-    }
+    return Private::styleHint(this, hint, option, widget, returnData);
 }
 
 QIcon Style::standardIcon(StandardPixmap standard, const QStyleOption *option,
                            const QWidget *widget) const
 {
-    Q_UNUSED(option)
-    Q_UNUSED(widget)
-    // Keep standard icons semantic rather than baking the current palette
-    // into a cached QIcon. The engine follows the application palette for
-    // direct Qt use, while our paint paths recolour its alpha mask from the
-    // control's effective QStyleOption palette.
-    switch (standard) {
-    case SP_ArrowBack: return icon(Icon::Back);
-    case SP_ArrowDown: return icon(Icon::ChevronDown);
-    case SP_ArrowLeft: return icon(Icon::ChevronLeft);
-    case SP_ArrowRight: return icon(Icon::ChevronRight);
-    case SP_ArrowUp: return icon(Icon::ChevronUp);
-    case SP_BrowserReload: return icon(Icon::Refresh);
-    case SP_DialogApplyButton: return icon(Icon::Check);
-    case SP_DialogCancelButton:
-    case SP_DockWidgetCloseButton:
-    case SP_TabCloseButton:
-    case SP_TitleBarCloseButton: return icon(Icon::Close);
-    case SP_LineEditClearButton: return icon(Icon::Clear);
-    case SP_DialogSaveButton:
-    case SP_DialogYesButton: return icon(Icon::Save);
-    case SP_DirIcon:
-    case SP_DirOpenIcon: return icon(Icon::Folder);
-    case SP_FileDialogNewFolder: return icon(Icon::Add);
-    case SP_MediaPause: return icon(Icon::Pause);
-    case SP_MediaPlay: return icon(Icon::Play);
-    case SP_MediaStop: return icon(Icon::Stop);
-    case SP_MessageBoxCritical: return icon(Icon::Error);
-    case SP_MessageBoxInformation: return icon(Icon::Info);
-    case SP_MessageBoxQuestion: return icon(Icon::Help);
-    case SP_MessageBoxWarning: return icon(Icon::Warning);
-    case SP_ToolBarHorizontalExtensionButton:
-    case SP_ToolBarVerticalExtensionButton: return icon(Icon::More);
-    default: return QProxyStyle::standardIcon(standard, option, widget);
-    }
+    return Private::standardIcon(this, standard, option, widget);
 }
 
 void Style::polish(QApplication *application)
@@ -3107,6 +2855,11 @@ void Style::unpolish(QApplication *application)
 
 void Style::unpolish(QWidget *widget)
 {
+    if (widget) {
+        widget->removeEventFilter(this);
+        if (auto *lineEdit = qobject_cast<QLineEdit *>(widget))
+            cancelLineEditHelperUpdate(lineEdit);
+    }
     if (auto *combo = qobject_cast<QComboBox *>(widget))
         d->unregisterComboPopup(combo);
     if (widget && widget->isWindow() && widget->windowType() == Qt::Popup)
