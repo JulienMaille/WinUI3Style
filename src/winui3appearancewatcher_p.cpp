@@ -41,8 +41,7 @@ SystemAppearanceWatcher::SystemAppearanceWatcher(QObject *context,
                              callback();
                      });
 
-    if (QCoreApplication *application = QCoreApplication::instance())
-        application->installNativeEventFilter(this);
+    setActive(true);
 #else
     Q_UNUSED(context);
 #endif
@@ -56,9 +55,23 @@ SystemAppearanceWatcher::SystemAppearanceWatcher(Callback callback,
 
 SystemAppearanceWatcher::~SystemAppearanceWatcher()
 {
+    setActive(false);
+}
+
+void SystemAppearanceWatcher::setActive(bool active)
+{
+    m_active = active;
 #ifdef Q_OS_WIN
-    if (QCoreApplication *application = QCoreApplication::instance())
+    QCoreApplication *application = QCoreApplication::instance();
+    if (active && application && !m_installed) {
+        application->installNativeEventFilter(this);
+        m_installed = true;
+    } else if (!active && application && m_installed) {
+        if (m_debounceTimer)
+            m_debounceTimer->stop();
         application->removeNativeEventFilter(this);
+        m_installed = false;
+    }
 #endif
 }
 
@@ -70,7 +83,7 @@ bool SystemAppearanceWatcher::nativeEventFilter(const QByteArray &eventType,
     Q_UNUSED(result);
 
 #ifdef Q_OS_WIN
-    if (!message)
+    if (!m_active || !message)
         return false;
 
     const MSG *nativeMessage = static_cast<const MSG *>(message);

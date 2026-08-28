@@ -19,6 +19,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QDockWidget>
 #include <QFocusEvent>
 #include <QFrame>
@@ -712,6 +713,22 @@ static void setFrame(QObject *object, const char *name, const QVariant &value)
 {
     WinUI3::Private::framePropertyRegistry().set(object, name, value);
 }
+
+class FrameDynamicPropertyProbe final : public QObject
+{
+public:
+    int frameChanges = 0;
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() != QEvent::DynamicPropertyChange)
+            return false;
+        const auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
+        if (change->propertyName() == QByteArrayLiteral("_winui_hover_progress"))
+            ++frameChanges;
+        return false;
+    }
+};
 
 void WinUI3StyleTest::buttonPressedPulseContract()
 {
@@ -1836,6 +1853,8 @@ void WinUI3StyleTest::inputModalityFocus()
 void WinUI3StyleTest::hoverAnimationProgresses()
 {
     QPushButton button(QStringLiteral("Hover"));
+    FrameDynamicPropertyProbe probe;
+    button.installEventFilter(&probe);
     button.resize(button.sizeHint());
     button.show();
     if (!button.style()->styleHint(QStyle::SH_Widget_Animate, nullptr, &button))
@@ -1846,6 +1865,8 @@ void WinUI3StyleTest::hoverAnimationProgresses()
     const qreal midway = frameReal(&button, "_winui_hover_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
     QTRY_VERIFY(frameReal(&button, "_winui_hover_progress") > 0.99);
+    QCOMPARE(probe.frameChanges, 0);
+    QVERIFY(!button.property("_winui_hover_progress").isValid());
 }
 
 void WinUI3StyleTest::textBoxInteraction()
@@ -4465,8 +4486,8 @@ void WinUI3StyleTest::navigationModelReconnectAndScroll()
     view.show();
     QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
     view.scrollTo(first.index(10, 0), QAbstractItemView::PositionAtCenter);
-    const qreal before = view.viewport()->property(
-        "_winui_navigation_indicator_y").toReal();
+    const qreal before = frameReal(view.viewport(),
+                                   "_winui_navigation_indicator_y");
 
     QStandardItemModel second(40, 1);
     for (int row = 0; row < second.rowCount(); ++row)
@@ -4477,16 +4498,16 @@ void WinUI3StyleTest::navigationModelReconnectAndScroll()
     view.setCurrentIndex(second.index(20, 0));
     view.scrollTo(second.index(20, 0), QAbstractItemView::PositionAtCenter);
     QCoreApplication::processEvents();
-    const qreal after = view.viewport()->property(
-        "_winui_navigation_indicator_y").toReal();
+    const qreal after = frameReal(view.viewport(),
+                                  "_winui_navigation_indicator_y");
     QVERIFY(std::isfinite(after));
     QVERIFY(before != after || view.currentIndex().row() == 20);
 
     second.clear();
     QCoreApplication::processEvents();
     QVERIFY(!view.currentIndex().isValid());
-    QVERIFY(!view.viewport()->property(
-                "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(),
+                        "_winui_navigation_indicator_y").isValid());
 }
 
 void WinUI3StyleTest::navigationDelegateLifecycle()
@@ -4517,8 +4538,8 @@ void WinUI3StyleTest::navigationDelegateLifecycle()
     WinUI3::Style::setNavigationView(&view, false);
     QCoreApplication::processEvents();
     QCOMPARE(view.itemDelegate(), external);
-    QVERIFY(!view.viewport()->property(
-                 "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(),
+                        "_winui_navigation_indicator_y").isValid());
 
     // The original delegate can disappear before restoration. The style must
     // install a valid owned fallback instead of restoring a dangling pointer.
@@ -4531,16 +4552,16 @@ void WinUI3StyleTest::navigationDelegateLifecycle()
     QCoreApplication::processEvents();
     QVERIFY(view.itemDelegate());
     QVERIFY(!view.property("_winui_navigation_delegate").isValid());
-    QVERIFY(!view.viewport()->property(
-                 "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(),
+                        "_winui_navigation_indicator_y").isValid());
 
     // A model reset while the indicator is moving must leave no stale target.
     WinUI3::Style::setNavigationView(&view, true);
     view.setCurrentIndex(model.index(20, 0));
     model.clear();
     QCoreApplication::processEvents();
-    QVERIFY(!view.viewport()->property(
-                 "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(),
+                        "_winui_navigation_indicator_y").isValid());
 }
 
 void WinUI3StyleTest::runtimeAppearanceAndDialogLifecycle()

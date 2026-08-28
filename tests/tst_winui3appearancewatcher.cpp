@@ -20,6 +20,7 @@ class WinUI3AppearanceWatcherTest final : public QObject
 private slots:
     void nativeFilterAlwaysPassesTheMessageOn();
     void appearanceMessagesAreDebounced();
+    void inactiveWatcherIgnoresMessages();
     void callbackContextCancelsPendingNotification();
 };
 
@@ -34,6 +35,32 @@ void WinUI3AppearanceWatcherTest::nativeFilterAlwaysPassesTheMessageOn()
 #else
     QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("non-windows"),
                                        nullptr, nullptr));
+#endif
+}
+
+void WinUI3AppearanceWatcherTest::inactiveWatcherIgnoresMessages()
+{
+    int callbackCount = 0;
+    SystemAppearanceWatcher watcher(this, [&callbackCount] { ++callbackCount; });
+    watcher.setActive(false);
+    QVERIFY(!watcher.isActive());
+
+#ifdef Q_OS_WIN
+    MSG message{};
+    message.message = WM_THEMECHANGED;
+    QVERIFY(!watcher.nativeEventFilter(
+        QByteArrayLiteral("windows_generic_MSG"), &message, nullptr));
+    QTest::qWait(SystemAppearanceWatcher::debounceIntervalMs + 25);
+    QCOMPARE(callbackCount, 0);
+
+    watcher.setActive(true);
+    QVERIFY(watcher.isActive());
+    QVERIFY(!watcher.nativeEventFilter(
+        QByteArrayLiteral("windows_generic_MSG"), &message, nullptr));
+    QTRY_COMPARE_WITH_TIMEOUT(callbackCount, 1, 500);
+#else
+    QTest::qWait(100);
+    QCOMPARE(callbackCount, 0);
 #endif
 }
 

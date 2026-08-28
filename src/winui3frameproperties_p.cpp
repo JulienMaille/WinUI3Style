@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QObject>
 #include <QThread>
+#include <cstring>
 #include <utility>
 
 namespace WinUI3::Private {
@@ -44,6 +45,19 @@ QVariant FramePropertyRegistry::value(const QObject *object,
     return valueIt == objectIt->values.cend() ? QVariant{} : valueIt.value();
 }
 
+QVariant FramePropertyRegistry::value(const QObject *object,
+                                      const char *staticName) const
+{
+    if (!staticName)
+        return {};
+    // Frame keys are private string literals. A non-owning QByteArray avoids
+    // a heap allocation on every paint-path lookup while preserving QHash's
+    // existing QByteArray hashing and equality semantics.
+    const QByteArray name = QByteArray::fromRawData(
+        staticName, qsizetype(std::strlen(staticName)));
+    return value(object, name);
+}
+
 qreal FramePropertyRegistry::real(const QObject *object, const QByteArray &name,
                                   qreal fallback) const
 {
@@ -53,6 +67,18 @@ qreal FramePropertyRegistry::real(const QObject *object, const QByteArray &name,
     if (!stored.isValid())
         return fallback;
 
+    bool ok = false;
+    const qreal converted = stored.toReal(&ok);
+    return ok ? converted : fallback;
+}
+
+qreal FramePropertyRegistry::real(const QObject *object,
+                                  const char *staticName,
+                                  qreal fallback) const
+{
+    const QVariant stored = value(object, staticName);
+    if (!stored.isValid())
+        return fallback;
     bool ok = false;
     const qreal converted = stored.toReal(&ok);
     return ok ? converted : fallback;

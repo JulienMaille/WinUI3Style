@@ -28,13 +28,11 @@ public:
                                       : image.pixelColor(0, 0);
         if (m_background.alpha() < 255)
             m_background = palette().color(QPalette::Window);
-        setProperty("_winui_animated_stack_offset", 0.0);
     }
 
     void setOffset(qreal offset)
     {
         m_offset = offset;
-        setProperty("_winui_animated_stack_offset", m_offset);
         update();
     }
 

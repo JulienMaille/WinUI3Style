@@ -13,6 +13,7 @@
 #include "navigationview_p.h"
 #include "winui3paint_p.h"
 #include "winui3style_properties_p.h"
+#include "winui3interactions_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tableeditors_p.h"
 #include "winui3theme_p.h"
@@ -307,16 +308,106 @@ bool coveredControl(QStyle::ControlElement element)
 class StylePrivate
 {
 public:
-    struct ToggleDragState {
-        QPoint pressPosition;
-        bool candidate = false;
-        bool dragging = false;
-    };
+    using ToggleDragState = Private::ToggleDragState;
 
     explicit StylePrivate(Style *owner, ThemeMode initialMode)
         : q(owner), mode(initialMode), animationDriver(owner),
           tableEditorTracker(owner)
     {
+        Private::StyleInteractionCallbacks callbacks;
+        callbacks.animate = [this](QWidget *widget, const char *property,
+                                    qreal target, int duration) {
+            animate(widget, property, target, duration);
+        };
+        callbacks.beginButtonPress = [this](QWidget *widget) {
+            beginButtonPress(widget);
+        };
+        callbacks.releaseButtonPress = [this](QWidget *widget) {
+            releaseButtonPress(widget);
+        };
+        callbacks.cancelButtonPress = [this](QWidget *widget) {
+            cancelButtonPress(widget);
+        };
+        callbacks.stopAnimations = [this](QWidget *widget) {
+            stopAnimations(widget);
+        };
+        callbacks.clearPointerInteraction = [this](QWidget *widget) {
+            clearPointerInteraction(widget);
+        };
+        callbacks.cancelScrollBarTimer = [this](QScrollBar *scrollBar) {
+            cancelScrollBarTimer(scrollBar);
+        };
+        callbacks.scheduleScrollBar = [this](QScrollBar *scrollBar, int delay) {
+            scheduleScrollBar(scrollBar, delay);
+        };
+        callbacks.scheduleSliderToolTip = [this](QSlider *slider) {
+            scheduleSliderToolTip(slider);
+        };
+        callbacks.cancelSliderToolTip = [this](QSlider *slider) {
+            cancelSliderToolTip(slider);
+        };
+        callbacks.refreshProgressTimer = [this] {
+            refreshProgressTimer();
+        };
+        callbacks.progressTimerActive = [this] {
+            return progressTimer && progressTimer->isActive();
+        };
+        callbacks.prepareComboPopupFirstFrame = [this](QComboBox *combo) {
+            prepareComboPopupFirstFrame(combo);
+        };
+        callbacks.releaseComboChevron = [this](QWidget *widget) {
+            releaseComboChevron(widget);
+        };
+        callbacks.finishComboPopupCycle = [this](QWidget *popup) {
+            finishComboPopupCycle(popup);
+        };
+        callbacks.comboForPopupWidget = [](QWidget *widget) {
+            return comboForPopupWidget(widget);
+        };
+        callbacks.updateReadOnlyDeleteAffordance = [](QLineEdit *lineEdit) {
+            updateReadOnlyDeleteAffordance(lineEdit);
+        };
+        callbacks.prepareLineEditHelperButtons = [owner](QLineEdit *lineEdit) {
+            prepareLineEditHelperButtons(lineEdit, owner);
+        };
+        callbacks.prepareContentDialogState = [](QDialog *dialog, bool dark) {
+            prepareContentDialogState(dialog, dark);
+        };
+        callbacks.stopDialogAnimations = [](QDialog *dialog) {
+            stopDialogAnimations(dialog);
+        };
+        callbacks.preparePopupSurface = [](QWidget *widget) {
+            preparePopupSurface(widget);
+        };
+        callbacks.registerPopupPaletteOwners = [this](QWidget *widget) {
+            registerPopupPaletteOwners(widget);
+        };
+        callbacks.registerPaletteOwner = [this](QDialog *dialog) {
+            registerPaletteOwner(dialog);
+        };
+        callbacks.unregisterPaletteOwner = [this](QDialog *dialog) {
+            unregisterPaletteOwner(dialog);
+        };
+        callbacks.restoreContentDialogState = [](QDialog *dialog, bool visible) {
+            restoreContentDialogState(dialog, visible);
+        };
+        callbacks.remember = [](QWidget *widget, const char *property,
+                                const QVariant &value) {
+            remember(widget, property, value);
+        };
+        callbacks.prepareNavigationView = [](QAbstractItemView *view) {
+            NavigationPrivate::prepareNavigationView(view);
+        };
+        callbacks.restoreNavigationView = [](QAbstractItemView *view) {
+            NavigationPrivate::restoreNavigationView(view);
+        };
+        callbacks.dark = [this] {
+            return dark();
+        };
+        callbacks.keyboardInput = &keyboardInput;
+        callbacks.toggleDragStates = &toggleDragStates;
+        interactionController = std::make_unique<Private::StyleInteractionController>(
+            owner, std::move(callbacks));
     }
 
     bool needsSystemAppearancePolling() const
@@ -328,7 +419,7 @@ public:
     {
         if (!systemAppearanceWatchdog)
             return;
-        if (!needsSystemAppearancePolling()) {
+        if (!applicationStyleActive || !needsSystemAppearancePolling()) {
             systemAppearanceWatchdog->stop();
             return;
         }
@@ -368,8 +459,6 @@ public:
             if (owner.data() == widget)
                 return;
         }
-        if (paletteOwners.size() >= maxPaletteOwners)
-            return;
         paletteOwners.append(QPointer<QWidget>(widget));
         paletteOwnerConnections.insert(widget,
             QObject::connect(widget, &QObject::destroyed, q,
@@ -862,11 +951,11 @@ public:
     QHash<QWidget *, QMetaObject::Connection> comboPopupPopupConnections;
     QHash<QComboBox *, QMetaObject::Connection> comboPopupComboConnections;
     QSet<QWidget *> preparedComboPopups;
-    static constexpr int maxPaletteOwners = 1024;
     QVector<QPointer<QWidget>> paletteOwners;
     QHash<QWidget *, QMetaObject::Connection> paletteOwnerConnections;
     bool keyboardInput = false;
     bool applicationStateSaved = false;
+    bool applicationStyleActive = false;
     bool lastSystemDark = false;
     QColor lastSystemAccent;
     QTimer *progressTimer = nullptr;
@@ -874,6 +963,7 @@ public:
     QTimer *systemAppearanceWatchdog = nullptr;
     QFont originalApplicationFont;
     QPalette originalApplicationPalette;
+    std::unique_ptr<Private::StyleInteractionController> interactionController;
 };
 
 Style::Style(ThemeMode mode)
@@ -893,11 +983,11 @@ Style::Style(ThemeMode mode)
             this, &Style::checkSystemAppearance);
     d->systemAppearanceWatcher = new SystemAppearanceWatcher(
         this, [this] { checkSystemAppearance(); });
+    d->systemAppearanceWatcher->setActive(false);
     if (QStyleHints *hints = QGuiApplication::styleHints()) {
         connect(hints, &QStyleHints::colorSchemeChanged, this,
                 [this](Qt::ColorScheme) { checkSystemAppearance(); });
     }
-    d->restartSystemAppearanceWatchdog();
 }
 
 Style::~Style() = default;
@@ -1520,6 +1610,7 @@ QIcon Style::standardIcon(StandardPixmap standard, const QStyleOption *option,
 void Style::polish(QApplication *application)
 {
     QProxyStyle::polish(application);
+    d->applicationStyleActive = true;
     if (!d->applicationStateSaved) {
         d->originalApplicationFont = application->font();
         d->originalApplicationPalette = application->palette();
@@ -1531,6 +1622,7 @@ void Style::polish(QApplication *application)
     font.setPixelSize(14);
     application->setFont(font);
     application->setPalette(standardPalette());
+    d->systemAppearanceWatcher->setActive(true);
     d->restartSystemAppearanceWatchdog();
 }
 
@@ -1693,7 +1785,9 @@ void Style::polish(QPalette &palette)
 
 void Style::unpolish(QApplication *application)
 {
+    d->applicationStyleActive = false;
     d->systemAppearanceWatchdog->stop();
+    d->systemAppearanceWatcher->setActive(false);
     d->clearPaletteOwners();
     if (application && d->applicationStateSaved) {
         application->setFont(d->originalApplicationFont);
@@ -1809,471 +1903,8 @@ void Style::unpolish(QWidget *widget)
 
 bool Style::eventFilter(QObject *watched, QEvent *event)
 {
-    auto *widget = qobject_cast<QWidget *>(watched);
-    if (!widget)
-        return QProxyStyle::eventFilter(watched, event);
-
-    using namespace Private;
-    switch (event->type()) {
-    case QEvent::EnabledChange: {
-        // Qt normally stops delivering pointer events to a disabled widget,
-        // but an in-flight style animation has no such protection. Clear the
-        // interaction state at the source so disabling during a press cannot
-        // leave a stale hover/pressed surface behind.
-        d->clearPointerInteraction(widget);
-        const bool enabled = widget->isEnabled();
-        framePropertyRegistry().set(widget, hoverProperty,
-                                    enabled && widget->underMouse()
-                                        ? 1.0 : 0.0);
-        framePropertyRegistry().set(widget, pressProperty, 0.0);
-        framePropertyRegistry().set(widget, focusProperty,
-                                    enabled && widget->hasFocus() ? 1.0 : 0.0);
-        framePropertyRegistry().set(widget, focusVisibleProperty,
-                                    enabled && widget->hasFocus()
-                                        && d->keyboardInput);
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
-            framePropertyRegistry().set(checkBox, checkProperty,
-                                        checkBox->checkState() == Qt::Unchecked
-                                            ? 0.0 : 1.0);
-            framePropertyRegistry().set(checkBox, togglePositionProperty,
-                                        checkBox->isChecked() ? 1.0 : 0.0);
-        } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
-            framePropertyRegistry().set(radio, checkProperty,
-                                        radio->isChecked() ? 1.0 : 0.0);
-        }
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
-            d->cancelScrollBarTimer(scrollBar);
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            d->cancelSliderToolTip(slider);
-            if (!enabled)
-                hideSliderValueToolTip(slider);
-        }
-        if (qobject_cast<QProgressBar *>(widget))
-            d->refreshProgressTimer();
-        widget->update();
-        break;
-    }
-    case QEvent::Paint:
-        if (auto *button = qobject_cast<QToolButton *>(widget);
-            button && textBoxHelperButton(button)) {
-            // QLineEditIconButton has a private paintEvent that bypasses
-            // QToolButton's CC_ToolButton path. Own its complete rendering so
-            // the WinUI DeleteButton surface is refreshed on real pointer
-            // transitions, not only during a forced parent render.
-            QStyleOptionToolButton option;
-            option.initFrom(button);
-            option.rect = button->rect();
-            option.icon = button->icon();
-            option.iconSize = button->iconSize();
-            option.text = button->text();
-            option.toolButtonStyle = button->toolButtonStyle();
-            option.arrowType = button->arrowType();
-            option.features = QStyleOptionToolButton::None;
-            QPainter painter(button);
-            const QVariant opacity = button->property("opacity");
-            if (opacity.isValid())
-                painter.setOpacity(opacity.toReal());
-            drawPrimitive(PE_PanelButtonTool, &option, &painter, button);
-            drawControl(CE_ToolButtonLabel, &option, &painter, button);
-            return true;
-        }
-        break;
-    case QEvent::UpdateRequest:
-        // QProgressBar exposes no rangeChanged signal. Refresh only while the
-        // shared clock is stopped, so ordinary timer-driven updates remain
-        // O(1) in callbacks and do not rescan the registry per paint.
-        if (qobject_cast<QProgressBar *>(widget)
-            && !d->progressTimer->isActive())
-            d->refreshProgressTimer();
-        break;
-    case QEvent::Enter:
-        if (!widget->isEnabled()) {
-            d->clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation = framePropertyRegistry()
-                .value(widget, scrollBarGenerationProperty).toInt() + 1;
-            framePropertyRegistry().set(widget, scrollBarInsideProperty, true);
-            framePropertyRegistry().set(widget, scrollBarGenerationProperty,
-                                        generation);
-            if (!animationsAllowed()) {
-                d->cancelScrollBarTimer(scrollBar);
-                d->animate(widget, hoverProperty, 1.0, 0);
-            } else if (progress(widget, hoverProperty) > 0.001) {
-                // Re-entering during contraction reverses from the current
-                // thickness immediately. Waiting for a fresh 400 ms reveal
-                // would make the thumb disappear under a stationary pointer.
-                d->cancelScrollBarTimer(scrollBar);
-                d->animate(widget, hoverProperty, 1.0, Private::FastDuration);
-            } else {
-                d->scheduleScrollBar(scrollBar, 400);
-            }
-        } else {
-            d->animate(widget, hoverProperty, 1.0,
-                       interactionDuration(widget, InteractionMotion::Hover,
-                                           true));
-        }
-        break;
-    case QEvent::Leave:
-        if (!widget->isEnabled()) {
-            d->clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation = framePropertyRegistry()
-                .value(widget, scrollBarGenerationProperty).toInt() + 1;
-            framePropertyRegistry().set(widget, scrollBarInsideProperty, false);
-            framePropertyRegistry().set(widget, scrollBarGenerationProperty,
-                                        generation);
-            if (!animationsAllowed()) {
-                d->cancelScrollBarTimer(scrollBar);
-                d->animate(widget, hoverProperty, 0.0, 0);
-            } else {
-                d->scheduleScrollBar(scrollBar, 500);
-            }
-        } else {
-            d->animate(widget, hoverProperty, 0.0,
-                       interactionDuration(widget, InteractionMotion::Hover,
-                                           false));
-        }
-        if (buttonPressPulse(widget))
-            d->cancelButtonPress(widget);
-        else
-            d->animate(widget, pressProperty, 0.0,
-                       interactionDuration(widget, InteractionMotion::Press,
-                                           false));
-        break;
-    case QEvent::MouseButtonPress:
-        d->keyboardInput = false;
-        framePropertyRegistry().set(widget, focusVisibleProperty, false);
-        if (!widget->isEnabled()) {
-            d->clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (auto *viewport = qobject_cast<QAbstractItemView *>(widget->parentWidget());
-            viewport && viewport->viewport() == widget) {
-            framePropertyRegistry().set(viewport, focusVisibleProperty, false);
-            viewport->viewport()->update();
-        }
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton) {
-                d->animate(combo, comboChevronProperty, 1.0, 150);
-                d->prepareComboPopupFirstFrame(combo);
-            }
-        }
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-            checkBox && toggleSwitch(checkBox)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton) {
-                QRect track = checkBox->rect();
-                if (checkBox->layoutDirection() == Qt::RightToLeft)
-                    track.setLeft(track.right() - 39);
-                else
-                    track.setWidth(40);
-                StylePrivate::ToggleDragState state;
-                state.pressPosition = mouse->position().toPoint();
-                state.candidate = track.contains(state.pressPosition);
-                d->toggleDragStates.insert(checkBox, state);
-            }
-        }
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton && slider->isEnabled()) {
-                d->scheduleSliderToolTip(slider);
-            }
-        }
-        if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton)
-            break;
-        if (buttonPressPulse(widget))
-            d->beginButtonPress(widget);
-        else
-            d->animate(widget, pressProperty, 1.0,
-                       interactionDuration(widget, InteractionMotion::Press,
-                                           true));
-        break;
-    case QEvent::MouseMove:
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if ((mouse->buttons() & Qt::LeftButton) && slider->isEnabled()) {
-                d->scheduleSliderToolTip(slider);
-            }
-        }
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-            checkBox && toggleSwitch(checkBox)) {
-            auto state = d->toggleDragStates.find(checkBox);
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (state != d->toggleDragStates.end() && state->candidate
-                && (mouse->buttons() & Qt::LeftButton)) {
-                if (!state->dragging
-                    && (mouse->position().toPoint() - state->pressPosition).manhattanLength()
-                        >= QApplication::startDragDistance()) {
-                    state->dragging = true;
-                    framePropertyRegistry().set(checkBox,
-                                                toggleDraggingProperty, true);
-                }
-                if (state->dragging) {
-                    qreal position;
-                    if (checkBox->layoutDirection() == Qt::RightToLeft)
-                        position = (checkBox->rect().right() - 9.5
-                                    - mouse->position().x()) / 20.0;
-                    else
-                        position = (mouse->position().x()
-                                    - checkBox->rect().left() - 9.5) / 20.0;
-                    framePropertyRegistry().set(
-                        checkBox, togglePositionProperty,
-                        qBound<qreal>(0.0, position, 1.0));
-                    checkBox->update();
-                    return true;
-                }
-            }
-        }
-        break;
-    case QEvent::MouseButtonRelease:
-        if (!widget->isEnabled()) {
-            d->clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton) {
-            if (auto *slider = qobject_cast<QSlider *>(widget)) {
-                d->cancelSliderToolTip(slider);
-                hideSliderValueToolTip(slider);
-            }
-            break;
-        }
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            d->cancelSliderToolTip(slider);
-            hideSliderValueToolTip(slider);
-        }
-        if (qobject_cast<QComboBox *>(widget))
-            d->releaseComboChevron(widget);
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-            checkBox && toggleSwitch(checkBox)) {
-            const auto state = d->toggleDragStates.take(checkBox);
-            if (state.dragging) {
-                const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
-                framePropertyRegistry().set(checkBox,
-                                            toggleDraggingProperty, false);
-                checkBox->setDown(false);
-                Q_EMIT checkBox->released();
-                if (checkBox->isChecked() != checked)
-                    checkBox->setChecked(checked);
-                else
-                    d->animate(checkBox, togglePositionProperty,
-                               checked ? 1.0 : 0.0, FasterDuration);
-                Q_EMIT checkBox->clicked(checkBox->isChecked());
-                d->animate(checkBox, pressProperty, 0.0, FasterDuration);
-                return true;
-            }
-        }
-        if (buttonPressPulse(widget))
-            d->releaseButtonPress(widget);
-        else
-            d->animate(widget, pressProperty, 0.0,
-                       interactionDuration(widget, InteractionMotion::Press,
-                                           false));
-        break;
-    case QEvent::FocusIn:
-        if (const auto *focus = static_cast<QFocusEvent *>(event)) {
-            const bool keyboard = focus->reason() == Qt::TabFocusReason
-                || focus->reason() == Qt::BacktabFocusReason
-                || focus->reason() == Qt::ShortcutFocusReason
-                || d->keyboardInput;
-            framePropertyRegistry().set(widget, focusVisibleProperty, keyboard);
-            if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
-                view && view->viewport() == widget) {
-                if (keyboard) {
-                    framePropertyRegistry().set(view, focusVisibleProperty, true);
-                    view->update();
-                }
-            }
-        }
-        d->animate(widget, focusProperty, 1.0,
-                   interactionDuration(widget, InteractionMotion::Focus,
-                                       true));
-        break;
-    case QEvent::FocusOut:
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            d->cancelSliderToolTip(slider);
-            hideSliderValueToolTip(slider);
-        }
-        framePropertyRegistry().set(widget, focusVisibleProperty, false);
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
-            view && view->viewport() == widget) {
-            framePropertyRegistry().set(view, focusVisibleProperty, false);
-            view->update();
-        }
-        d->animate(widget, focusProperty, 0.0,
-                   interactionDuration(widget, InteractionMotion::Focus,
-                                       false));
-        break;
-    case QEvent::ReadOnlyChange:
-        // WinUI TextBox does not expose its delete affordance while it is
-        // read-only. QLineEdit keeps the private clear button visible, so
-        // suppress it after Qt has processed the property change.
-        updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget), this);
-        break;
-    case QEvent::ChildAdded:
-        // The private QLineEdit clear button is created after the line edit in
-        // common construction orders; catch that lifecycle deterministically.
-        prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget), this);
-        break;
-    case QEvent::KeyPress:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            const auto *key = static_cast<QKeyEvent *>(event);
-            const bool activates = key->key() == Qt::Key_Space
-                || key->key() == Qt::Key_Enter || key->key() == Qt::Key_Return
-                || key->key() == Qt::Key_F4
-                || (key->key() == Qt::Key_Down
-                    && key->modifiers().testFlag(Qt::AltModifier));
-            if (activates) {
-                d->animate(combo, comboChevronProperty, 1.0, 150);
-                d->prepareComboPopupFirstFrame(combo);
-            }
-        }
-        if (const auto *key = static_cast<QKeyEvent *>(event);
-            revealsKeyboardFocus(key->key())) {
-            d->keyboardInput = true;
-        }
-        if (d->keyboardInput) {
-            framePropertyRegistry().set(widget, focusVisibleProperty, true);
-            widget->update();
-        }
-        break;
-    case QEvent::KeyRelease:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            const auto *key = static_cast<QKeyEvent *>(event);
-            if (key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
-                || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
-                || (key->key() == Qt::Key_Down
-                    && key->modifiers().testFlag(Qt::AltModifier))) {
-                d->releaseComboChevron(combo);
-            }
-        }
-        break;
-    case QEvent::Show:
-        updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget), this);
-        // The view is shown before its popup window. Prepare selection and
-        // scroll position here so even a programmatic first showPopup() has a
-        // stable first composited frame; waiting for the popup Show event is
-        // observably too late when the selected item is not row zero.
-        if (qobject_cast<QAbstractItemView *>(widget))
-            if (auto *combo = comboForPopupWidget(widget))
-                d->prepareComboPopupFirstFrame(combo);
-        if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-            if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget()))
-                d->prepareComboPopupFirstFrame(combo);
-        }
-        if (auto *dialog = qobject_cast<QDialog *>(widget);
-            dialog && (qobject_cast<QMessageBox *>(dialog)
-                       || dialog->property(ContentDialogProperty).toBool())) {
-            prepareContentDialogState(dialog, d->dark());
-            stopDialogAnimations(dialog);
-            if (animationsAllowed()) {
-                widget->setProperty("_winui_dialog_animating", true);
-                auto *group = new QParallelAnimationGroup(dialog);
-                group->setObjectName(QStringLiteral("_winui_dialog_animation"));
-                auto *opacity = new QPropertyAnimation(dialog, "windowOpacity", group);
-                opacity->setStartValue(0.0);
-                opacity->setEndValue(1.0);
-                opacity->setDuration(Private::FasterDuration);
-                connect(group, &QParallelAnimationGroup::finished, dialog,
-                        [dialog, group] {
-                    dialog->setWindowOpacity(1.0);
-                    dialog->setProperty("_winui_dialog_animating", false);
-                    group->deleteLater();
-                });
-                group->start();
-            }
-        }
-        if (qobject_cast<QProgressBar *>(widget))
-            d->refreshProgressTimer();
-        preparePopupSurface(widget);
-        d->registerPopupPaletteOwners(widget);
-        break;
-    case QEvent::Hide:
-        if (qobject_cast<QProgressBar *>(widget))
-            d->refreshProgressTimer();
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
-            d->cancelScrollBarTimer(scrollBar);
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            d->cancelSliderToolTip(slider);
-            hideSliderValueToolTip(slider);
-        }
-        if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-            d->finishComboPopupCycle(widget);
-        }
-        if (auto *dialog = qobject_cast<QDialog *>(widget);
-            dialog && dialog->property("_winui_dialog_animating").toBool()) {
-            stopDialogAnimations(dialog);
-        }
-        break;
-    case QEvent::DynamicPropertyChange:
-        if (const auto *change = static_cast<QDynamicPropertyChangeEvent *>(event)) {
-            const QByteArray name = change->propertyName();
-            if (name == ToggleSwitchProperty) {
-                if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
-                    framePropertyRegistry().set(
-                        checkBox, togglePositionProperty,
-                        checkBox->isChecked() ? 1.0 : 0.0);
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == ToggleSwitchOnTextProperty
-                       || name == ToggleSwitchOffTextProperty) {
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == SettingsCardProperty) {
-                if (auto *frame = qobject_cast<QFrame *>(widget)) {
-                    if (widget->property(SettingsCardProperty).toBool()) {
-                        remember(frame, originalFrameShapeProperty,
-                                 int(frame->frameShape()));
-                        frame->setFrameShape(QFrame::StyledPanel);
-                    } else if (widget->property(originalFrameShapeProperty).isValid()) {
-                        frame->setFrameShape(static_cast<QFrame::Shape>(
-                            widget->property(originalFrameShapeProperty).toInt()));
-                        widget->setProperty(originalFrameShapeProperty, {});
-                    }
-                }
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == ContentDialogProperty) {
-                if (auto *dialog = qobject_cast<QDialog *>(widget);
-                    dialog && !qobject_cast<QMessageBox *>(dialog)) {
-                    if (dialog->property(ContentDialogProperty).toBool()) {
-                        prepareContentDialogState(dialog, d->dark());
-                        d->registerPaletteOwner(dialog);
-                    } else {
-                        d->unregisterPaletteOwner(dialog);
-                        restoreContentDialogState(dialog, true);
-                    }
-                }
-            } else if (name == VerticalSpinButtonsProperty) {
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == NavigationViewProperty) {
-                if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-                    view->viewport()->setProperty(NavigationViewProperty,
-                                                  view->property(NavigationViewProperty));
-                    if (view->property(NavigationViewProperty).toBool())
-                        NavigationPrivate::prepareNavigationView(view);
-                    else
-                        NavigationPrivate::restoreNavigationView(view);
-                    view->viewport()->update();
-                }
-            }
-        }
-        break;
-    default:
-        break;
-    }
+    if (d->interactionController->eventFilter(watched, event))
+        return true;
     return QProxyStyle::eventFilter(watched, event);
 }
-
 } // namespace WinUI3

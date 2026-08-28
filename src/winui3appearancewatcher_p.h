@@ -28,6 +28,9 @@ public:
     explicit SystemAppearanceWatcher(Callback callback, QObject *context);
     ~SystemAppearanceWatcher() override;
 
+    void setActive(bool active);
+    bool isActive() const { return m_active; }
+
     bool nativeEventFilter(const QByteArray &eventType, void *message,
                            qintptr *result) override;
 
@@ -38,7 +41,8 @@ private:
 
     QTimer *m_debounceTimer = nullptr;
     Callback m_callback;
+    bool m_active = false;
+    bool m_installed = false;
 };
 
 } // namespace WinUI3::Private
-

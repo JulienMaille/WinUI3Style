@@ -10,6 +10,8 @@ set(winui3style_public_headers
 add_library(winui3style SHARED
     ${winui3style_public_headers}
     winui3style.cpp
+    winui3interactions_p.h
+    winui3interactions_p.cpp
     winui3buttons_p.h
     winui3buttons_p.cpp
     winui3animations_p.h
