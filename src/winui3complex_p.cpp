@@ -1,6 +1,7 @@
 #include "winui3complex_p.h"
 
 #include "winui3paint_p.h"
+#include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -31,15 +32,12 @@ bool verticalSpinButtons(const QWidget *widget)
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
 {
-    if (!widget)
-        return fallback;
-    const QVariant value = widget->property(name);
-    return value.isValid() ? value.toReal() : fallback;
+    return framePropertyRegistry().real(widget, name, fallback);
 }
 
 bool keyboardFocusVisible(const QWidget *widget)
 {
-    return widget && widget->property(focusVisibleProperty).toBool();
+    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
 } // namespace

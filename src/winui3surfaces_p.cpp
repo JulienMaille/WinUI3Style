@@ -1,6 +1,7 @@
 #include "winui3surfaces_p.h"
 
 #include "winui3paint_p.h"
+#include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -208,8 +209,8 @@ void clearSliderValueToolTip(QSlider *slider)
             Qt::FindDirectChildrenOnly)) {
         timer->stop();
     }
-    slider->setProperty(sliderToolTipVisibleProperty, false);
-    slider->setProperty(sliderToolTipValueProperty, {});
+    framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, false);
+    framePropertyRegistry().clear(slider, sliderToolTipValueProperty);
     if (auto *tip = sliderValueTip(slider))
         tip->hide();
 }
@@ -245,8 +246,8 @@ void updateSliderValueToolTipNow(QSlider *slider)
         ? QPoint(handle.center().x(), handle.top() - 8)
         : QPoint(handle.right() + 8, handle.center().y());
     const QString valueText = QString::number(slider->value());
-    slider->setProperty(sliderToolTipVisibleProperty, true);
-    slider->setProperty(sliderToolTipValueProperty, valueText);
+    framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, true);
+    framePropertyRegistry().set(slider, sliderToolTipValueProperty, valueText);
     // The headless platform cannot host a non-activating tool window and
     // synthesizes a FocusOut when one is shown. State/value remain testable;
     // the popup itself is covered by the native Windows test path.
@@ -306,17 +307,20 @@ qulonglong nextLineEditHelperUpdateToken()
 void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
 {
     if (!lineEdit
-        || lineEdit->property(lineEditHelperUpdatePendingProperty).isValid())
+        || framePropertyRegistry().value(lineEdit,
+                                         lineEditHelperUpdatePendingProperty)
+               .isValid())
         return;
 
     const qulonglong token = nextLineEditHelperUpdateToken();
-    lineEdit->setProperty(lineEditHelperUpdatePendingProperty,
-                          QVariant::fromValue(token));
+    framePropertyRegistry().set(lineEdit, lineEditHelperUpdatePendingProperty,
+                                QVariant::fromValue(token));
     const QPointer<QLineEdit> guardedLineEdit(lineEdit);
     const QPointer<Style> guardedStyle(style);
     QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle, token] {
         if (!guardedLineEdit
-            || guardedLineEdit->property(lineEditHelperUpdatePendingProperty)
+            || framePropertyRegistry().value(
+                   guardedLineEdit, lineEditHelperUpdatePendingProperty)
                    .toULongLong() != token)
             return;
 
@@ -336,14 +340,14 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
                 // affordance and QAction helper buttons as soon as they exist.
                 button->setAttribute(Qt::WA_Hover, true);
                 button->installEventFilter(helperStyle);
-                if (!button->property(hoverProperty).isValid())
-                    button->setProperty(hoverProperty,
-                                        button->isEnabled()
-                                                && button->underMouse()
-                                            ? 1.0
-                                            : 0.0);
-                if (!button->property(pressProperty).isValid())
-                    button->setProperty(pressProperty, 0.0);
+                if (!framePropertyRegistry().value(button, hoverProperty).isValid())
+                    framePropertyRegistry().set(button, hoverProperty,
+                                                button->isEnabled()
+                                                        && button->underMouse()
+                                                    ? 1.0
+                                                    : 0.0);
+                if (!framePropertyRegistry().value(button, pressProperty).isValid())
+                    framePropertyRegistry().set(button, pressProperty, 0.0);
             }
 
             if (isLineEditClearButton(guardedLineEdit, button))
@@ -352,11 +356,11 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
                                    && guardedLineEdit->isClearButtonEnabled()
                                    && !guardedLineEdit->text().isEmpty());
         }
-        if (guardedLineEdit->property(lineEditHelperUpdatePendingProperty)
+        if (framePropertyRegistry().value(guardedLineEdit,
+                                          lineEditHelperUpdatePendingProperty)
                 .toULongLong() == token) {
-            // Remove the temporary dynamic property instead of retaining one
-            // allocation after the coalesced update completes.
-            guardedLineEdit->setProperty(lineEditHelperUpdatePendingProperty, {});
+            framePropertyRegistry().clear(guardedLineEdit,
+                                          lineEditHelperUpdatePendingProperty);
         }
     });
 }
@@ -376,7 +380,8 @@ void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style)
 void cancelLineEditHelperUpdate(QLineEdit *lineEdit)
 {
     if (lineEdit)
-        lineEdit->setProperty(lineEditHelperUpdatePendingProperty, {});
+        framePropertyRegistry().clear(lineEdit,
+                                      lineEditHelperUpdatePendingProperty);
 }
 
 void showSliderValueToolTip(QSlider *slider)
@@ -387,11 +392,11 @@ void showSliderValueToolTip(QSlider *slider)
     // native tooltip geometry/window update while a drag is in progress.
     // The first show remains immediate so pressing the handle has no visible
     // latency; subsequent moves use a trailing 16 ms frame debounce.
-    const bool alreadyVisible =
-        slider->property(sliderToolTipVisibleProperty).toBool();
-    slider->setProperty(sliderToolTipVisibleProperty, true);
-    slider->setProperty(sliderToolTipValueProperty,
-                        QString::number(slider->value()));
+    const bool alreadyVisible = framePropertyRegistry()
+        .value(slider, sliderToolTipVisibleProperty).toBool();
+    framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, true);
+    framePropertyRegistry().set(slider, sliderToolTipValueProperty,
+                                QString::number(slider->value()));
     if (!alreadyVisible || !sliderValueTip(slider)) {
         if (auto *timer = slider->findChild<QTimer *>(
                 QString::fromLatin1(sliderToolTipDebounceTimerName),

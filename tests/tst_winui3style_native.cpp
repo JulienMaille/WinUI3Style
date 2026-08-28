@@ -1,5 +1,7 @@
 #include <winui3style/winui3style.h>
 
+#include "winui3frameproperties_p.h"
+
 #include <QComboBox>
 #include <QAbstractItemView>
 #include <QDialog>
@@ -148,7 +150,8 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
                       slider.rect().center());
     QTRY_VERIFY_WITH_TIMEOUT(
-        slider.property("_winui_slider_tooltip_visible").toBool(), 500);
+        WinUI3::Private::framePropertyRegistry()
+            .value(&slider, "_winui_slider_tooltip_visible").toBool(), 500);
 
     // The first tooltip display is immediate. Once visible, a burst of
     // pointer updates must use one trailing surface timer instead of moving
@@ -182,7 +185,8 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
                         slider.rect().center());
     QVERIFY(!timer->isActive());
-    QVERIFY(!slider.property("_winui_slider_tooltip_visible").toBool());
+    QVERIFY(!WinUI3::Private::framePropertyRegistry()
+                 .value(&slider, "_winui_slider_tooltip_visible").toBool());
 
     // Disabling during the trailing debounce must clear both the inspectable
     // state and the already-created native popup, rather than leaving the last
@@ -191,7 +195,8 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
                       slider.rect().center());
     QTRY_VERIFY_WITH_TIMEOUT(
-        slider.property("_winui_slider_tooltip_visible").toBool(), 500);
+        WinUI3::Private::framePropertyRegistry()
+            .value(&slider, "_winui_slider_tooltip_visible").toBool(), 500);
     QMouseEvent move(QEvent::MouseMove,
                      QPointF(slider.rect().center()), Qt::NoButton,
                      Qt::LeftButton, Qt::NoModifier);
@@ -200,8 +205,10 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     QVERIFY(timer->isActive());
     slider.setEnabled(false);
     QTRY_VERIFY_WITH_TIMEOUT(!timer->isActive(), 500);
-    QVERIFY(!slider.property("_winui_slider_tooltip_visible").toBool());
-    QVERIFY(!slider.property("_winui_slider_tooltip_value").isValid());
+    QVERIFY(!WinUI3::Private::framePropertyRegistry()
+                 .value(&slider, "_winui_slider_tooltip_visible").toBool());
+    QVERIFY(!WinUI3::Private::framePropertyRegistry()
+                 .value(&slider, "_winui_slider_tooltip_value").isValid());
     if (auto *tip = slider.findChild<QWidget *>(
             QStringLiteral("_winui_slider_value_tip"),
             Qt::FindDirectChildrenOnly)) {

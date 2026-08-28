@@ -48,6 +48,7 @@ private:
     void connectModel(QTableView *table, TableState &state,
                       QAbstractItemModel *model);
     void reindexMarkedEditors(QTableView *table);
+    void trackOnce(QTableView *table, QWidget *editor, bool allowRetry);
     QPersistentModelIndex editorIndex(const QTableView *table,
                                       const QWidget *editor) const;
 

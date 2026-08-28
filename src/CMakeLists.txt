@@ -12,6 +12,8 @@ add_library(winui3style SHARED
     winui3style.cpp
     winui3buttons_p.h
     winui3buttons_p.cpp
+    winui3animations_p.h
+    winui3animations_p.cpp
     winui3menus_p.h
     winui3menus_p.cpp
     winui3paint_p.h
@@ -22,6 +24,8 @@ add_library(winui3style SHARED
     winui3style_contracts_p.cpp
     winui3theme_p.h
     winui3theme_p.cpp
+    winui3appearancewatcher_p.h
+    winui3appearancewatcher_p.cpp
     winui3style_properties_p.h
     winui3tableeditors_p.h
     winui3tableeditors_p.cpp

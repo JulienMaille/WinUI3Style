@@ -3,7 +3,9 @@
 #include <winui3style/winui3icons.h>
 
 #include "winui3geometry_p.h"
+#include "winui3animations_p.h"
 #include "winui3buttons_p.h"
+#include "winui3frameproperties_p.h"
 #include "winui3menus_p.h"
 #include "winui3style_contracts_p.h"
 #include "winui3complex_p.h"
@@ -15,6 +17,7 @@
 #include "winui3tableeditors_p.h"
 #include "winui3theme_p.h"
 #include "winui3tokens_p.h"
+#include "winui3appearancewatcher_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemDelegate>
@@ -77,6 +80,7 @@
 #include <QTimer>
 #include <QTreeView>
 #include <QVariantAnimation>
+#include <QVector>
 #include <QWidget>
 
 #include <cmath>
@@ -179,10 +183,7 @@ bool animationsAllowed();
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback)
 {
-    if (!widget)
-        return fallback;
-    const QVariant value = widget->property(name);
-    return value.isValid() ? value.toReal() : fallback;
+    return framePropertyRegistry().real(widget, name, fallback);
 }
 
 const QEasingCurve &fluentCurve()
@@ -203,7 +204,7 @@ bool animationsAllowed()
 
 bool keyboardFocusVisible(const QWidget *widget)
 {
-    return widget && widget->property(focusVisibleProperty).toBool();
+    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
 bool revealsKeyboardFocus(int key)
@@ -313,7 +314,8 @@ public:
     };
 
     explicit StylePrivate(Style *owner, ThemeMode initialMode)
-        : q(owner), mode(initialMode), tableEditorTracker(owner)
+        : q(owner), mode(initialMode), animationDriver(owner),
+          tableEditorTracker(owner)
     {
     }
 
@@ -322,19 +324,107 @@ public:
         return mode == ThemeMode::System || !accent.isValid();
     }
 
-    void restartSystemAppearancePolling()
+    void restartSystemAppearanceWatchdog()
     {
-        if (!systemAppearanceTimer)
+        if (!systemAppearanceWatchdog)
             return;
         if (!needsSystemAppearancePolling()) {
-            systemAppearanceTimer->stop();
+            systemAppearanceWatchdog->stop();
             return;
         }
+        Private::invalidateSystemAppearanceCache();
         if (mode == ThemeMode::System)
             lastSystemDark = Private::systemUsesDarkTheme();
         if (!accent.isValid())
             lastSystemAccent = Private::systemAccentColor();
-        systemAppearanceTimer->start();
+        // Native notifications provide the fast path on Windows. Keep a
+        // deliberately slow watchdog for missed broadcasts and portable
+        // platforms where the watcher is a no-op.
+        systemAppearanceWatchdog->start();
+    }
+
+    void prunePaletteOwners()
+    {
+        for (auto it = paletteOwners.begin(); it != paletteOwners.end();) {
+            QWidget *widget = it->data();
+            if (!widget || !widget->property(ownedPaletteProperty).toBool()) {
+                if (widget) {
+                    if (const auto connection = paletteOwnerConnections.take(widget))
+                        QObject::disconnect(connection);
+                }
+                it = paletteOwners.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    void registerPaletteOwner(QWidget *widget)
+    {
+        if (!widget || !widget->property(ownedPaletteProperty).toBool())
+            return;
+        prunePaletteOwners();
+        for (const QPointer<QWidget> &owner : paletteOwners) {
+            if (owner.data() == widget)
+                return;
+        }
+        if (paletteOwners.size() >= maxPaletteOwners)
+            return;
+        paletteOwners.append(QPointer<QWidget>(widget));
+        paletteOwnerConnections.insert(widget,
+            QObject::connect(widget, &QObject::destroyed, q,
+                             [this, widget] {
+            unregisterPaletteOwner(widget);
+        }));
+    }
+
+    void unregisterPaletteOwner(QWidget *widget)
+    {
+        if (!widget)
+            return;
+        if (const auto connection = paletteOwnerConnections.take(widget))
+            QObject::disconnect(connection);
+        for (auto it = paletteOwners.begin(); it != paletteOwners.end();) {
+            if (it->isNull() || it->data() == widget)
+                it = paletteOwners.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    void clearPaletteOwners()
+    {
+        for (const auto &connection : paletteOwnerConnections)
+            QObject::disconnect(connection);
+        paletteOwnerConnections.clear();
+        paletteOwners.clear();
+    }
+
+    void registerPopupPaletteOwners(QWidget *widget)
+    {
+        if (!widget)
+            return;
+        QWidget *popup = widget->window();
+        if (!popup || popup->windowType() != Qt::Popup)
+            return;
+
+        // preparePopupSurface() has just replaced these palettes with a
+        // style-owned, application-palette-based surface. Mark only those
+        // surfaces as owned; explicit palettes are still rebased by the
+        // effectivePopupPalette() path when they are refreshed.
+        popup->setProperty(ownedPaletteProperty, true);
+        registerPaletteOwner(popup);
+        QAbstractItemView *view = qobject_cast<QAbstractItemView *>(widget);
+        if (!view)
+            view = popup->findChild<QAbstractItemView *>();
+        if (!view)
+            return;
+        view->setProperty(ownedPaletteProperty, true);
+        registerPaletteOwner(view);
+        if (QWidget *viewport = view->viewport()) {
+            viewport->setProperty(ownedPaletteProperty, true);
+            registerPaletteOwner(viewport);
+        }
     }
 
     bool progressBarNeedsAnimation(const QProgressBar *progressBar) const
@@ -380,7 +470,7 @@ public:
             }
             if (progressBarNeedsAnimation(guarded)) {
                 active = true;
-                guarded->setProperty(progressPhaseProperty, phase);
+                framePropertyRegistry().set(guarded, progressPhaseProperty, phase);
                 guarded->update();
             }
             ++it;
@@ -442,10 +532,12 @@ public:
         const QPointer<QScrollBar> guarded(scrollBar);
         QObject::connect(timer, &QTimer::timeout, q, [this, guarded] {
             if (!guarded || !guarded->isVisible() || !guarded->isEnabled()
-                || !guarded->property(scrollBarInsideProperty).isValid()) {
+                || !framePropertyRegistry().value(guarded, scrollBarInsideProperty)
+                       .isValid()) {
                 return;
             }
-            if (guarded->property(scrollBarInsideProperty).toBool()) {
+            if (framePropertyRegistry().value(guarded, scrollBarInsideProperty)
+                    .toBool()) {
                 animate(guarded, hoverProperty, 1.0, Private::FastDuration);
             } else {
                 animate(guarded, hoverProperty, 0.0, Private::FastDuration);
@@ -545,143 +637,27 @@ public:
         }
     }
 
-    QVariantAnimation *findAnimation(QWidget *widget, const char *property)
-    {
-        if (!widget)
-            return nullptr;
-        const auto widgetIt = animations.find(widget);
-        if (widgetIt == animations.end())
-            return nullptr;
-        const auto propertyIt = widgetIt->find(QByteArray(property));
-        if (propertyIt == widgetIt->end())
-            return nullptr;
-        return propertyIt->data();
-    }
-
-    void forgetAnimation(QWidget *widget, const QByteArray &property,
-                         QVariantAnimation *expected)
-    {
-        if (!widget || !expected)
-            return;
-        auto widgetIt = animations.find(widget);
-        if (widgetIt == animations.end())
-            return;
-        const auto propertyIt = widgetIt->find(property);
-        if (propertyIt == widgetIt->end() || propertyIt->data() != expected)
-            return;
-        const QPointer<QVariantAnimation> animation = propertyIt->data();
-        widgetIt->erase(propertyIt);
-        if (widgetIt->isEmpty()) {
-            animations.erase(widgetIt);
-            if (const auto connection = animationCleanupConnections.take(widget))
-                QObject::disconnect(connection);
-        }
-        if (animation) {
-            animation->stop();
-            delete animation;
-        }
-    }
-
-    QVariantAnimation *ensureAnimation(QWidget *widget, const char *property)
-    {
-        if (!widget)
-            return nullptr;
-        auto widgetIt = animations.find(widget);
-        if (widgetIt == animations.end())
-            widgetIt = animations.insert(widget, {});
-        const QByteArray propertyName(property);
-        auto propertyIt = widgetIt->find(propertyName);
-        if (propertyIt != widgetIt->end() && propertyIt->data())
-            return propertyIt->data();
-
-        auto *animation = new QVariantAnimation(q);
-        widgetIt->insert(propertyName, QPointer<QVariantAnimation>(animation));
-        if (!animationCleanupConnections.contains(widget)) {
-            animationCleanupConnections.insert(widget,
-                QObject::connect(widget, &QObject::destroyed, q,
-                                 [this, widget] { stopAnimations(widget); }));
-        }
-        const QPointer<QWidget> guardedWidget(widget);
-        QObject::connect(animation, &QVariantAnimation::valueChanged, q,
-                         [guardedWidget, propertyName](const QVariant &value) {
-            if (!guardedWidget)
-                return;
-            guardedWidget->setProperty(propertyName.constData(), value);
-            guardedWidget->update();
-        });
-        QObject::connect(animation, &QVariantAnimation::finished, q,
-                         [this, widget, propertyName, animation] {
-            auto widgetIt = animations.find(widget);
-            if (widgetIt == animations.end())
-                return;
-            const auto propertyIt = widgetIt->find(propertyName);
-            if (propertyIt == widgetIt->end() || propertyIt->data() != animation)
-                return;
-            widgetIt->erase(propertyIt);
-            if (widgetIt->isEmpty()) {
-                animations.erase(widgetIt);
-                if (const auto connection = animationCleanupConnections.take(widget))
-                    QObject::disconnect(connection);
-            }
-            delete animation;
-        });
-        return animation;
-    }
-
     void animate(QWidget *widget, const char *property, qreal target, int duration)
     {
-        if (!widget)
-            return;
-
-        const qreal start = progress(widget, property, 1.0 - target);
-        QPointer<QVariantAnimation> previous = findAnimation(widget, property);
-        if (previous)
-            previous->stop();
-        if (duration <= 0 || !animationsAllowed() || qFuzzyCompare(start, target)) {
-            forgetAnimation(widget, QByteArray(property), previous);
-            widget->setProperty(property, target);
-            widget->update();
-            return;
-        }
-
-        auto *animation = ensureAnimation(widget, property);
-        if (!animation)
-            return;
-        animation->setKeyValues({});
-        animation->setStartValue(start);
-        animation->setEndValue(target);
-        animation->setDuration(duration);
-        animation->setEasingCurve(fluentCurve());
-        animation->start();
+        animationDriver.animate(widget, property, target, duration,
+                                animationsAllowed(), fluentCurve());
     }
 
     void stopAnimations(QWidget *widget)
     {
-        if (!widget)
-            return;
-        if (auto it = animations.find(widget); it != animations.end()) {
-            const auto propertyAnimations = std::move(it.value());
-            animations.erase(it);
-            for (const QPointer<QVariantAnimation> &animation : propertyAnimations) {
-                if (animation) {
-                    animation->stop();
-                    delete animation;
-                }
-            }
-        }
-        if (const auto connection = animationCleanupConnections.take(widget))
-            QObject::disconnect(connection);
+        animationDriver.stop(widget);
     }
 
     void beginButtonPress(QWidget *widget)
     {
         if (!widget)
             return;
-        const qulonglong generation = widget->property(
-            buttonPressGenerationProperty).toULongLong() + 1;
-        widget->setProperty(buttonPressGenerationProperty,
-                            QVariant::fromValue(generation));
-        widget->setProperty(buttonPressReleasePendingProperty, false);
+        const qulonglong generation = framePropertyRegistry()
+            .value(widget, buttonPressGenerationProperty).toULongLong() + 1;
+        framePropertyRegistry().set(widget, buttonPressGenerationProperty,
+                                    QVariant::fromValue(generation));
+        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
+                                    false);
         // A synchronous pressed frame is intentional. It makes a very fast
         // click observable and also cancels a release animation already in
         // flight before the next press starts.
@@ -692,21 +668,27 @@ public:
     {
         if (!widget)
             return;
-        const qulonglong generation = widget->property(
-            buttonPressGenerationProperty).toULongLong() + 1;
-        widget->setProperty(buttonPressGenerationProperty,
-                            QVariant::fromValue(generation));
-        widget->setProperty(buttonPressReleasePendingProperty, true);
+        const qulonglong generation = framePropertyRegistry()
+            .value(widget, buttonPressGenerationProperty).toULongLong() + 1;
+        framePropertyRegistry().set(widget, buttonPressGenerationProperty,
+                                    QVariant::fromValue(generation));
+        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
+                                    true);
         const QPointer<QWidget> guardedWidget(widget);
         QTimer::singleShot(16, q, [this, guardedWidget, generation] {
             if (!guardedWidget
-                || guardedWidget->property(buttonPressGenerationProperty)
-                       .toULongLong() != generation
-                || !guardedWidget->property(buttonPressReleasePendingProperty)
-                       .toBool()) {
+                || framePropertyRegistry()
+                           .value(guardedWidget, buttonPressGenerationProperty)
+                           .toULongLong() != generation
+                || !framePropertyRegistry()
+                           .value(guardedWidget,
+                                  buttonPressReleasePendingProperty)
+                           .toBool()) {
                 return;
             }
-            guardedWidget->setProperty(buttonPressReleasePendingProperty, false);
+            framePropertyRegistry().set(guardedWidget,
+                                        buttonPressReleasePendingProperty,
+                                        false);
             animate(guardedWidget, pressProperty, 0.0, Private::FasterDuration);
         });
     }
@@ -715,11 +697,12 @@ public:
     {
         if (!widget)
             return;
-        const qulonglong generation = widget->property(
-            buttonPressGenerationProperty).toULongLong() + 1;
-        widget->setProperty(buttonPressGenerationProperty,
-                            QVariant::fromValue(generation));
-        widget->setProperty(buttonPressReleasePendingProperty, false);
+        const qulonglong generation = framePropertyRegistry()
+            .value(widget, buttonPressGenerationProperty).toULongLong() + 1;
+        framePropertyRegistry().set(widget, buttonPressGenerationProperty,
+                                    QVariant::fromValue(generation));
+        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
+                                    false);
         animate(widget, pressProperty, 0.0, Private::FasterDuration);
     }
 
@@ -730,8 +713,8 @@ public:
         if (buttonPressPulse(widget))
             cancelButtonPress(widget);
         stopAnimations(widget);
-        widget->setProperty(hoverProperty, 0.0);
-        widget->setProperty(pressProperty, 0.0);
+        framePropertyRegistry().set(widget, hoverProperty, 0.0);
+        framePropertyRegistry().set(widget, pressProperty, 0.0);
     }
 
     void releaseComboChevron(QWidget *widget)
@@ -739,27 +722,18 @@ public:
         if (!widget)
             return;
         const qreal start = progress(widget, comboChevronProperty, 0.0);
-        QPointer<QVariantAnimation> previous = findAnimation(widget, comboChevronProperty);
-        if (previous)
-            previous->stop();
         if (!animationsAllowed() || qFuzzyIsNull(start)) {
-            forgetAnimation(widget, QByteArray(comboChevronProperty), previous);
-            widget->setProperty(comboChevronProperty, 0.0);
+            animationDriver.stop(widget);
+            framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
             widget->update();
             return;
         }
         // AnimatedChevronDownSmallVisualSource: PressedToNormal moves from
         // y=31.5 to y=21 then y=24 on a 48 px canvas. At the 12 px ComboBox
         // glyph this is +1.875 px, -0.75 px, then rest over about 300 ms.
-        auto *animation = ensureAnimation(widget, comboChevronProperty);
-        if (!animation)
-            return;
-        animation->setStartValue(start);
-        animation->setKeyValues({{0.28, QVariant(-0.4)}});
-        animation->setEndValue(0.0);
-        animation->setDuration(300);
-        animation->setEasingCurve(fluentCurve());
-        animation->start();
+        animationDriver.animate(widget, comboChevronProperty, 0.0, 300,
+                                true, fluentCurve(),
+                                {{0.28, QVariant(-0.4)}}, start);
     }
 
     void unregisterComboPopup(QWidget *popup)
@@ -873,8 +847,7 @@ public:
     Style *q = nullptr;
     ThemeMode mode = ThemeMode::System;
     QColor accent;
-    QHash<QWidget *, QHash<QByteArray, QPointer<QVariantAnimation>>> animations;
-    QHash<QWidget *, QMetaObject::Connection> animationCleanupConnections;
+    FrameAnimationDriver animationDriver;
     QVector<QPointer<QProgressBar>> progressBars;
     QHash<QProgressBar *, QMetaObject::Connection> progressBarStateConnections;
     QHash<QScrollBar *, QPointer<QTimer>> scrollBarTimers;
@@ -889,12 +862,16 @@ public:
     QHash<QWidget *, QMetaObject::Connection> comboPopupPopupConnections;
     QHash<QComboBox *, QMetaObject::Connection> comboPopupComboConnections;
     QSet<QWidget *> preparedComboPopups;
+    static constexpr int maxPaletteOwners = 1024;
+    QVector<QPointer<QWidget>> paletteOwners;
+    QHash<QWidget *, QMetaObject::Connection> paletteOwnerConnections;
     bool keyboardInput = false;
     bool applicationStateSaved = false;
     bool lastSystemDark = false;
     QColor lastSystemAccent;
     QTimer *progressTimer = nullptr;
-    QTimer *systemAppearanceTimer = nullptr;
+    SystemAppearanceWatcher *systemAppearanceWatcher = nullptr;
+    QTimer *systemAppearanceWatchdog = nullptr;
     QFont originalApplicationFont;
     QPalette originalApplicationPalette;
 };
@@ -908,17 +885,19 @@ Style::Style(ThemeMode mode)
     d->progressTimer->setInterval(16);
     connect(d->progressTimer, &QTimer::timeout, this,
             [this] { d->advanceProgressBars(); });
-    d->systemAppearanceTimer = new QTimer(this);
-    d->systemAppearanceTimer->setObjectName(
-        QStringLiteral("_winui_system_appearance_timer"));
-    d->systemAppearanceTimer->setInterval(750);
-    connect(d->systemAppearanceTimer, &QTimer::timeout,
+    d->systemAppearanceWatchdog = new QTimer(this);
+    d->systemAppearanceWatchdog->setObjectName(
+        QStringLiteral("_winui_system_appearance_watchdog"));
+    d->systemAppearanceWatchdog->setInterval(15000);
+    connect(d->systemAppearanceWatchdog, &QTimer::timeout,
             this, &Style::checkSystemAppearance);
+    d->systemAppearanceWatcher = new SystemAppearanceWatcher(
+        this, [this] { checkSystemAppearance(); });
     if (QStyleHints *hints = QGuiApplication::styleHints()) {
         connect(hints, &QStyleHints::colorSchemeChanged, this,
                 [this](Qt::ColorScheme) { checkSystemAppearance(); });
     }
-    d->restartSystemAppearancePolling();
+    d->restartSystemAppearanceWatchdog();
 }
 
 Style::~Style() = default;
@@ -934,7 +913,7 @@ void Style::setThemeMode(ThemeMode mode)
         return;
     d->mode = mode;
     refreshApplicationAppearance();
-    d->restartSystemAppearancePolling();
+    d->restartSystemAppearanceWatchdog();
     emit themeChanged(mode);
 }
 
@@ -954,7 +933,7 @@ void Style::setAccentColor(const QColor &color)
         return;
     d->accent = color;
     refreshApplicationAppearance();
-    d->restartSystemAppearancePolling();
+    d->restartSystemAppearanceWatchdog();
     emit accentColorChanged(accentColor());
 }
 
@@ -967,12 +946,29 @@ void Style::refreshApplicationAppearance()
     const QColor applicationAccent = accentColor();
     const bool darkTheme = d->dark();
     qApp->setPalette(applicationPalette);
-    for (QWidget *widget : qApp->allWidgets()) {
-        if (widget->property(ownedPaletteProperty).toBool()) {
+    // A popup's view and viewport are often created after their combo box was
+    // polished. Prepare and register them now that the popup exists, before
+    // walking the bounded owner registry below.
+    for (QWidget *window : qApp->topLevelWidgets()) {
+        if (window->windowType() == Qt::Popup) {
+            preparePopupSurface(window);
+            d->registerPopupPaletteOwners(window);
+        }
+    }
+    d->prunePaletteOwners();
+    for (const QPointer<QWidget> &guarded : d->paletteOwners) {
+        QWidget *widget = guarded.data();
+        if (!widget)
+            continue;
+        if (widget->window() && widget->window()->windowType() == Qt::Popup) {
+            preparePopupSurface(widget);
+        } else {
             QPalette palette = applicationPalette;
             if (qobject_cast<QTableView *>(widget)) {
-                palette.setColor(QPalette::Highlight, applicationTokens.subtleHover);
-                palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
+                palette.setColor(QPalette::Highlight,
+                                 applicationTokens.subtleHover);
+                palette.setColor(QPalette::HighlightedText,
+                                 applicationTokens.textPrimary);
             } else if (auto *editor = qobject_cast<QLineEdit *>(widget);
                        editor && itemView(editor)) {
                 palette.setColor(QPalette::Highlight, applicationAccent);
@@ -985,17 +981,31 @@ void Style::refreshApplicationAppearance()
             widget->setPalette(palette);
         }
         widget->update();
+        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+            view->update();
+            if (view->viewport())
+                view->viewport()->update();
+        }
     }
+    // The popup may be newly created and not yet have delivered its first
+    // Show event. Refresh visible popup children as well as the window itself.
     for (QWidget *window : qApp->topLevelWidgets()) {
-        if (window->windowType() == Qt::Popup)
-            preparePopupSurface(window);
+        if (window->windowType() == Qt::Popup && window->isVisible()) {
+            window->update();
+            if (auto *view = window->findChild<QAbstractItemView *>()) {
+                view->update();
+                if (view->viewport())
+                    view->viewport()->update();
+            }
+        }
     }
 }
 
 void Style::checkSystemAppearance()
 {
+    Private::invalidateSystemAppearanceCache();
     if (!d->needsSystemAppearancePolling()) {
-        d->systemAppearanceTimer->stop();
+        d->systemAppearanceWatchdog->stop();
         return;
     }
     bool themeChangedAtRuntime = false;
@@ -1521,7 +1531,7 @@ void Style::polish(QApplication *application)
     font.setPixelSize(14);
     application->setFont(font);
     application->setPalette(standardPalette());
-    d->restartSystemAppearancePolling();
+    d->restartSystemAppearanceWatchdog();
 }
 
 void Style::polish(QWidget *widget)
@@ -1536,24 +1546,29 @@ void Style::polish(QWidget *widget)
     remember(widget, originalRoleProperty, widget->property(roleProperty));
     widget->setAttribute(Qt::WA_Hover, true);
     widget->installEventFilter(this);
-    widget->setProperty(hoverProperty,
-                        widget->isEnabled() && widget->underMouse() ? 1.0 : 0.0);
-    widget->setProperty(pressProperty, 0.0);
-    widget->setProperty(focusProperty, widget->hasFocus() ? 1.0 : 0.0);
-    widget->setProperty(focusVisibleProperty,
-                        widget->hasFocus() && d->keyboardInput);
+    framePropertyRegistry().set(widget, hoverProperty,
+                                widget->isEnabled() && widget->underMouse()
+                                    ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, pressProperty, 0.0);
+    framePropertyRegistry().set(widget, focusProperty,
+                                widget->hasFocus() ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, focusVisibleProperty,
+                                widget->hasFocus() && d->keyboardInput);
     if (auto *lineEdit = qobject_cast<QLineEdit *>(widget))
         prepareLineEditHelperButtons(lineEdit, this);
     if (qobject_cast<QScrollBar *>(widget)) {
-        widget->setProperty(scrollBarInsideProperty, widget->underMouse());
-        widget->setProperty(scrollBarGenerationProperty, 0);
+        framePropertyRegistry().set(widget, scrollBarInsideProperty,
+                                    widget->underMouse());
+        framePropertyRegistry().set(widget, scrollBarGenerationProperty, 0);
     }
     if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
         if (const auto previous = d->toggleConnections.take(widget))
             disconnect(previous);
-        widget->setProperty(checkProperty,
-                            checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
-        widget->setProperty(togglePositionProperty, checkBox->isChecked() ? 1.0 : 0.0);
+        framePropertyRegistry().set(widget, checkProperty,
+                                    checkBox->checkState() == Qt::Unchecked
+                                        ? 0.0 : 1.0);
+        framePropertyRegistry().set(widget, togglePositionProperty,
+                                    checkBox->isChecked() ? 1.0 : 0.0);
         d->toggleConnections.insert(widget,
             connect(checkBox, &QCheckBox::stateChanged, this,
                     [this, checkBox](int state) {
@@ -1575,7 +1590,8 @@ void Style::polish(QWidget *widget)
     } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
         if (const auto previous = d->radioConnections.take(radio))
             disconnect(previous);
-        widget->setProperty(checkProperty, radio->isChecked() ? 1.0 : 0.0);
+        framePropertyRegistry().set(widget, checkProperty,
+                                    radio->isChecked() ? 1.0 : 0.0);
         d->radioConnections.insert(radio,
             connect(radio, &QAbstractButton::toggled, this,
                     [this, radio](bool checked) {
@@ -1586,7 +1602,8 @@ void Style::polish(QWidget *widget)
                groupBox && groupBox->isCheckable()) {
         if (const auto previous = d->toggleConnections.take(widget))
             disconnect(previous);
-        widget->setProperty(checkProperty, groupBox->isChecked() ? 1.0 : 0.0);
+        framePropertyRegistry().set(widget, checkProperty,
+                                    groupBox->isChecked() ? 1.0 : 0.0);
         d->toggleConnections.insert(widget,
             connect(groupBox, &QGroupBox::toggled, this,
                     [this, groupBox](bool checked) {
@@ -1597,8 +1614,8 @@ void Style::polish(QWidget *widget)
 
     if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
         d->registerProgressBar(progressBar);
-        progressBar->setProperty(progressPhaseProperty,
-                                  Style::animationsAllowed() ? 0.0 : 0.35);
+        framePropertyRegistry().set(progressBar, progressPhaseProperty,
+                                    Style::animationsAllowed() ? 0.0 : 0.35);
         d->refreshProgressTimer();
     }
     if (auto *view = qobject_cast<QAbstractItemView *>(widget))
@@ -1608,6 +1625,7 @@ void Style::polish(QWidget *widget)
         if (const auto previous = d->tableConnections.take(widget))
             disconnect(previous);
         widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
         const auto applyTableSelectionPalette = [this, table] {
             QPalette palette = table->palette();
             const Private::Tokens tableTokens = Private::tokens(standardPalette());
@@ -1624,6 +1642,7 @@ void Style::polish(QWidget *widget)
     } else if (auto *editor = qobject_cast<QLineEdit *>(widget);
                editor && qobject_cast<const QTableView *>(itemView(editor))) {
         widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
         QPalette palette = editor->palette();
         const Private::Tokens editorTokens = Private::tokens(standardPalette());
         palette.setColor(QPalette::Highlight, accentColor());
@@ -1648,7 +1667,7 @@ void Style::polish(QWidget *widget)
     }
 
     if (qobject_cast<QComboBox *>(widget))
-        widget->setProperty(comboChevronProperty, 0.0);
+        framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
 
     // QMenu computes its first popup geometry after polish but before Show.
     // Install the layout inset here; the opaque palette is refreshed on Show.
@@ -1662,6 +1681,7 @@ void Style::polish(QWidget *widget)
         dialog && (qobject_cast<QMessageBox *>(dialog)
                    || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
+        d->registerPaletteOwner(dialog);
     }
 
 }
@@ -1673,7 +1693,8 @@ void Style::polish(QPalette &palette)
 
 void Style::unpolish(QApplication *application)
 {
-    d->systemAppearanceTimer->stop();
+    d->systemAppearanceWatchdog->stop();
+    d->clearPaletteOwners();
     if (application && d->applicationStateSaved) {
         application->setFont(d->originalApplicationFont);
         application->setPalette(d->originalApplicationPalette);
@@ -1685,6 +1706,7 @@ void Style::unpolish(QApplication *application)
 void Style::unpolish(QWidget *widget)
 {
     if (widget) {
+        d->unregisterPaletteOwner(widget);
         widget->removeEventFilter(this);
         if (auto *lineEdit = qobject_cast<QLineEdit *>(widget))
             cancelLineEditHelperUpdate(lineEdit);
@@ -1765,20 +1787,7 @@ void Style::unpolish(QWidget *widget)
         if (auto *slider = qobject_cast<QSlider *>(widget))
             hideSliderValueToolTip(slider);
         widget->removeEventFilter(this);
-        widget->setProperty(hoverProperty, {});
-        widget->setProperty(pressProperty, {});
-        widget->setProperty(buttonPressGenerationProperty, {});
-        widget->setProperty(buttonPressReleasePendingProperty, {});
-        widget->setProperty(focusProperty, {});
-        widget->setProperty(focusVisibleProperty, {});
-        widget->setProperty(checkProperty, {});
-        widget->setProperty(togglePositionProperty, {});
-        widget->setProperty("_winui_toggle_dragging", {});
-        widget->setProperty(scrollBarInsideProperty, {});
-        widget->setProperty(scrollBarGenerationProperty, {});
-        widget->setProperty(sliderToolTipVisibleProperty, {});
-        widget->setProperty(sliderToolTipValueProperty, {});
-        widget->setProperty(progressPhaseProperty, {});
+        framePropertyRegistry().clearObject(widget);
         widget->setProperty(ownedPaletteProperty, {});
         widget->setProperty(originalPaletteProperty, {});
         widget->setProperty(originalPaletteExplicitProperty, {});
@@ -1813,21 +1822,24 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         // leave a stale hover/pressed surface behind.
         d->clearPointerInteraction(widget);
         const bool enabled = widget->isEnabled();
-        widget->setProperty(hoverProperty,
-                            enabled && widget->underMouse() ? 1.0 : 0.0);
-        widget->setProperty(pressProperty, 0.0);
-        widget->setProperty(focusProperty,
-                            enabled && widget->hasFocus() ? 1.0 : 0.0);
-        widget->setProperty(focusVisibleProperty,
-                            enabled && widget->hasFocus() && d->keyboardInput);
+        framePropertyRegistry().set(widget, hoverProperty,
+                                    enabled && widget->underMouse()
+                                        ? 1.0 : 0.0);
+        framePropertyRegistry().set(widget, pressProperty, 0.0);
+        framePropertyRegistry().set(widget, focusProperty,
+                                    enabled && widget->hasFocus() ? 1.0 : 0.0);
+        framePropertyRegistry().set(widget, focusVisibleProperty,
+                                    enabled && widget->hasFocus()
+                                        && d->keyboardInput);
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
-            checkBox->setProperty(checkProperty,
-                                  checkBox->checkState() == Qt::Unchecked
-                                      ? 0.0 : 1.0);
-            checkBox->setProperty(togglePositionProperty,
-                                  checkBox->isChecked() ? 1.0 : 0.0);
+            framePropertyRegistry().set(checkBox, checkProperty,
+                                        checkBox->checkState() == Qt::Unchecked
+                                            ? 0.0 : 1.0);
+            framePropertyRegistry().set(checkBox, togglePositionProperty,
+                                        checkBox->isChecked() ? 1.0 : 0.0);
         } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
-            radio->setProperty(checkProperty, radio->isChecked() ? 1.0 : 0.0);
+            framePropertyRegistry().set(radio, checkProperty,
+                                        radio->isChecked() ? 1.0 : 0.0);
         }
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
             d->cancelScrollBarTimer(scrollBar);
@@ -1881,9 +1893,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation = widget->property(scrollBarGenerationProperty).toInt() + 1;
-            widget->setProperty(scrollBarInsideProperty, true);
-            widget->setProperty(scrollBarGenerationProperty, generation);
+            const int generation = framePropertyRegistry()
+                .value(widget, scrollBarGenerationProperty).toInt() + 1;
+            framePropertyRegistry().set(widget, scrollBarInsideProperty, true);
+            framePropertyRegistry().set(widget, scrollBarGenerationProperty,
+                                        generation);
             if (!animationsAllowed()) {
                 d->cancelScrollBarTimer(scrollBar);
                 d->animate(widget, hoverProperty, 1.0, 0);
@@ -1909,9 +1923,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation = widget->property(scrollBarGenerationProperty).toInt() + 1;
-            widget->setProperty(scrollBarInsideProperty, false);
-            widget->setProperty(scrollBarGenerationProperty, generation);
+            const int generation = framePropertyRegistry()
+                .value(widget, scrollBarGenerationProperty).toInt() + 1;
+            framePropertyRegistry().set(widget, scrollBarInsideProperty, false);
+            framePropertyRegistry().set(widget, scrollBarGenerationProperty,
+                                        generation);
             if (!animationsAllowed()) {
                 d->cancelScrollBarTimer(scrollBar);
                 d->animate(widget, hoverProperty, 0.0, 0);
@@ -1932,7 +1948,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         break;
     case QEvent::MouseButtonPress:
         d->keyboardInput = false;
-        widget->setProperty(focusVisibleProperty, false);
+        framePropertyRegistry().set(widget, focusVisibleProperty, false);
         if (!widget->isEnabled()) {
             d->clearPointerInteraction(widget);
             widget->update();
@@ -1940,7 +1956,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         }
         if (auto *viewport = qobject_cast<QAbstractItemView *>(widget->parentWidget());
             viewport && viewport->viewport() == widget) {
-            viewport->setProperty(focusVisibleProperty, false);
+            framePropertyRegistry().set(viewport, focusVisibleProperty, false);
             viewport->viewport()->update();
         }
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
@@ -1997,7 +2013,8 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                     && (mouse->position().toPoint() - state->pressPosition).manhattanLength()
                         >= QApplication::startDragDistance()) {
                     state->dragging = true;
-                    checkBox->setProperty("_winui_toggle_dragging", true);
+                    framePropertyRegistry().set(checkBox,
+                                                toggleDraggingProperty, true);
                 }
                 if (state->dragging) {
                     qreal position;
@@ -2007,8 +2024,9 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                     else
                         position = (mouse->position().x()
                                     - checkBox->rect().left() - 9.5) / 20.0;
-                    checkBox->setProperty(togglePositionProperty,
-                                          qBound<qreal>(0.0, position, 1.0));
+                    framePropertyRegistry().set(
+                        checkBox, togglePositionProperty,
+                        qBound<qreal>(0.0, position, 1.0));
                     checkBox->update();
                     return true;
                 }
@@ -2039,7 +2057,8 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             const auto state = d->toggleDragStates.take(checkBox);
             if (state.dragging) {
                 const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
-                checkBox->setProperty("_winui_toggle_dragging", false);
+                framePropertyRegistry().set(checkBox,
+                                            toggleDraggingProperty, false);
                 checkBox->setDown(false);
                 Q_EMIT checkBox->released();
                 if (checkBox->isChecked() != checked)
@@ -2065,11 +2084,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 || focus->reason() == Qt::BacktabFocusReason
                 || focus->reason() == Qt::ShortcutFocusReason
                 || d->keyboardInput;
-            widget->setProperty(focusVisibleProperty, keyboard);
+            framePropertyRegistry().set(widget, focusVisibleProperty, keyboard);
             if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
                 view && view->viewport() == widget) {
                 if (keyboard) {
-                    view->setProperty(focusVisibleProperty, true);
+                    framePropertyRegistry().set(view, focusVisibleProperty, true);
                     view->update();
                 }
             }
@@ -2083,10 +2102,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             d->cancelSliderToolTip(slider);
             hideSliderValueToolTip(slider);
         }
-        widget->setProperty(focusVisibleProperty, false);
+        framePropertyRegistry().set(widget, focusVisibleProperty, false);
         if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
             view && view->viewport() == widget) {
-            view->setProperty(focusVisibleProperty, false);
+            framePropertyRegistry().set(view, focusVisibleProperty, false);
             view->update();
         }
         d->animate(widget, focusProperty, 0.0,
@@ -2123,7 +2142,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             d->keyboardInput = true;
         }
         if (d->keyboardInput) {
-            widget->setProperty(focusVisibleProperty, true);
+            framePropertyRegistry().set(widget, focusVisibleProperty, true);
             widget->update();
         }
         break;
@@ -2177,6 +2196,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         if (qobject_cast<QProgressBar *>(widget))
             d->refreshProgressTimer();
         preparePopupSurface(widget);
+        d->registerPopupPaletteOwners(widget);
         break;
     case QEvent::Hide:
         if (qobject_cast<QProgressBar *>(widget))
@@ -2199,9 +2219,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         if (const auto *change = static_cast<QDynamicPropertyChangeEvent *>(event)) {
             const QByteArray name = change->propertyName();
             if (name == ToggleSwitchProperty) {
-                if (const auto *checkBox = qobject_cast<QCheckBox *>(widget))
-                    widget->setProperty(togglePositionProperty,
-                                        checkBox->isChecked() ? 1.0 : 0.0);
+                if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
+                    framePropertyRegistry().set(
+                        checkBox, togglePositionProperty,
+                        checkBox->isChecked() ? 1.0 : 0.0);
                 widget->updateGeometry();
                 widget->update();
             } else if (name == ToggleSwitchOnTextProperty
@@ -2225,10 +2246,13 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             } else if (name == ContentDialogProperty) {
                 if (auto *dialog = qobject_cast<QDialog *>(widget);
                     dialog && !qobject_cast<QMessageBox *>(dialog)) {
-                    if (dialog->property(ContentDialogProperty).toBool())
+                    if (dialog->property(ContentDialogProperty).toBool()) {
                         prepareContentDialogState(dialog, d->dark());
-                    else
+                        d->registerPaletteOwner(dialog);
+                    } else {
+                        d->unregisterPaletteOwner(dialog);
                         restoreContentDialogState(dialog, true);
+                    }
                 }
             } else if (name == VerticalSpinButtonsProperty) {
                 widget->updateGeometry();

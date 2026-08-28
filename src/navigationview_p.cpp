@@ -1,6 +1,8 @@
 #include "navigationview_p.h"
 
 #include "winui3paint_p.h"
+#include "winui3frameproperties_p.h"
+#include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -28,10 +30,7 @@ constexpr auto originalMouseTrackingProperty = "_winui_original_mouse_tracking";
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback)
 {
-    if (!widget)
-        return fallback;
-    const QVariant value = widget->property(name);
-    return value.isValid() ? value.toReal() : fallback;
+    return WinUI3::Private::framePropertyRegistry().real(widget, name, fallback);
 }
 
 bool animationsAllowed()
@@ -41,7 +40,8 @@ bool animationsAllowed()
 
 bool keyboardFocusVisible(const QWidget *widget)
 {
-    return widget && widget->property("_winui_focus_visible").toBool();
+    return widget && WinUI3::Private::framePropertyRegistry()
+        .value(widget, WinUI3::Private::focusVisibleProperty).toBool();
 }
 
 const QEasingCurve &fluentCurve()
@@ -66,7 +66,8 @@ public:
                          [this](const QVariant &value) {
             m_indicatorY = value.toReal();
             if (m_view) {
-                m_view->viewport()->setProperty(navigationIndicatorProperty, m_indicatorY);
+                WinUI3::Private::framePropertyRegistry().set(
+                    m_view->viewport(), navigationIndicatorProperty, m_indicatorY);
                 m_view->viewport()->update();
             }
         });
@@ -93,7 +94,8 @@ public:
         m_verticalConnection = {};
         m_horizontalConnection = {};
         if (clearViewport && m_view && m_view->viewport()) {
-            m_view->viewport()->setProperty(navigationIndicatorProperty, {});
+            WinUI3::Private::framePropertyRegistry().clear(
+                m_view->viewport(), navigationIndicatorProperty);
             m_view->viewport()->update();
         }
         m_selectionModel.clear();
@@ -180,7 +182,8 @@ private:
             m_indicatorAnimation.stop();
             m_indicatorY = -1.0;
             if (m_view->viewport()) {
-                m_view->viewport()->setProperty(navigationIndicatorProperty, {});
+                WinUI3::Private::framePropertyRegistry().clear(
+                    m_view->viewport(), navigationIndicatorProperty);
                 m_view->viewport()->update();
             }
             return;
@@ -189,10 +192,11 @@ private:
         if (m_indicatorY < 0.0 || !animate || !animationsAllowed()) {
             m_indicatorAnimation.stop();
             m_indicatorY = target;
-            if (m_view->viewport())
-                m_view->viewport()->setProperty(navigationIndicatorProperty, m_indicatorY);
-            if (m_view->viewport())
+            if (m_view->viewport()) {
+                WinUI3::Private::framePropertyRegistry().set(
+                    m_view->viewport(), navigationIndicatorProperty, m_indicatorY);
                 m_view->viewport()->update();
+            }
             return;
         }
         m_indicatorAnimation.stop();
@@ -249,7 +253,8 @@ void clearNavigationProperties(QAbstractItemView *view)
     view->setProperty(navigationDelegateProperty, {});
     view->setProperty(navigationOriginalDelegateProperty, {});
     if (view->viewport())
-        view->viewport()->setProperty(navigationIndicatorProperty, {});
+        WinUI3::Private::framePropertyRegistry().clear(
+            view->viewport(), navigationIndicatorProperty);
 }
 
 void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *state)
@@ -326,7 +331,8 @@ void restoreNavigationView(QAbstractItemView *view)
         view->viewport()->setMouseTracking(view->viewport()->property(originalMouseTrackingProperty).toBool());
     view->viewport()->setProperty(originalMouseTrackingProperty, {});
     view->viewport()->setProperty(Style::NavigationViewProperty, {});
-    view->viewport()->setProperty(navigationIndicatorProperty, {});
+    WinUI3::Private::framePropertyRegistry().clear(
+        view->viewport(), navigationIndicatorProperty);
 }
 
 } // namespace WinUI3::NavigationPrivate

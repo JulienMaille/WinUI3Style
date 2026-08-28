@@ -1,6 +1,7 @@
 #include "winui3buttons_p.h"
 
 #include "winui3paint_p.h"
+#include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -47,15 +48,12 @@ bool textBoxHelperButton(const QWidget *widget)
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
 {
-    if (!widget)
-        return fallback;
-    const QVariant value = widget->property(name);
-    return value.isValid() ? value.toReal() : fallback;
+    return framePropertyRegistry().real(widget, name, fallback);
 }
 
 bool keyboardFocusVisible(const QWidget *widget)
 {
-    return widget && widget->property(focusVisibleProperty).toBool();
+    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
 } // namespace
@@ -358,7 +356,8 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                          check->state & QStyle::State_Sunken ? 1.0 : 0.0);
             const qreal position = progress(widget, togglePositionProperty,
                                             checked ? 1.0 : 0.0);
-            const bool dragging = widget->property("_winui_toggle_dragging").toBool();
+            const bool dragging = framePropertyRegistry()
+                .value(widget, toggleDraggingProperty).toBool();
 
             const qreal trackLeft = check->direction == Qt::RightToLeft
                 ? check->rect.right() - 39.5 : check->rect.left() + 0.5;

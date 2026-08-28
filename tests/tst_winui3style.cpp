@@ -5,6 +5,8 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
+#include "../src/winui3frameproperties_p.h"
+
 #include <QLabel>
 #include <QListWidget>
 #include <QListView>
@@ -688,6 +690,29 @@ void WinUI3StyleTest::coloredIconCacheReuseAndPixelContract()
     QCOMPARE(paintDirect(rebuilt), firstDirectPaint);
 }
 
+static qreal frameReal(const QObject *object, const char *name,
+                       qreal fallback = 0.0)
+{
+    return WinUI3::Private::framePropertyRegistry().real(object, name, fallback);
+}
+
+static bool frameBool(const QObject *object, const char *name,
+                      bool fallback = false)
+{
+    const QVariant value = WinUI3::Private::framePropertyRegistry().value(object, name);
+    return value.isValid() ? value.toBool() : fallback;
+}
+
+static QVariant frameValue(const QObject *object, const char *name)
+{
+    return WinUI3::Private::framePropertyRegistry().value(object, name);
+}
+
+static void setFrame(QObject *object, const char *name, const QVariant &value)
+{
+    WinUI3::Private::framePropertyRegistry().set(object, name, value);
+}
+
 void WinUI3StyleTest::buttonPressedPulseContract()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
@@ -707,23 +732,23 @@ void WinUI3StyleTest::buttonPressedPulseContract()
             QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier,
                               button.rect().center());
             qApp->processEvents();
-            QCOMPARE(button.property("_winui_press_progress").toReal(), 1.0);
+            QCOMPARE(frameReal(&button, "_winui_press_progress"), 1.0);
             const QImage pressed = button.grab().toImage();
             QVERIFY2(pressed != rest, "a left press must produce a visible frame");
             QTest::mouseRelease(&button, Qt::LeftButton, Qt::NoModifier,
                                 button.rect().center());
         }
         QTest::qWait(130);
-        QVERIFY(button.property("_winui_press_progress").toReal() < 0.1);
+        QVERIFY(frameReal(&button, "_winui_press_progress") < 0.1);
 
         QTest::mousePress(&button, Qt::RightButton, Qt::NoModifier,
                           button.rect().center());
-        QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+        QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
         QTest::mouseRelease(&button, Qt::RightButton, Qt::NoModifier,
                             button.rect().center());
         QTest::mousePress(&button, Qt::MiddleButton, Qt::NoModifier,
                           button.rect().center());
-        QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+        QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
         QTest::mouseRelease(&button, Qt::MiddleButton, Qt::NoModifier,
                             button.rect().center());
     }
@@ -738,12 +763,12 @@ void WinUI3StyleTest::buttonPressedPulseContract()
     QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier,
                       tool.rect().center());
     qApp->processEvents();
-    QCOMPARE(tool.property("_winui_press_progress").toReal(), 1.0);
+    QCOMPARE(frameReal(&tool, "_winui_press_progress"), 1.0);
     QVERIFY(tool.grab().toImage() != toolRest);
     QTest::mouseRelease(&tool, Qt::LeftButton, Qt::NoModifier,
                         tool.rect().center());
     QTest::qWait(130);
-    QVERIFY(tool.property("_winui_press_progress").toReal() < 0.1);
+    QVERIFY(frameReal(&tool, "_winui_press_progress") < 0.1);
 }
 
 void WinUI3StyleTest::buttonPressedStateFollowsQtState()
@@ -757,8 +782,8 @@ void WinUI3StyleTest::buttonPressedStateFollowsQtState()
         WinUI3::Style::setControlRole(&button, role);
         button.resize(120, 32);
         button.ensurePolished();
-        button.setProperty("_winui_hover_progress", 1.0);
-        button.setProperty("_winui_press_progress", 0.0);
+        setFrame(&button, "_winui_hover_progress", 1.0);
+        setFrame(&button, "_winui_press_progress", 0.0);
 
         QStyleOptionButton option;
         option.initFrom(&button);
@@ -808,8 +833,8 @@ void WinUI3StyleTest::disabledButtonHasNoInteractionState()
                               button.rect().center());
             button.setEnabled(false);
             qApp->processEvents();
-            QCOMPARE(button.property("_winui_hover_progress").toReal(), 0.0);
-            QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+            QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
+            QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
 
             QEvent enter(QEvent::Enter);
             QCoreApplication::sendEvent(&button, &enter);
@@ -817,12 +842,12 @@ void WinUI3StyleTest::disabledButtonHasNoInteractionState()
                               QPointF(button.rect().center()),
                               Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(&button, &press);
-            QCOMPARE(button.property("_winui_hover_progress").toReal(), 0.0);
-            QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+            QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
+            QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
 
             QTest::qWait(220);
-            QCOMPARE(button.property("_winui_hover_progress").toReal(), 0.0);
-            QCOMPARE(button.property("_winui_press_progress").toReal(), 0.0);
+            QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
+            QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
 
             auto render = [&](QStyle::State state) {
                 QStyleOptionButton option;
@@ -851,11 +876,11 @@ void WinUI3StyleTest::disabledButtonHasNoInteractionState()
                           tool.rect().center());
         tool.setEnabled(false);
         qApp->processEvents();
-        QCOMPARE(tool.property("_winui_hover_progress").toReal(), 0.0);
-        QCOMPARE(tool.property("_winui_press_progress").toReal(), 0.0);
+        QCOMPARE(frameReal(&tool, "_winui_hover_progress"), 0.0);
+        QCOMPARE(frameReal(&tool, "_winui_press_progress"), 0.0);
         QTest::qWait(220);
-        QCOMPARE(tool.property("_winui_hover_progress").toReal(), 0.0);
-        QCOMPARE(tool.property("_winui_press_progress").toReal(), 0.0);
+        QCOMPARE(frameReal(&tool, "_winui_hover_progress"), 0.0);
+        QCOMPARE(frameReal(&tool, "_winui_press_progress"), 0.0);
     }
 }
 
@@ -927,15 +952,15 @@ void WinUI3StyleTest::styleMutationRestoration()
     QCommonStyle replacementStyle;
     QLineEdit pendingHelperUpdate;
     style->polish(&pendingHelperUpdate);
-    QVERIFY(pendingHelperUpdate.property(
-        "_winui_line_edit_helper_update_pending").isValid());
+    QVERIFY(frameValue(&pendingHelperUpdate,
+                       "_winui_line_edit_helper_update_pending").isValid());
     style->unpolish(&pendingHelperUpdate);
-    QVERIFY(!pendingHelperUpdate.property(
-        "_winui_line_edit_helper_update_pending").isValid());
+    QVERIFY(!frameValue(&pendingHelperUpdate,
+                        "_winui_line_edit_helper_update_pending").isValid());
     pendingHelperUpdate.setStyle(&replacementStyle);
     QCoreApplication::processEvents();
-    QVERIFY(!pendingHelperUpdate.property(
-        "_winui_line_edit_helper_update_pending").isValid());
+    QVERIFY(!frameValue(&pendingHelperUpdate,
+                        "_winui_line_edit_helper_update_pending").isValid());
 
     QWidget widget;
     const QPalette originalPalette = widget.palette();
@@ -1154,18 +1179,18 @@ void WinUI3StyleTest::toggleConvenienceWidget()
     toggle.resize(toggle.sizeHint());
     toggle.show();
     toggle.setChecked(false);
-    QTRY_VERIFY(toggle.property("_winui_toggle_position").toReal() < 0.01);
+    QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") < 0.01);
     toggle.setChecked(true);
     QTest::qWait(35);
     const qreal beforeTextChange =
-        toggle.property("_winui_toggle_position").toReal();
+        frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(beforeTextChange > 0.0 && beforeTextChange < 0.99);
     toggle.setOnText(QStringLiteral("Enabled"));
     const qreal afterTextChange =
-        toggle.property("_winui_toggle_position").toReal();
+        frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(afterTextChange < 0.99);
     QVERIFY(std::abs(afterTextChange - beforeTextChange) < 0.15);
-    QTRY_VERIFY(toggle.property("_winui_toggle_position").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.99);
 }
 
 void WinUI3StyleTest::toggleInteraction()
@@ -1183,18 +1208,18 @@ void WinUI3StyleTest::toggleInteraction()
     QVERIFY(toggle.isChecked());
     QCOMPARE(spy.count(), 1);
     QTest::qWait(35);
-    const qreal midway = toggle.property("_winui_toggle_position").toReal();
+    const qreal midway = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
-    QTRY_VERIFY(toggle.property("_winui_toggle_position").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.99);
     toggle.setChecked(false);
     QTest::qWait(35);
-    const qreal reverse = toggle.property("_winui_toggle_position").toReal();
+    const qreal reverse = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(reverse > 0.0 && reverse < 1.0);
     toggle.setChecked(true);
-    QTRY_VERIFY(toggle.property("_winui_toggle_position").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.99);
     QFocusEvent keyboardFocus(QEvent::FocusIn, Qt::TabFocusReason);
     QCoreApplication::sendEvent(&toggle, &keyboardFocus);
-    QVERIFY(toggle.property("_winui_focus_visible").toBool());
+    QVERIFY(frameBool(&toggle, "_winui_focus_visible"));
     toggle.setEnabled(false);
     QVERIFY(!toggle.grab().isNull());
 }
@@ -1218,14 +1243,14 @@ void WinUI3StyleTest::toggleDragInteraction()
     QMouseEvent move(QEvent::MouseMove, QPointF(32, 20), Qt::NoButton,
                      Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &move);
-    QVERIFY(toggle.property("_winui_toggle_dragging").toBool());
-    QVERIFY(toggle.property("_winui_toggle_position").toReal() > 0.9);
+    QVERIFY(frameBool(&toggle, "_winui_toggle_dragging"));
+    QVERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.9);
 
     QMouseEvent release(QEvent::MouseButtonRelease, QPointF(32, 20),
                         Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &release);
     QVERIFY(toggle.isChecked());
-    QVERIFY(!toggle.property("_winui_toggle_dragging").toBool());
+    QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
     QCOMPARE(clicked.count(), 1);
 }
 
@@ -1242,7 +1267,7 @@ void WinUI3StyleTest::settingsCardExpansion()
     QTest::mouseMove(&card, QPoint(20, 20));
     QTest::mousePress(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
     QTest::qWait(35);
-    const qreal pressed = card.property("_winui_press_progress").toReal();
+    const qreal pressed = frameReal(&card, "_winui_press_progress");
     QVERIFY2(pressed > 0.0 && pressed < 1.0,
              qPrintable(QString::number(pressed)));
     QTest::mouseRelease(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
@@ -1528,8 +1553,8 @@ void WinUI3StyleTest::settingsCardInteractiveFrames()
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     const QImage first = card.grab().toImage();
-    QVERIFY(chevron->pixmap(Qt::ReturnByValue).toImage() !=
-            collapsedChevron.toImage());
+    QTRY_VERIFY(chevron->pixmap(Qt::ReturnByValue).toImage() !=
+                collapsedChevron.toImage());
     QCOMPARE(header->geometry(), headerGeometry);
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
@@ -1597,11 +1622,11 @@ void WinUI3StyleTest::navigationTransition()
                       Qt::NoModifier, second.center());
     QTRY_COMPARE(view.currentIndex(), 1);
     QTest::qWait(90);
-    const qreal indicator = view.navigationList()->viewport()->property(
-        "_winui_navigation_indicator_y").toReal();
+    const qreal indicator = frameReal(view.navigationList()->viewport(),
+                                      "_winui_navigation_indicator_y");
     QVERIFY(indicator > 0.0 && indicator < second.top());
-    QTRY_VERIFY(qAbs(view.navigationList()->viewport()->property(
-                         "_winui_navigation_indicator_y").toReal()
+    QTRY_VERIFY(qAbs(frameReal(view.navigationList()->viewport(),
+                              "_winui_navigation_indicator_y")
                      - second.top()) < 0.5);
 }
 
@@ -1794,18 +1819,18 @@ void WinUI3StyleTest::inputModalityFocus()
     QCoreApplication::sendEvent(&button, &mousePress);
     QFocusEvent mouseFocus(QEvent::FocusIn, Qt::MouseFocusReason);
     QCoreApplication::sendEvent(&button, &mouseFocus);
-    QVERIFY(!button.property("_winui_focus_visible").toBool());
+    QVERIFY(!frameBool(&button, "_winui_focus_visible"));
     QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
     QCoreApplication::sendEvent(&button, &escape);
-    QVERIFY(!button.property("_winui_focus_visible").toBool());
+    QVERIFY(!frameBool(&button, "_winui_focus_visible"));
     QKeyEvent space(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
     QCoreApplication::sendEvent(&button, &space);
-    QVERIFY(button.property("_winui_focus_visible").toBool());
+    QVERIFY(frameBool(&button, "_winui_focus_visible"));
     QCoreApplication::sendEvent(&button, &mousePress);
-    QVERIFY(!button.property("_winui_focus_visible").toBool());
+    QVERIFY(!frameBool(&button, "_winui_focus_visible"));
     QFocusEvent keyboardFocus(QEvent::FocusIn, Qt::TabFocusReason);
     QCoreApplication::sendEvent(&button, &keyboardFocus);
-    QVERIFY(button.property("_winui_focus_visible").toBool());
+    QVERIFY(frameBool(&button, "_winui_focus_visible"));
 }
 
 void WinUI3StyleTest::hoverAnimationProgresses()
@@ -1818,9 +1843,9 @@ void WinUI3StyleTest::hoverAnimationProgresses()
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&button, &enter);
     QTest::qWait(35);
-    const qreal midway = button.property("_winui_hover_progress").toReal();
+    const qreal midway = frameReal(&button, "_winui_hover_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
-    QTRY_VERIFY(button.property("_winui_hover_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&button, "_winui_hover_progress") > 0.99);
 }
 
 void WinUI3StyleTest::textBoxInteraction()
@@ -1833,7 +1858,7 @@ void WinUI3StyleTest::textBoxInteraction()
     edit.show();
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&edit, &enter);
-    QCOMPARE(edit.property("_winui_hover_progress").toReal(), 1.0);
+    QCOMPARE(frameReal(&edit, "_winui_hover_progress"), 1.0);
 
     QStyleOptionFrame option;
     option.initFrom(&edit);
@@ -1859,8 +1884,8 @@ void WinUI3StyleTest::textBoxInteraction()
 
     QFocusEvent mouseFocus(QEvent::FocusIn, Qt::MouseFocusReason);
     QCoreApplication::sendEvent(&edit, &mouseFocus);
-    QCOMPARE(edit.property("_winui_focus_progress").toReal(), 1.0);
-    QVERIFY(!edit.property("_winui_focus_visible").toBool());
+    QCOMPARE(frameReal(&edit, "_winui_focus_progress"), 1.0);
+    QVERIFY(!frameBool(&edit, "_winui_focus_visible"));
 
     QImage focused(edit.size(), QImage::Format_ARGB32_Premultiplied);
     focused.fill(Qt::transparent);
@@ -1881,7 +1906,7 @@ void WinUI3StyleTest::textBoxInteraction()
 
     QFocusEvent tabFocus(QEvent::FocusIn, Qt::TabFocusReason);
     QCoreApplication::sendEvent(&edit, &tabFocus);
-    QVERIFY(edit.property("_winui_focus_visible").toBool());
+    QVERIFY(frameBool(&edit, "_winui_focus_visible"));
 }
 
 void WinUI3StyleTest::clearButtonStateContract()
@@ -1902,7 +1927,7 @@ void WinUI3StyleTest::clearButtonStateContract()
     const QImage runtimeNormal = edit.grab().toImage();
     QTest::mouseMove(clearButton, clearButton->rect().center());
     QTRY_VERIFY(clearButton->underMouse());
-    QTRY_COMPARE(clearButton->property("_winui_hover_progress").toReal(), 1.0);
+    QTRY_COMPARE(frameReal(clearButton, "_winui_hover_progress"), 1.0);
     QCoreApplication::processEvents();
     const QImage runtimeHover = edit.grab().toImage();
     QVERIFY(runtimeNormal != runtimeHover);
@@ -1929,9 +1954,9 @@ void WinUI3StyleTest::clearButtonStateContract()
              qPrintable(QStringLiteral("maxDelta=%1")
                             .arg(maximumChannelDelta)));
     QTest::mouseMove(&edit, QPoint(8, edit.rect().center().y()));
-    QTRY_COMPARE(clearButton->property("_winui_hover_progress").toReal(), 0.0);
-    clearButton->setProperty("_winui_hover_progress", 0.0);
-    clearButton->setProperty("_winui_press_progress", 0.0);
+    QTRY_COMPARE(frameReal(clearButton, "_winui_hover_progress"), 0.0);
+    setFrame(clearButton, "_winui_hover_progress", 0.0);
+    setFrame(clearButton, "_winui_press_progress", 0.0);
 
     QStyleOptionToolButton option;
     option.initFrom(clearButton);
@@ -1943,8 +1968,8 @@ void WinUI3StyleTest::clearButtonStateContract()
     option.iconSize = QSize(16, 16);
 
     const auto render = [&](QStyle::State state, qreal hover, qreal press) {
-        clearButton->setProperty("_winui_hover_progress", hover);
-        clearButton->setProperty("_winui_press_progress", press);
+        setFrame(clearButton, "_winui_hover_progress", hover);
+        setFrame(clearButton, "_winui_press_progress", press);
         QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(edit.palette().color(QPalette::Window));
         option.state = state;
@@ -2244,14 +2269,14 @@ void WinUI3StyleTest::comboChevronMotion()
                       combo.mapToGlobal(combo.rect().center()));
     QCoreApplication::sendEvent(&combo, &enter);
     QTest::qWait(30);
-    QCOMPARE(combo.property("_winui_combo_chevron_progress").toReal(), 0.0);
+    QCOMPARE(frameReal(&combo, "_winui_combo_chevron_progress"), 0.0);
 
     QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, combo.rect().center());
-    QTRY_VERIFY(combo.property("_winui_combo_chevron_progress").toReal() > 0.9);
+    QTRY_VERIFY(frameReal(&combo, "_winui_combo_chevron_progress") > 0.9);
     QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier,
                         combo.rect().center());
-    QTRY_VERIFY(combo.property("_winui_combo_chevron_progress").toReal() < -0.05);
-    QTRY_VERIFY(qAbs(combo.property("_winui_combo_chevron_progress").toReal())
+    QTRY_VERIFY(frameReal(&combo, "_winui_combo_chevron_progress") < -0.05);
+    QTRY_VERIFY(qAbs(frameReal(&combo, "_winui_combo_chevron_progress"))
                 < 0.01);
     combo.hidePopup();
 }
@@ -2262,7 +2287,7 @@ void WinUI3StyleTest::comboChevronGeometry()
     combo.addItems({QStringLiteral("One"), QStringLiteral("Two")});
     combo.resize(220, 32);
     combo.show();
-    combo.setProperty("_winui_combo_chevron_progress", 0.0);
+    setFrame(&combo, "_winui_combo_chevron_progress", 0.0);
 
     const auto renderChevron = [&](Qt::LayoutDirection direction) {
         QStyleOptionComboBox option;
@@ -2509,12 +2534,12 @@ void WinUI3StyleTest::checkboxAcceptAnimation()
     check.show();
     check.setChecked(true);
     QTest::qWait(55);
-    const qreal midway = check.property("_winui_check_progress").toReal();
+    const qreal midway = frameReal(&check, "_winui_check_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
     // After the initial generated hold, the accept stroke must still be in a
     // visibly partial state instead of completing in an imperceptible ~20 ms.
     QVERIFY2(midway < 0.90, qPrintable(QString::number(midway)));
-    QTRY_VERIFY(check.property("_winui_check_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&check, "_winui_check_progress") > 0.99);
 }
 
 void WinUI3StyleTest::checkboxGlyphGeometryContract()
@@ -2522,7 +2547,7 @@ void WinUI3StyleTest::checkboxGlyphGeometryContract()
     QCheckBox check(QStringLiteral("Check"));
     check.resize(120, 32);
     check.show();
-    check.setProperty("_winui_check_progress", 1.0);
+    setFrame(&check, "_winui_check_progress", 1.0);
 
     QStyleOptionButton option;
     option.initFrom(&check);
@@ -2592,15 +2617,15 @@ void WinUI3StyleTest::checkboxDisabledStopsAnimation()
     check.show();
     check.setChecked(true);
     QTest::qWait(25);
-    QVERIFY(check.property("_winui_check_progress").toReal() > 0.0);
-    QVERIFY(check.property("_winui_check_progress").toReal() < 1.0);
+    QVERIFY(frameReal(&check, "_winui_check_progress") > 0.0);
+    QVERIFY(frameReal(&check, "_winui_check_progress") < 1.0);
 
     check.setEnabled(false);
-    QCOMPARE(check.property("_winui_check_progress").toReal(), 1.0);
+    QCOMPARE(frameReal(&check, "_winui_check_progress"), 1.0);
     QTest::qWait(230);
-    QCOMPARE(check.property("_winui_check_progress").toReal(), 1.0);
-    QCOMPARE(check.property("_winui_hover_progress").toReal(), 0.0);
-    QCOMPARE(check.property("_winui_press_progress").toReal(), 0.0);
+    QCOMPARE(frameReal(&check, "_winui_check_progress"), 1.0);
+    QCOMPARE(frameReal(&check, "_winui_hover_progress"), 0.0);
+    QCOMPARE(frameReal(&check, "_winui_press_progress"), 0.0);
 }
 
 void WinUI3StyleTest::radioStateMotion()
@@ -2612,9 +2637,9 @@ void WinUI3StyleTest::radioStateMotion()
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&radio, &enter);
     QTest::qWait(90);
-    const qreal hover = radio.property("_winui_hover_progress").toReal();
+    const qreal hover = frameReal(&radio, "_winui_hover_progress");
     QVERIFY2(hover > 0.0 && hover < 1.0, qPrintable(QString::number(hover)));
-    QTRY_VERIFY(radio.property("_winui_hover_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&radio, "_winui_hover_progress") > 0.99);
 }
 
 void WinUI3StyleTest::radioDotDpiGeometry()
@@ -2622,12 +2647,12 @@ void WinUI3StyleTest::radioDotDpiGeometry()
     QRadioButton radio(QStringLiteral("Radio"));
     radio.resize(32, 32);
     radio.show();
-    radio.setProperty("_winui_check_progress", 1.0);
+    setFrame(&radio, "_winui_check_progress", 1.0);
 
     const qreal dpr = radio.devicePixelRatioF();
     const auto renderDot = [&](qreal hover, qreal press) {
-        radio.setProperty("_winui_hover_progress", hover);
-        radio.setProperty("_winui_press_progress", press);
+        setFrame(&radio, "_winui_hover_progress", hover);
+        setFrame(&radio, "_winui_press_progress", press);
         QStyleOptionButton option;
         option.initFrom(&radio);
         option.rect = QRect(0, 0, 20, 20);
@@ -2766,7 +2791,7 @@ void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()
     bar.resize(180, 32);
     bar.show();
     (void)QTest::qWaitForWindowExposed(&bar);
-    bar.setProperty("_winui_hover_progress", 1.0);
+    setFrame(&bar, "_winui_hover_progress", 1.0);
 
     for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
                                                 Qt::RightToLeft}) {
@@ -2841,14 +2866,14 @@ void WinUI3StyleTest::groupBoxContract()
 
     group.setChecked(true);
     QTest::qWait(55);
-    const qreal midway = group.property("_winui_check_progress").toReal();
+    const qreal midway = frameReal(&group, "_winui_check_progress");
     QVERIFY(midway > 0.0 && midway < 1.0);
-    QTRY_VERIFY(group.property("_winui_check_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&group, "_winui_check_progress") > 0.99);
 
     QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier,
                       indicator.center());
     QVERIFY(!group.isChecked());
-    QCOMPARE(group.property("_winui_check_progress").toReal(), 0.0);
+    QCOMPARE(frameReal(&group, "_winui_check_progress"), 0.0);
 
     group.setLayoutDirection(Qt::RightToLeft);
     option.initFrom(&group);
@@ -2880,9 +2905,9 @@ void WinUI3StyleTest::splitterHandleContract()
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(handle, &enter);
     QTest::qWait(35);
-    const qreal midway = handle->property("_winui_hover_progress").toReal();
+    const qreal midway = frameReal(handle, "_winui_hover_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
-    QTRY_VERIFY(handle->property("_winui_hover_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(handle, "_winui_hover_progress") > 0.99);
 
     const QList<int> beforeDrag = splitter.sizes();
     const QPoint handleCenter = handle->rect().center();
@@ -3073,13 +3098,13 @@ void WinUI3StyleTest::sliderStateMotion()
 
     QEvent leave(QEvent::Leave);
     QCoreApplication::sendEvent(&slider, &leave);
-    QTRY_VERIFY(slider.property("_winui_hover_progress").toReal() < 0.01);
+    QTRY_VERIFY(frameReal(&slider, "_winui_hover_progress") < 0.01);
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&slider, &enter);
     QTest::qWait(100);
-    const qreal hoverMidway = slider.property("_winui_hover_progress").toReal();
+    const qreal hoverMidway = frameReal(&slider, "_winui_hover_progress");
     QVERIFY(hoverMidway > 0.0 && hoverMidway < 1.0);
-    QTRY_VERIFY(slider.property("_winui_hover_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&slider, "_winui_hover_progress") > 0.99);
 
     QStyleOptionSlider option;
     option.initFrom(&slider);
@@ -3091,10 +3116,10 @@ void WinUI3StyleTest::sliderStateMotion()
         QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, &slider);
     QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
     QTest::qWait(100);
-    const qreal pressMidway = slider.property("_winui_press_progress").toReal();
+    const qreal pressMidway = frameReal(&slider, "_winui_press_progress");
     QVERIFY(pressMidway > 0.0 && pressMidway < 1.0);
     QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
-    QTRY_VERIFY(slider.property("_winui_press_progress").toReal() < 0.01);
+    QTRY_VERIFY(frameReal(&slider, "_winui_press_progress") < 0.01);
 }
 
 void WinUI3StyleTest::sliderDragInteraction()
@@ -3144,8 +3169,8 @@ void WinUI3StyleTest::sliderValueToolTipAndFocus()
         QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, &slider);
 
     QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
-    QTRY_VERIFY(slider.property("_winui_slider_tooltip_visible").toBool());
-    QCOMPARE(slider.property("_winui_slider_tooltip_value").toString(),
+    QTRY_VERIFY(frameBool(&slider, "_winui_slider_tooltip_visible"));
+    QCOMPARE(frameValue(&slider, "_winui_slider_tooltip_value").toString(),
              QStringLiteral("42"));
     if (QGuiApplication::platformName() != QStringLiteral("offscreen")) {
         QTRY_VERIFY(slider.findChild<QWidget *>(
@@ -3155,11 +3180,11 @@ void WinUI3StyleTest::sliderValueToolTipAndFocus()
                      Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&slider, &move);
     QTRY_VERIFY(slider.value() > 42);
-    QTRY_COMPARE(slider.property("_winui_slider_tooltip_value").toString(),
+    QTRY_COMPARE(frameValue(&slider, "_winui_slider_tooltip_value").toString(),
                  QString::number(slider.value()));
     QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
                         handle.center() + QPoint(90, 0));
-    QTRY_VERIFY(!slider.property("_winui_slider_tooltip_visible").toBool());
+    QTRY_VERIFY(!frameBool(&slider, "_winui_slider_tooltip_visible"));
     if (auto *tip = slider.findChild<QWidget *>(
             QStringLiteral("_winui_slider_value_tip"))) {
         QTRY_VERIFY(!tip->isVisible());
@@ -3185,11 +3210,11 @@ void WinUI3StyleTest::sliderValueToolTipAndFocus()
     QCoreApplication::sendEvent(&slider, &mouseFocus);
     option.state |= QStyle::State_HasFocus;
     const QImage mouseFocused = render(option);
-    QVERIFY(!slider.property("_winui_focus_visible").toBool());
+    QVERIFY(!frameBool(&slider, "_winui_focus_visible"));
 
     QFocusEvent tabFocus(QEvent::FocusIn, Qt::TabFocusReason);
     QCoreApplication::sendEvent(&slider, &tabFocus);
-    QVERIFY(slider.property("_winui_focus_visible").toBool());
+    QVERIFY(frameBool(&slider, "_winui_focus_visible"));
     const QImage keyboardFocused = render(option);
     QVERIFY(mouseFocused != keyboardFocused);
 
@@ -3244,7 +3269,7 @@ void WinUI3StyleTest::scrollBarContract()
         return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
             + qAbs(a.blue() - b.blue());
     };
-    bar.setProperty("_winui_hover_progress", 0.0);
+    setFrame(&bar, "_winui_hover_progress", 0.0);
     QImage collapsedGeometry = bar.grab().toImage();
     const QColor background = bar.palette().color(QPalette::Window);
     const int sampleY = thumb.center().y();
@@ -3257,7 +3282,7 @@ void WinUI3StyleTest::scrollBarContract()
 
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&bar, &enter);
-    QCOMPARE(bar.property("_winui_hover_progress").toReal(), 1.0);
+    QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 1.0);
 
     const int beforeArrow = bar.value();
     QTest::mouseClick(&bar, Qt::LeftButton, Qt::NoModifier, increase.center());
@@ -3279,7 +3304,7 @@ void WinUI3StyleTest::scrollBarContract()
 
     QEvent leave(QEvent::Leave);
     QCoreApplication::sendEvent(&bar, &leave);
-    QCOMPARE(bar.property("_winui_hover_progress").toReal(), 0.0);
+    QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 0.0);
     const QImage collapsed = bar.grab().toImage();
     QCOMPARE(collapsed.pixelColor(0, collapsed.height() / 2),
              bar.palette().color(QPalette::Window));
@@ -3321,7 +3346,7 @@ void WinUI3StyleTest::scrollBarHorizontalAndReentry()
         return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
             + qAbs(a.blue() - b.blue());
     };
-    bar.setProperty("_winui_hover_progress", 0.0);
+    setFrame(&bar, "_winui_hover_progress", 0.0);
     QImage collapsedGeometry = bar.grab().toImage();
     const QColor background = bar.palette().color(QPalette::Window);
     const int sampleX = thumb.center().x();
@@ -3334,20 +3359,20 @@ void WinUI3StyleTest::scrollBarHorizontalAndReentry()
 
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&bar, &enter);
-    QCOMPARE(bar.property("_winui_hover_progress").toReal(), 1.0);
+    QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 1.0);
 
     const int beforeArrow = bar.value();
     QTest::mousePress(&bar, Qt::LeftButton, Qt::NoModifier, increase.center());
-    const qreal pressed = bar.property("_winui_press_progress").toReal();
+    const qreal pressed = frameReal(&bar, "_winui_press_progress");
     QVERIFY(pressed > 0.0);
     QTest::mouseRelease(&bar, Qt::LeftButton, Qt::NoModifier, increase.center());
     QVERIFY(bar.value() > beforeArrow);
 
     QEvent leave(QEvent::Leave);
     QCoreApplication::sendEvent(&bar, &leave);
-    QCOMPARE(bar.property("_winui_hover_progress").toReal(), 0.0);
+    QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 0.0);
     QCoreApplication::sendEvent(&bar, &enter);
-    QCOMPARE(bar.property("_winui_hover_progress").toReal(), 1.0);
+    QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 1.0);
 
     bar.setLayoutDirection(Qt::RightToLeft);
     option.direction = Qt::RightToLeft;
@@ -4153,7 +4178,7 @@ void WinUI3StyleTest::callbackCoalescingAndAnimationReuse()
         QVERIFY(timer->isActive());
         QCoreApplication::processEvents();
         QCOMPARE(callbacks.count(), 1);
-        QCOMPARE(slider.property("_winui_slider_tooltip_value").toString(),
+        QCOMPARE(frameValue(&slider, "_winui_slider_tooltip_value").toString(),
                  QStringLiteral("77"));
         QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
                             slider.rect().center());
@@ -4378,11 +4403,11 @@ void WinUI3StyleTest::itemViewMouseFocusReset()
     QTRY_VERIFY(list.hasFocus());
     QFocusEvent keyboardFocus(QEvent::FocusIn, Qt::TabFocusReason);
     QCoreApplication::sendEvent(list.viewport(), &keyboardFocus);
-    QVERIFY(list.property("_winui_focus_visible").toBool());
+    QVERIFY(frameBool(&list, "_winui_focus_visible"));
     QTest::mouseClick(list.viewport(), Qt::LeftButton, Qt::NoModifier,
                       list.visualItemRect(list.item(0)).center());
-    QVERIFY(!list.property("_winui_focus_visible").toBool());
-    QVERIFY(!list.viewport()->property("_winui_focus_visible").toBool());
+    QVERIFY(!frameBool(&list, "_winui_focus_visible"));
+    QVERIFY(!frameBool(list.viewport(), "_winui_focus_visible"));
 }
 
 void WinUI3StyleTest::checkboxAndRadioUncheckMotion()
@@ -4391,21 +4416,21 @@ void WinUI3StyleTest::checkboxAndRadioUncheckMotion()
     check.resize(check.sizeHint());
     check.show();
     check.setChecked(true);
-    QTRY_VERIFY(check.property("_winui_check_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(&check, "_winui_check_progress") > 0.99);
     const QImage checkedImage = check.grab().toImage();
     check.setChecked(false);
     // AnimatedAcceptVisualSource removes NormalOnToNormalOff immediately;
     // only the acceptance path is animated.
-    QCOMPARE(check.property("_winui_check_progress").toReal(), 0.0);
+    QCOMPARE(frameReal(&check, "_winui_check_progress"), 0.0);
     const QImage uncheckedImage = check.grab().toImage();
-    check.setProperty("_winui_check_progress", 0.5);
+    setFrame(&check, "_winui_check_progress", 0.5);
     const QImage checkMidpoint = check.grab().toImage();
     QVERIFY(checkMidpoint != checkedImage);
     QVERIFY(checkMidpoint != uncheckedImage);
-    check.setProperty("_winui_check_progress", 0.0);
+    setFrame(&check, "_winui_check_progress", 0.0);
     check.setChecked(true);
-    QCOMPARE(check.property("_winui_check_progress").toReal(), 0.0);
-    QTRY_VERIFY(check.property("_winui_check_progress").toReal() > 0.99);
+    QCOMPARE(frameReal(&check, "_winui_check_progress"), 0.0);
+    QTRY_VERIFY(frameReal(&check, "_winui_check_progress") > 0.99);
 
     QWidget host;
     auto *one = new QRadioButton(QStringLiteral("One"), &host);
@@ -4414,13 +4439,13 @@ void WinUI3StyleTest::checkboxAndRadioUncheckMotion()
     two->move(0, 36);
     one->setChecked(true);
     host.show();
-    QTRY_VERIFY(one->property("_winui_check_progress").toReal() > 0.99);
+    QTRY_VERIFY(frameReal(one, "_winui_check_progress") > 0.99);
     const QImage radioChecked = one->grab().toImage();
     two->setChecked(true);
-    QVERIFY(one->property("_winui_check_progress").toReal() > 0.99);
-    QTRY_VERIFY(one->property("_winui_check_progress").toReal() < 0.01);
+    QVERIFY(frameReal(one, "_winui_check_progress") > 0.99);
+    QTRY_VERIFY(frameReal(one, "_winui_check_progress") < 0.01);
     const QImage radioUnchecked = one->grab().toImage();
-    one->setProperty("_winui_check_progress", 0.5);
+    setFrame(one, "_winui_check_progress", 0.5);
     const QImage radioMidpoint = one->grab().toImage();
     QVERIFY(radioMidpoint != radioChecked);
     QVERIFY(radioMidpoint != radioUnchecked);
@@ -4533,14 +4558,14 @@ void WinUI3StyleTest::runtimeAppearanceAndDialogLifecycle()
     style->setAccentColor(accent);
     QTRY_COMPARE(qApp->palette().color(QPalette::Highlight), accent);
     QVERIFY(qApp->palette().color(QPalette::Accent) != accent);
-    QVERIFY(!style->findChild<QTimer *>(
-        QStringLiteral("_winui_system_appearance_timer"))->isActive());
+    auto *watchdog = style->findChild<QTimer *>(
+        QStringLiteral("_winui_system_appearance_watchdog"));
+    QVERIFY(watchdog);
+    QVERIFY(!watchdog->isActive());
 
     style->setThemeMode(WinUI3::ThemeMode::System);
-    auto *watcher = style->findChild<QTimer *>(
-        QStringLiteral("_winui_system_appearance_timer"));
-    QVERIFY(watcher);
-    QVERIFY(watcher->isActive());
+    QVERIFY(watchdog->isActive());
+    QCOMPARE(watchdog->interval(), 15000);
 
     QDialog dialog;
     WinUI3::Style::setContentDialog(&dialog);
@@ -4655,7 +4680,7 @@ void WinUI3StyleTest::dpiHitTestContracts()
     scrollBar.setPageStep(25);
     scrollBar.setValue(40);
     scrollBar.resize(260, 12);
-    scrollBar.setProperty("_winui_hover_progress", 1.0);
+    setFrame(&scrollBar, "_winui_hover_progress", 1.0);
     QGroupBox group(QStringLiteral("Group title"));
     group.setCheckable(true);
     group.setChecked(true);

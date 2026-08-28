@@ -21,9 +21,11 @@ QPersistentModelIndex TableEditorTracker::editorIndex(
         return {};
     const QRect geometry(editor->mapTo(table->viewport(), QPoint()),
                          editor->size());
-    QModelIndex index = table->indexAt(geometry.center());
+    // The leading edge identifies the owning cell more reliably than the
+    // centre for custom delegates whose editor deliberately spans neighbours.
+    QModelIndex index = table->indexAt(geometry.topLeft() + QPoint(1, 1));
     if (!index.isValid()) {
-        const QPoint candidates[] = {geometry.topLeft(), geometry.topRight(),
+        const QPoint candidates[] = {geometry.center(), geometry.topLeft(), geometry.topRight(),
                                      geometry.bottomLeft(), geometry.bottomRight()};
         for (const QPoint &point : candidates) {
             index = table->indexAt(point);
@@ -93,21 +95,29 @@ void TableEditorTracker::ensureTable(QTableView *table)
 
 void TableEditorTracker::track(QTableView *table, QWidget *editor)
 {
+    trackOnce(table, editor, true);
+}
+
+void TableEditorTracker::trackOnce(QTableView *table, QWidget *editor,
+                                   bool allowRetry)
+{
     if (!table || !editor || !table->viewport()
         || editor->parentWidget() != table->viewport())
         return;
     editor->setProperty(tableEditorProperty, true);
     ensureTable(table);
     const QPersistentModelIndex index = editorIndex(table, editor);
-    if (!index.isValid()) {
+    if (!index.isValid() && allowRetry) {
         const QPointer<QTableView> guardedTable(table);
         const QPointer<QWidget> guardedEditor(editor);
         QTimer::singleShot(0, m_context, [this, guardedTable, guardedEditor] {
             if (guardedTable && guardedEditor)
-                track(guardedTable, guardedEditor);
+                trackOnce(guardedTable, guardedEditor, false);
         });
         return;
     }
+    if (!index.isValid())
+        return;
 
     if (const auto owner = m_owners.constFind(editor);
         owner != m_owners.constEnd() && owner->table == table
@@ -209,7 +219,7 @@ bool TableEditorTracker::overlaps(const QTableView *table,
     auto *mutableTable = const_cast<QTableView *>(table);
     ensureTable(mutableTable);
     const auto tableIt = m_tables.constFind(mutableTable);
-    if (tableIt == m_tables.constEnd())
+    if (tableIt == m_tables.constEnd() || tableIt->editors.isEmpty())
         return false;
     QWidget *editor = tableIt->editors.value(QPersistentModelIndex(index)).data();
     if (!editor || !editor->isVisible()

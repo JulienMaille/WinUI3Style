@@ -1,5 +1,7 @@
 #pragma once
 
+#include <winui3style/winui3global.h>
+
 #include <QByteArray>
 #include <QHash>
 #include <QList>
@@ -22,7 +24,7 @@ namespace WinUI3::Private {
 // from widget paint paths, so it has no mutex.  Callers must not use it from a
 // worker thread; debug builds assert this contract and release builds reject
 // off-thread accesses without touching the shared state.
-class FramePropertyRegistry final
+class WINUI3STYLE_EXPORT FramePropertyRegistry final
 {
 public:
     static FramePropertyRegistry &instance();

@@ -14,6 +14,7 @@ inline constexpr auto focusVisibleProperty = "_winui_focus_visible";
 inline constexpr auto checkProperty = "_winui_check_progress";
 inline constexpr auto tableEditorProperty = "_winui_table_editor";
 inline constexpr auto togglePositionProperty = "_winui_toggle_position";
+inline constexpr auto toggleDraggingProperty = "_winui_toggle_dragging";
 inline constexpr auto scrollBarInsideProperty = "_winui_scrollbar_inside";
 inline constexpr auto scrollBarGenerationProperty = "_winui_scrollbar_generation";
 inline constexpr auto sliderToolTipVisibleProperty =

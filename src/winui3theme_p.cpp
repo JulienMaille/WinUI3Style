@@ -19,10 +19,10 @@ namespace {
 #ifdef Q_OS_WIN
 // Reading the native registry through QSettings and querying DWM are both
 // comparatively expensive for calls made from the style's paint/palette
-// paths. Keep the latest system values for one polling slice. The style's
-// appearance watcher runs every 750 ms, so this still observes changes on the
-// next poll while avoiding duplicate reads from dark(), standardPalette(),
-// and accentColor() during the same frame.
+// paths. Keep the latest system values for one appearance refresh slice. The
+// native watcher invalidates this cache before checking and a slow watchdog
+// covers missed notifications, while avoiding duplicate reads from dark(),
+// standardPalette(), and accentColor() during the same frame.
 constexpr qint64 systemAppearanceCacheLifetimeMs = 250;
 
 struct SystemAppearanceCache
@@ -73,6 +73,15 @@ bool systemUsesDarkTheme()
     return cache.dark;
 #else
     return qGray(QApplication::palette().color(QPalette::Window).rgb()) < 128;
+#endif
+}
+
+void invalidateSystemAppearanceCache()
+{
+#ifdef Q_OS_WIN
+    auto &cache = systemAppearanceCache();
+    cache.darkInitialized = false;
+    cache.accentInitialized = false;
 #endif
 }
 
