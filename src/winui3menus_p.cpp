@@ -37,9 +37,14 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element,
 
     if (element == QStyle::PE_PanelMenu) {
         const Tokens t = tokens(option->palette);
-        QColor fill = t.layer;
-        fill.setAlpha(238);
-        roundedRect(painter, option->rect, fill, t.stroke, OverlayRadius);
+        // The menu flyout surface is opaque (WinUI's SolidBackgroundFill
+        // fallback), with the SurfaceStrokeColorFlyout border. Windows rounds
+        // the opaque popup window so the OverlayRadius paint stays visible.
+        const QColor fill = t.dark ? QColor(44, 44, 44)
+                                   : QColor(252, 252, 252);
+        const QColor stroke = t.dark ? QColor(0, 0, 0, 51)
+                                     : QColor(0, 0, 0, 15);
+        roundedRect(painter, option->rect, fill, stroke, OverlayRadius);
         return true;
     }
 

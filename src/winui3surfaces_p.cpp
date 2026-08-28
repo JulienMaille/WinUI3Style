@@ -4,6 +4,7 @@
 #include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
+#include "winui3backdrop_p.h"
 
 #include <winui3style/winui3style.h>
 
@@ -211,6 +212,7 @@ void clearSliderValueToolTip(QSlider *slider)
     }
     framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, false);
     framePropertyRegistry().clear(slider, sliderToolTipValueProperty);
+    framePropertyRegistry().clear(slider, sliderToolTipSurfacePendingProperty);
     if (auto *tip = sliderValueTip(slider))
         tip->hide();
 }
@@ -275,7 +277,15 @@ QTimer *sliderToolTipDebounceTimer(QSlider *slider)
     timer->setInterval(sliderToolTipDebounceInterval);
     const QPointer<QSlider> guarded(slider);
     QObject::connect(timer, &QTimer::timeout, slider, [guarded] {
-        if (guarded)
+        if (!guarded)
+            return;
+        // Close the current frame's leading-edge window so the next pointer
+        // move can schedule a fresh refresh.
+        framePropertyRegistry().set(guarded,
+                                    sliderToolTipSurfacePendingProperty, false);
+        if (guarded->isEnabled()
+            && framePropertyRegistry().value(
+                   guarded, sliderToolTipVisibleProperty).toBool())
             updateSliderValueToolTipNow(guarded);
     });
     return timer;
@@ -388,30 +398,29 @@ void showSliderValueToolTip(QSlider *slider)
 {
     if (!slider || !slider->isEnabled())
         return;
-    // Keep the inspectable state synchronous, but coalesce the expensive
-    // native tooltip geometry/window update while a drag is in progress.
-    // The first show remains immediate so pressing the handle has no visible
-    // latency; subsequent moves use a trailing 16 ms frame debounce.
-    const bool alreadyVisible = framePropertyRegistry()
-        .value(slider, sliderToolTipVisibleProperty).toBool();
+    // Synchronous inspectable state is always current, regardless of how the
+    // native popup is coalesced.
     framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, true);
     framePropertyRegistry().set(slider, sliderToolTipValueProperty,
                                 QString::number(slider->value()));
-    if (!alreadyVisible || !sliderValueTip(slider)) {
-        if (auto *timer = slider->findChild<QTimer *>(
-                QString::fromLatin1(sliderToolTipDebounceTimerName),
-                Qt::FindDirectChildrenOnly)) {
-            timer->stop();
-        }
-        updateSliderValueToolTipNow(slider);
+    // The headless platform cannot host a non-activating tool window; keep the
+    // state synchronous and avoid allocating a timer that cannot fire.
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
         return;
-    }
-    // On the offscreen platform no tip is created, so the branch above keeps
-    // state synchronous and avoids allocating a timer that cannot fire useful
-    // work. Native platforms restart the one-shot timer for trailing-edge
-    // coalescing of high-frequency slider moves.
+    // A refresh is already scheduled in this frame; its timeout picks up the
+    // newest value, so subsequent pointer moves within the frame are coalesced.
+    if (framePropertyRegistry().value(
+            slider, sliderToolTipSurfacePendingProperty).toBool())
+        return;
+    // Leading edge of a new frame (or the first show): refresh the popup
+    // immediately so it tracks the handle with no trailing-edge lag, then arm
+    // a one-shot timer to re-apply the latest value at the frame boundary. The
+    // trailing design in 7e2e480 only repainted after the mouse paused, which
+    // made the tooltip visibly trail the handle during a fast drag.
+    framePropertyRegistry().set(slider, sliderToolTipSurfacePendingProperty, true);
     if (auto *timer = sliderToolTipDebounceTimer(slider))
         timer->start();
+    updateSliderValueToolTipNow(slider);
 }
 
 void hideSliderValueToolTip(QSlider *slider)
@@ -426,13 +435,10 @@ void preparePopupSurface(QWidget *widget)
     QWidget *popup = widget->window();
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
-    remember(popup, originalTranslucentBackgroundProperty,
-             popup->testAttribute(Qt::WA_TranslucentBackground));
-    remember(popup, originalNoSystemBackgroundProperty,
-             popup->testAttribute(Qt::WA_NoSystemBackground));
     // Popup widgets keep an explicit palette after their first polish. Rebase
     // every show on the current application palette so runtime theme changes
-    // cannot leave stale text or surface roles behind.
+    // cannot leave stale text or surface roles behind. The surface is opaque;
+    // rounded corners come from the native window corner preference.
     QPalette popupPalette = effectivePopupPalette(popup, QApplication::palette());
     const Private::Tokens popupTokens = Private::tokens(popupPalette);
     const QColor popupSurface = popupTokens.dark ? QColor(44, 44, 44)
@@ -443,6 +449,7 @@ void preparePopupSurface(QWidget *widget)
     popup->setAutoFillBackground(true);
     popup->setAttribute(Qt::WA_TranslucentBackground, false);
     popup->setAttribute(Qt::WA_NoSystemBackground, false);
+    applyPopupRoundedCorners(popup);
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
         remember(popup, originalMarginsProperty,
                  QVariant::fromValue(popup->contentsMargins()));

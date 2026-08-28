@@ -76,6 +76,20 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
     painter->restore();
 }
 
+void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect,
+                              const QColor &accent, qreal radius)
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    QPainterPath clip;
+    clip.addRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    painter->setClipPath(clip);
+    painter->setPen(QPen(accent, 2.0, Qt::SolidLine, Qt::FlatCap));
+    painter->drawLine(rect.left(), rect.bottom() - 1,
+                      rect.right(), rect.bottom() - 1);
+    painter->restore();
+}
+
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter)
 {
@@ -92,15 +106,36 @@ QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                       logicalBounds.center().y() - logicalDiameter / 2.0,
                       logicalDiameter, logicalDiameter);
 
+    // Snap the center to a whole device pixel but keep the diameter
+    // fractional: quantizing the size during an animated grow (e.g. the radio
+    // dot's 12 -> 14 px hover expansion) makes it lurch in discrete steps
+    // while the surrounding brushes ease continuously.
     const QPointF physicalCenter = device.map(logicalBounds.center());
-    const qreal physicalWidth = qMax<qreal>(1.0, qRound(logicalDiameter * sx));
-    const qreal physicalHeight = qMax<qreal>(1.0, qRound(logicalDiameter * sy));
-    const qreal physicalLeft = qRound(physicalCenter.x() - physicalWidth / 2.0);
-    const qreal physicalTop = qRound(physicalCenter.y() - physicalHeight / 2.0);
-    const QPointF logicalTopLeft = device.inverted().map(
-        QPointF(physicalLeft, physicalTop));
-    return QRectF(logicalTopLeft.x(), logicalTopLeft.y(), physicalWidth / sx,
-                  physicalHeight / sy);
+    const QPointF snappedCenter(qRound(physicalCenter.x()),
+                                qRound(physicalCenter.y()));
+    const QPointF logicalCenter = device.inverted().map(snappedCenter);
+    return QRectF(logicalCenter.x() - logicalDiameter / 2.0,
+                  logicalCenter.y() - logicalDiameter / 2.0,
+                  logicalDiameter, logicalDiameter);
+}
+
+QRectF snappedRect(const QRectF &logicalRect, const QPainter *painter)
+{
+    if (!painter || !painter->device())
+        return logicalRect;
+
+    const QTransform device = painter->deviceTransform();
+    const qreal sx = qAbs(device.m11());
+    const qreal sy = qAbs(device.m22());
+    if (sx <= 0.0 || sy <= 0.0 || !std::isfinite(sx) || !std::isfinite(sy))
+        return logicalRect;
+
+    const QPointF physicalTopLeft = device.map(logicalRect.topLeft());
+    const QPointF snappedTopLeft(qRound(physicalTopLeft.x()),
+                                 qRound(physicalTopLeft.y()));
+    const QPointF logicalTopLeft = device.inverted().map(snappedTopLeft);
+    return QRectF(logicalTopLeft.x(), logicalTopLeft.y(),
+                  logicalRect.width(), logicalRect.height());
 }
 
 QPointF animatedAcceptPoint(const QRectF &indicator, qreal x, qreal y)

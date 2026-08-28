@@ -2,12 +2,12 @@
 
 A Qt 6 Widgets style inspired by the released WinUI 3 controls in Windows App
 SDK 2.4. It provides light and dark themes, system accent colors, animated
-interaction states, Fluent glyphs, opaque popup surfaces,
-property-driven native-widget variants, settings/navigation composition, a
-demo gallery, and Qt Test coverage.
+interaction states, Fluent glyphs, Mica main-window and opaque rounded popup
+surfaces, property-driven native-widget variants, settings/navigation
+composition, a demo gallery, and Qt Test coverage.
 
 The project deliberately contains no QSS. All visuals are produced by
-`QStyle`, widget painting, and palettes.
+`QStyle`, widget painting, palettes, and native Windows backdrop APIs.
 
 ## Build
 

@@ -22,9 +22,12 @@ the compositor differ between XAML and Qt, so geometry, token colors, state
 ordering, and timing are also reviewed against `winui-2.4/manifest.json`.
 
 Generate the Qt matrix with `winui3style_gallery --capture-dir <absolute-dir>`.
-Popup and window surfaces are deliberately opaque. This removes compositor
-alpha and wallpaper-dependent tint from both deterministic captures and live
-Qt rendering; native Mica and Desktop Acrylic are not implemented.
+Capture mode disables the native DWM material and paints WinUI's solid
+fallback base; this removes compositor alpha and wallpaper-dependent tint from
+the deterministic PNGs. Popup surfaces are opaque with rounded corners from the
+native window corner preference, so live popup captures stay pixel-stable.
+Mica on the main window is environment-dependent and validated in the live
+side-by-side pass.
 
 Acceptance requires both passes: the deterministic light/dark page matrix plus
 live interaction checks for pointer-over, press, mouse focus, keyboard focus,

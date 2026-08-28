@@ -101,10 +101,14 @@ inline Tokens buildTokens(const QPalette &palette)
     t.layer = t.dark ? QColor(58, 58, 58, 76) : QColor(255, 255, 255, 128);
     t.control = t.dark ? QColor(255, 255, 255, 15) : QColor(255, 255, 255, 179);
     t.controlHover = t.dark ? QColor(255, 255, 255, 21) : QColor(249, 249, 249, 128);
-    t.controlPressed = t.dark ? QColor(255, 255, 255, 8) : QColor(249, 249, 249, 77);
+    // Light pressed must be a visibly darker gray, not white-on-white at a
+    // lower alpha: over the light window an alpha-only change lands within a
+    // few gray levels of the resting fill and reads as no response. Value
+    // mirrors WinUI ControlFillColorTertiary (#E5E5E5) at the control opacity.
+    t.controlPressed = t.dark ? QColor(255, 255, 255, 8) : QColor(229, 229, 229, 179);
     t.controlDisabled = t.dark ? QColor(255, 255, 255, 11) : QColor(249, 249, 249, 77);
-    t.subtleHover = t.dark ? QColor(255, 255, 255, 15) : QColor(0, 0, 0, 9);
-    t.subtlePressed = t.dark ? QColor(255, 255, 255, 10) : QColor(0, 0, 0, 6);
+    t.subtleHover = t.dark ? QColor(255, 255, 255, 15) : QColor(0, 0, 0, 15);
+    t.subtlePressed = t.dark ? QColor(255, 255, 255, 10) : QColor(0, 0, 0, 22);
     t.stroke = t.dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 15);
     t.strokeSecondary = t.dark ? QColor(255, 255, 255, 24) : QColor(0, 0, 0, 41);
     t.strokeStrong = t.dark ? QColor(255, 255, 255, 139) : QColor(0, 0, 0, 114);

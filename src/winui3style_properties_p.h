@@ -20,6 +20,11 @@ inline constexpr auto scrollBarGenerationProperty = "_winui_scrollbar_generation
 inline constexpr auto sliderToolTipVisibleProperty =
     "_winui_slider_tooltip_visible";
 inline constexpr auto sliderToolTipValueProperty = "_winui_slider_tooltip_value";
+// Set while a slider tooltip surface refresh is already scheduled within the
+// current frame, so a burst of pointer moves coalesces into one update instead
+// of repainting the native popup for every event.
+inline constexpr auto sliderToolTipSurfacePendingProperty =
+    "_winui_slider_tooltip_surface_pending";
 inline constexpr auto progressPhaseProperty = "_winui_progress_phase";
 inline constexpr auto comboChevronProperty = "_winui_combo_chevron_progress";
 inline constexpr auto originalPaletteProperty = "_winui_original_palette";

@@ -165,8 +165,9 @@ Live compositor inspection remains mandatory.
 3. **Deterministic visual matrix** — light/dark captures for rest, hover,
    pressed, checked, disabled, keyboard focus, popup, and transition midpoint.
 4. **Live side-by-side pass** — compare Qt with the pinned Gallery using the
-   same theme, scale, input sequence, and logical crop. Qt popup and window
-   surfaces remain opaque; native compositor materials are out of scope.
+   same theme, scale, input sequence, and logical crop. Popup surfaces remain
+   opaque; the Mica signal on the main window and the native rounded popup
+   corners are validated in this live compositor pass, not in captures.
 
 Image RMS is a regression signal, not the acceptance criterion. Geometry,
 state semantics, motion, and focus modality can fail even when RMS is small.

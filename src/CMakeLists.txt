@@ -1,5 +1,6 @@
 set(winui3style_public_headers
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/winui3style.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/winui3backdrop.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/winui3icons.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/toggleswitch.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/settingscard.h
@@ -42,6 +43,8 @@ add_library(winui3style SHARED
     winui3tokens_p.h
     navigationview_p.h
     navigationview_p.cpp
+    winui3backdrop_p.h
+    winui3backdrop.cpp
     winui3icons.cpp
     toggleswitch.cpp
     settingscard.cpp
@@ -62,7 +65,7 @@ target_include_directories(winui3style
 target_link_libraries(winui3style PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
-    target_link_libraries(winui3style PRIVATE dwmapi)
+    target_link_libraries(winui3style PRIVATE dwmapi user32)
 endif()
 
 set_target_properties(winui3style PROPERTIES
