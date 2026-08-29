@@ -906,8 +906,14 @@ public:
             return;
         if (const auto association = comboPopupAssociations.constFind(popup);
             association != comboPopupAssociations.constEnd()) {
-            if (QComboBox *combo = association->data())
+            if (QComboBox *combo = association->data()) {
+                if (combo->view() && combo->view()->viewport()) {
+                    QWidget *viewport = combo->view()->viewport();
+                    animationDriver.stop(viewport);
+                    framePropertyRegistry().set(viewport, pressProperty, 0.0);
+                }
                 releaseComboChevron(combo);
+            }
             preparedComboPopups.remove(popup);
         }
     }

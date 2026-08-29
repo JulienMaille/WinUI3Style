@@ -2799,7 +2799,7 @@ void WinUI3StyleTest::comboReleaseActivationAndMarkerMotion()
 
     const auto renderMarker = [&](qreal press, Qt::LayoutDirection direction) {
         item.direction = direction;
-        setFrame(popup, "_winui_press_progress", press);
+        setFrame(view->viewport(), "_winui_press_progress", press);
         QImage image(item.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(background);
         QPainter painter(&image);
@@ -2842,22 +2842,23 @@ void WinUI3StyleTest::comboReleaseActivationAndMarkerMotion()
     // Exercise the real item event path as well as the deterministic pixel
     // probe above. The held press must visibly shorten the selected marker,
     // not merely update an internal animation property.
-    setFrame(popup, "_winui_press_progress", 0.0);
-    const QImage liveNormalMarker = renderMarker(0.0, Qt::LeftToRight);
-    const int liveNormalHeight = markerHeight(liveNormalMarker,
-                                              Qt::LeftToRight);
+    setFrame(view->viewport(), "_winui_press_progress", 0.0);
+    view->viewport()->repaint();
+    const auto liveMarkerHeight = [&] {
+        QCoreApplication::processEvents();
+        return markerHeight(view->viewport()->grab().toImage(),
+                            Qt::LeftToRight);
+    };
+    const int liveNormalHeight = liveMarkerHeight();
     QTest::mouseMove(view->viewport(), selectedRow.center());
     QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier,
                       selectedRow.center());
-    QTRY_VERIFY(frameReal(popup, "_winui_press_progress") > 0.0);
+    QVERIFY2(view->isVisible(), "Combo popup closed on item press");
+    QTRY_VERIFY(frameReal(view->viewport(), "_winui_press_progress") > 0.0);
     QTRY_VERIFY_WITH_TIMEOUT(
-        frameReal(popup, "_winui_press_progress") > 0.95, 300);
-    const qreal livePressProgress = frameReal(popup,
-                                              "_winui_press_progress");
-    const QImage livePressedMarker = renderMarker(livePressProgress,
-                                                  Qt::LeftToRight);
-    const int livePressedHeight = markerHeight(livePressedMarker,
-                                               Qt::LeftToRight);
+        frameReal(view->viewport(), "_winui_press_progress") > 0.95, 300);
+    QTRY_VERIFY_WITH_TIMEOUT(liveMarkerHeight() <= 12, 400);
+    const int livePressedHeight = liveMarkerHeight();
     QVERIFY2(liveNormalHeight >= 14,
              qPrintable(QStringLiteral("live normal marker height=%1")
                             .arg(liveNormalHeight)));
@@ -2867,7 +2868,7 @@ void WinUI3StyleTest::comboReleaseActivationAndMarkerMotion()
     QVERIFY(livePressedHeight < liveNormalHeight);
     QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier,
                         selectedRow.center());
-    QTRY_VERIFY(frameReal(popup, "_winui_press_progress") < 0.05);
+    QTRY_VERIFY(frameReal(view->viewport(), "_winui_press_progress") < 0.05);
     QCOMPARE(combo.currentIndex(), 1);
 
     combo.hidePopup();

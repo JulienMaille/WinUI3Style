@@ -8,6 +8,7 @@
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
+#include <QAbstractItemView>
 #include <QComboBox>
 #include <QFontDatabase>
 #include <QPainter>
@@ -171,14 +172,25 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
                                                    menu->rect.center().y() - 8,
                                                    16, 16));
             if (comboItem && menu->checked) {
+                const auto *combo = static_cast<const QComboBox *>(widget);
+                const QWidget *interactionSurface = combo->view()
+                    ? combo->view()->viewport() : nullptr;
+                // WinUI's SelectedPressed state exists only when the already
+                // selected row itself is held. Pressing another row must not
+                // animate the marker that remains on the selected row.
+                const qreal press = menu->state & QStyle::State_Selected
+                    ? progress(interactionSurface, pressProperty, 0.0) : 0.0;
+                const qreal markerHeight = 16.0
+                    * (1.0 - 0.375 * press);
                 painter->save();
                 painter->setRenderHint(QPainter::Antialiasing);
                 painter->setPen(Qt::NoPen);
                 painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
-                const qreal x = leading.left()
-                    + (menu->direction == Qt::RightToLeft ? 13.0 : -6.0);
+                const qreal x = menu->direction == Qt::RightToLeft
+                    ? leading.right() + 4.0 : leading.left() - 6.0;
                 painter->drawRoundedRect(
-                    QRectF(x, menu->rect.center().y() - 8.0, 3.0, 16.0),
+                    QRectF(x, menu->rect.center().y() - markerHeight / 2.0,
+                           3.0, markerHeight),
                     1.5, 1.5);
                 painter->restore();
             } else if (menu->checked) {
