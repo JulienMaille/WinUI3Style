@@ -411,6 +411,7 @@ private slots:
     void tableLiveEditorSuppressesDisplay();
     void richEditBoxContract();
     void contentDialogContract();
+    void contentDialogScrimLifecycle();
     void readOnlyActionRestoration();
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
@@ -4182,6 +4183,30 @@ void WinUI3StyleTest::contentDialogContract()
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxWarning).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxCritical).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxQuestion).isNull());
+}
+
+void WinUI3StyleTest::contentDialogScrimLifecycle()
+{
+    QWidget parent;
+    parent.resize(640, 480);
+    QDialog dialog(&parent);
+    WinUI3::Style::setContentDialog(&dialog);
+    parent.show();
+    dialog.show();
+    QTRY_VERIFY(dialog.isVisible());
+    const auto scrims = parent.findChildren<QWidget *>(
+        QStringLiteral("_winui_content_dialog_scrim"));
+    QCOMPARE(scrims.size(), 1);
+    QVERIFY(scrims.first()->isVisible());
+    QCOMPARE(scrims.first()->geometry(), parent.rect());
+    parent.resize(700, 500);
+    qApp->processEvents();
+    QCOMPARE(scrims.first()->geometry(), parent.rect());
+    dialog.hide();
+    qApp->processEvents();
+    qApp->sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(parent.findChildren<QWidget *>(
+        QStringLiteral("_winui_content_dialog_scrim")).isEmpty());
 }
 
 void WinUI3StyleTest::readOnlyActionRestoration()

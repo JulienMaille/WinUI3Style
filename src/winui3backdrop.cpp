@@ -147,6 +147,29 @@ void applyPopupRoundedCorners(QWidget *window)
 #endif
 }
 
+void applyDialogCaptionTheme(QWidget *window)
+{
+#ifdef Q_OS_WIN
+    if (!window || !window->isWindow() || !window->windowHandle())
+        return;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return;
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    constexpr DWORD immersiveDarkModeAttribute = 20;
+    constexpr DWORD textColorAttribute = 36;
+    // Dialogs keep the system caption gradient; only the immersive dark-mode
+    // flag and the title text color follow the application theme so the
+    // native frame does not clash with an app dark theme (or vice versa).
+    const BOOL dark = qGray(themedWindowColor().rgb()) < 128;
+    DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute,
+                          &dark, sizeof(dark));
+    const COLORREF text = dark ? RGB(255, 255, 255) : RGB(0, 0, 0);
+    DwmSetWindowAttribute(hwnd, textColorAttribute, &text, sizeof(text));
+#else
+    Q_UNUSED(window)
+#endif
+}
+
 } // namespace Private
 
 bool applyBackdrop(QWidget *window, Backdrop backdrop)

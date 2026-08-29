@@ -5,6 +5,7 @@
 
 #include "winui3geometry_p.h"
 #include "winui3animations_p.h"
+#include "winui3backdrop_p.h"
 #include "winui3buttons_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3menus_p.h"
@@ -1046,6 +1047,8 @@ void Style::refreshApplicationAppearance()
             QTimer::singleShot(0, window, [window, backdrop] {
                 applyBackdrop(window, static_cast<Backdrop>(backdrop.toInt()));
             });
+        } else if (qobject_cast<QDialog *>(window)) {
+            applyDialogCaptionTheme(window);
         }
         if (window->windowType() == Qt::Popup) {
             preparePopupSurface(window);
@@ -1072,8 +1075,10 @@ void Style::refreshApplicationAppearance()
                 palette.setColor(QPalette::HighlightedText,
                                  applicationTokens.textOnAccentPrimary);
             } else if (qobject_cast<QDialog *>(widget)) {
+                // SolidBackgroundFillColorBase (#202020 dark / #F3F3F3 light).
                 palette.setColor(QPalette::Window,
-                    darkTheme ? QColor(32, 32, 32) : QColor(255, 255, 255));
+                    darkTheme ? QColor(0x20, 0x20, 0x20)
+                              : QColor(0xF3, 0xF3, 0xF3));
             }
             widget->setPalette(palette);
         }

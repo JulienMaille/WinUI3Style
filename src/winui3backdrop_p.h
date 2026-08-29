@@ -15,4 +15,9 @@ void prepareBackdropSurface(QWidget *window, Backdrop backdrop);
 // rounded window region.
 void applyPopupRoundedCorners(QWidget *window);
 
+// Follows the application theme for a dialog window's native title bar: sets
+// the immersive dark-mode attribute and title text color. No-op until the
+// native handle exists and on platforms without DWM.
+void applyDialogCaptionTheme(QWidget *window);
+
 } // namespace WinUI3::Private

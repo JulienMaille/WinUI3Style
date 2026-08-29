@@ -147,14 +147,52 @@ void prepareContentDialogState(QDialog *dialog, bool dark)
     }
     dialog->setProperty(ownedPaletteProperty, true);
     QPalette palette = dialog->palette();
+    // WinUI ContentDialog background: SolidBackgroundFillColorBase
+    // (#202020 dark / #F3F3F3 light).
     palette.setColor(QPalette::Window,
-                     dark ? QColor(32, 32, 32) : QColor(255, 255, 255));
+                     dark ? QColor(0x20, 0x20, 0x20)
+                          : QColor(0xF3, 0xF3, 0xF3));
     dialog->setPalette(palette);
     dialog->setAutoFillBackground(true);
     dialog->setMinimumSize(320, 184);
 }
 
 namespace {
+
+constexpr auto contentDialogScrimProperty = "_winui_content_dialog_scrim";
+
+// Simulates the WinUI ContentDialog smoke layer: while a content dialog over a
+// parent window is open, a translucent child paints SmokeFillColorDefault
+// (#4D000000, theme-independent) over the whole parent client area. The
+// dialog itself stays an opaque native window above the dimmed surface.
+class ContentDialogScrim final : public QWidget
+{
+public:
+    explicit ContentDialogScrim(QWidget *parentWindow)
+        : QWidget(parentWindow)
+    {
+        setObjectName(QStringLiteral("_winui_content_dialog_scrim"));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAutoFillBackground(false);
+        setGeometry(parentWindow->rect());
+        parentWindow->installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == parentWidget() && event->type() == QEvent::Resize)
+            setGeometry(parentWidget()->rect());
+        return QWidget::eventFilter(watched, event);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), QColor(0, 0, 0, 0x4D));
+    }
+};
 
 class SliderValueTip final : public QWidget
 {
@@ -438,6 +476,33 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
 }
 
 } // namespace
+
+void showContentDialogScrim(QDialog *dialog)
+{
+    if (!dialog)
+        return;
+    hideContentDialogScrim(dialog);
+    QWidget *owner = dialog->parentWidget();
+    owner = owner ? owner->window() : nullptr;
+    if (!owner)
+        return;
+    auto *scrim = new ContentDialogScrim(owner);
+    dialog->setProperty(contentDialogScrimProperty,
+                        QVariant::fromValue(static_cast<QObject *>(scrim)));
+    scrim->show();
+    scrim->raise();
+}
+
+void hideContentDialogScrim(QDialog *dialog)
+{
+    if (!dialog)
+        return;
+    auto *scrim = dialog->property(contentDialogScrimProperty).value<QObject *>();
+    if (!scrim)
+        return;
+    dialog->setProperty(contentDialogScrimProperty, {});
+    scrim->deleteLater();
+}
 
 void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit)
 {
