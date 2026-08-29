@@ -96,6 +96,11 @@ bool comboPopupItemView(const QWidget *widget)
     return qobject_cast<const QComboBox *>(candidate->window()->parentWidget());
 }
 
+QWidget *pointerAnimationSurface(QWidget *widget)
+{
+    return comboPopupItemView(widget) ? widget->window() : widget;
+}
+
 void centerPendingComboPopup(QWidget *popup, QComboBox *combo)
 {
     if (!popup || !combo || combo->currentIndex() < 0)
@@ -338,7 +343,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (buttonPressPulse(widget))
             m_callbacks.cancelButtonPress(widget);
         else
-            m_callbacks.animate(widget, pressProperty, 0.0,
+            m_callbacks.animate(pointerAnimationSurface(widget),
+                                pressProperty, 0.0,
                                 interactionDuration(widget,
                                                     InteractionMotion::Press,
                                                     false));
@@ -397,7 +403,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (buttonPressPulse(widget))
             m_callbacks.beginButtonPress(widget);
         else
-            m_callbacks.animate(widget, pressProperty, 1.0,
+            m_callbacks.animate(pointerAnimationSurface(widget),
+                                pressProperty, 1.0,
                                 interactionDuration(widget,
                                                     InteractionMotion::Press,
                                                     true));
@@ -507,7 +514,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (buttonPressPulse(widget))
             m_callbacks.releaseButtonPress(widget);
         else
-            m_callbacks.animate(widget, pressProperty, 0.0,
+            m_callbacks.animate(pointerAnimationSurface(widget),
+                                pressProperty, 0.0,
                                 interactionDuration(widget,
                                                     InteractionMotion::Press,
                                                     false));

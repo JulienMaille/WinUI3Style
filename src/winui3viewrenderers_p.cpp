@@ -118,8 +118,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const QAbstractItemView *view = itemView(widget);
         const bool popup = widget && widget->window()
             && widget->window()->windowType() == Qt::Popup;
-        const bool comboPopup = popup && widget->window()->parentWidget()
-            && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
+        const auto *popupCombo = popup && widget->window()->parentWidget()
+            ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
+            : nullptr;
+        const bool comboPopup = popupCombo;
         const Tokens t = tokens(option->palette);
         const Tokens itemTokens = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
@@ -135,8 +137,15 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             fill = itemTokens.subtlePressed;
         else if (selected || hovered)
             fill = itemTokens.subtleHover;
+        // Item presses are routed to the popup window so every animation frame
+        // invalidates the complete cached surface. Delegates may invoke the
+        // style with either the view or its viewport, so read that shared state
+        // from the popup itself.
+        const QWidget *popupInteractionSurface = comboPopup
+            ? widget->window()
+            : view && view->viewport() ? view->viewport() : widget;
         const qreal popupPress = comboPopup
-            ? progress(widget, pressProperty,
+            ? progress(popupInteractionSurface, pressProperty,
                        pressedItem ? 1.0 : 0.0)
             : 0.0;
         QRectF itemRect = popup
@@ -171,6 +180,23 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             const QRectF itemContent = itemRect.adjusted(
                 comboPopupItemPaddingLeft, comboPopupItemPaddingTop,
                 -comboPopupItemPaddingRight, -comboPopupItemPaddingBottom);
+            const QRectF fullIndicator(
+                indicatorX, itemContent.center().y() - 8.0,
+                indicatorWidth, 16.0);
+            // Popup item backgrounds are translucent. Restore the pixels from
+            // the previous full-height pill before drawing its compressed
+            // frame; otherwise an opaque backing store retains the endpoints.
+            QColor opaqueOverlay = fill;
+            const qreal overlayOpacity = opaqueOverlay.alphaF();
+            opaqueOverlay.setAlpha(255);
+            QColor markerBackground = mix(
+                option->palette.color(QPalette::Base), opaqueOverlay,
+                overlayOpacity);
+            markerBackground.setAlpha(255);
+            painter->setBrush(markerBackground);
+            painter->drawRect(fullIndicator);
+            painter->setBrush(enabled ? itemTokens.selectionAccent
+                                      : itemTokens.accentFillDisabled);
             painter->drawRoundedRect(
                 QRectF(indicatorX,
                        itemContent.center().y() - indicatorHeight / 2.0,
