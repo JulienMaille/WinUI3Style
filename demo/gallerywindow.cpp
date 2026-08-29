@@ -33,6 +33,8 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QColorDialog>
+#include <QPixmap>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QScreen>
@@ -166,6 +168,7 @@ GalleryWindow::GalleryWindow(QWidget *parent)
     m_navigation->addPage(collectionsPage(), WinUI3::icon(WinUI3::Icon::Folder), tr("Collections"));
     m_navigation->addPage(settingsPage(), WinUI3::icon(WinUI3::Icon::Settings), tr("Settings"));
     m_navigation->addPage(dialogsPage(), WinUI3::icon(WinUI3::Icon::More), tr("Dialogs & states"));
+    m_navigation->addPage(palettePage(), WinUI3::icon(WinUI3::Icon::Edit), tr("Palette lab"));
     setCentralWidget(m_navigation);
 }
 
@@ -277,6 +280,13 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
             fileMenu->hide();
         }
         for (int page = 0; page < m_navigation->count(); ++page) {
+            // The palette lab page is a live playground whose contents depend
+            // on user interaction; it has no approved baseline. Skip it in the
+            // deterministic matrix.
+            if (QWidget *pageWidget = m_navigation->widget(page);
+                pageWidget && pageWidget->objectName()
+                                   == QLatin1String("paletteLabPage"))
+                continue;
             m_navigation->setCurrentIndex(page);
             qApp->processEvents();
             settlePointerStates();
@@ -707,6 +717,169 @@ QWidget *GalleryWindow::settingsPage()
     advanced->setExpandableWidget(details);
     content->addWidget(advanced);
     return scrollingPage(tr("Settings"), content);
+}
+
+QWidget *GalleryWindow::palettePage()
+{
+    // Live palette playground: the preview panel below carries an explicit
+    // widget palette, which the style now honors. Editing a role repaints the
+    // whole panel through the palette-derived token pipeline.
+    auto *content = new QVBoxLayout;
+
+    auto *preview = new QWidget;
+    preview->setAutoFillBackground(true);
+    auto *previewLayout = new QVBoxLayout(preview);
+    previewLayout->setContentsMargins(16, 16, 16, 16);
+    previewLayout->setSpacing(12);
+    auto *buttonRow = new QHBoxLayout;
+    buttonRow->addWidget(new QPushButton(tr("Preview button")));
+    buttonRow->addWidget(new QPushButton(tr("Secondary")));
+    buttonRow->addStretch();
+    previewLayout->addLayout(buttonRow);
+    auto *previewCheck = new QCheckBox(tr("Preview checkbox"));
+    previewCheck->setChecked(true);
+    previewLayout->addWidget(previewCheck);
+    previewLayout->addWidget(new QLineEdit(tr("Typed text preview")));
+    preview->setMinimumHeight(150);
+
+    struct RoleRow {
+        QPalette::ColorRole role;
+        const char *label;
+    };
+    static const QVector<RoleRow> roles = {
+        { QPalette::Window, QT_TR_NOOP("Window (paper)") },
+        // The "ink" entry drives both text roles: WinUI has a single
+        // TextFillColorPrimary, and QLineEdit/QTextEdit use QPalette::Text
+        // where buttons use QPalette::WindowText.
+        { QPalette::WindowText, QT_TR_NOOP("WindowText/Text (ink)") },
+        { QPalette::Base, QT_TR_NOOP("Base (layer)") },
+        { QPalette::Button, QT_TR_NOOP("Button (control fill)") },
+        { QPalette::Highlight, QT_TR_NOOP("Highlight (selection)") },
+    };
+
+    // State shared by every swatch lambda; owned by the preview panel so the
+    // captures stay valid until the page is destroyed.
+    struct PaletteState {
+        QPalette working;
+        QVector<QLabel *> swatches;
+    };
+    auto *state = new PaletteState{ preview->palette(), {} };
+
+    auto applyPalette = [preview, state] {
+        preview->setPalette(state->working);
+        preview->update();
+    };
+    auto refreshSwatches = [state] {
+        for (int i = 0; i < state->swatches.size(); ++i) {
+            QPixmap pixmap(48, 20);
+            pixmap.fill(state->working.color(roles[i].role));
+            state->swatches[i]->setPixmap(pixmap);
+        }
+    };
+
+    auto *rolesGrid = new QGridLayout;
+    for (int i = 0; i < roles.size(); ++i) {
+        auto *label = new QLabel(tr(roles[i].label));
+        auto *swatch = new QLabel;
+        swatch->setFixedSize(48, 20);
+        state->swatches.append(swatch);
+        auto *pick = new QPushButton(tr("Edit..."));
+        connect(pick, &QPushButton::clicked, this,
+                [this, state, role = roles[i].role, refreshSwatches,
+                 applyPalette] {
+                    const QColor color = QColorDialog::getColor(
+                        state->working.color(role), this, tr("Choose color"),
+                        QColorDialog::ShowAlphaChannel);
+                    if (!color.isValid())
+                        return;
+                    const auto setRole = [state, color](QPalette::ColorRole r,
+                                                        QPalette::ColorGroup g) {
+                        state->working.setColor(g, r, color);
+                    };
+                    for (const QPalette::ColorGroup g :
+                         {QPalette::Active, QPalette::Inactive}) {
+                        setRole(role, g);
+                        // The ink applies to every text-carrying role so the
+                        // panel renders uniform text like WinUI does.
+                        if (role == QPalette::WindowText) {
+                            setRole(QPalette::Text, g);
+                            setRole(QPalette::ButtonText, g);
+                        }
+                    }
+                    refreshSwatches();
+                    applyPalette();
+                });
+        const int gridRow = i / 3;
+        const int gridCol = (i % 3) * 3;
+        rolesGrid->addWidget(label, gridRow, gridCol);
+        rolesGrid->addWidget(swatch, gridRow, gridCol + 1);
+        rolesGrid->addWidget(pick, gridRow, gridCol + 2);
+    }
+    refreshSwatches();
+    // The accent is not a per-panel palette role: it lives on the style and
+    // rebuilds the whole application palette (Accent + Highlight roles and
+    // the accent ramp) at once.
+    auto *accentLabel = new QLabel(tr("Accent (style-wide)"));
+    auto *accentSwatch = new QLabel;
+    accentSwatch->setFixedSize(48, 20);
+    auto *accentPick = new QPushButton(tr("Edit..."));
+    const auto updateAccentSwatch = [this, accentSwatch] {
+        QPixmap pixmap(48, 20);
+        if (auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style()))
+            pixmap.fill(winuiStyle->accentColor());
+        accentSwatch->setPixmap(pixmap);
+    };
+    updateAccentSwatch();
+    connect(accentPick, &QPushButton::clicked, this,
+            [this, updateAccentSwatch] {
+                auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style());
+                if (!winuiStyle)
+                    return;
+                const QColor color = QColorDialog::getColor(
+                    winuiStyle->accentColor(), this, tr("Choose accent"));
+                if (!color.isValid())
+                    return;
+                winuiStyle->setAccentColor(color);
+                updateAccentSwatch();
+            });
+    rolesGrid->addWidget(accentLabel, 2, 0);
+    rolesGrid->addWidget(accentSwatch, 2, 1);
+    rolesGrid->addWidget(accentPick, 2, 2);
+
+    auto *reset = new QPushButton(tr("Reset panel palette"));
+    connect(reset, &QPushButton::clicked, this,
+            [preview, state, refreshSwatches] {
+                state->working = qApp->palette();
+                preview->setPalette(state->working);
+                refreshSwatches();
+            });
+    rolesGrid->addWidget(reset, 2, 3, 1, 2);
+    auto *accentReset = new QPushButton(tr("Reset accent"));
+    connect(accentReset, &QPushButton::clicked, this, [updateAccentSwatch] {
+        if (auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style())) {
+            winuiStyle->setAccentColor({}); // invalid -> Windows system accent
+            updateAccentSwatch();
+        }
+    });
+    rolesGrid->addWidget(accentReset, 2, 5, 1, 2);
+    rolesGrid->setColumnStretch(8, 1);
+
+    // Delete `state` with the preview panel it describes.
+    connect(preview, &QObject::destroyed, [state] { delete state; });
+
+    content->addLayout(rolesGrid);
+    content->addWidget(preview);
+    content->addSpacing(8);
+    auto *note = new QLabel(tr(
+        "This panel once edited carries an explicit palette "
+        "(Qt::WA_SetPalette): the style no longer restamps it on theme "
+        "refresh, and its text, strokes and fills are derived from whatever "
+        "colors you pick above."));
+    note->setWordWrap(true);
+    content->addWidget(note);
+    QWidget *page = scrollingPage(tr("Palette lab"), content);
+    page->setObjectName(QStringLiteral("paletteLabPage"));
+    return page;
 }
 
 QWidget *GalleryWindow::dialogsPage()

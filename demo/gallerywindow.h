@@ -17,6 +17,7 @@ private:
     QWidget *collectionsPage();
     QWidget *settingsPage();
     QWidget *dialogsPage();
+    QWidget *palettePage();
     void setTheme(int index);
 
     WinUI3::NavigationView *m_navigation = nullptr;
