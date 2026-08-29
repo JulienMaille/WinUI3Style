@@ -158,6 +158,11 @@ GalleryWindow::GalleryWindow(QWidget *parent)
 
     auto *theme = new QComboBox(toolbar);
     theme->addItems({tr("System theme"), tr("Light"), tr("Dark")});
+    theme->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    theme->setMinimumContentsLength(theme->itemText(0).size());
+    // Keep the longest setting visible in the compact command bar. The
+    // explicit minimum also survives a toolbar relayout before first show.
+    theme->setMinimumWidth(theme->sizeHint().width());
     theme->setAccessibleName(tr("Theme"));
     toolbar->addWidget(theme);
     connect(theme, &QComboBox::currentIndexChanged, this, &GalleryWindow::setTheme);

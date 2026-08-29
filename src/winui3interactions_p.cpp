@@ -36,8 +36,10 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
+#include <QScreen>
 #include <QSlider>
 #include <QStyleOptionToolButton>
+#include <QStyleOptionComboBox>
 #include <QTabBar>
 #include <QTextEdit>
 #include <QToolButton>
@@ -64,6 +66,66 @@ bool buttonPressPulse(const QWidget *widget)
             || qobject_cast<const QToolButton *>(widget));
 }
 
+bool comboPressOpensPopup(QComboBox *combo, const QPoint &position)
+{
+    if (!combo)
+        return false;
+    if (combo->isEditable()) {
+        QStyleOptionComboBox option;
+        option.initFrom(combo);
+        option.rect = combo->rect();
+        option.direction = combo->layoutDirection();
+        const QRect arrow = combo->style()->subControlRect(
+            QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxArrow, combo);
+        return arrow.contains(position);
+    }
+    return true;
+}
+
+bool comboPopupItemView(const QWidget *widget)
+{
+    const QWidget *candidate = widget;
+    while (candidate) {
+        if (qobject_cast<const QAbstractItemView *>(candidate))
+            break;
+        candidate = candidate->parentWidget();
+    }
+    if (!candidate || !candidate->window()
+        || candidate->window()->windowType() != Qt::Popup)
+        return false;
+    return qobject_cast<const QComboBox *>(candidate->window()->parentWidget());
+}
+
+void centerPendingComboPopup(QWidget *popup, QComboBox *combo)
+{
+    if (!popup || !combo || combo->currentIndex() < 0)
+        return;
+    QAbstractItemView *view = combo->view();
+    if (!view || !view->viewport())
+        return;
+    const QModelIndex current = combo->model()->index(
+        combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
+    const QRect selected = view->visualRect(current);
+    if (!selected.isValid())
+        return;
+    const QPoint comboCenter = combo->mapToGlobal(combo->rect().center());
+    // QComboBox's private popup container can report the viewport's previous
+    // global origin during a reused QEvent::Show. Derive the anchor from the
+    // stable popup inset and item geometry instead, otherwise later openings
+    // drift by the combined 4px top/bottom margin.
+    const int selectedCenterInPopup = popup->contentsRect().top()
+        + view->frameWidth() + selected.center().y();
+    int targetY = comboCenter.y() - selectedCenterInPopup;
+    if (QScreen *screen = popup->screen()) {
+        const QRect available = screen->availableGeometry();
+        const int maximumY = qMax(available.top(),
+                                  available.bottom() - popup->height() + 1);
+        targetY = qBound(available.top(), targetY, maximumY);
+    }
+    if (targetY != popup->y())
+        popup->move(popup->x(), targetY);
+}
+
 enum class InteractionMotion {
     Hover,
     Press,
@@ -73,6 +135,8 @@ enum class InteractionMotion {
 int interactionDuration(const QWidget *widget, InteractionMotion motion,
                         bool active)
 {
+    if (comboPopupItemView(widget))
+        return 167;
     // TextBox and NumberBox switch their common visual states through setters;
     // their templates define no timed transition. The TextBox helper button is
     // discrete as well. Other button-like surfaces use WinUI's faster brush
@@ -162,6 +226,12 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
             framePropertyRegistry().set(radio, checkProperty,
                                         radio->isChecked() ? 1.0 : 0.0);
+        }
+        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+            if (m_comboPressStates.remove(combo)) {
+                combo->releaseMouse();
+                m_callbacks.releaseComboChevron(combo);
+            }
         }
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
             m_callbacks.cancelScrollBarTimer(scrollBar);
@@ -288,9 +358,21 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton) {
+            if (mouse->button() == Qt::LeftButton
+                && comboPressOpensPopup(combo, mouse->position().toPoint())) {
+                // QComboBox's platform-independent default opens its popup
+                // from mousePressEvent. WinUI opens on release, so consume
+                // this press and keep a grab until release. The grab is
+                // important when the pointer leaves the combo: Qt will then
+                // still deliver the release here and we can correctly cancel
+                // instead of opening a popup at an unrelated target.
+                m_comboPressStates.insert(combo);
+                combo->grabMouse();
                 m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
-                m_callbacks.prepareComboPopupFirstFrame(combo);
+                m_callbacks.animate(combo, pressProperty, 1.0,
+                                    interactionDuration(
+                                        combo, InteractionMotion::Press, true));
+                return true;
             }
         }
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
@@ -358,6 +440,31 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::MouseButtonRelease:
+        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+            auto pending = m_comboPressStates.find(combo);
+            if (pending != m_comboPressStates.end()
+                && static_cast<const QMouseEvent *>(event)->button()
+                       == Qt::LeftButton) {
+                const QPoint position = static_cast<const QMouseEvent *>(event)
+                    ->position().toPoint();
+                m_comboPressStates.erase(pending);
+                combo->releaseMouse();
+                const bool activate = combo->rect().contains(position);
+                m_callbacks.animate(combo, pressProperty, 0.0,
+                                    interactionDuration(
+                                        combo, InteractionMotion::Press, false));
+                if (activate) {
+                    // Prepare the first selected row immediately before the
+                    // release-triggered popup is shown. This keeps Qt's
+                    // keyboard/programmatic path unchanged and avoids a
+                    // visible press-time popup/layout pass.
+                    m_callbacks.prepareComboPopupFirstFrame(combo);
+                    combo->showPopup();
+                }
+                m_callbacks.releaseComboChevron(combo);
+                return true;
+            }
+        }
         if (!widget->isEnabled()) {
             m_callbacks.clearPointerInteraction(widget);
             widget->update();
@@ -426,6 +533,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                                                 true));
         break;
     case QEvent::FocusOut:
+        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+            if (m_comboPressStates.remove(combo)) {
+                combo->releaseMouse();
+                m_callbacks.animate(combo, pressProperty, 0.0,
+                                    interactionDuration(
+                                        combo, InteractionMotion::Press, false));
+                m_callbacks.releaseComboChevron(combo);
+            }
+        }
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
             m_callbacks.cancelSliderToolTip(slider);
             hideSliderValueToolTip(slider);
@@ -493,6 +609,10 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::Show:
+        // Establish popup margins before measuring or anchoring any child view.
+        // Doing this after ComboBox centering shifts the reused popup by the
+        // combined top/bottom inset on its second opening.
+        m_callbacks.preparePopupSurface(widget);
         m_callbacks.updateReadOnlyDeleteAffordance(
             qobject_cast<QLineEdit *>(widget));
         m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
@@ -501,12 +621,19 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // stable first composited frame; waiting for the popup Show event is
         // observably too late when the selected item is not row zero.
         if (qobject_cast<QAbstractItemView *>(widget)) {
-            if (auto *combo = m_callbacks.comboForPopupWidget(widget))
+            if (auto *combo = m_callbacks.comboForPopupWidget(widget)) {
                 m_callbacks.prepareComboPopupFirstFrame(combo);
+                // A reused popup does not necessarily move or resize when a
+                // different row becomes current. Recenter it here, after the
+                // view layout is prepared but before the popup is composited.
+                centerPendingComboPopup(widget->window(), combo);
+            }
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-            if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget()))
+            if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
                 m_callbacks.prepareComboPopupFirstFrame(combo);
+                centerPendingComboPopup(widget, combo);
+            }
         }
         if (auto *dialog = qobject_cast<QDialog *>(widget);
             dialog && (qobject_cast<QMessageBox *>(dialog)
@@ -533,7 +660,6 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (qobject_cast<QProgressBar *>(widget))
             m_callbacks.refreshProgressTimer();
-        m_callbacks.preparePopupSurface(widget);
         m_callbacks.registerPopupPaletteOwners(widget);
         break;
     case QEvent::WinIdChange:
@@ -547,6 +673,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 widget->property("_winui_backdrop").toInt()));
         }
         break;
+    case QEvent::Move:
+        break;
     case QEvent::Resize:
         // The DWM corner preference is resize-stable, but the legacy region
         // fallback is not. Re-apply it after every native popup resize so a
@@ -557,6 +685,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             applyPopupRoundedCorners(widget);
         break;
     case QEvent::Hide:
+        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+            if (m_comboPressStates.remove(combo)) {
+                combo->releaseMouse();
+                m_callbacks.animate(combo, pressProperty, 0.0,
+                                    interactionDuration(
+                                        combo, InteractionMotion::Press, false));
+                m_callbacks.releaseComboChevron(combo);
+            }
+        }
         if (qobject_cast<QProgressBar *>(widget))
             m_callbacks.refreshProgressTimer();
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))

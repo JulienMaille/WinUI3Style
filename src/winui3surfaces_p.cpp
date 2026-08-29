@@ -512,6 +512,21 @@ void preparePopupSurface(QWidget *widget)
     popup->setAttribute(Qt::WA_TranslucentBackground, false);
     popup->setAttribute(Qt::WA_NoSystemBackground, false);
     applyPopupRoundedCorners(popup);
+    const bool comboPopup = qobject_cast<QComboBox *>(popup->parentWidget());
+    if (comboPopup) {
+        // WinUI DropdownContentMargin: the popup surface has a four-pixel
+        // breathing room above and below the first/last item. Keep this on
+        // the popup window so the view's item geometry stays stable between
+        // first show and subsequent popup cycles.
+        remember(popup, originalMarginsProperty,
+                 QVariant::fromValue(popup->contentsMargins()));
+        popup->setContentsMargins(0, 4, 0, 4);
+        // The selected-row anchor is computed in the same Show dispatch. Make
+        // the new inset effective now so the first opening uses the exact same
+        // viewport offset as every later opening.
+        if (QLayout *layout = popup->layout())
+            layout->activate();
+    }
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
         remember(popup, originalMarginsProperty,
                  QVariant::fromValue(popup->contentsMargins()));

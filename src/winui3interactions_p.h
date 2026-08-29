@@ -2,6 +2,7 @@
 
 #include <QHash>
 #include <QPoint>
+#include <QSet>
 #include <QVariant>
 
 #include <functional>
@@ -80,6 +81,7 @@ public:
 private:
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;
+    QSet<QComboBox *> m_comboPressStates;
 };
 
 } // namespace Private

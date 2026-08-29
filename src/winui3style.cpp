@@ -888,9 +888,13 @@ public:
             return;
         QWidget *popup = combo->view()->window();
         associateComboPopup(combo, popup);
-        if (!popup || preparedComboPopups.contains(popup))
+        if (!popup)
             return;
         preparedComboPopups.insert(popup);
+        // QComboBox can change the popup viewport geometry between the view's
+        // Show event and the popup window's Show event. Re-running this
+        // idempotent preparation makes the selected-row anchor deterministic
+        // on both the first and later openings.
         prepareComboPopupFirstFrameImpl(combo);
     }
 

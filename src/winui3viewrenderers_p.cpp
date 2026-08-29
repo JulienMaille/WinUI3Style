@@ -55,6 +55,10 @@ const QAbstractItemView *itemView(const QWidget *widget)
 constexpr int itemSelectionGutter = 12;
 constexpr int itemSelectionMarkerWidth = 3;
 constexpr int itemSelectionMarkerInset = 2;
+constexpr int comboPopupItemPaddingLeft = 11;
+constexpr int comboPopupItemPaddingTop = 5;
+constexpr int comboPopupItemPaddingRight = 11;
+constexpr int comboPopupItemPaddingBottom = 7;
 
 const QAbstractItemView *selectionMarkerView(const QWidget *widget)
 {
@@ -131,6 +135,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             fill = itemTokens.subtlePressed;
         else if (selected || hovered)
             fill = itemTokens.subtleHover;
+        const qreal popupPress = comboPopup
+            ? progress(widget, pressProperty,
+                       pressedItem ? 1.0 : 0.0)
+            : 0.0;
         QRectF itemRect = popup
             ? QRectF(option->rect).adjusted(5, 2, -5, -2)
             : tree ? QRectF(option->rect).adjusted(4, 2, -4, -2)
@@ -147,11 +155,27 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             painter->setPen(Qt::NoPen);
             painter->setBrush(enabled ? itemTokens.selectionAccent
                                        : itemTokens.accentFillDisabled);
+            // WinUI's selected-item pill compresses to 62.5% while the
+            // pointer is held. The interaction controller uses the same
+            // 167 ms transition as the current DropdownContent template.
+            const qreal indicatorWidth = 3.0;
+            const qreal indicatorHeight = 16.0
+                * (1.0 - 0.375 * popupPress);
             const qreal indicatorX = option->direction == Qt::RightToLeft
-                ? itemRect.right() - 3.0 : itemRect.left();
+                ? itemRect.right() - indicatorWidth : itemRect.left();
+            // The pill is aligned to the content slot created by the
+            // ComboBoxItem's 5px/7px vertical padding.  At the normal 16px
+            // height this is visually the same center as the row, while the
+            // explicit slot keeps the compressed 0.625 state deterministic
+            // at fractional device-pixel ratios.
+            const QRectF itemContent = itemRect.adjusted(
+                comboPopupItemPaddingLeft, comboPopupItemPaddingTop,
+                -comboPopupItemPaddingRight, -comboPopupItemPaddingBottom);
             painter->drawRoundedRect(
-                QRectF(indicatorX, option->rect.center().y() - 8.0,
-                       3.0, 16.0), 1.5, 1.5);
+                QRectF(indicatorX,
+                       itemContent.center().y() - indicatorHeight / 2.0,
+                       indicatorWidth, indicatorHeight),
+                1.5, 1.5);
             painter->restore();
         } else if (selected && popup && firstColumn) {
             const QRect checkRect = QStyle::visualRect(option->direction, option->rect,
@@ -298,7 +322,12 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                     || (source->features & QStyleOptionViewItem::HasCheckIndicator);
                 QRect textRect = popup
                     ? source->rect.adjusted(
-                        comboPopup && !hasLeadingContent ? 16 : 42, 0, -12, 0)
+                        comboPopup && !hasLeadingContent
+                            ? comboPopupItemPaddingLeft + 5 : 42,
+                        0,
+                        comboPopup && !hasLeadingContent
+                            ? -(comboPopupItemPaddingRight + 5) : -12,
+                        0)
                     : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
                 painter->save();
                 painter->setFont(source->font);

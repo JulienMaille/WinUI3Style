@@ -363,6 +363,7 @@ private slots:
     void settingsCardChevronAndStableHeader();
     void settingsCardExpansionLoad();
     void settingsCardInteractiveFrames();
+    void settingsCardExpansionInScrollingPage();
     void navigationTransition();
     void navigationInteractiveFrames();
     void renderCommonStates();
@@ -372,8 +373,10 @@ private slots:
     void textBoxInteraction();
     void clearButtonStateContract();
     void textBoxStateMatrix();
+    void themeComboSizingContract();
     void indeterminateProgressDeterminism();
     void comboPopupContract();
+    void comboReleaseActivationAndMarkerMotion();
     void comboPopupAssociationLifecycle();
     void comboChevronMotion();
     void comboChevronGeometry();
@@ -387,6 +390,7 @@ private slots:
     void radioStateMotion();
     void radioDotDpiGeometry();
     void menuSizingContract();
+    void menuSubmenuChevronGeometry();
     void menuPaintTabParsing();
     void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
@@ -1805,6 +1809,110 @@ void WinUI3StyleTest::settingsCardInteractiveFrames()
              static_cast<int>(WinUI3::Icon::ChevronDown));
 }
 
+void WinUI3StyleTest::settingsCardExpansionInScrollingPage()
+{
+    // Keep this composition identical to GalleryWindow::scrollingPage(): the
+    // expansion must not let the parent layout redistribute the already
+    // visible cards. Only Advanced's content host may grow downward.
+    auto *area = new QScrollArea;
+    area->setFrameShape(QFrame::NoFrame);
+    area->setWidgetResizable(true);
+    auto *body = new QWidget;
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(28, 20, 28, 28);
+    bodyLayout->setSpacing(16);
+    auto *heading = new QLabel(QStringLiteral("Settings"));
+    QFont headingFont = heading->font();
+    headingFont.setPixelSize(28);
+    headingFont.setWeight(QFont::DemiBold);
+    heading->setFont(headingFont);
+    bodyLayout->addWidget(heading);
+
+    auto *cardsLayout = new QVBoxLayout;
+    auto *notifications = new WinUI3::SettingsCard;
+    notifications->setTitle(QStringLiteral("Notifications"));
+    notifications->setDescription(QStringLiteral("Show alerts and status messages"));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    notifications->setTrailingWidget(toggle);
+    cardsLayout->addWidget(notifications);
+
+    auto *updates = new WinUI3::SettingsCard;
+    updates->setTitle(QStringLiteral("Updates"));
+    updates->setDescription(QStringLiteral("Choose how updates are installed"));
+    auto *combo = new QComboBox;
+    combo->addItems({QStringLiteral("Automatic"), QStringLiteral("Notify me"),
+                     QStringLiteral("Manual")});
+    updates->setTrailingWidget(combo);
+    cardsLayout->addWidget(updates);
+
+    auto *advanced = new WinUI3::SettingsCard;
+    advanced->setTitle(QStringLiteral("Advanced options"));
+    advanced->setDescription(QStringLiteral("Developer and diagnostic settings"));
+    auto *details = new QTextEdit;
+    details->setPlainText(QStringLiteral("Expanded settings content."));
+    details->setMaximumHeight(100);
+    advanced->setExpandableWidget(details);
+    cardsLayout->addWidget(advanced);
+    bodyLayout->addLayout(cardsLayout);
+    bodyLayout->addStretch();
+    area->setWidget(body);
+    // Initial content fits the viewport, while the expanded details force a
+    // vertical scrollbar; this is the transition that used to redistribute
+    // the card stack by a few pixels in the real gallery.
+    area->resize(900, 420);
+    area->show();
+    QCoreApplication::processEvents();
+    QVERIFY(!area->verticalScrollBar()->isVisible());
+
+    const QList<WinUI3::SettingsCard *> cards{notifications, updates, advanced};
+    QVector<QRect> cardGeometries;
+    QVector<QRect> headerGeometries;
+    for (WinUI3::SettingsCard *card : cards) {
+        auto *header = card->findChild<QWidget *>(
+            QStringLiteral("_winui_settings_card_headerHost"));
+        QVERIFY(header);
+        cardGeometries.append(card->geometry());
+        headerGeometries.append(header->geometry());
+    }
+    const int advancedBottom = advanced->geometry().bottom();
+    const int advancedHeight = advanced->height();
+    advanced->setExpanded(true);
+    auto *animation = advanced->findChild<QVariantAnimation *>(
+        QStringLiteral("_winui_settings_card_expansion_animation"));
+    QVERIFY(animation);
+    animation->setCurrentTime(animation->duration() / 2);
+    QCoreApplication::processEvents();
+    QVERIFY(advanced->property("expansionProgress").toReal() > 0.0);
+    QVERIFY(advanced->property("expansionProgress").toReal() < 1.0);
+    QVERIFY(area->verticalScrollBar()->isVisible());
+    for (int i = 0; i < cards.size(); ++i) {
+        auto *header = cards.at(i)->findChild<QWidget *>(
+            QStringLiteral("_winui_settings_card_headerHost"));
+        QVERIFY(header);
+        if (i < 2) {
+            QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
+            QCOMPARE(header->geometry().top(), headerGeometries.at(i).top());
+        } else {
+            QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
+        }
+    }
+    QVERIFY(advanced->geometry().bottom() >= advancedBottom);
+    animation->setCurrentTime(animation->duration());
+    QCoreApplication::processEvents();
+    QCOMPARE(advanced->geometry().top(), cardGeometries.at(2).top());
+    QVERIFY(advanced->height() > advancedHeight);
+    for (int i = 0; i < 2; ++i) {
+        auto *header = cards.at(i)->findChild<QWidget *>(
+            QStringLiteral("_winui_settings_card_headerHost"));
+        QVERIFY(header);
+        QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
+        QCOMPARE(header->geometry().top(), headerGeometries.at(i).top());
+    }
+    area->hide();
+    delete area;
+}
+
 void WinUI3StyleTest::navigationTransition()
 {
     WinUI3::NavigationView view;
@@ -2352,6 +2460,35 @@ void WinUI3StyleTest::indeterminateProgressDeterminism()
     QCOMPARE(first, second);
 }
 
+void WinUI3StyleTest::themeComboSizingContract()
+{
+    // Keep this in lockstep with GalleryWindow's command-bar theme selector:
+    // the longest item must remain available before the toolbar is shown.
+    QComboBox combo;
+    combo.addItems({QStringLiteral("System theme"), QStringLiteral("Light"),
+                    QStringLiteral("Dark")});
+    combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    combo.setMinimumContentsLength(combo.itemText(0).size());
+    combo.setMinimumWidth(combo.sizeHint().width());
+
+    const int textWidth = QFontMetrics(combo.font()).horizontalAdvance(
+        combo.itemText(0));
+    QVERIFY(combo.minimumWidth() >= textWidth);
+    combo.resize(combo.minimumWidth(), 32);
+    combo.show();
+    QTRY_VERIFY(combo.isVisible());
+
+    QStyleOptionComboBox option;
+    option.initFrom(&combo);
+    option.rect = combo.rect();
+    option.currentText = combo.currentText();
+    const QRect edit = combo.style()->subControlRect(
+        QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, &combo);
+    QVERIFY2(edit.width() >= textWidth,
+             qPrintable(QStringLiteral("edit width %1 < text width %2")
+                            .arg(edit.width()).arg(textWidth)));
+}
+
 void WinUI3StyleTest::comboPopupContract()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
@@ -2417,13 +2554,27 @@ void WinUI3StyleTest::comboPopupContract()
     QTRY_VERIFY(combo.view()->isVisible());
     QVERIFY(combo.view()->palette().color(QPalette::Text).lightness() < 128);
     QVERIFY(combo.view()->palette().color(QPalette::Window).lightness() > 128);
-    const QRect firstGeometry = popup->geometry();
     const QPoint comboCenter = combo.mapToGlobal(combo.rect().center());
     const QRect firstRow = combo.view()->visualRect(combo.model()->index(0, 0));
     const QPoint selectedCenter = combo.view()->viewport()->mapToGlobal(
         firstRow.center());
-    QVERIFY(qAbs(selectedCenter.y() - comboCenter.y()) <= 4);
+    QVERIFY2(qAbs(selectedCenter.y() - comboCenter.y()) <= 4,
+             qPrintable(QStringLiteral("selected=%1 combo=%2 popup=%3,%4,%5,%6 row=%7,%8,%9,%10")
+                            .arg(selectedCenter.y()).arg(comboCenter.y())
+                            .arg(popup->x()).arg(popup->y())
+                            .arg(popup->width()).arg(popup->height())
+                            .arg(firstRow.x()).arg(firstRow.y())
+                            .arg(firstRow.width()).arg(firstRow.height())));
+    // A direct QComboBox::showPopup() can require one synchronous correction while
+    // QEvent::Show is being dispatched.  That happens before the popup is composed;
+    // only geometry changes after the completed Show event can produce a visible jump.
+    QVERIFY(probe.movesAfterShow <= 1);
+    const QRect settledGeometry = popup->geometry();
+    probe.movesAfterShow = 0;
+    probe.resizesAfterShow = 0;
+    probe.layoutsAfterShow = 0;
     QTest::qWait(60);
+    QCOMPARE(popup->geometry(), settledGeometry);
     QCOMPARE(probe.movesAfterShow, 0);
     QCOMPARE(probe.resizesAfterShow, 0);
     QVERIFY(probe.layoutsAfterShow <= 1);
@@ -2463,8 +2614,19 @@ void WinUI3StyleTest::comboPopupContract()
     probe.reset();
     combo.showPopup();
     QTRY_VERIFY(combo.view()->isVisible());
-    QCOMPARE(popup->geometry(), firstGeometry);
+    const QRect reopenedRow = combo.view()->visualRect(
+        combo.model()->index(combo.currentIndex(), combo.modelColumn(),
+                             combo.rootModelIndex()));
+    const QPoint reopenedSelectedCenter = combo.view()->viewport()->mapToGlobal(
+        reopenedRow.center());
+    QVERIFY(qAbs(reopenedSelectedCenter.y() - comboCenter.y()) <= 4);
+    const QRect reopenedGeometry = popup->geometry();
+    QVERIFY(probe.movesAfterShow <= 1);
+    probe.movesAfterShow = 0;
+    probe.resizesAfterShow = 0;
+    probe.layoutsAfterShow = 0;
     QTest::qWait(60);
+    QCOMPARE(popup->geometry(), reopenedGeometry);
     QCOMPARE(probe.movesAfterShow, 0);
     QCOMPARE(probe.resizesAfterShow, 0);
     QVERIFY(probe.layoutsAfterShow <= 1);
@@ -2476,6 +2638,151 @@ void WinUI3StyleTest::comboPopupContract()
                       Qt::NoModifier, second.center());
     QCOMPARE(combo.currentIndex(), 1);
     style->setAccentColor({});
+}
+
+void WinUI3StyleTest::comboReleaseActivationAndMarkerMotion()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    QWidget host;
+    host.resize(440, 320);
+    QComboBox combo(&host);
+    combo.addItems({QStringLiteral("First"), QStringLiteral("Selected"),
+                    QStringLiteral("Last")});
+    combo.setCurrentIndex(1);
+    combo.resize(220, 32);
+    combo.move(100, 140);
+    host.show();
+    QTRY_VERIFY(host.isVisible());
+
+    QAbstractItemView *view = combo.view();
+    QVERIFY(view);
+    QWidget *popup = view->window();
+    QVERIFY(popup);
+    QVERIFY(!view->isVisible());
+
+    // WinUI opens a ComboBox on the button release.  In particular, a press
+    // must not create the popup or perform its first layout pass.
+    const QPoint comboCenter = combo.rect().center();
+    QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
+    QVERIFY(!view->isVisible());
+    QTRY_VERIFY_WITH_TIMEOUT(frameReal(&combo, "_winui_press_progress") > 0.0,
+                             150);
+
+    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
+    QTRY_VERIFY(view->isVisible());
+    QCOMPARE(popup->contentsMargins(), QMargins(0, 4, 0, 4));
+
+    // The popup's outer 4px bands must survive the view layout and be equal
+    // on both sides.  Account for the frame border by measuring the viewport
+    // rather than relying on the private container's child hierarchy.
+    const QRect viewportInPopup(
+        view->viewport()->mapTo(popup, QPoint(0, 0)),
+        view->viewport()->size());
+    QVERIFY(viewportInPopup.top() >= 4);
+    QVERIFY(popup->height() - viewportInPopup.bottom() - 1 >= 4);
+
+    const QModelIndex selectedIndex = combo.model()->index(
+        combo.currentIndex(), combo.modelColumn(), combo.rootModelIndex());
+    const QRect selectedRow = view->visualRect(selectedIndex);
+    QVERIFY(selectedRow.isValid());
+    const QPoint selectedCenter = view->viewport()->mapToGlobal(
+        selectedRow.center());
+    const QPoint expectedCenter = combo.mapToGlobal(combo.rect().center());
+    QVERIFY(qAbs(selectedCenter.y() - expectedCenter.y()) <= 4);
+
+    // The selected item's marker is the only ComboBox-specific animation:
+    // the XAML template keeps its 3px width and compresses ScaleY from 1 to
+    // 0.625 over 167ms while the pointer is held.
+    const QColor background = view->viewport()->palette().color(QPalette::Window);
+    const QColor accent = view->viewport()->palette().color(QPalette::Highlight);
+    QStyleOptionViewItem item;
+    item.initFrom(view->viewport());
+    item.rect = QRect(0, 0, view->viewport()->width(), selectedRow.height());
+    item.direction = Qt::LeftToRight;
+    item.state = QStyle::State_Enabled | QStyle::State_Selected;
+    item.features = QStyleOptionViewItem::HasDisplay;
+    item.text = combo.currentText();
+    item.index = selectedIndex;
+
+    const auto renderMarker = [&](qreal press, Qt::LayoutDirection direction) {
+        item.direction = direction;
+        setFrame(view->viewport(), "_winui_press_progress", press);
+        QImage image(item.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(background);
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_ItemViewItem, &item, &painter,
+                           view->viewport());
+        return image;
+    };
+    const auto markerHeight = [&](const QImage &image,
+                                  Qt::LayoutDirection direction) {
+        const int left = direction == Qt::RightToLeft
+            ? image.width() - 12 : 0;
+        const int right = direction == Qt::RightToLeft
+            ? image.width() - 1 : 11;
+        int top = image.height();
+        int bottom = -1;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = qMax(0, left); x <= qMin(image.width() - 1, right); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.alpha() > 120 && colorDistance(pixel, accent) < 100) {
+                    top = qMin(top, y);
+                    bottom = qMax(bottom, y);
+                }
+            }
+        }
+        return bottom >= top ? bottom - top + 1 : 0;
+    };
+
+    const QImage normalMarker = renderMarker(0.0, Qt::LeftToRight);
+    const QImage pressedMarker = renderMarker(1.0, Qt::LeftToRight);
+    const int normalHeight = markerHeight(normalMarker, Qt::LeftToRight);
+    const int pressedHeight = markerHeight(pressedMarker, Qt::LeftToRight);
+    QVERIFY2(normalHeight >= 14,
+             qPrintable(QStringLiteral("normal marker height=%1")
+                            .arg(normalHeight)));
+    QVERIFY2(pressedHeight >= 8 && pressedHeight <= 12,
+             qPrintable(QStringLiteral("pressed marker height=%1")
+                            .arg(pressedHeight)));
+    QVERIFY(pressedHeight < normalHeight);
+
+    // Exercise the real item event path as well as the deterministic pixel
+    // probe above. The press must expose an in-flight frame before release,
+    // and release must clear it without selecting a different row.
+    setFrame(view->viewport(), "_winui_press_progress", 0.0);
+    QTest::mouseMove(view->viewport(), selectedRow.center());
+    QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      selectedRow.center());
+    QTRY_VERIFY(frameReal(view->viewport(), "_winui_press_progress") > 0.0);
+    const qreal heldProgress = frameReal(view->viewport(),
+                                         "_winui_press_progress");
+    QVERIFY(heldProgress < 1.0);
+    QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier,
+                        selectedRow.center());
+    QTRY_VERIFY(frameReal(view->viewport(), "_winui_press_progress") < 0.05);
+    QCOMPARE(combo.currentIndex(), 1);
+
+    combo.hidePopup();
+
+    // Releasing outside cancels the pending open and must not leave a stale
+    // mouse grab or press state. RTL follows the same release contract.
+    combo.setLayoutDirection(Qt::RightToLeft);
+    QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
+    QVERIFY(!view->isVisible());
+    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier,
+                        QPoint(-20, -20));
+    QTest::qWait(20);
+    QVERIFY(!view->isVisible());
+    QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
+    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
+    QTRY_VERIFY(view->isVisible());
+    QCOMPARE(popup->contentsMargins(), QMargins(0, 4, 0, 4));
+
+    const QImage rtlMarker = renderMarker(0.0, Qt::RightToLeft);
+    QVERIFY(markerHeight(rtlMarker, Qt::RightToLeft) >= 14);
+    combo.hidePopup();
 }
 
 void WinUI3StyleTest::comboPopupAssociationLifecycle()
@@ -3061,6 +3368,63 @@ void WinUI3StyleTest::menuSizingContract()
     QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier,
                       actionRect.center());
     QVERIFY(action->isChecked());
+}
+
+void WinUI3StyleTest::menuSubmenuChevronGeometry()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    constexpr int chevronSlotSize = 16;
+    constexpr int chevronRightPadding = 9;
+    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
+                                                Qt::RightToLeft}) {
+        QStyleOptionMenuItem option;
+        option.rect = QRect(0, 0, 240, 36);
+        option.direction = direction;
+        option.palette = qApp->palette();
+        option.state = QStyle::State_Enabled;
+        option.menuItemType = QStyleOptionMenuItem::SubMenu;
+        option.font = qApp->font();
+        option.fontMetrics = QFontMetrics(option.font);
+
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        {
+            QPainter painter(&image);
+            style->drawControl(QStyle::CE_MenuItem, &option, &painter);
+        }
+
+        QRect ink;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (image.pixelColor(x, y).alpha() > 20)
+                    ink |= QRect(x, y, 1, 1);
+            }
+        }
+        QVERIFY2(!ink.isEmpty(), "submenu chevron produced no pixels");
+
+        const QRect logicalSlot(
+            option.rect.right() - chevronRightPadding - chevronSlotSize + 1,
+            option.rect.center().y() - chevronSlotSize / 2,
+            chevronSlotSize, chevronSlotSize);
+        const QRect slot = QStyle::visualRect(direction, option.rect,
+                                              logicalSlot);
+        QVERIFY(slot.contains(ink.topLeft()));
+        QVERIFY(slot.contains(ink.bottomRight()));
+        // The WinUI template uses FontSize=12 in a 16px Viewbox. On the
+        // reference font that produces an approximately 8px-tall visible
+        // chevron, rather than the old 16px icon-engine paint (12px tall).
+        QVERIFY(ink.width() <= 8);
+        // Some font engines expose a one-pixel antialiasing fringe around the
+        // 8px body. The old icon path was 12px tall, so 9 remains a strict
+        // regression ceiling while keeping the DPI/font test portable.
+        QVERIFY(ink.height() <= 9);
+        QVERIFY(ink.width() >= 4);
+        QVERIFY(ink.height() >= 6);
+        QCOMPARE(slot.size(), QSize(chevronSlotSize, chevronSlotSize));
+        QVERIFY(qAbs(slot.center().y() - option.rect.center().y()) <= 1);
+    }
 }
 
 void WinUI3StyleTest::menuPaintTabParsing()

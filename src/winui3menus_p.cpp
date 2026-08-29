@@ -9,6 +9,7 @@
 #include <winui3style/winui3style.h>
 
 #include <QComboBox>
+#include <QFontDatabase>
 #include <QPainter>
 #include <QStyleOptionMenuItem>
 #include <QVariant>
@@ -18,9 +19,53 @@ using namespace PaintPrivate;
 
 namespace {
 
+// WinUI keeps a 16px chevron Viewbox, but the FontIcon itself is FontSize 12.
+// Keep the existing 24px trailing column and center the smaller glyph in it.
+constexpr int MenuChevronSlotSize = 16;
+constexpr int MenuChevronFontSize = 12;
+constexpr int MenuChevronRightPadding = 9;
+
 qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
 {
     return framePropertyRegistry().real(widget, name, fallback);
+}
+
+const QFont &menuChevronFont()
+{
+    static const QFont font = [] {
+        const QString fluent = QStringLiteral("Segoe Fluent Icons");
+        const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
+        const QString family = QFontDatabase::families().contains(fluent)
+            ? fluent : mdl2;
+        QFont result(family);
+        result.setPixelSize(MenuChevronFontSize);
+        return result;
+    }();
+    return font;
+}
+
+const QString &menuChevronGlyph(bool rightToLeft)
+{
+    static const QString right(1, QChar(0xE974));
+    static const QString left(1, QChar(0xE76B));
+    return rightToLeft ? left : right;
+}
+
+void paintMenuChevron(QPainter *painter, const QRect &menuRect,
+                      Qt::LayoutDirection direction, const QColor &color)
+{
+    const QRect logical(menuRect.right() - MenuChevronRightPadding
+                            - MenuChevronSlotSize + 1,
+                        menuRect.center().y() - MenuChevronSlotSize / 2,
+                        MenuChevronSlotSize, MenuChevronSlotSize);
+    const QRect chevron = QStyle::visualRect(direction, menuRect, logical);
+    painter->save();
+    painter->setRenderHint(QPainter::TextAntialiasing);
+    painter->setFont(menuChevronFont());
+    painter->setPen(color);
+    painter->drawText(chevron, Qt::AlignCenter,
+                      menuChevronGlyph(direction == Qt::RightToLeft));
+    painter->restore();
 }
 
 } // namespace
@@ -193,13 +238,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
                                   shortcutText);
             }
             if (menu->menuItemType == QStyleOptionMenuItem::SubMenu) {
-                const QRect submenu = QStyle::visualRect(menu->direction, menu->rect,
-                    QRect(menu->rect.right() - 24, menu->rect.center().y() - 8,
-                          16, 16));
-                WinUI3::icon(menu->direction == Qt::RightToLeft ? Icon::ChevronLeft
-                                                         : Icon::ChevronRight,
-                     enabled ? t.textPrimary : t.textDisabled).paint(painter, submenu,
-                    Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+                paintMenuChevron(painter, menu->rect, menu->direction,
+                                 enabled ? t.textPrimary : t.textDisabled);
             }
             return true;
         }

@@ -250,8 +250,16 @@ void SettingsCard::setExpansionProgress(qreal progress)
     m_expansionProgress = qBound<qreal>(0.0, progress, 1.0);
     const int contentHeight = m_expandableWidget ? expandableContentHeight() : 0;
     const int maximumHeight = qRound(contentHeight * m_expansionProgress);
-    if (m_expandableHost->maximumHeight() != maximumHeight)
+    if (m_expandableHost->maximumHeight() != maximumHeight) {
         m_expandableHost->setMaximumHeight(maximumHeight);
+        // The animated host changes the SettingsCard's layout size hint.
+        // Explicitly notify the parent layout when the card is nested in a
+        // scroll-area layout. Without this, QBoxLayout can retain the
+        // collapsed item height while the scroll area's body is already
+        // negotiating the expanded minimum size, causing sibling cards to be
+        // redistributed.
+        updateGeometry();
+    }
     if (qFuzzyIsNull(m_expansionProgress) && !m_expanded)
         m_expandableHost->setVisible(false);
     // The header lives in a fixed-size host. The parent may still relayout to
