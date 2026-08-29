@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QResizeEvent>
+#include <QShowEvent>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
 
@@ -264,12 +265,38 @@ void SettingsCard::refreshHeaderGeometry()
     if (!m_headerHost || !m_headerLayout)
         return;
 
-    m_headerLayout->activate();
+    const QMargins headerMargins = m_headerLayout->contentsMargins();
+    const int textLineHeight = qMax(m_titleLabel->fontMetrics().lineSpacing(),
+                                    m_descriptionLabel->fontMetrics().lineSpacing());
+    // Keep the normal card rhythm at one title line plus two description
+    // lines; heightForWidth below still grows it when the text truly wraps
+    // beyond that rhythm.
+    const int standardHeaderHeight = headerMargins.top()
+        + headerMargins.bottom() + m_headerLayout->verticalSpacing()
+        + textLineHeight * 3;
+
+    // The host gets a provisional default geometry before its parent lays out
+    // the card.  Measuring word-wrapped labels there would freeze that
+    // provisional height and make it depend on the trailing widget type.
+    if (!isVisible()) {
+        m_headerWidth = -1;
+        m_headerHeight = standardHeaderHeight;
+        if (m_headerHost->height() != standardHeaderHeight)
+            m_headerHost->setFixedHeight(standardHeaderHeight);
+        return;
+    }
+
     const int width = m_headerHost->width();
-    if (width <= 0 && m_headerHeight > 0)
+    if (width <= 0)
         return;
 
-    const int preferredHeight = m_headerLayout->sizeHint().height();
+    m_headerLayout->invalidate();
+    m_headerLayout->activate();
+    m_headerLayout->setGeometry(m_headerHost->rect());
+    const int measuredHeight = m_headerLayout->hasHeightForWidth()
+        ? m_headerLayout->heightForWidth(width)
+        : m_headerLayout->sizeHint().height();
+    const int preferredHeight = qMax(standardHeaderHeight, measuredHeight);
     if (preferredHeight <= 0)
         return;
 
@@ -397,6 +424,13 @@ void SettingsCard::hideEvent(QHideEvent *event)
     }
     refreshChevronPixmap();
     QFrame::hideEvent(event);
+}
+
+void SettingsCard::showEvent(QShowEvent *event)
+{
+    QFrame::showEvent(event);
+    m_headerWidth = -1;
+    refreshHeaderGeometry();
 }
 
 void SettingsCard::resizeEvent(QResizeEvent *event)

@@ -3,6 +3,7 @@
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
+#include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -44,6 +45,32 @@ bool textBoxHelperButton(const QWidget *widget)
 {
     return qobject_cast<const QAbstractButton *>(widget)
         && qobject_cast<const QLineEdit *>(widget->parentWidget());
+}
+
+void drawEditorScopedClearSurface(const QStyleOption *option,
+                                  QPainter *painter,
+                                  const QLineEdit *lineEdit,
+                                  const QColor &fill)
+{
+    const auto *button = lineEditClearButton(lineEdit);
+    if (!option || !painter || !button)
+        return;
+
+    QRectF surface(button->geometry().translated(
+        option->rect.topLeft() - lineEdit->rect().topLeft()));
+    surface.setTop(option->rect.top() + 3.0);
+    // QRectF's bottom/right edges are geometric (exclusive for the final
+    // raster row/column); subtract two from the QRect's inclusive edge so
+    // the visible surface occupies rows/columns through the three-pixel
+    // outline inset.
+    surface.setBottom(option->rect.bottom() - 2.0);
+    if (option->direction == Qt::RightToLeft)
+        surface.setLeft(option->rect.left() + 3.0);
+    else
+        surface.setRight(option->rect.right() - 2.0);
+    surface = surface.intersected(option->rect);
+    if (!surface.isEmpty())
+        roundedRect(painter, surface, fill, Qt::transparent, ControlRadius);
 }
 
 qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
@@ -126,7 +153,10 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
 
         QRectF surfaceRect = option->rect;
         if (textHelper) {
-            const QRect logical = option->rect.adjusted(0, 4, -4, -4);
+            // Keep a local fallback for the private child and action-backed
+            // helpers; the private clear button also gets its full-height
+            // editor-scoped surface from PE_PanelLineEdit above.
+            const QRect logical = option->rect.adjusted(0, 3, -3, -3);
             surfaceRect = QStyle::visualRect(option->direction, option->rect, logical);
         }
         if (stroke.alpha() == 0) {
@@ -241,6 +271,17 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             fill = mix(fill, t.controlHover, lineEditHover);
         controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary,
                        ControlRadius);
+        if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget)) {
+            const auto *clearButton = lineEditClearButton(lineEdit);
+            const qreal clearHover = progress(clearButton, hoverProperty, 0.0);
+            const qreal clearPress = progress(clearButton, pressProperty, 0.0);
+            QColor clearFill = mix(Qt::transparent, t.subtleHover,
+                                   clearHover);
+            clearFill = mix(clearFill, t.subtlePressed, clearPress);
+            if (clearHover > 0.001 || clearPress > 0.001)
+                drawEditorScopedClearSurface(option, painter, lineEdit,
+                                             clearFill);
+        }
         if (focused) {
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);

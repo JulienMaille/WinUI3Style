@@ -196,6 +196,22 @@ public:
     int paints = 0;
 };
 
+class UpdateRequestProbe final : public QObject
+{
+public:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::UpdateRequest)
+            ++updateRequests;
+        else if (event->type() == QEvent::Paint)
+            ++paints;
+        return false;
+    }
+
+    int updateRequests = 0;
+    int paints = 0;
+};
+
 class DisableAnimationsGuard final
 {
 public:
@@ -340,6 +356,7 @@ private slots:
     void toggleDragInteraction();
     void settingsCardExpansion();
     void settingsCardTrailingWidgetsReceiveClicks();
+    void settingsCardTrailingWidgetsHaveUniformHeight();
     void settingsCardChevronAndStableHeader();
     void settingsCardExpansionLoad();
     void settingsCardInteractiveFrames();
@@ -1363,6 +1380,39 @@ void WinUI3StyleTest::settingsCardTrailingWidgetsReceiveClicks()
     QCOMPARE(expandableCard->isExpanded(), true);
 }
 
+void WinUI3StyleTest::settingsCardTrailingWidgetsHaveUniformHeight()
+{
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto *toggleCard = new WinUI3::SettingsCard;
+    toggleCard->setTitle(QStringLiteral("Notifications"));
+    toggleCard->setDescription(QStringLiteral("Show alerts and status messages"));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    toggleCard->setTrailingWidget(toggle);
+    layout->addWidget(toggleCard);
+
+    auto *comboCard = new WinUI3::SettingsCard;
+    comboCard->setTitle(QStringLiteral("Updates"));
+    comboCard->setDescription(QStringLiteral("Choose how updates are installed"));
+    auto *combo = new QComboBox;
+    combo->addItems({QStringLiteral("Automatic"), QStringLiteral("Notify me"),
+                     QStringLiteral("Manual")});
+    comboCard->setTrailingWidget(combo);
+    layout->addWidget(comboCard);
+
+    host.resize(560, host.sizeHint().height());
+    host.show();
+    QCoreApplication::processEvents();
+
+    QCOMPARE(toggleCard->height(), comboCard->height());
+    QCOMPARE(toggleCard->sizeHint().height(), comboCard->sizeHint().height());
+    QCOMPARE(toggleCard->minimumSizeHint().height(), comboCard->minimumSizeHint().height());
+}
+
 void WinUI3StyleTest::settingsCardChevronAndStableHeader()
 {
     WinUI3::SettingsCard card;
@@ -1946,17 +1996,47 @@ void WinUI3StyleTest::clearButtonStateContract()
     QTest::mouseMove(&edit, QPoint(8, edit.rect().center().y()));
     QTRY_VERIFY(!clearButton->underMouse());
     const QImage runtimeNormal = edit.grab().toImage();
+    const QRect helperRect = clearButton->geometry().intersected(edit.rect());
+    QVERIFY2(helperRect.isValid(), qPrintable(QString::fromLatin1(
+        "private clear button has no editor intersection")));
+    QVERIFY(helperRect.height() < edit.height());
+    QVERIFY(helperRect.top() > edit.rect().top());
+    QRect surfaceRect = helperRect;
+    surfaceRect.setTop(edit.rect().top() + 3);
+    surfaceRect.setBottom(edit.rect().bottom() - 3);
+    if (edit.layoutDirection() == Qt::RightToLeft)
+        surfaceRect.setLeft(edit.rect().left() + 3);
+    else
+        surfaceRect.setRight(edit.rect().right() - 3);
+    QVERIFY(surfaceRect.isValid());
+    UpdateRequestProbe parentRepaint;
+    edit.installEventFilter(&parentRepaint);
+    QCoreApplication::processEvents();
+    parentRepaint.updateRequests = 0;
+    parentRepaint.paints = 0;
     QTest::mouseMove(clearButton, clearButton->rect().center());
     QTRY_VERIFY(clearButton->underMouse());
     QTRY_COMPARE(frameReal(clearButton, "_winui_hover_progress"), 1.0);
     QCoreApplication::processEvents();
     const QImage runtimeHover = edit.grab().toImage();
+    QVERIFY(parentRepaint.updateRequests > 0);
     QVERIFY(runtimeNormal != runtimeHover);
+    const QPoint surfaceCenter(surfaceRect.center().x(), surfaceRect.center().y());
+    for (const QPoint &corner : {surfaceRect.topLeft(), surfaceRect.topRight(),
+                                 surfaceRect.bottomLeft(), surfaceRect.bottomRight()})
+        QCOMPARE(runtimeHover.pixelColor(corner), runtimeNormal.pixelColor(corner));
+    QCOMPARE(runtimeHover.pixelColor(surfaceCenter.x(), surfaceRect.top() - 1),
+             runtimeNormal.pixelColor(surfaceCenter.x(), surfaceRect.top() - 1));
+    QCOMPARE(runtimeHover.pixelColor(surfaceCenter.x(), surfaceRect.bottom() + 1),
+             runtimeNormal.pixelColor(surfaceCenter.x(), surfaceRect.bottom() + 1));
+    QVERIFY(runtimeHover.pixelColor(surfaceCenter.x(), surfaceRect.top())
+            != runtimeNormal.pixelColor(surfaceCenter.x(), surfaceRect.top()));
+    QVERIFY(runtimeHover.pixelColor(surfaceCenter.x(), surfaceRect.bottom())
+            != runtimeNormal.pixelColor(surfaceCenter.x(), surfaceRect.bottom()));
     int visiblyChangedPixels = 0;
     int maximumChannelDelta = 0;
-    const QRect helperArea = clearButton->geometry().intersected(edit.rect());
-    for (int y = helperArea.top(); y <= helperArea.bottom(); ++y) {
-        for (int x = helperArea.left(); x <= helperArea.right(); ++x) {
+    for (int y = helperRect.top(); y <= helperRect.bottom(); ++y) {
+        for (int x = helperRect.left(); x <= helperRect.right(); ++x) {
             const QColor before = runtimeNormal.pixelColor(x, y);
             const QColor after = runtimeHover.pixelColor(x, y);
             const int delta = std::max({qAbs(before.red() - after.red()),
@@ -1978,6 +2058,17 @@ void WinUI3StyleTest::clearButtonStateContract()
     QTRY_COMPARE(frameReal(clearButton, "_winui_hover_progress"), 0.0);
     setFrame(clearButton, "_winui_hover_progress", 0.0);
     setFrame(clearButton, "_winui_press_progress", 0.0);
+
+    parentRepaint.updateRequests = 0;
+    QTest::mousePress(clearButton, Qt::LeftButton, Qt::NoModifier,
+                      clearButton->rect().center());
+    QTRY_COMPARE(frameReal(clearButton, "_winui_press_progress"), 1.0);
+    QCoreApplication::processEvents();
+    QVERIFY(parentRepaint.updateRequests > 0);
+    const QImage runtimePressed = edit.grab().toImage();
+    QVERIFY(runtimeHover != runtimePressed);
+    QTest::mouseRelease(clearButton, Qt::LeftButton, Qt::NoModifier,
+                        clearButton->rect().center());
 
     QStyleOptionToolButton option;
     option.initFrom(clearButton);

@@ -10,6 +10,7 @@ class QLabel;
 class QGridLayout;
 class QHideEvent;
 class QResizeEvent;
+class QShowEvent;
 class QVBoxLayout;
 class QVariantAnimation;
 class QWidget;
@@ -58,6 +59,7 @@ protected:
     void changeEvent(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     void hideEvent(QHideEvent *event) override;
+    void showEvent(QShowEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;

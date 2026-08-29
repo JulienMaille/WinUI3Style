@@ -15,8 +15,10 @@
 #include <QDialog>
 #include <QFontMetrics>
 #include <QGuiApplication>
+#include <QHash>
 #include <QLayout>
 #include <QLineEdit>
+#include <QMetaObject>
 #include <QListView>
 #include <QMenu>
 #include <QPaintEvent>
@@ -31,6 +33,24 @@
 
 namespace WinUI3::Private {
 using namespace PaintPrivate;
+
+namespace {
+
+struct LineEditClearButtonCache
+{
+    QHash<QLineEdit *, QPointer<QAbstractButton>> buttons;
+    QHash<QLineEdit *, QMetaObject::Connection> cleanupConnections;
+};
+
+LineEditClearButtonCache &lineEditClearButtonCache()
+{
+    // The cache lives until process exit, like the frame registry, so a
+    // widget cannot race its cleanup with static destruction.
+    static auto *cache = new LineEditClearButtonCache;
+    return *cache;
+}
+
+} // namespace
 
 void remember(QWidget *widget, const char *property, const QVariant &value)
 {
@@ -294,6 +314,44 @@ bool isLineEditClearButton(const QLineEdit *lineEdit,
     return true;
 }
 
+} // namespace
+
+void cacheLineEditClearButton(QLineEdit *lineEdit, QAbstractButton *button)
+{
+    if (!lineEdit)
+        return;
+
+    auto &cache = lineEditClearButtonCache();
+    if (!button) {
+        cache.buttons.remove(lineEdit);
+        if (const auto connection = cache.cleanupConnections.take(lineEdit))
+            QObject::disconnect(connection);
+        return;
+    }
+
+    cache.buttons.insert(lineEdit, QPointer<QAbstractButton>(button));
+    if (!cache.cleanupConnections.contains(lineEdit)) {
+        cache.cleanupConnections.insert(lineEdit,
+            QObject::connect(lineEdit, &QObject::destroyed,
+                             [lineEdit] {
+            auto &cache = lineEditClearButtonCache();
+            cache.buttons.remove(lineEdit);
+            cache.cleanupConnections.remove(lineEdit);
+        }));
+    }
+}
+
+const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit)
+{
+    if (!lineEdit)
+        return nullptr;
+    const auto &cache = lineEditClearButtonCache();
+    const auto button = cache.buttons.constFind(const_cast<QLineEdit *>(lineEdit));
+    return button == cache.buttons.cend() ? nullptr : button->data();
+}
+
+namespace {
+
 constexpr auto lineEditHelperUpdatePendingProperty =
     "_winui_line_edit_helper_update_pending";
 
@@ -331,6 +389,7 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
         if (!helperStyle)
             helperStyle = qobject_cast<Style *>(guardedLineEdit->style());
 
+        QAbstractButton *clearButton = nullptr;
         for (QAbstractButton *button
              : guardedLineEdit->findChildren<QAbstractButton *>()) {
             if (helperStyle) {
@@ -350,12 +409,15 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
                     framePropertyRegistry().set(button, pressProperty, 0.0);
             }
 
-            if (isLineEditClearButton(guardedLineEdit, button))
+            if (isLineEditClearButton(guardedLineEdit, button)) {
+                clearButton = button;
                 button->setVisible(!guardedLineEdit->isReadOnly()
                                    && guardedLineEdit->isEnabled()
                                    && guardedLineEdit->isClearButtonEnabled()
                                    && !guardedLineEdit->text().isEmpty());
+            }
         }
+        cacheLineEditClearButton(guardedLineEdit, clearButton);
         if (framePropertyRegistry().value(guardedLineEdit,
                                           lineEditHelperUpdatePendingProperty)
                 .toULongLong() == token) {

@@ -1802,8 +1802,10 @@ void Style::unpolish(QWidget *widget)
     if (widget) {
         d->unregisterPaletteOwner(widget);
         widget->removeEventFilter(this);
-        if (auto *lineEdit = qobject_cast<QLineEdit *>(widget))
+        if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
             cancelLineEditHelperUpdate(lineEdit);
+            cacheLineEditClearButton(lineEdit, nullptr);
+        }
     }
     if (auto *combo = qobject_cast<QComboBox *>(widget))
         d->unregisterComboPopup(combo);

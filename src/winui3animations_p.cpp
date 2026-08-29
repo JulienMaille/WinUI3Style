@@ -2,6 +2,7 @@
 
 #include "winui3frameproperties_p.h"
 
+#include <QLineEdit>
 #include <QVariantAnimation>
 #include <QWidget>
 
@@ -9,6 +10,28 @@
 #include <utility>
 
 namespace WinUI3::Private {
+
+namespace {
+
+// QLineEdit's private clear button paints its own child surface, but the
+// editor's backing store is what callers normally capture/repaint. Cache the
+// direct editor parent when an animation is created so each frame can request
+// both repaints without walking the child tree or allocating temporary state.
+QLineEdit *lineEditParent(QWidget *widget)
+{
+    return widget ? qobject_cast<QLineEdit *>(widget->parentWidget()) : nullptr;
+}
+
+void updateWidgetAndEditor(QWidget *widget, QLineEdit *editor)
+{
+    if (!widget)
+        return;
+    widget->update();
+    if (editor)
+        editor->update();
+}
+
+} // namespace
 
 FrameAnimationDriver::FrameAnimationDriver(QObject *context)
     : m_context(context)
@@ -79,12 +102,16 @@ QVariantAnimation *FrameAnimationDriver::ensure(QWidget *widget,
                              [this, widget] { stop(widget); }));
     }
     const QPointer<QWidget> guardedWidget(widget);
+    const QPointer<QLineEdit> guardedEditor(lineEditParent(widget));
     QObject::connect(animation, &QVariantAnimation::valueChanged, m_context,
-                     [guardedWidget, propertyName](const QVariant &value) {
+                     [guardedWidget, guardedEditor,
+                      propertyName](const QVariant &value) {
         if (!guardedWidget)
             return;
         framePropertyRegistry().set(guardedWidget, propertyName, value);
         guardedWidget->update();
+        if (guardedEditor)
+            guardedEditor->update();
     });
     QObject::connect(animation, &QVariantAnimation::finished, m_context,
                      [this, widget, propertyName, animation] {
@@ -123,7 +150,7 @@ void FrameAnimationDriver::animate(QWidget *widget, const char *property,
     if (duration <= 0 || !allowed || qFuzzyCompare(start, target)) {
         forget(widget, QByteArray(property), previous);
         framePropertyRegistry().set(widget, property, target);
-        widget->update();
+        updateWidgetAndEditor(widget, lineEditParent(widget));
         return;
     }
 

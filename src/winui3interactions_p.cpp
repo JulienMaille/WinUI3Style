@@ -452,6 +452,11 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // common construction orders; catch that lifecycle deterministically.
         m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
         break;
+    case QEvent::ChildRemoved:
+        // Rebuild the cached clear-button handle if Qt replaces its private
+        // helper during a style or layout transition.
+        m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
+        break;
     case QEvent::KeyPress:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             const auto *key = static_cast<QKeyEvent *>(event);

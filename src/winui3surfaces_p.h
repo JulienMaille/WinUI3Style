@@ -6,6 +6,7 @@
 class QComboBox;
 class QDialog;
 class QLineEdit;
+class QAbstractButton;
 class QSlider;
 class QWidget;
 
@@ -26,6 +27,8 @@ void prepareContentDialogState(QDialog *dialog, bool dark);
 void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit);
 void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style);
 void cancelLineEditHelperUpdate(QLineEdit *lineEdit);
+void cacheLineEditClearButton(QLineEdit *lineEdit, QAbstractButton *button);
+const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit);
 void showSliderValueToolTip(QSlider *slider);
 void hideSliderValueToolTip(QSlider *slider);
 
