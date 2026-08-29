@@ -72,10 +72,14 @@ void drawEditorScopedClearSurface(const QStyleOption *option,
     // the visible surface occupies rows/columns through the three-pixel
     // outline inset.
     surface.setBottom(option->rect.bottom() - 2.0);
-    if (option->direction == Qt::RightToLeft)
+    const qreal side = surface.height();
+    if (option->direction == Qt::RightToLeft) {
         surface.setLeft(option->rect.left() + 3.0);
-    else
+        surface.setRight(surface.left() + side);
+    } else {
         surface.setRight(option->rect.right() - 2.0);
+        surface.setLeft(surface.right() - side);
+    }
     surface = surface.intersected(option->rect);
     if (!surface.isEmpty())
         roundedRect(painter, surface, fill, Qt::transparent, ControlRadius);

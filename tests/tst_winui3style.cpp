@@ -2340,14 +2340,22 @@ void WinUI3StyleTest::clearButtonStateContract()
         "private clear button has no editor intersection")));
     QVERIFY(helperRect.height() < edit.height());
     QVERIFY(helperRect.top() > edit.rect().top());
-    QRect surfaceRect = helperRect;
-    surfaceRect.setTop(edit.rect().top() + 3);
-    surfaceRect.setBottom(edit.rect().bottom() - 3);
-    if (edit.layoutDirection() == Qt::RightToLeft)
-        surfaceRect.setLeft(edit.rect().left() + 3);
-    else
-        surfaceRect.setRight(edit.rect().right() - 3);
+    QRectF surfaceGeometry(helperRect);
+    surfaceGeometry.setTop(edit.rect().top() + 3.0);
+    surfaceGeometry.setBottom(edit.rect().bottom() - 2.0);
+    const qreal surfaceSide = surfaceGeometry.height();
+    if (edit.layoutDirection() == Qt::RightToLeft) {
+        surfaceGeometry.setLeft(edit.rect().left() + 3.0);
+        surfaceGeometry.setRight(surfaceGeometry.left() + surfaceSide);
+    } else {
+        surfaceGeometry.setRight(edit.rect().right() - 2.0);
+        surfaceGeometry.setLeft(surfaceGeometry.right() - surfaceSide);
+    }
+    const QRect surfaceRect = surfaceGeometry.toAlignedRect();
     QVERIFY(surfaceRect.isValid());
+    QVERIFY(qAbs(surfaceGeometry.width() - surfaceGeometry.height()) < 0.01);
+    QVERIFY(qAbs(surfaceGeometry.center().x() - helperRect.center().x()) <= 1.5);
+    QVERIFY(qAbs(surfaceGeometry.center().y() - edit.rect().center().y()) <= 1.0);
     UpdateRequestProbe parentRepaint;
     edit.installEventFilter(&parentRepaint);
     QCoreApplication::processEvents();
@@ -2437,7 +2445,10 @@ void WinUI3StyleTest::clearButtonStateContract()
                                       1.0, 0.0);
     const QImage pressed = render(QStyle::State_Enabled | QStyle::State_MouseOver
                                   | QStyle::State_Sunken, 1.0, 1.0);
-    QVERIFY(normal != pointerOver);
+    // The private helper's own primitive intentionally stays transparent;
+    // hover is painted once, at editor scope, so it cannot be clipped by the
+    // private child button's small geometry.
+    QCOMPARE(normal, pointerOver);
     QVERIFY(pointerOver != pressed);
 
     // DeleteButton keeps the secondary glyph on pointer-over and switches to
