@@ -7,6 +7,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "../src/winui3frameproperties_p.h"
+#include "../src/winui3tokens_p.h"
 
 #include <QLabel>
 #include <QListWidget>
@@ -340,6 +341,8 @@ private slots:
     void init();
     void cleanup();
     void palettes();
+    void paletteDerivedTokensMatchWinUIConstants();
+    void customWidgetPaletteDrivesTokensAndPaint();
     void systemAccentRampIsAtomic();
     void buttonToolButtonAndIconContracts();
     void buttonPressedStateFollowsQtState();
@@ -473,6 +476,88 @@ void WinUI3StyleTest::palettes()
     QCOMPARE(dark.standardPalette().color(QPalette::Button), QColor(255, 255, 255, 15));
     QCOMPARE(dark.standardPalette().color(QPalette::PlaceholderText),
              QColor(255, 255, 255, 197));
+}
+
+void WinUI3StyleTest::paletteDerivedTokensMatchWinUIConstants()
+{
+    // Guard the palette-derived token pipeline: building tokens from the
+    // style's own standard palette must reproduce the WinUI theme resources
+    // byte-for-byte, so the refactor is render-neutral for default palettes.
+    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
+                                         WinUI3::ThemeMode::Dark}) {
+        WinUI3::Style style(mode);
+        const QPalette palette = style.standardPalette();
+        const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(palette);
+        const bool dark = mode == WinUI3::ThemeMode::Dark;
+
+        QCOMPARE(t.dark, dark);
+        QCOMPARE(t.textPrimary, dark ? QColor(255, 255, 255)
+                                     : QColor(0, 0, 0, 228));
+        QCOMPARE(t.textSecondary, dark ? QColor(255, 255, 255, 197)
+                                       : QColor(0, 0, 0, 158));
+        QCOMPARE(t.textTertiary, dark ? QColor(255, 255, 255, 135)
+                                      : QColor(0, 0, 0, 114));
+        QCOMPARE(t.textDisabled, dark ? QColor(255, 255, 255, 93)
+                                      : QColor(0, 0, 0, 92));
+        QCOMPARE(t.layer, dark ? QColor(58, 58, 58, 76)
+                               : QColor(255, 255, 255, 128));
+        QCOMPARE(t.control, dark ? QColor(255, 255, 255, 15)
+                                 : QColor(255, 255, 255, 179));
+        QCOMPARE(t.controlHover, dark ? QColor(255, 255, 255, 21)
+                                      : QColor(249, 249, 249, 128));
+        QCOMPARE(t.controlPressed, dark ? QColor(255, 255, 255, 8)
+                                        : QColor(229, 229, 229, 179));
+        QCOMPARE(t.controlDisabled, dark ? QColor(255, 255, 255, 11)
+                                         : QColor(249, 249, 249, 77));
+        QCOMPARE(t.subtleHover, dark ? QColor(255, 255, 255, 15)
+                                     : QColor(0, 0, 0, 15));
+        QCOMPARE(t.subtlePressed, dark ? QColor(255, 255, 255, 10)
+                                       : QColor(0, 0, 0, 22));
+        QCOMPARE(t.stroke, dark ? QColor(255, 255, 255, 18)
+                                : QColor(0, 0, 0, 15));
+        QCOMPARE(t.strokeSecondary, dark ? QColor(255, 255, 255, 24)
+                                         : QColor(0, 0, 0, 41));
+        QCOMPARE(t.strokeStrong, dark ? QColor(255, 255, 255, 139)
+                                      : QColor(0, 0, 0, 114));
+
+        const QColor popup = WinUI3::Private::popupSurfaceColor(palette);
+        QCOMPARE(popup, dark ? QColor(44, 44, 44) : QColor(252, 252, 252));
+    }
+}
+
+void WinUI3StyleTest::customWidgetPaletteDrivesTokensAndPaint()
+{
+    // A widget-level palette override must flow into the derived tokens, and
+    // the painters must follow it. Use a strongly saturated red ink so any
+    // leak from a hardcoded white/black text token shows up in the pixel.
+    QPalette palette = qApp->palette();
+    palette.setColor(QPalette::WindowText, QColor(220, 32, 32));
+    palette.setColor(QPalette::ButtonText, QColor(220, 32, 32));
+    palette.setColor(QPalette::Text, QColor(220, 32, 32));
+
+    const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(palette);
+    QCOMPARE(t.textPrimary, palette.color(QPalette::WindowText));
+    QCOMPARE(t.textSecondary.rgb(), palette.color(QPalette::WindowText).rgb());
+
+    QPushButton button(QStringLiteral("Palette probe"));
+    button.setPalette(palette);
+    button.resize(120, 40);
+    QPixmap pixmap = button.grab();
+    const QImage image = pixmap.toImage();
+    bool foundRedInk = false;
+    for (int y = 0; y < image.height() && !foundRedInk; ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            const int chroma = pixel.red() - qMax(pixel.green(),
+                                                  pixel.blue());
+            if (chroma > 60) {
+                foundRedInk = true;
+                break;
+            }
+        }
+    }
+    QVERIFY2(foundRedInk,
+             "button painted with a custom palette shows no custom-ink pixels");
 }
 
 void WinUI3StyleTest::systemAccentRampIsAtomic()
@@ -633,12 +718,17 @@ void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
 
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
-    auto renderArrow = [style](const QColor &windowColor) {
+    // Tokens derive from palette roles, so probe palettes must carry a
+    // matching ink alongside the surface color, exactly like the light/dark
+    // standard palettes do.
+    auto renderArrow = [style](const QColor &windowColor,
+                               const QColor &inkColor) {
         QStyleOption option;
         option.rect = QRect(0, 0, 24, 24);
         option.state = QStyle::State_Enabled;
         option.palette = qApp->palette();
         option.palette.setColor(QPalette::Window, windowColor);
+        option.palette.setColor(QPalette::WindowText, inkColor);
         QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         QPainter painter(&image);
@@ -646,8 +736,8 @@ void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
                              &painter);
         return image;
     };
-    const QImage light = renderArrow(Qt::white);
-    const QImage dark = renderArrow(Qt::black);
+    const QImage light = renderArrow(Qt::white, QColor(0, 0, 0, 228));
+    const QImage dark = renderArrow(Qt::black, QColor(255, 255, 255));
     QVERIFY(light != dark);
 }
 

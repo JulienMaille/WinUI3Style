@@ -568,8 +568,7 @@ void preparePopupSurface(QWidget *widget)
     // rounded corners come from the native window corner preference.
     QPalette popupPalette = effectivePopupPalette(popup, QApplication::palette());
     const Private::Tokens popupTokens = Private::tokens(popupPalette);
-    const QColor popupSurface = popupTokens.dark ? QColor(44, 44, 44)
-                                                 : QColor(252, 252, 252);
+    const QColor popupSurface = Private::popupSurfaceColor(popupPalette);
     popupPalette.setColor(QPalette::Window, popupSurface);
     popupPalette.setColor(QPalette::Base, popupSurface);
     popup->setPalette(popupPalette);

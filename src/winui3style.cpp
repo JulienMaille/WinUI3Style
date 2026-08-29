@@ -1062,6 +1062,12 @@ void Style::refreshApplicationAppearance()
             continue;
         if (widget->window() && widget->window()->windowType() == Qt::Popup) {
             preparePopupSurface(widget);
+        } else if (widget->property(originalPaletteExplicitProperty).toBool()) {
+            // The widget carried an explicit palette before the style touched
+            // it. A style-wide theme refresh must not clobber user-set
+            // colors; painters already derive their tokens from the widget's
+            // own palette at draw time.
+            continue;
         } else {
             QPalette palette = applicationPalette;
             if (qobject_cast<QTableView *>(widget)) {
@@ -1308,8 +1314,9 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
 
     if (element == PE_Frame && widget && widget->window()
         && widget->window()->windowType() == Qt::Popup) {
-        const QColor popupSurface = t.dark ? QColor(44, 44, 44)
-                                           : QColor(252, 252, 252);
+        // preparePopupSurface already rebound the popup palette's Window role
+        // to the raised translucent-layer stand-in color.
+        const QColor popupSurface = option->palette.color(QPalette::Window);
         controlSurface(painter, option->rect, popupSurface,
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
