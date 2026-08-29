@@ -260,7 +260,8 @@ public:
     }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    QString iconName() const override
+    // Qt 6's QIconEngine::iconName() is not const (Qt 5's is).
+    QString iconName() override
     {
         return QString::fromLatin1(fluentIconNamePrefix)
             + QString::number(static_cast<int>(m_icon));
