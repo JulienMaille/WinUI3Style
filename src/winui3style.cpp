@@ -6,6 +6,7 @@
 
 #include "winui3geometry_p.h"
 #include "winui3animations_p.h"
+#include "winui3backdrop_p.h"
 #include "winui3buttons_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3menus_p.h"
@@ -1053,6 +1054,8 @@ void Style::refreshApplicationAppearance()
             QTimer::singleShot(0, window, [window, backdrop] {
                 applyBackdrop(window, static_cast<Backdrop>(backdrop.toInt()));
             });
+        } else if (qobject_cast<QDialog *>(window)) {
+            applyDialogCaptionTheme(window);
         }
         if (window->windowType() == Qt::Popup) {
             preparePopupSurface(window);
@@ -1066,6 +1069,12 @@ void Style::refreshApplicationAppearance()
             continue;
         if (widget->window() && widget->window()->windowType() == Qt::Popup) {
             preparePopupSurface(widget);
+        } else if (widget->property(originalPaletteExplicitProperty).toBool()) {
+            // The widget carried an explicit palette before the style touched
+            // it. A style-wide theme refresh must not clobber user-set
+            // colors; painters already derive their tokens from the widget's
+            // own palette at draw time.
+            continue;
         } else {
             QPalette palette = applicationPalette;
             if (qobject_cast<QTableView *>(widget)) {
@@ -1079,8 +1088,10 @@ void Style::refreshApplicationAppearance()
                 palette.setColor(QPalette::HighlightedText,
                                  applicationTokens.textOnAccentPrimary);
             } else if (qobject_cast<QDialog *>(widget)) {
+                // SolidBackgroundFillColorBase (#202020 dark / #F3F3F3 light).
                 palette.setColor(QPalette::Window,
-                    darkTheme ? QColor(32, 32, 32) : QColor(255, 255, 255));
+                    darkTheme ? QColor(0x20, 0x20, 0x20)
+                              : QColor(0xF3, 0xF3, 0xF3));
             }
             widget->setPalette(palette);
         }
@@ -1310,8 +1321,9 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
 
     if (element == PE_Frame && widget && widget->window()
         && widget->window()->windowType() == Qt::Popup) {
-        const QColor popupSurface = t.dark ? QColor(44, 44, 44)
-                                           : QColor(252, 252, 252);
+        // preparePopupSurface already rebound the popup palette's Window role
+        // to the raised translucent-layer stand-in color.
+        const QColor popupSurface = option->palette.color(QPalette::Window);
         controlSurface(painter, option->rect, popupSurface,
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),

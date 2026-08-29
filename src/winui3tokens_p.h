@@ -69,6 +69,20 @@ inline QColor withAlpha(QColor color, int alpha)
     return color;
 }
 
+// Opaque flyout/toolbar surface, derived from the palette Window color with a
+// fixed per-theme lift so popup and window fills keep their WinUI relationship
+// for any palette rather than only for the default one. Reproduces the
+// previous hardcoded values exactly for the default palette
+// (#202020 -> #2C2C2C dark, #F3F3F3 -> #FCFCFC light).
+inline QColor popupSurfaceColor(const QPalette &palette)
+{
+    const QColor window = palette.color(QPalette::Window);
+    const int lift = qGray(window.rgb()) < 128 ? 12 : 9;
+    return QColor(qMin(255, window.red() + lift),
+                  qMin(255, window.green() + lift),
+                  qMin(255, window.blue() + lift));
+}
+
 inline qreal relativeLuminance(const QColor &color)
 {
     const auto channel = [](qreal value) {
@@ -92,26 +106,41 @@ inline QColor contrastText(const QColor &background)
 inline Tokens buildTokens(const QPalette &palette)
 {
     Tokens t;
+    // Palette anchors. Most WinUI tokens are alpha-modulated versions of the
+    // text ink or the paper color, so overriding the application or widget
+    // palette propagates through the whole ramp. Only states with no
+    // QPalette role (hover elevations, accent strokes, danger) stay pinned to
+    // their WinUI constants below. For the palette built by
+    // WinUI3::standardPalette() every derivation here reproduces the original
+    // hardcoded theme values exactly (guarded by
+    // tst_winui3style::paletteDerivedTokensMatchWinUIConstants).
+    const QColor ink = palette.color(QPalette::WindowText);
     t.dark = qGray(palette.color(QPalette::Window).rgb()) < 128;
-    t.textPrimary = t.dark ? QColor(255, 255, 255) : QColor(0, 0, 0, 228);
-    t.textSecondary = t.dark ? QColor(255, 255, 255, 197) : QColor(0, 0, 0, 158);
-    t.textTertiary = t.dark ? QColor(255, 255, 255, 135) : QColor(0, 0, 0, 114);
-    t.textDisabled = t.dark ? QColor(255, 255, 255, 93) : QColor(0, 0, 0, 92);
+    t.textPrimary = ink;
+    t.textSecondary = withAlpha(ink, t.dark ? 197 : 158);
+    t.textTertiary = withAlpha(ink, t.dark ? 135 : 114);
+    t.textDisabled = withAlpha(ink, t.dark ? 93 : 92);
     t.surface = palette.color(QPalette::Window);
-    t.layer = t.dark ? QColor(58, 58, 58, 76) : QColor(255, 255, 255, 128);
-    t.control = t.dark ? QColor(255, 255, 255, 15) : QColor(255, 255, 255, 179);
-    t.controlHover = t.dark ? QColor(255, 255, 255, 21) : QColor(249, 249, 249, 128);
-    // Light pressed must be a visibly darker gray, not white-on-white at a
-    // lower alpha: over the light window an alpha-only change lands within a
-    // few gray levels of the resting fill and reads as no response. Value
-    // mirrors WinUI ControlFillColorTertiary (#E5E5E5) at the control opacity.
-    t.controlPressed = t.dark ? QColor(255, 255, 255, 8) : QColor(229, 229, 229, 179);
-    t.controlDisabled = t.dark ? QColor(255, 255, 255, 11) : QColor(249, 249, 249, 77);
-    t.subtleHover = t.dark ? QColor(255, 255, 255, 15) : QColor(0, 0, 0, 15);
-    t.subtlePressed = t.dark ? QColor(255, 255, 255, 10) : QColor(0, 0, 0, 22);
-    t.stroke = t.dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 15);
-    t.strokeSecondary = t.dark ? QColor(255, 255, 255, 24) : QColor(0, 0, 0, 41);
-    t.strokeStrong = t.dark ? QColor(255, 255, 255, 139) : QColor(0, 0, 0, 114);
+    t.layer = palette.color(QPalette::Base);
+    t.control = palette.color(QPalette::Button);
+    // Hover fills: the dark ramp overlays the ink; the light ramp sits white
+    // cards on top of a darker window, so it blends the control fill with the
+    // paper beneath. Pressed either fades the overlay or pushes toward ink.
+    t.controlHover = t.dark ? withAlpha(ink, 21)
+                            : withAlpha(mix(t.control, t.surface, 0.5), 128);
+    // Light pressed must land visibly darker than the resting fill; an
+    // alpha-only change over the light window reads as no response. 26/255 of
+    // the way from the control fill to ink reproduces WinUI
+    // ControlFillColorTertiary (#E5E5E5) at the control opacity exactly.
+    t.controlPressed = t.dark ? withAlpha(ink, 8)
+                              : withAlpha(mix(t.control, ink, 26.0 / 255.0),
+                                          179);
+    t.controlDisabled = palette.color(QPalette::Disabled, QPalette::Button);
+    t.subtleHover = withAlpha(ink, 15);
+    t.subtlePressed = withAlpha(ink, t.dark ? 10 : 22);
+    t.stroke = palette.color(QPalette::Mid);
+    t.strokeSecondary = palette.color(QPalette::Midlight);
+    t.strokeStrong = withAlpha(ink, t.dark ? 139 : 114);
     t.accentStroke = QColor(255, 255, 255, 20);
     t.accentStrokeSecondary = t.dark ? QColor(0, 0, 0, 35) : QColor(0, 0, 0, 102);
     t.focusOuter = t.dark ? Qt::white : Qt::black;

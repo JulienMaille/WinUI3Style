@@ -1,6 +1,7 @@
 #include "winui3interactions_p.h"
 #include "winui3qtcompat_p.h"
 
+#include "winui3backdrop_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3geometry_p.h"
 #include "winui3style_properties_p.h"
@@ -650,6 +651,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             m_callbacks.prepareContentDialogState(dialog,
                                                    m_callbacks.dark());
             m_callbacks.stopDialogAnimations(dialog);
+            showContentDialogScrim(dialog);
+            applyDialogCaptionTheme(dialog);
             if (Style::animationsAllowed()) {
                 widget->setProperty("_winui_dialog_animating", true);
                 auto *group = new QParallelAnimationGroup(dialog);
@@ -681,6 +684,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             applyBackdrop(widget, static_cast<Backdrop>(
                 widget->property("_winui_backdrop").toInt()));
         }
+        if (qobject_cast<QDialog *>(widget) && widget->isWindow())
+            applyDialogCaptionTheme(widget);
         break;
     case QEvent::Move:
         break;
@@ -713,9 +718,10 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup)
             m_callbacks.finishComboPopupCycle(widget);
-        if (auto *dialog = qobject_cast<QDialog *>(widget);
-            dialog && dialog->property("_winui_dialog_animating").toBool()) {
-            m_callbacks.stopDialogAnimations(dialog);
+        if (auto *dialog = qobject_cast<QDialog *>(widget)) {
+            hideContentDialogScrim(dialog);
+            if (dialog->property("_winui_dialog_animating").toBool())
+                m_callbacks.stopDialogAnimations(dialog);
         }
         break;
     case QEvent::DynamicPropertyChange:

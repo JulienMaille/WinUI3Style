@@ -23,6 +23,8 @@ QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback);
 void stopDialogAnimations(QDialog *dialog);
 void restoreContentDialogState(QDialog *dialog, bool clearSavedState);
 void prepareContentDialogState(QDialog *dialog, bool dark);
+void showContentDialogScrim(QDialog *dialog);
+void hideContentDialogScrim(QDialog *dialog);
 
 void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit);
 void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style);
