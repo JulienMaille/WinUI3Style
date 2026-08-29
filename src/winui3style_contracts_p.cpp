@@ -45,6 +45,12 @@ bool spinBoxEditor(const QWidget *widget)
         && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget());
 }
 
+bool comboBoxEditor(const QWidget *widget)
+{
+    return qobject_cast<const QLineEdit *>(widget)
+        && qobject_cast<const QComboBox *>(widget->parentWidget());
+}
+
 bool textBoxHelperButton(const QWidget *widget)
 {
     return qobject_cast<const QAbstractButton *>(widget)
@@ -275,9 +281,16 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
             option, widget);
         return option->rect.united(indicator).united(contents);
     }
-    if (element == QStyle::SE_LineEditContents && !spinBoxEditor(widget)) {
-        const QRect logical = option->rect.adjusted(10, 5, -6, -6);
-        return QStyle::visualRect(option->direction, option->rect, logical);
+    if (element == QStyle::SE_LineEditContents) {
+        // QComboBox has already positioned its private editor in the exact
+        // SC_ComboBoxEditField slot. Applying the standalone TextBox's 10px
+        // inset again shifts editable text relative to the normal label.
+        if (comboBoxEditor(widget))
+            return option->rect;
+        if (!spinBoxEditor(widget)) {
+            const QRect logical = option->rect.adjusted(10, 5, -6, -6);
+            return QStyle::visualRect(option->direction, option->rect, logical);
+        }
     }
     QRect result = style->QProxyStyle::subElementRect(element, option, widget);
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {

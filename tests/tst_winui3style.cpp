@@ -2589,6 +2589,30 @@ void WinUI3StyleTest::themeComboSizingContract()
     QVERIFY2(edit.width() >= textWidth,
              qPrintable(QStringLiteral("edit width %1 < text width %2")
                             .arg(edit.width()).arg(textWidth)));
+
+    combo.setEditable(true);
+    QVERIFY(combo.lineEdit());
+    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
+                                                 Qt::RightToLeft}) {
+        combo.setLayoutDirection(direction);
+        QCoreApplication::processEvents();
+        option.initFrom(&combo);
+        option.rect = combo.rect();
+        option.direction = direction;
+        const QRect labelSlot = combo.style()->subControlRect(
+            QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, &combo);
+        QStyleOptionFrame editorOption;
+        editorOption.initFrom(combo.lineEdit());
+        editorOption.rect = combo.lineEdit()->rect();
+        editorOption.direction = direction;
+        const QRect editorContents = combo.lineEdit()->style()->subElementRect(
+            QStyle::SE_LineEditContents, &editorOption, combo.lineEdit())
+            .translated(combo.lineEdit()->pos());
+        if (direction == Qt::LeftToRight)
+            QCOMPARE(editorContents.left(), labelSlot.left());
+        else
+            QCOMPARE(editorContents.right(), labelSlot.right());
+    }
 }
 
 void WinUI3StyleTest::comboPopupContract()
