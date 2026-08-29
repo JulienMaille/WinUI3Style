@@ -2047,7 +2047,11 @@ void WinUI3StyleTest::hoverAnimationProgresses()
         QSKIP("Client-area animations are disabled by the OS");
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&button, &enter);
-    QTest::qWait(35);
+    // The first animation-driver tick can be delayed when the full suite has
+    // several native timers pending. Wait for that tick instead of assuming
+    // it has happened after a fixed wall-clock sleep.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        frameReal(&button, "_winui_hover_progress") > 0.0, 150);
     const qreal midway = frameReal(&button, "_winui_hover_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
     QTRY_VERIFY(frameReal(&button, "_winui_hover_progress") > 0.99);
@@ -2926,8 +2930,8 @@ void WinUI3StyleTest::checkboxDisabledStopsAnimation()
     check.resize(180, 32);
     check.show();
     check.setChecked(true);
-    QTest::qWait(25);
-    QVERIFY(frameReal(&check, "_winui_check_progress") > 0.0);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        frameReal(&check, "_winui_check_progress") > 0.0, 150);
     QVERIFY(frameReal(&check, "_winui_check_progress") < 1.0);
 
     check.setEnabled(false);
