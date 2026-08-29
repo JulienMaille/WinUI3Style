@@ -7,6 +7,14 @@
 
 class QTimer;
 
+// QAbstractNativeEventFilter changed its result type from long to qintptr in
+// Qt 6. Keep the signature portable so the Qt 5 build also overrides.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using NativeMessageResult = qintptr;
+#else
+using NativeMessageResult = long;
+#endif
+
 namespace WinUI3::Private {
 
 // Bridges the native Windows appearance notifications to a Qt callback. The
@@ -32,7 +40,7 @@ public:
     bool isActive() const { return m_active; }
 
     bool nativeEventFilter(const QByteArray &eventType, void *message,
-                           qintptr *result) override;
+                           NativeMessageResult *result) override;
 
     static constexpr int debounceIntervalMs = 75;
 

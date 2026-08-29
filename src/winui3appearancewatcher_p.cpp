@@ -11,8 +11,13 @@
 
 // The Win32 SDK spells this notification ...COLORCHANGED. Keep the shorter
 // name used by the appearance contract as a local alias for SDK portability.
-#  ifndef WM_DWMCOLORIZATIONCOLORCHANGE
+#  if !defined(WM_DWMCOLORIZATIONCOLORCHANGE) && defined(WM_DWMCOLORIZATIONCOLORCHANGED)
 #    define WM_DWMCOLORIZATIONCOLORCHANGE WM_DWMCOLORIZATIONCOLORCHANGED
+#  endif
+// Older MinGW w32api headers (e.g. Qt 5.15 MinGW builds) expose neither
+// spelling; fall back to the documented message value 0x0320.
+#  ifndef WM_DWMCOLORIZATIONCOLORCHANGE
+#    define WM_DWMCOLORIZATIONCOLORCHANGE 0x0320
 #  endif
 #endif
 
@@ -77,7 +82,7 @@ void SystemAppearanceWatcher::setActive(bool active)
 
 bool SystemAppearanceWatcher::nativeEventFilter(const QByteArray &eventType,
                                                 void *message,
-                                                qintptr *result)
+                                                NativeMessageResult *result)
 {
     Q_UNUSED(eventType);
     Q_UNUSED(result);

@@ -37,7 +37,14 @@ void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                                       mode, state);
     if (pixmap.isNull())
         return;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     const QSizeF logicalSize = pixmap.deviceIndependentSize();
+#else
+    // QPixmap::deviceIndependentSize() was added in Qt 6; divide by the DPR
+    // on Qt 5 instead.
+    const qreal pixmapDpr = qMax<qreal>(pixmap.devicePixelRatioF(), 1.0);
+    const QSizeF logicalSize = QSizeF(pixmap.size()) / pixmapDpr;
+#endif
     QPointF topLeft = rect.topLeft();
     if (alignment & Qt::AlignRight)
         topLeft.setX(rect.right() - logicalSize.width());

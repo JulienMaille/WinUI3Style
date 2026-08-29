@@ -35,7 +35,14 @@ const QFont &menuChevronFont()
     static const QFont font = [] {
         const QString fluent = QStringLiteral("Segoe Fluent Icons");
         const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
-        const QString family = QFontDatabase::families().contains(fluent)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const QStringList fontFamilies = QFontDatabase::families();
+#else
+        // QFontDatabase::families() is static from Qt 6 onward.
+        const QFontDatabase fontDatabase;
+        const QStringList fontFamilies = fontDatabase.families();
+#endif
+        const QString family = fontFamilies.contains(fluent)
             ? fluent : mdl2;
         QFont result(family);
         result.setPixelSize(MenuChevronFontSize);
@@ -183,11 +190,9 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
                     enabled ? QIcon::Normal : QIcon::Disabled);
             }
             // Keep the first two fields of the historical split('\t')
-            // contract, but parse them as non-owning views.  Menu paint is a
-            // hot path and QString::split() allocates a QStringList and one
-            // QString per field on every repaint.  A third field remains
-            // intentionally ignored, just as parts.value(1) was before.
-            const QStringView menuText(menu->text);
+            // contract.  A third field remains intentionally ignored, just as
+            // parts.value(1) was before.
+            const QString &menuText = menu->text;
             const qsizetype firstTab = menuText.indexOf(QLatin1Char('\t'));
             const qsizetype secondTab = firstTab >= 0
                 ? menuText.indexOf(QLatin1Char('\t'), firstTab + 1) : -1;

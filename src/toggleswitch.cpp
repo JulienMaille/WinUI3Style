@@ -2,6 +2,8 @@
 
 #include <winui3style/winui3style.h>
 
+#include <QVariant>
+
 namespace WinUI3 {
 
 ToggleSwitch::ToggleSwitch(QWidget *parent)

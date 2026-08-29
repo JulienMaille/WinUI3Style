@@ -14,6 +14,7 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
@@ -40,6 +41,12 @@ bool spinBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
         && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget());
+}
+
+bool comboBoxEditor(const QWidget *widget)
+{
+    return qobject_cast<const QLineEdit *>(widget)
+        && qobject_cast<const QComboBox *>(widget->parentWidget());
 }
 
 bool textBoxHelperButton(const QWidget *widget)
@@ -114,6 +121,17 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         : 0.0;
 
     if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool) {
+        // The private clear button of a QLineEdit must not paint its own
+        // small hover surface: PE_PanelLineEdit already paints the
+        // editor-scoped full-height clear surface, so a per-button surface
+        // shows up as an unwanted little square around the glyph.
+        if (const auto *widgetButton = qobject_cast<const QAbstractButton *>(widget)) {
+            if (const auto *lineEdit = qobject_cast<const QLineEdit *>(
+                    widgetButton->parentWidget())) {
+                if (lineEditClearButton(lineEdit) == widgetButton)
+                    return true;
+            }
+        }
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         QColor fill = t.control;
@@ -249,8 +267,13 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                                     1.0);
                 painter->setPen(QPen(onAccent, 4.0 * 0.7 * 20.0 / 48.0,
                                      Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-                if (reveal > 0.0)
+                if (reveal > 0.0) {
+                    // The generated accept glyph is anchored slightly above the
+                    // indicator's geometric center; nudge it down one logical
+                    // pixel to match WinUI's optical centering.
+                    painter->translate(0.0, 1.0);
                     painter->drawPath(animatedAcceptTrimmedPath(indicator, reveal));
+                }
             }
         }
         painter->restore();
@@ -263,6 +286,12 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // second TextBox panel here creates a nested rectangular "cell" on
         // hover and focus.
         if (spinBoxEditor(widget))
+            return true;
+        // The same applies to the QLineEdit embedded in an editable
+        // QComboBox: CC_ComboBox paints the whole surface (including the
+        // focus underline), so a second panel here shows up as a nested
+        // "double outline".
+        if (comboBoxEditor(widget))
             return true;
         const bool focused = option->state & QStyle::State_HasFocus;
         const qreal lineEditHover = progress(widget, hoverProperty,

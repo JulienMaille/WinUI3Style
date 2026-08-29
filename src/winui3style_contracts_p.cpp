@@ -220,11 +220,11 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
             break;
         }
         size += QSize(32, 8);
-        size.setHeight(qMax(size.height(), 32));
+        size.setHeight(qMax(size.height(), 28));
         break;
     case QStyle::CT_RadioButton:
         size += QSize(32, 8);
-        size.setHeight(qMax(size.height(), 32));
+        size.setHeight(qMax(size.height(), 28));
         break;
     case QStyle::CT_ProgressBar:
         size.setWidth(qMax(size.width(), 120));
@@ -350,7 +350,9 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard,
     case QStyle::SP_DialogApplyButton: return WinUI3::icon(Icon::Check);
     case QStyle::SP_DialogCancelButton:
     case QStyle::SP_DockWidgetCloseButton:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     case QStyle::SP_TabCloseButton:
+#endif
     case QStyle::SP_TitleBarCloseButton: return WinUI3::icon(Icon::Close);
     case QStyle::SP_LineEditClearButton: return WinUI3::icon(Icon::Clear);
     case QStyle::SP_DialogSaveButton:

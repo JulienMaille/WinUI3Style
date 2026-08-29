@@ -8,6 +8,7 @@ namespace WinUI3::Private {
 struct SystemAccentRamp
 {
     QColor accent;
+    QColor light1;
     QColor light2;
     QColor dark1;
 };

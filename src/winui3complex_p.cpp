@@ -9,6 +9,8 @@
 #include <winui3style/winui3style.h>
 
 #include <QAbstractSpinBox>
+#include <QComboBox>
+#include <QLineEdit>
 #include <QApplication>
 #include <QGroupBox>
 #include <QPainter>
@@ -117,11 +119,25 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             const bool enabled = combo->state & QStyle::State_Enabled;
             const bool hovered = combo->state & QStyle::State_MouseOver;
             const bool pressed = combo->state & (QStyle::State_Sunken | QStyle::State_On);
+            const bool editable = combo->editable;
+            const bool editableFocused = editable && enabled
+                && (combo->state & QStyle::State_HasFocus
+                    || (widget && widget->isActiveWindow()
+                        && widget->findChild<QLineEdit *>()
+                        && widget->findChild<QLineEdit *>()->hasFocus()));
             const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
             const qreal press = progress(widget, pressProperty, pressed ? 1.0 : 0.0);
             QColor fill = enabled ? t.control : t.controlDisabled;
-            fill = mix(fill, t.controlHover, hover);
-            fill = mix(fill, t.controlPressed, press);
+            // An editable ComboBox behaves like a TextBox once it owns
+            // keyboard focus: flat light surface, no hover tint.
+            if (!editableFocused) {
+                fill = mix(fill, t.controlHover, hover);
+                fill = mix(fill, t.controlPressed, press);
+            } else {
+                fill = t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255);
+                Q_UNUSED(hover);
+                Q_UNUSED(press);
+            }
             if (combo->subControls & QStyle::SC_ComboBoxFrame)
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
@@ -147,7 +163,10 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                                 enabled ? QIcon::Normal : QIcon::Disabled);
                 painter->restore();
             }
-            if (keyboardFocusVisible(widget)) {
+            if (editableFocused)
+                drawEditorFocusUnderline(painter, combo->rect, t.accentFill,
+                                         ControlRadius);
+            if (keyboardFocusVisible(widget) && !editableFocused) {
                 painter->save();
                 painter->setRenderHint(QPainter::Antialiasing);
                 painter->setBrush(Qt::NoBrush);

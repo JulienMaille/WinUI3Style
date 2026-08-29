@@ -19,7 +19,15 @@ option(WINUI3STYLE_BUILD_NATIVE_TESTS
 option(WINUI3STYLE_BUILD_BENCHMARKS
        "Build the opt-in render benchmark (not registered with CTest)" OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.5 QUIET COMPONENTS Core Gui Widgets)
+if(NOT Qt6_FOUND)
+    find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets)
+    set(WINUI3STYLE_QT Qt5)
+    # Qt5's CMake config does not define QT_VERSION_MAJOR like Qt6 does.
+    set(QT_VERSION_MAJOR 5)
+else()
+    set(WINUI3STYLE_QT Qt6)
+endif()
 
 add_subdirectory(src)
 
@@ -33,7 +41,7 @@ endif()
 
 if(WINUI3STYLE_BUILD_TESTS)
     enable_testing()
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    find_package(${WINUI3STYLE_QT} REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
 endif()
 
@@ -67,7 +75,7 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
     )
     if(WIN32)
             get_filename_component(_winui3style_snapshot_qt_bin
-                "${Qt6_DIR}/../../../bin" ABSOLUTE)
+                "${${WINUI3STYLE_QT}_DIR}/../../../bin" ABSOLUTE)
             set(_winui3style_snapshot_path
                 "${_winui3style_snapshot_qt_bin};${CMAKE_BINARY_DIR}/src/$<CONFIG>;${CMAKE_BINARY_DIR}/demo/$<CONFIG>;${CMAKE_BINARY_DIR}/plugins/styles;$ENV{PATH}")
             string(REPLACE ";" "\\;" _winui3style_snapshot_path

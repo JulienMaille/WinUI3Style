@@ -124,10 +124,14 @@ inline Tokens buildTokens(const QPalette &palette)
 #else
     // QPalette::Accent was introduced in Qt 6.6. Keep the WinUI selection
     // role distinct from the control-fill ramp for the supported Qt 6.5
-    // build instead of collapsing both roles onto Highlight.
+    // build instead of collapsing both roles onto Highlight. The selection
+    // role is the raw accent (QPalette::Highlight); map it onto the Fluent
+    // AccentFillColorDefault ramp: SystemAccentColorLight1 in light theme,
+    // SystemAccentColorLight2 in dark. Darkening (the old dark1 mapping)
+    // made control fills visibly darker than WinUI's.
     t.accentFill = mix(t.selectionAccent,
-                       t.dark ? QColor(Qt::white) : QColor(Qt::black),
-                       t.dark ? 0.32 : 0.18);
+                       QColor(Qt::white),
+                       t.dark ? 0.32 : 0.15);
 #endif
     // WinUI maps pointer-over and pressed AccentFill brushes to the same
     // accent-ramp colour at 90% and 80% opacity. Do not synthesize unrelated

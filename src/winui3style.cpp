@@ -1,4 +1,5 @@
 #include <winui3style/winui3style.h>
+#include "winui3qtcompat_p.h"
 
 #include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3icons.h>
@@ -989,10 +990,12 @@ Style::Style(ThemeMode mode)
     d->systemAppearanceWatcher = new SystemAppearanceWatcher(
         this, [this] { checkSystemAppearance(); });
     d->systemAppearanceWatcher->setActive(false);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QStyleHints *hints = QGuiApplication::styleHints()) {
         connect(hints, &QStyleHints::colorSchemeChanged, this,
                 [this](Qt::ColorScheme) { checkSystemAppearance(); });
     }
+#endif
 }
 
 Style::~Style() = default;
@@ -1547,8 +1550,26 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         }
     }
 
-    if (element == CE_ProgressBarLabel)
-        return;
+    if (element == CE_ProgressBarLabel) {
+        // WinUI's ProgressBar shows no inline percentage text, but Qt-based
+        // applications (e.g. SoulseekQt transfer lists) render meaningful
+        // information there with textVisible=true.  Keep their label: paint
+        // it centered over the bar using the style's text color.
+        if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
+            if (bar->textVisible && !bar->text.isEmpty()) {
+                painter->save();
+                const QPalette &pal = option->palette;
+                const QColor fg = pal.color(QPalette::WindowText);
+                painter->setPen(QPen(fg));
+                // Text right-aligned reading (like Qt's default) would
+                // overlap the fill at high progress; centered keeps it legible
+                // in both halves.
+                painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
+                painter->restore();
+            }
+            return;
+        }
+    }
 
     if (element == CE_ToolBar) {
         return;
@@ -1628,7 +1649,14 @@ void Style::polish(QApplication *application)
         d->applicationStateSaved = true;
     }
     QFont font(QStringLiteral("Segoe UI Variable Text"));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (!QFontDatabase::families().contains(font.family()))
+#else
+    // QFontDatabase::families() is static from Qt 6 onward; instantiate on
+    // Qt 5.
+    const QFontDatabase fontDatabase;
+    if (!fontDatabase.families().contains(font.family()))
+#endif
         font.setFamily(QStringLiteral("Segoe UI"));
     font.setPixelSize(14);
     application->setFont(font);

@@ -7,6 +7,7 @@
 #include "winui3backdrop_p.h"
 
 #include <winui3style/winui3style.h>
+#include "winui3qtcompat_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -317,7 +318,12 @@ bool isLineEditClearButton(const QLineEdit *lineEdit,
     if (!lineEdit || !button)
         return false;
     for (QAction *action : lineEdit->actions())
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         if (action->associatedObjects().contains(button))
+#else
+        // QAction::associatedObjects() is Qt 6; Qt 5 only lists widgets.
+        if (action->associatedWidgets().contains(const_cast<QAbstractButton *>(button)))
+#endif
             return false;
     // QLineEdit's private clear affordance is deliberately not a QAction;
     // custom leading/trailing actions are associated above.

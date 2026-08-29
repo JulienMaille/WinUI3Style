@@ -1,5 +1,7 @@
 #include <winui3style/winui3icons.h>
 
+#include "winui3qtcompat_p.h"
+
 #include <QFont>
 #include <QFontDatabase>
 #include <QCache>
@@ -123,7 +125,12 @@ public:
         if (!m_fontFamilyResolved) {
             const QString fluent = QStringLiteral("Segoe Fluent Icons");
             const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             const QStringList families = QFontDatabase::families();
+#else
+            const QFontDatabase fontDatabase;
+            const QStringList families = fontDatabase.families();
+#endif
             // Keep the old fallback semantics: MDL2 is selected whenever the
             // preferred family is unavailable, including when both are
             // absent and Qt has to perform its normal font fallback.
@@ -252,11 +259,13 @@ public:
         return QStringLiteral("WinUI3FluentIconEngine");
     }
 
-    QString iconName() override
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QString iconName() const override
     {
         return QString::fromLatin1(fluentIconNamePrefix)
             + QString::number(static_cast<int>(m_icon));
     }
+#endif
 
     QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override
     {
@@ -373,7 +382,7 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size,
     ParsedFluentIcon parsed;
     if (!parseFluentIconName(source.name(), &parsed)
         || !foreground.isValid()) {
-        return source.pixmap(size, devicePixelRatio, mode, state);
+        return Private::iconPixmap(source, size, devicePixelRatio, mode, state);
     }
 
     const bool neutralSource = source.cacheKey()
@@ -396,7 +405,7 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size,
     const QString key = pixmapKey(parsed, size, physicalSize, devicePixelRatio,
                                   foreground, mode, state);
     if (!canUseGuiCache())
-        return source.pixmap(size, devicePixelRatio, mode, state);
+        return Private::iconPixmap(source, size, devicePixelRatio, mode, state);
 
     IconRuntime &runtime = iconRuntime();
     runtime.syncApplication();
@@ -406,7 +415,7 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size,
     // Keep the source alpha exactly as QIcon::pixmap() produces it. The
     // foreground and application-palette identities are part of the key, so
     // local-palette recolouring cannot reuse a stale mask.
-    QPixmap pixmap = source.pixmap(size, devicePixelRatio, mode, state);
+    QPixmap pixmap = Private::iconPixmap(source, size, devicePixelRatio, mode, state);
     if (pixmap.isNull())
         return pixmap;
 

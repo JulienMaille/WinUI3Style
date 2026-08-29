@@ -8,7 +8,15 @@ set(winui3style_public_headers
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/navigationview.h
 )
 
-add_library(winui3style SHARED
+option(WINUI3STYLE_STATIC
+       "Build the style as a static library (self-contained plugin DLL)" OFF)
+if(WINUI3STYLE_STATIC)
+    set(WINUI3STYLE_LIBRARY_TYPE STATIC)
+else()
+    set(WINUI3STYLE_LIBRARY_TYPE SHARED)
+endif()
+
+add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     ${winui3style_public_headers}
     winui3style.cpp
     winui3interactions_p.h
@@ -54,7 +62,11 @@ add_library(winui3style SHARED
 
 add_library(WinUI3::Widgets ALIAS winui3style)
 
-target_compile_definitions(winui3style PRIVATE WINUI3STYLE_LIBRARY)
+if(WINUI3STYLE_STATIC)
+    target_compile_definitions(winui3style PUBLIC WINUI3STYLE_STATIC)
+else()
+    target_compile_definitions(winui3style PRIVATE WINUI3STYLE_LIBRARY)
+endif()
 target_include_directories(winui3style
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
@@ -62,7 +74,7 @@ target_include_directories(winui3style
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
-target_link_libraries(winui3style PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(winui3style PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
 
 if(WIN32)
     target_link_libraries(winui3style PRIVATE dwmapi user32)

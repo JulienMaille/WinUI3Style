@@ -165,7 +165,7 @@ GalleryWindow::GalleryWindow(QWidget *parent)
     theme->setMinimumWidth(theme->sizeHint().width());
     theme->setAccessibleName(tr("Theme"));
     toolbar->addWidget(theme);
-    connect(theme, &QComboBox::currentIndexChanged, this, &GalleryWindow::setTheme);
+    connect(theme, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GalleryWindow::setTheme);
 
     m_navigation->addPage(controlsPage(), WinUI3::icon(WinUI3::Icon::Home), tr("Controls"));
     m_navigation->addPage(collectionsPage(), WinUI3::icon(WinUI3::Icon::Folder), tr("Collections"));
@@ -568,6 +568,12 @@ QWidget *GalleryWindow::controlsPage()
     inputs->addRow(tr("Selection"), selectedLine);
     inputs->addRow(tr("Disabled"), disabledLine);
     inputs->addRow(tr("Combo box"), combo);
+    auto *editableCombo = new QComboBox;
+    editableCombo->setEditable(true);
+    editableCombo->addItems({tr("First item"), tr("Second item"), tr("Third item")});
+    editableCombo->setCurrentText(QStringLiteral("2416"));
+    editableCombo->setFixedWidth(200);
+    inputs->addRow(tr("Combo box (editable)"), editableCombo);
     inputs->addRow(tr("Number box (WinUI)"), spin);
     inputs->addRow(tr("Number box (vertical)"), verticalSpin);
     inputs->addRow(tr("Number box (disabled)"), disabledSpin);

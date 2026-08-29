@@ -108,6 +108,7 @@ SystemAccentRamp systemAccentRamp()
         result.setAlpha(255);
         if (result.isValid()) {
             ramp.accent = result;
+            ramp.light1 = mix(ramp.accent, QColor(Qt::white), 0.15);
             ramp.light2 = mix(ramp.accent, QColor(Qt::white), 0.32);
             ramp.dark1 = mix(ramp.accent, QColor(Qt::black), 0.18);
             dwmAccentAvailable = true;
@@ -130,12 +131,15 @@ SystemAccentRamp systemAccentRamp()
                           quint8(bytes.at(offset)));
         };
         ramp.light2 = entry(1);
+        ramp.light1 = entry(2);
         ramp.accent = entry(3);
         ramp.dark1 = entry(4);
     }
 #endif
     if (!ramp.accent.isValid())
         ramp.accent = QColor(0, 120, 212);
+    if (!ramp.light1.isValid())
+        ramp.light1 = mix(ramp.accent, QColor(Qt::white), 0.15);
     if (!ramp.light2.isValid())
         ramp.light2 = mix(ramp.accent, QColor(Qt::white), 0.32);
     if (!ramp.dark1.isValid())
@@ -159,9 +163,8 @@ QPalette standardPalette(bool darkTheme, const QColor &accent,
     const SystemAccentRamp systemRamp = explicitAccent
         ? SystemAccentRamp{} : systemAccentRamp();
     const QColor accentFill = explicitAccent
-        ? mix(accent, darkTheme ? QColor(Qt::white) : QColor(Qt::black),
-              darkTheme ? 0.32 : 0.18)
-        : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
+        ? mix(accent, QColor(Qt::white), darkTheme ? 0.32 : 0.15)
+        : (darkTheme ? systemRamp.light2 : systemRamp.light1);
     QPalette palette;
 
     if (darkTheme) {

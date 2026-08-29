@@ -3,8 +3,10 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3tokens_p.h"
+#include "winui3qtcompat_p.h"
 
 #include <QGridLayout>
+#include <QCoreApplication>
 #include <QEvent>
 #include <QHideEvent>
 #include <QKeyEvent>
@@ -371,11 +373,19 @@ bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
             || event->type() == QEvent::MouseButtonRelease) {
             auto *mouse = static_cast<QMouseEvent *>(event);
             const QPointF cardPosition = m_headerHost->mapTo(
-                this, mouse->position().toPoint());
+                this, Private::mousePositionPoint(mouse));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             QMouseEvent forwarded(event->type(), cardPosition,
-                                  mouse->globalPosition(), mouse->button(),
+                                  Private::mouseGlobalPosition(mouse),
+                                  mouse->button(),
                                   mouse->buttons(), mouse->modifiers(),
                                   mouse->pointingDevice());
+#else
+            QMouseEvent forwarded(event->type(), cardPosition,
+                                  Private::mouseGlobalPosition(mouse),
+                                  mouse->button(),
+                                  mouse->buttons(), mouse->modifiers());
+#endif
             QCoreApplication::sendEvent(this, &forwarded);
             event->accept();
             return true;
@@ -404,7 +414,9 @@ void SettingsCard::changeEvent(QEvent *event)
     const bool refreshHeader = event->type() == QEvent::ApplicationPaletteChange
         || event->type() == QEvent::PaletteChange
         || event->type() == QEvent::StyleChange
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         || event->type() == QEvent::DevicePixelRatioChange
+#endif
         || event->type() == QEvent::EnabledChange
         || event->type() == QEvent::LayoutDirectionChange;
     if (refreshHeader) {
@@ -456,7 +468,7 @@ void SettingsCard::leaveEvent(QEvent *event)
 
 void SettingsCard::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && headerContains(event->position().toPoint())) {
+    if (event->button() == Qt::LeftButton && headerContains(Private::mousePositionPoint(event))) {
         m_pressed = true;
         update();
         event->accept();
@@ -468,7 +480,7 @@ void SettingsCard::mousePressEvent(QMouseEvent *event)
 void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
 {
     const bool activate = m_pressed && event->button() == Qt::LeftButton
-                          && headerContains(event->position().toPoint());
+                          && headerContains(Private::mousePositionPoint(event));
     m_pressed = false;
     update();
     if (activate) {

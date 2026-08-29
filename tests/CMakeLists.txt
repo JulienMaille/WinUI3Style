@@ -1,5 +1,5 @@
 add_executable(winui3style_tests tst_winui3style.cpp)
-target_link_libraries(winui3style_tests PRIVATE WinUI3::Widgets Qt6::Test Qt6::Widgets)
+target_link_libraries(winui3style_tests PRIVATE WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
     target_compile_definitions(winui3style_tests PRIVATE WINUI3STYLE_TEST_PLUGIN)
     add_dependencies(winui3style_tests winui3styleplugin)
@@ -10,7 +10,7 @@ add_executable(winui3style_frameproperties_tests
 target_include_directories(winui3style_frameproperties_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 target_link_libraries(winui3style_frameproperties_tests PRIVATE
-    WinUI3::Widgets Qt6::Test Qt6::Core)
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Core)
 
 add_executable(winui3style_appearancewatcher_tests
     tst_winui3appearancewatcher.cpp
@@ -18,14 +18,14 @@ add_executable(winui3style_appearancewatcher_tests
 target_include_directories(winui3style_appearancewatcher_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 target_link_libraries(winui3style_appearancewatcher_tests PRIVATE
-    Qt6::Test Qt6::Core)
+    Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Core)
 
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../src)
     target_link_libraries(winui3style_native_tests PRIVATE
-        WinUI3::Widgets Qt6::Test Qt6::Widgets)
+        WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
         add_dependencies(winui3style_native_tests winui3styleplugin)
     endif()
@@ -43,7 +43,7 @@ set(_winui3style_test_environment
 if(WIN32)
     list(APPEND _winui3style_test_environment
         "QT_QPA_FONTDIR=$ENV{SystemRoot}/Fonts")
-    get_filename_component(_winui3style_qt_bin "${Qt6_DIR}/../../../bin" ABSOLUTE)
+    get_filename_component(_winui3style_qt_bin "${${WINUI3STYLE_QT}_DIR}/../../../bin" ABSOLUTE)
     set(_winui3style_test_path
         "${_winui3style_qt_bin};$<TARGET_FILE_DIR:winui3style>;$ENV{PATH}")
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")

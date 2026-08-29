@@ -165,10 +165,7 @@ void FramePropertyRegistry::clear(QObject *object, const QByteArray &name)
     if (state.values.remove(name) == 0)
         return;
 
-    const auto orderIt = std::find(state.insertionOrder.cbegin(),
-                                   state.insertionOrder.cend(), name);
-    if (orderIt != state.insertionOrder.cend())
-        state.insertionOrder.erase(orderIt);
+    state.insertionOrder.removeOne(name);
 
     if (state.values.isEmpty())
         removeObject(object, true);
@@ -189,10 +186,7 @@ void FramePropertyRegistry::removeObject(QObject *object,
 
     m_objects.erase(objectIt);
 
-    const auto orderIt = std::find(m_objectInsertionOrder.cbegin(),
-                                   m_objectInsertionOrder.cend(), object);
-    if (orderIt != m_objectInsertionOrder.cend())
-        m_objectInsertionOrder.erase(orderIt);
+    m_objectInsertionOrder.removeOne(object);
 }
 
 void FramePropertyRegistry::clearObject(QObject *object)

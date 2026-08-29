@@ -4,7 +4,7 @@ add_executable(winui3style_gallery
     gallerywindow.h
 )
 
-target_link_libraries(winui3style_gallery PRIVATE WinUI3::Widgets Qt6::Widgets)
+target_link_libraries(winui3style_gallery PRIVATE WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Widgets)
 set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 
 add_custom_command(TARGET winui3style_gallery POST_BUILD
@@ -18,15 +18,19 @@ add_custom_command(TARGET winui3style_gallery POST_BUILD
 # qwindows.dll, causing Windows to show a modal plugin error before main().
 if(WIN32)
     get_filename_component(_winui3style_qt_root
-        "${Qt6_DIR}/../../.." ABSOLUTE)
+        "${${WINUI3STYLE_QT}_DIR}/../../.." ABSOLUTE)
     add_custom_command(TARGET winui3style_gallery POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_FILE_DIR:winui3style_gallery>/platforms"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${_winui3style_qt_root}/plugins/platforms/qoffscreen.dll"
             "$<TARGET_FILE_DIR:winui3style_gallery>/platforms/qoffscreen.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${_winui3style_qt_root}/plugins/platforms/qoffscreend.dll"
-            "$<TARGET_FILE_DIR:winui3style_gallery>/platforms/qoffscreend.dll"
     )
+    if(EXISTS "${_winui3style_qt_root}/plugins/platforms/qoffscreend.dll")
+        add_custom_command(TARGET winui3style_gallery POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_winui3style_qt_root}/plugins/platforms/qoffscreend.dll"
+                "$<TARGET_FILE_DIR:winui3style_gallery>/platforms/qoffscreend.dll"
+        )
+    endif()
 endif()

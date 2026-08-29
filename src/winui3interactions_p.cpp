@@ -1,4 +1,5 @@
 #include "winui3interactions_p.h"
+#include "winui3qtcompat_p.h"
 
 #include "winui3frameproperties_p.h"
 #include "winui3geometry_p.h"
@@ -121,7 +122,7 @@ void centerPendingComboPopup(QWidget *popup, QComboBox *combo)
     const int selectedCenterInPopup = popup->contentsRect().top()
         + view->frameWidth() + selected.center().y();
     int targetY = comboCenter.y() - selectedCenterInPopup;
-    if (QScreen *screen = popup->screen()) {
+    if (QScreen *screen = widgetScreen(popup)) {
         const QRect available = screen->availableGeometry();
         const int maximumY = qMax(available.top(),
                                   available.bottom() - popup->height() + 1);
@@ -365,7 +366,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton
-                && comboPressOpensPopup(combo, mouse->position().toPoint())) {
+                && comboPressOpensPopup(combo, mousePositionPoint(mouse))) {
                 // QComboBox's platform-independent default opens its popup
                 // from mousePressEvent. WinUI opens on release, so consume
                 // this press and keep a grab until release. The grab is
@@ -388,7 +389,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 const QRect track = toggleTrackRect(checkBox->rect(),
                                                     checkBox->layoutDirection());
                 ToggleDragState state;
-                state.pressPosition = mouse->position().toPoint();
+                state.pressPosition = mousePositionPoint(mouse);
                 state.candidate = track.contains(state.pressPosition);
                 m_callbacks.toggleDragStates->insert(checkBox, state);
             }
@@ -422,7 +423,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             if (state != m_callbacks.toggleDragStates->end() && state->candidate
                 && (mouse->buttons() & Qt::LeftButton)) {
                 if (!state->dragging
-                    && (mouse->position().toPoint() - state->pressPosition)
+                    && (mousePositionPoint(mouse) - state->pressPosition)
                             .manhattanLength()
                         >= QApplication::startDragDistance()) {
                     state->dragging = true;
@@ -433,9 +434,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                     qreal position;
                     if (checkBox->layoutDirection() == Qt::RightToLeft)
                         position = (checkBox->rect().right() - 10.0
-                                    - mouse->position().x()) / 20.0;
+                                    - mousePosition(mouse).x()) / 20.0;
                     else
-                        position = (mouse->position().x()
+                        position = (mousePosition(mouse).x()
                                     - checkBox->rect().left() - 10.0) / 20.0;
                     framePropertyRegistry().set(
                         checkBox, togglePositionProperty,
@@ -452,8 +453,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             if (pending != m_comboPressStates.end()
                 && static_cast<const QMouseEvent *>(event)->button()
                        == Qt::LeftButton) {
-                const QPoint position = static_cast<const QMouseEvent *>(event)
-                    ->position().toPoint();
+                const QPoint position = mousePositionPoint(
+                    static_cast<const QMouseEvent *>(event));
                 m_comboPressStates.erase(pending);
                 combo->releaseMouse();
                 const bool activate = combo->rect().contains(position);
