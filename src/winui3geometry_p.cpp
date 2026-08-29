@@ -22,6 +22,17 @@ bool verticalSpinButtons(const QWidget *widget)
 
 } // namespace
 
+QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction)
+{
+    constexpr int trackWidth = 40;
+    constexpr int trackHeight = 20;
+    const int left = direction == Qt::RightToLeft
+        ? bounds.right() - trackWidth + 1
+        : bounds.left();
+    return QRect(left, bounds.center().y() - trackHeight / 2,
+                 trackWidth, trackHeight);
+}
+
 std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
                                     bool toggleSwitch)
 {

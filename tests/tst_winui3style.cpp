@@ -2,6 +2,7 @@
 #include <winui3style/navigationview.h>
 #include <winui3style/settingscard.h>
 #include <winui3style/toggleswitch.h>
+#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
@@ -338,6 +339,8 @@ private slots:
     void toggleConvenienceWidget();
     void toggleInteraction();
     void toggleDragInteraction();
+    void toggleRtlGeometryAndInteraction();
+    void backdropLifecycleContract();
     void settingsCardExpansion();
     void settingsCardTrailingWidgetsReceiveClicks();
     void settingsCardChevronAndStableHeader();
@@ -359,6 +362,7 @@ private slots:
     void comboChevronGeometry();
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
+    void spinBoxFocusUnderlinePixelContract();
     void checkboxAcceptAnimation();
     void checkboxGlyphGeometryContract();
     void checkboxGapHitTest();
@@ -1269,6 +1273,138 @@ void WinUI3StyleTest::toggleDragInteraction()
     QVERIFY(toggle.isChecked());
     QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
     QCOMPARE(clicked.count(), 1);
+}
+
+void WinUI3StyleTest::toggleRtlGeometryAndInteraction()
+{
+    DisableAnimationsGuard animations;
+    QCheckBox toggle;
+    WinUI3::Style::setToggleSwitch(&toggle);
+    WinUI3::Style::setToggleSwitchText(&toggle, QStringLiteral("On"),
+                                       QStringLiteral("Off"));
+    toggle.setLayoutDirection(Qt::RightToLeft);
+    toggle.resize(140, 32);
+    toggle.setChecked(true);
+    toggle.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&toggle));
+
+    // QRect::right() is inclusive. The RTL track must therefore start at
+    // right - 39, exactly mirroring the LTR 40-pixel slot. The old right - 40
+    // origin left one stale pixel outside the widget and disagreed with the
+    // drag hit region.
+    const QRect expectedTrack(toggle.rect().right() - 39,
+                              toggle.rect().center().y() - 10, 40, 20);
+    QStyleOptionButton option;
+    option.initFrom(&toggle);
+    option.rect = toggle.rect();
+    option.direction = Qt::RightToLeft;
+    option.text = toggle.text();
+    option.state |= QStyle::State_On;
+    QImage image(toggle.size(), QImage::Format_ARGB32_Premultiplied);
+    const QColor background = toggle.palette().color(QPalette::Window);
+    image.fill(background);
+    {
+        QPainter painter(&image);
+        toggle.style()->drawControl(QStyle::CE_CheckBox, &option,
+                                    &painter, &toggle);
+    }
+    const QColor accent = toggle.palette().color(QPalette::Accent);
+    QVERIFY(colorDistance(image.pixelColor(expectedTrack.center()), accent)
+            < 100);
+    QVERIFY(colorDistance(image.pixelColor(expectedTrack.left() - 1,
+                                           expectedTrack.center().y()),
+                          background)
+            < 2);
+    QVERIFY(colorDistance(image.pixelColor(expectedTrack.right(),
+                                           expectedTrack.center().y()),
+                          accent)
+            < 100);
+
+    // A click anywhere in the visual track remains a normal checkbox click.
+    toggle.setChecked(false);
+    QTest::mouseClick(&toggle, Qt::LeftButton, Qt::NoModifier,
+                      expectedTrack.center());
+    QVERIFY(toggle.isChecked());
+
+    // In RTL, the unchecked knob is on the right and a drag toward the left
+    // must turn the switch on. This exercises the same 40 x 20 rect used by
+    // the renderer, including its inclusive right edge.
+    toggle.setChecked(false);
+    QCoreApplication::processEvents();
+    const QPoint offKnob(expectedTrack.right() - 10,
+                         expectedTrack.center().y());
+    const QPoint onKnob(expectedTrack.left() + 10,
+                        expectedTrack.center().y());
+    QTest::mousePress(&toggle, Qt::LeftButton, Qt::NoModifier, offKnob);
+    QMouseEvent move(QEvent::MouseMove, QPointF(onKnob), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&toggle, &move);
+    QVERIFY(frameBool(&toggle, "_winui_toggle_dragging"));
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(onKnob),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&toggle, &release);
+    QVERIFY(toggle.isChecked());
+    QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
+}
+
+void WinUI3StyleTest::backdropLifecycleContract()
+{
+#ifndef Q_OS_WIN
+    QWidget window;
+    QVERIFY(!WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica));
+    return;
+#else
+    // DWM is deliberately not part of this unit test. The offscreen Windows
+    // platform still exercises the palette/attribute/property lifecycle
+    // deterministically; native composition is covered by the native test
+    // target and by the gallery.
+    if (QGuiApplication::platformName() != QStringLiteral("offscreen"))
+        QSKIP("DWM-backed lifecycle belongs to the native test target");
+
+    QWidget window;
+    window.setAttribute(Qt::WA_TranslucentBackground, false);
+    window.setAttribute(Qt::WA_NoSystemBackground, false);
+    window.setAttribute(Qt::WA_OpaquePaintEvent, true);
+    window.setAutoFillBackground(true);
+    QPalette custom = window.palette();
+    custom.setColor(QPalette::Window, QColor(19, 37, 53));
+    window.setPalette(custom);
+
+    const QPalette originalPalette = window.palette();
+    const bool originalTranslucent =
+        window.testAttribute(Qt::WA_TranslucentBackground);
+    const bool originalNoSystemBackground =
+        window.testAttribute(Qt::WA_NoSystemBackground);
+    const bool originalOpaquePaint = window.testAttribute(Qt::WA_OpaquePaintEvent);
+    const bool originalAutoFill = window.autoFillBackground();
+
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica));
+    QCOMPARE(window.property("_winui_backdrop").toInt(),
+             int(WinUI3::Backdrop::Mica));
+    QVERIFY(window.testAttribute(Qt::WA_NoSystemBackground));
+    QVERIFY(!window.testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(!window.autoFillBackground());
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
+
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::MicaAlt));
+    QCOMPARE(window.property("_winui_backdrop").toInt(),
+             int(WinUI3::Backdrop::MicaAlt));
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None));
+    QVERIFY(!window.property("_winui_backdrop").isValid());
+    QCOMPARE(window.testAttribute(Qt::WA_TranslucentBackground),
+             originalTranslucent);
+    QCOMPARE(window.testAttribute(Qt::WA_NoSystemBackground),
+             originalNoSystemBackground);
+    QCOMPARE(window.testAttribute(Qt::WA_OpaquePaintEvent), originalOpaquePaint);
+    QCOMPARE(window.autoFillBackground(), originalAutoFill);
+    QCOMPARE(window.palette(), originalPalette);
+
+    // Clearing an already-cleared backdrop must remain a no-op. In
+    // particular it must not create a native handle just to reset DWM state.
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None));
+    QVERIFY(!window.property("_winui_backdrop").isValid());
+    QCOMPARE(window.palette(), originalPalette);
+#endif
 }
 
 void WinUI3StyleTest::settingsCardExpansion()
@@ -2546,6 +2682,68 @@ void WinUI3StyleTest::verticalNumberBoxContract()
 
     WinUI3::Style::setVerticalSpinButtons(&spin, false);
     QVERIFY(!WinUI3::Style::hasVerticalSpinButtons(&spin));
+}
+
+void WinUI3StyleTest::spinBoxFocusUnderlinePixelContract()
+{
+    QSpinBox spin;
+    spin.setRange(0, 100);
+    spin.setValue(46);
+    spin.resize(160, 40);
+    spin.show();
+
+    const auto distance = [](const QColor &a, const QColor &b) {
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
+            + qAbs(a.blue() - b.blue());
+    };
+    const QColor accent = spin.palette().color(QPalette::Accent);
+    const auto verify = [&](bool vertical, Qt::LayoutDirection direction) {
+        WinUI3::Style::setVerticalSpinButtons(&spin, vertical);
+        spin.setLayoutDirection(direction);
+        QCoreApplication::processEvents();
+
+        QStyleOptionSpinBox option;
+        option.initFrom(&spin);
+        option.rect = spin.rect();
+        option.direction = direction;
+        option.frame = true;
+        option.buttonSymbols = spin.buttonSymbols();
+        option.stepEnabled = QAbstractSpinBox::StepUpEnabled
+            | QAbstractSpinBox::StepDownEnabled;
+        option.subControls = QStyle::SC_SpinBoxFrame
+            | QStyle::SC_SpinBoxEditField | QStyle::SC_SpinBoxUp
+            | QStyle::SC_SpinBoxDown;
+        option.state |= QStyle::State_HasFocus;
+
+        QImage image(spin.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(spin.palette().color(QPalette::Window));
+        {
+            QPainter painter(&image);
+            spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option,
+                                             &painter, &spin);
+        }
+
+        const int underlineY = spin.rect().bottom() - 1;
+        QVERIFY2(distance(image.pixelColor(spin.rect().center().x(), underlineY),
+                          accent) < 80,
+                 vertical ? "vertical underline center missing"
+                          : "horizontal underline center missing");
+        // The rounded clip follows the WinUI TextBox/NumberBox outline: the
+        // line is present a few pixels in from each end, but never paints the
+        // two rounded bottom corners.
+        QVERIFY(distance(image.pixelColor(3, underlineY), accent) < 100);
+        QVERIFY(distance(image.pixelColor(spin.width() - 4, underlineY), accent)
+                < 100);
+        QVERIFY(distance(image.pixelColor(spin.rect().left(), underlineY), accent)
+                > 80);
+        QVERIFY(distance(image.pixelColor(spin.rect().right(), underlineY), accent)
+                > 80);
+    };
+
+    verify(false, Qt::LeftToRight);
+    verify(false, Qt::RightToLeft);
+    verify(true, Qt::LeftToRight);
+    verify(true, Qt::RightToLeft);
 }
 
 void WinUI3StyleTest::checkboxAcceptAnimation()

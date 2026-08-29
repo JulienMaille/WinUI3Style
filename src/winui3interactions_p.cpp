@@ -1,6 +1,7 @@
 #include "winui3interactions_p.h"
 
 #include "winui3frameproperties_p.h"
+#include "winui3geometry_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
@@ -8,6 +9,8 @@
 #include <winui3style/winui3style.h>
 
 #include <winui3style/winui3backdrop.h>
+
+#include "winui3backdrop_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -294,11 +297,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             checkBox && toggleSwitch(checkBox)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton) {
-                QRect track = checkBox->rect();
-                if (checkBox->layoutDirection() == Qt::RightToLeft)
-                    track.setLeft(track.right() - 39);
-                else
-                    track.setWidth(40);
+                const QRect track = toggleTrackRect(checkBox->rect(),
+                                                    checkBox->layoutDirection());
                 ToggleDragState state;
                 state.pressPosition = mouse->position().toPoint();
                 state.candidate = track.contains(state.pressPosition);
@@ -541,6 +541,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             applyBackdrop(widget, static_cast<Backdrop>(
                 widget->property("_winui_backdrop").toInt()));
         }
+        break;
+    case QEvent::Resize:
+        // The DWM corner preference is resize-stable, but the legacy region
+        // fallback is not. Re-apply it after every native popup resize so a
+        // combo/menu cannot retain the old rounded region and clip its new
+        // edges. Avoid creating a native handle during pre-show layout.
+        if (widget->isWindow() && widget->windowType() == Qt::Popup
+            && widget->windowHandle())
+            applyPopupRoundedCorners(widget);
         break;
     case QEvent::Hide:
         if (qobject_cast<QProgressBar *>(widget))

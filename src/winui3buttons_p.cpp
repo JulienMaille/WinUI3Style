@@ -2,6 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3geometry_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -364,10 +365,7 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             // WinUI's template owns a 40 x 20 track. Snap the slot to whole
             // device pixels so the pill's flat top/bottom edges render as one
             // solid pixel row instead of splitting ~50/50 across two rows.
-            const qreal trackLeft = check->direction == Qt::RightToLeft
-                ? check->rect.right() - 40 : check->rect.left();
-            QRectF track(trackLeft, check->rect.center().y() - 10.0,
-                         40.0, 20.0);
+            QRectF track = toggleTrackRect(check->rect, check->direction);
             track = snappedRect(track, painter);
             QColor trackFill;
             QColor trackStroke;
