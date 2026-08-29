@@ -1,11 +1,16 @@
 #include "winui3interactions_p.h"
 
 #include "winui3frameproperties_p.h"
+#include "winui3geometry_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
 
 #include <winui3style/winui3style.h>
+
+#include <winui3style/winui3backdrop.h>
+
+#include "winui3backdrop_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -292,11 +297,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             checkBox && toggleSwitch(checkBox)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton) {
-                QRect track = checkBox->rect();
-                if (checkBox->layoutDirection() == Qt::RightToLeft)
-                    track.setLeft(track.right() - 39);
-                else
-                    track.setWidth(40);
+                const QRect track = toggleTrackRect(checkBox->rect(),
+                                                    checkBox->layoutDirection());
                 ToggleDragState state;
                 state.pressPosition = mouse->position().toPoint();
                 state.candidate = track.contains(state.pressPosition);
@@ -341,11 +343,11 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 if (state->dragging) {
                     qreal position;
                     if (checkBox->layoutDirection() == Qt::RightToLeft)
-                        position = (checkBox->rect().right() - 9.5
+                        position = (checkBox->rect().right() - 10.0
                                     - mouse->position().x()) / 20.0;
                     else
                         position = (mouse->position().x()
-                                    - checkBox->rect().left() - 9.5) / 20.0;
+                                    - checkBox->rect().left() - 10.0) / 20.0;
                     framePropertyRegistry().set(
                         checkBox, togglePositionProperty,
                         qBound<qreal>(0.0, position, 1.0));
@@ -533,6 +535,26 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             m_callbacks.refreshProgressTimer();
         m_callbacks.preparePopupSurface(widget);
         m_callbacks.registerPopupPaletteOwners(widget);
+        break;
+    case QEvent::WinIdChange:
+        // Re-apply the native DWM material (Mica on the main window) once Qt
+        // has created the HWND. Popups stay opaque and get their rounded
+        // corners from the window corner preference instead of a translucent
+        // surface, which avoids the cleared-backing artifacts of Acrylic.
+        if (widget->isWindow()
+            && widget->property("_winui_backdrop").isValid()) {
+            applyBackdrop(widget, static_cast<Backdrop>(
+                widget->property("_winui_backdrop").toInt()));
+        }
+        break;
+    case QEvent::Resize:
+        // The DWM corner preference is resize-stable, but the legacy region
+        // fallback is not. Re-apply it after every native popup resize so a
+        // combo/menu cannot retain the old rounded region and clip its new
+        // edges. Avoid creating a native handle during pre-show layout.
+        if (widget->isWindow() && widget->windowType() == Qt::Popup
+            && widget->windowHandle())
+            applyPopupRoundedCorners(widget);
         break;
     case QEvent::Hide:
         if (qobject_cast<QProgressBar *>(widget))

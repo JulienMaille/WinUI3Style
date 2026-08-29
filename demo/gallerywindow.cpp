@@ -3,6 +3,7 @@
 #include <winui3style/navigationview.h>
 #include <winui3style/animatedstack.h>
 #include <winui3style/settingscard.h>
+#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
@@ -189,10 +190,16 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
     // Snapshots must not depend on the host's current Windows accent. Keep the
     // interactive gallery system-aware, but use Fluent's reference blue for
-    // deterministic visual baselines across machines.
-    winuiStyle->setAccentColor(QColor(0, 120, 212));
+    // deterministic visual baselines across machines. Disable the native DWM
+    // material BEFORE changing the accent: setAccentColor() refreshes the
+    // application appearance and would otherwise re-apply the still-active
+    // backdrop on the next event loop iteration.
+    const QVariant previousBackdrop = property("_winui_backdrop");
+    WinUI3::applyBackdrop(this, WinUI3::Backdrop::None);
+    setProperty("_winui_backdrop", QVariant());
     setPalette(QPalette());
     setAutoFillBackground(true);
+    winuiStyle->setAccentColor(QColor(0, 120, 212));
     const bool mouseEventsWereTransparent =
         testAttribute(Qt::WA_TransparentForMouseEvents);
     const QPoint previousCursorPosition = QCursor::pos();
@@ -200,6 +207,13 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         m_navigation->stack()->setDuration(previousDuration);
         winuiStyle->setThemeMode(previousTheme);
         winuiStyle->setAccentColor(previousAccent);
+        if (previousBackdrop.isValid())
+            WinUI3::applyBackdrop(this,
+                static_cast<WinUI3::Backdrop>(previousBackdrop.toInt()));
+        else {
+            WinUI3::applyBackdrop(this, WinUI3::Backdrop::None);
+            setProperty("_winui_backdrop", QVariant());
+        }
         if (animationsWereDisabled)
             qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
         else
@@ -783,4 +797,5 @@ void GalleryWindow::setTheme(int index)
     const auto mode = index == 1 ? WinUI3::ThemeMode::Light
         : index == 2 ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::System;
     winuiStyle->setThemeMode(mode);
+    WinUI3::applyBackdrop(this, WinUI3::Backdrop::Mica);
 }

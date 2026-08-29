@@ -1,5 +1,6 @@
 #include <winui3style/winui3style.h>
 
+#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3icons.h>
 
 #include "winui3geometry_p.h"
@@ -1040,6 +1041,12 @@ void Style::refreshApplicationAppearance()
     // polished. Prepare and register them now that the popup exists, before
     // walking the bounded owner registry below.
     for (QWidget *window : qApp->topLevelWidgets()) {
+        const QVariant backdrop = window->property("_winui_backdrop");
+        if (backdrop.isValid()) {
+            QTimer::singleShot(0, window, [window, backdrop] {
+                applyBackdrop(window, static_cast<Backdrop>(backdrop.toInt()));
+            });
+        }
         if (window->windowType() == Qt::Popup) {
             preparePopupSurface(window);
             d->registerPopupPaletteOwners(window);
@@ -1818,6 +1825,8 @@ void Style::unpolish(QWidget *widget)
     QProxyStyle::unpolish(widget);
     if (widget) {
         d->stopAnimations(widget);
+        if (widget->property("_winui_backdrop").isValid())
+            applyBackdrop(widget, Backdrop::None);
         restoreRememberedPalette(widget);
         if (widget->property(originalAutoFillProperty).isValid())
             widget->setAutoFillBackground(

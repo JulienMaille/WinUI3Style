@@ -29,8 +29,19 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
                     const QColor &strokeTop, const QColor &strokeBottom,
                     qreal radius, qreal strokeWidth = 1.0);
 
+// Draw the WinUI editor focus underline: a 2 px accent line along the bottom
+// edge, clipped to the control's rounded-corner path so the ends follow the
+// chamfer instead of running edge-to-edge. Shared by TextBox and NumberBox.
+void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect,
+                              const QColor &accent, qreal radius);
+
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter);
+
+// Snap a rect's origin to a whole device pixel while preserving its logical
+// size. Unlike snappedEllipseRect, the rect's edges (not just the center) are
+// aligned, giving crisp flat segments on pill-shaped surfaces.
+QRectF snappedRect(const QRectF &logicalRect, const QPainter *painter);
 
 QPointF animatedAcceptPoint(const QRectF &indicator, qreal x, qreal y);
 QPainterPath animatedAcceptPath(const QRectF &indicator);

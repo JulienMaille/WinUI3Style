@@ -184,15 +184,9 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                                   separatorX, spin->rect.bottom() - 1);
                 painter->restore();
             }
-            if (focused) {
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setPen(QPen(t.accentFill, 2, Qt::SolidLine, Qt::FlatCap));
-                const int underlineY = spin->rect.bottom() - 1;
-                painter->drawLine(spin->rect.left(), underlineY,
-                                  spin->rect.right(), underlineY);
-                painter->restore();
-            }
+            if (focused)
+                drawEditorFocusUnderline(painter, spin->rect, t.accentFill,
+                                         ControlRadius);
             const auto drawStep = [&](QStyle::SubControl subControl, Icon glyph) {
                 if (!(spin->subControls & subControl)) return;
                 const QRect rect = style->subControlRect(QStyle::CC_SpinBox, spin, subControl, widget);

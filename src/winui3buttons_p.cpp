@@ -2,6 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3geometry_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
@@ -203,7 +204,9 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         painter->setBrush(fill);
         painter->setPen(QPen(stroke, 1));
         if (element == QStyle::PE_IndicatorRadioButton)
-            painter->drawEllipse(indicator);
+            // Inset the centered one-pixel border inside the 20 px slot,
+            // matching the CheckBox ring for equal edge sharpness.
+            painter->drawEllipse(indicator.adjusted(0.5, 0.5, -0.5, -0.5));
         else
             // Keep the template slot at 20 px while keeping the centered
             // one-pixel border inside that slot, as the XAML Rectangle does.
@@ -400,10 +403,11 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             const bool dragging = framePropertyRegistry()
                 .value(widget, toggleDraggingProperty).toBool();
 
-            const qreal trackLeft = check->direction == Qt::RightToLeft
-                ? check->rect.right() - 39.5 : check->rect.left() + 0.5;
-            const QRectF track(trackLeft,
-                               check->rect.center().y() - 9.5, 39.0, 19.0);
+            // WinUI's template owns a 40 x 20 track. Snap the slot to whole
+            // device pixels so the pill's flat top/bottom edges render as one
+            // solid pixel row instead of splitting ~50/50 across two rows.
+            QRectF track = toggleTrackRect(check->rect, check->direction);
+            track = snappedRect(track, painter);
             QColor trackFill;
             QColor trackStroke;
             QColor knob;
@@ -441,7 +445,7 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             qreal visualPosition = position;
             if (check->direction == Qt::RightToLeft)
                 visualPosition = 1.0 - visualPosition;
-            const qreal knobCenter = track.left() + 9.5 + 20.0 * visualPosition;
+            const qreal knobCenter = track.left() + 10.0 + 20.0 * visualPosition;
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
