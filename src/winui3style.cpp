@@ -421,6 +421,7 @@ bool coveredPrimitive(QStyle::PrimitiveElement element)
     case QStyle::PE_PanelItemViewItem:
     case QStyle::PE_IndicatorBranch:
     case QStyle::PE_IndicatorHeaderArrow:
+    case QStyle::PE_IndicatorTabClose:
     case QStyle::PE_PanelTipLabel:
     case QStyle::PE_IndicatorToolBarSeparator:
     case QStyle::PE_FrameDockWidget:

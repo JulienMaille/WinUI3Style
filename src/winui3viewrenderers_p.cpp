@@ -282,6 +282,34 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         return true;
     }
 
+    if (element == QStyle::PE_IndicatorTabClose) {
+        // Qt 5 paints the closable-tab button through this primitive (Qt 6
+        // maps the equivalent standard icon instead).  WinUI renders the
+        // close button as a square, gently rounded surface (ControlRadius)
+        // with a 12px X: subtle fill on hover, pressed lift.
+        const Tokens t = tokens(option->palette);
+        const bool enabled = option->state & QStyle::State_Enabled;
+        const bool hovered = option->state & QStyle::State_MouseOver;
+        const bool pressed = option->state & QStyle::State_Sunken;
+        // The hit area is the full 22x22 indicator slot; fill it entirely,
+        // like WinUI's TabViewItemCloseButton.
+        const QRect button = QStyle::visualRect(option->direction,
+            option->rect, option->rect);
+        if (pressed && enabled) {
+            roundedRect(painter, button, t.subtlePressed, Qt::transparent,
+                        ControlRadius);
+        } else if (hovered && enabled) {
+            roundedRect(painter, button, t.subtleHover, Qt::transparent,
+                        ControlRadius);
+        }
+        icon(Icon::Close, enabled
+                ? (hovered || pressed ? t.textPrimary : t.textSecondary)
+                : t.textDisabled)
+            .paint(painter, button.adjusted(5, 5, -5, -5), Qt::AlignCenter,
+                   enabled ? QIcon::Normal : QIcon::Disabled);
+        return true;
+    }
+
     if (element == QStyle::PE_FrameDockWidget) {
         const Tokens t = tokens(option->palette);
         painter->save();

@@ -376,6 +376,13 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
         }
     }
     QRect result = style->QProxyStyle::subElementRect(element, option, widget);
+    // WinUI docks the tab close button against the right edge of the tab;
+    // Qt leaves an 8px gap. Slide the slot closer to the edge.
+    if (element == QStyle::SE_TabBarTabRightButton) {
+        const int shift = qMin(8, option->rect.right() - result.right());
+        if (shift > 0)
+            result.translate(shift, 0);
+    }
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
         const QAbstractItemView *view = selectionMarkerView(widget);
         if (view && (element == QStyle::SE_ItemViewItemCheckIndicator
