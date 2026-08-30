@@ -2,7 +2,8 @@
 
 A Qt 6 Widgets style inspired by the released WinUI 3 controls in Windows App
 SDK 2.4. It provides light and dark themes, system accent colors, animated
-interaction states, Fluent glyphs, Mica main-window and opaque rounded popup
+interaction states, Standard and Compact density profiles, Fluent glyphs,
+Mica main-window and opaque rounded popup
 surfaces, property-driven native-widget variants, settings/navigation
 composition, a demo gallery, and Qt Test coverage.
 
@@ -24,7 +25,9 @@ Qt Widgets and deliberately uses no `WinUI3::*` API. This makes it an executable
 example of the same deployment model available to an existing Designer-based
 application.
 The style can also be loaded through `QStyleFactory::create("winui3")` when the
-plugin is deployed under Qt's `styles` plugin directory.
+plugin is deployed under Qt's `styles` plugin directory. The optional
+`winui3compact` factory key creates the same style with Compact as its global
+default; it is an alias, not a second implementation.
 
 The visual comparison workflow and pinned Microsoft sources are documented in
 `spec/`. The public CMake target is `WinUI3::Widgets`. The implementation uses
@@ -62,6 +65,28 @@ Other Designer properties are:
 - `winuiSurface=content` or `layer` on client regions placed over a native
   backdrop. These create opaque WinUI content and navigation layers and prevent
   backing-store trails during hover, scrolling and page changes.
+- `winuiDensity=standard` or `compact` on any container or control. The value
+  is inherited by its child widgets and can be changed while the application is
+  running.
+
+## Standard and Compact density
+
+Density is independent of light/dark theme. `winui3` starts in Standard mode;
+`winui3compact` starts in Compact mode. Applications can change the global
+profile without replacing the style:
+
+```cpp
+qApp->style()->setProperty("densityMode", 1); // Compact
+```
+
+For mixed-density forms, set the inherited `winuiDensity` dynamic property on
+a page, panel, or individual control in Qt Designer. Compact follows WinUI's
+Compact Sizing scope: TextBox/LineEdit, ComboBox and its popup rows,
+QDateEdit/QTimeEdit, ListView, TreeView, NavigationView, and MenuBar become
+shorter. Buttons, check/radio and toggle controls, NumberBox-style spin boxes,
+sliders, toolbars, tabs, menu flyouts, tables, and headers retain their Standard
+metrics. This avoids inventing compact variants for controls that the official
+profile does not redefine.
 
 The equivalent C++ property call, when a form cannot be edited, is simply:
 

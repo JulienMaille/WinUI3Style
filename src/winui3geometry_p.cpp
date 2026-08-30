@@ -22,10 +22,12 @@ bool verticalSpinButtons(const QWidget *widget)
 
 } // namespace
 
-QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction)
+QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction,
+                      DensityMode mode)
 {
-    constexpr int trackWidth = 40;
-    constexpr int trackHeight = 20;
+    const DensityMetrics &metrics = densityMetrics(mode);
+    const int trackWidth = metrics.toggleTrackWidth;
+    const int trackHeight = metrics.toggleTrackHeight;
     const int left = direction == Qt::RightToLeft
         ? bounds.right() - trackWidth + 1
         : bounds.left();
@@ -33,19 +35,28 @@ QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction)
                  trackWidth, trackHeight);
 }
 
-std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
-                                    bool toggleSwitch)
+QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction)
 {
+    return toggleTrackRect(bounds, direction, DensityMode::Standard);
+}
+
+std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
+                                    bool toggleSwitch,
+                                    const QWidget *widget)
+{
+    const DensityMetrics &metrics = densityMetricsFor(widget);
     if (toggleSwitch)
     {
         if (metric == QStyle::PM_IndicatorWidth)
-            return 40;
+            return metrics.toggleTrackWidth;
         if (metric == QStyle::PM_IndicatorHeight)
-            return 20;
+            return metrics.toggleTrackHeight;
     }
     switch (metric)
     {
     case QStyle::PM_ButtonMargin:
+        // This legacy Qt metric is not the CT_PushButton content inset.
+        // Preserve the established contract for layouts querying it.
         return 8;
     case QStyle::PM_ButtonDefaultIndicator:
         return 0;
@@ -57,18 +68,19 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
     case QStyle::PM_IndicatorHeight:
     case QStyle::PM_ExclusiveIndicatorWidth:
     case QStyle::PM_ExclusiveIndicatorHeight:
-        return 20;
+        return metrics.indicatorSize;
     case QStyle::PM_ScrollBarExtent:
-        return 12;
+        return metrics.scrollBarExtent;
     case QStyle::PM_ScrollBarSliderMin:
-        return 30;
+        return metrics.scrollBarSliderMinimum;
     case QStyle::PM_SliderThickness:
+        return metrics.sliderThickness;
     case QStyle::PM_SliderLength:
-        return 20;
+        return metrics.sliderLength;
     case QStyle::PM_TabCloseIndicatorWidth:
-        return 32;
+        return metrics.tabCloseWidth;
     case QStyle::PM_TabCloseIndicatorHeight:
-        return 24;
+        return metrics.tabCloseHeight;
     case QStyle::PM_SmallIconSize:
     case QStyle::PM_ButtonIconSize:
         return 16;
@@ -91,6 +103,9 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
     case QStyle::PM_HeaderGripMargin:
         return 4;
     case QStyle::PM_HeaderDefaultSectionSizeVertical:
+        // QHeaderView's default section is historically 36 px even though
+        // CT_HeaderSection has a 32 px minimum. Compact Sizing does not cover
+        // data-grid headers, so both profiles retain that distinction.
         return 36;
     case QStyle::PM_HeaderDefaultSectionSizeHorizontal:
         return 100;
@@ -104,20 +119,23 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                                         QStyle::SubControl subControl,
                                         const QWidget *widget)
 {
+    const DensityMetrics &metrics = densityMetricsFor(widget);
     if (control == QStyle::CC_Slider)
     {
         if (const auto *slider =
                 qstyleoption_cast<const QStyleOptionSlider *>(option))
         {
             const bool horizontal = slider->orientation == Qt::Horizontal;
-            constexpr int preMargin = 14;
+            const int preMargin = metrics.sliderGrooveMargin;
+            const int grooveThickness = metrics.sliderGrooveThickness;
             const QRect groove =
                 horizontal
                     ? QRect(slider->rect.left() + preMargin,
-                            slider->rect.center().y() - 2,
-                            qMax(1, slider->rect.width() - 2 * preMargin), 4)
-                    : QRect(slider->rect.center().x() - 2,
-                            slider->rect.top() + preMargin, 4,
+                            slider->rect.center().y() - grooveThickness / 2,
+                            qMax(1, slider->rect.width() - 2 * preMargin),
+                            grooveThickness)
+                    : QRect(slider->rect.center().x() - grooveThickness / 2,
+                            slider->rect.top() + preMargin, grooveThickness,
                             qMax(1, slider->rect.height() - 2 * preMargin));
             if (subControl == QStyle::SC_SliderGroove)
                 return groove;
@@ -132,7 +150,14 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                     horizontal
                         ? QPoint(groove.left() + offset, groove.center().y())
                         : QPoint(groove.center().x(), groove.top() + offset);
-                return QRect(center.x() - 8, center.y() - 8, 18, 18);
+                const int handleSize = metrics.sliderHandleSize;
+                // QRect::center() rounds an even-sized rectangle toward its
+                // top/left.  Use the historical asymmetric offset so the
+                // reported handle center stays exactly on the groove end.
+                const int handleOffset = (handleSize - 1) / 2;
+                return QRect(center.x() - handleOffset,
+                             center.y() - handleOffset,
+                             handleSize, handleSize);
             }
             if (subControl == QStyle::SC_SliderTickmarks)
                 return slider->rect;
@@ -144,7 +169,7 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                 qstyleoption_cast<const QStyleOptionSlider *>(option))
         {
             const bool horizontal = scroll->orientation == Qt::Horizontal;
-            constexpr int buttonLength = 12;
+            const int buttonLength = metrics.scrollBarExtent;
             const int axisLength =
                 horizontal ? scroll->rect.width() : scroll->rect.height();
             const int grooveLength = qMax(0, axisLength - 2 * buttonLength);
@@ -186,7 +211,8 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                                   ? int(qint64(grooveLength) *
                                         scroll->pageStep / denominator)
                                   : 0;
-                const int minimumThumb = qMin(30, grooveLength);
+                const int minimumThumb = qMin(metrics.scrollBarSliderMinimum,
+                                              grooveLength);
                 thumbLength = qBound(minimumThumb, thumbLength, grooveLength);
             }
             const int available = qMax(0, grooveLength - thumbLength);
@@ -272,13 +298,15 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
     {
         if (subControl == QStyle::SC_ComboBoxArrow)
         {
-            const QRect logical(option->rect.right() - 37, option->rect.top(),
-                                38, option->rect.height());
+            const QRect logical(option->rect.right() - metrics.comboArrowWidth + 1,
+                                option->rect.top(), metrics.comboArrowWidth,
+                                option->rect.height());
             return QStyle::visualRect(option->direction, option->rect, logical);
         }
         if (subControl == QStyle::SC_ComboBoxEditField)
         {
-            const QRect logical = option->rect.adjusted(12, 1, -38, -1);
+            const QRect logical = option->rect.adjusted(
+                metrics.comboEditLeftPadding, 1, -metrics.comboArrowWidth, -1);
             return QStyle::visualRect(option->direction, option->rect, logical);
         }
     }
@@ -291,7 +319,8 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
             if (tool &&
                 (tool->features & QStyleOptionToolButton::MenuButtonPopup))
             {
-                const QRect logical = option->rect.adjusted(0, 0, -24, 0);
+                const QRect logical = option->rect.adjusted(
+                    0, 0, -metrics.toolButtonMenuWidth, 0);
                 return QStyle::visualRect(option->direction, option->rect,
                                           logical);
             }
@@ -299,15 +328,17 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
         }
         if (subControl == QStyle::SC_ToolButtonMenu)
         {
-            const QRect logical(option->rect.right() - 23, option->rect.top(),
-                                24, option->rect.height());
+            const QRect logical(option->rect.right() - metrics.toolButtonMenuWidth + 1,
+                                option->rect.top(), metrics.toolButtonMenuWidth,
+                                option->rect.height());
             return QStyle::visualRect(option->direction, option->rect, logical);
         }
     }
     if (control == QStyle::CC_SpinBox)
     {
         const bool verticalButtons = verticalSpinButtons(widget);
-        const int buttonWidth = verticalButtons ? 32 : 36;
+        const int buttonWidth = verticalButtons ? metrics.verticalSpinButtonWidth
+                                                : metrics.spinButtonWidth;
         QRect logical;
         if (verticalButtons && subControl == QStyle::SC_SpinBoxUp)
         {

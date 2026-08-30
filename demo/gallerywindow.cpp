@@ -71,6 +71,7 @@ void GalleryWindow::configureGallery()
                             ui->paletteHeading})
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
+    ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
     ui->selectedEdit->selectAll();
     ui->advancedDetails->setVisible(ui->advancedCard->isChecked());
     ui->collectionsTabs->setTabEnabled(ui->collectionsTabs->indexOf(ui->disabledTab), false);
@@ -94,6 +95,11 @@ void GalleryWindow::configureGallery()
 
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &GalleryWindow::setTheme);
+    connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [](int index) {
+        if (qApp->style())
+            qApp->style()->setProperty("densityMode", index);
+    });
     connect(ui->advancedCard, &QGroupBox::toggled,
             ui->advancedDetails, &QWidget::setVisible);
     connect(ui->searchSettings, &QLineEdit::textChanged, this,
@@ -216,6 +222,7 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
     QStyle *activeStyle = qApp->style();
     if (!activeStyle->property("themeMode").isValid()) return false;
     const QVariant previousTheme = activeStyle->property("themeMode");
+    const QVariant previousDensity = activeStyle->property("densityMode");
     const QVariant previousAccent = activeStyle->property("accentColor");
     const QVariant previousBackdrop = property("winuiBackdrop");
     const QPalette previousPalette = palette();
@@ -227,10 +234,12 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
     setPalette(QPalette());
     setAutoFillBackground(true);
     activeStyle->setProperty("accentColor", QColor(0, 120, 212));
+    activeStyle->setProperty("densityMode", 0);
     const bool mouseEventsWereTransparent = testAttribute(Qt::WA_TransparentForMouseEvents);
     const QPoint previousCursorPosition = QCursor::pos();
     const auto restore = qScopeGuard([&] {
         activeStyle->setProperty("themeMode", previousTheme);
+        activeStyle->setProperty("densityMode", previousDensity);
         activeStyle->setProperty("accentColor", previousAccent);
         setProperty("winuiBackdrop", previousBackdrop);
         if (animationsWereDisabled) qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
@@ -366,6 +375,30 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         success = messageBox.grab().save(
             output.filePath(theme + "-message-box.png"), "PNG") && success;
         messageBox.close();
+
+        // Keep all historical Standard captures byte-comparable, then add a
+        // small Compact oracle for the controls covered by WinUI's Compact
+        // Sizing resource rather than blindly doubling the whole matrix.
+        activeStyle->setProperty("densityMode", 1);
+        ui->densityCombo->setCurrentIndex(1);
+        for (int page : {0, 1}) {
+            ui->pages->setCurrentIndex(page);
+            qApp->processEvents();
+            settle();
+            success = grab().save(output.filePath(
+                QStringLiteral("%1-density-compact-page-%2.png")
+                    .arg(theme).arg(page)), "PNG") && success;
+        }
+        ui->pages->setCurrentIndex(0);
+        ui->galleryComboBox->showPopup();
+        qApp->processEvents();
+        if (QWidget *popup = ui->galleryComboBox->view()->window()) {
+            success = popup->grab().save(output.filePath(
+                theme + "-density-compact-combo-popup.png"), "PNG") && success;
+        }
+        ui->galleryComboBox->hidePopup();
+        ui->densityCombo->setCurrentIndex(0);
+        activeStyle->setProperty("densityMode", 0);
     }
     return success;
 }

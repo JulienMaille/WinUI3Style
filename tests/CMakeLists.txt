@@ -20,6 +20,22 @@ target_include_directories(winui3style_appearancewatcher_tests PRIVATE
 target_link_libraries(winui3style_appearancewatcher_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Core)
 
+add_executable(winui3style_density_tests tst_winui3density.cpp)
+target_include_directories(winui3style_density_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_density_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_density_tests winui3styleplugin)
+endif()
+
+add_executable(winui3style_density_api_tests tst_winui3density_api.cpp)
+target_link_libraries(winui3style_density_api_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_density_api_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -31,11 +47,20 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     endif()
 endif()
 
-add_test(NAME winui3style_unit COMMAND winui3style_tests)
+# Interactive-state tests must never inherit the deterministic snapshot flag
+# from an outer test runner or developer shell.
+add_test(NAME winui3style_unit
+    COMMAND ${CMAKE_COMMAND} -E env
+        --unset=WINUI3STYLE_DISABLE_ANIMATIONS
+        $<TARGET_FILE:winui3style_tests>)
 add_test(NAME winui3style_frameproperties_unit
          COMMAND winui3style_frameproperties_tests)
 add_test(NAME winui3style_appearancewatcher_unit
          COMMAND winui3style_appearancewatcher_tests)
+add_test(NAME winui3style_density_unit
+         COMMAND winui3style_density_tests)
+add_test(NAME winui3style_density_api_unit
+         COMMAND winui3style_density_api_tests)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -60,6 +85,12 @@ set_tests_properties(winui3style_frameproperties_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_appearancewatcher_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_density_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_density_api_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 

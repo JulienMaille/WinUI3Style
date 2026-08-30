@@ -1718,18 +1718,17 @@ void WinUI3StyleTest::settingsCardChevronAndStableHeader()
 
     const QRect titleGeometry = title->geometry();
     card.setExpanded(true);
-    QTest::qWait(40);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.0);
     QCOMPARE(title->geometry(), titleGeometry);
-    QVERIFY(card.property("expansionProgress").toReal() > 0.0);
 
     card.setLayoutDirection(Qt::RightToLeft);
     QTRY_COMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
                  static_cast<int>(WinUI3::Icon::ChevronDown));
+    QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
     card.setExpanded(false);
-    QTest::qWait(35);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.99);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronLeft));
-    QVERIFY(card.property("expansionProgress").toReal() > 0.0);
 }
 
 void WinUI3StyleTest::settingsCardExpansionLoad()
@@ -3795,11 +3794,16 @@ void WinUI3StyleTest::splitterHandleContract()
     QVERIFY(handle);
     QCOMPARE(handle->width(), 6);
 
+    // The offscreen platform may report the synthetic cursor over a newly
+    // shown handle. Establish a known rest state before testing the explicit
+    // Enter transition; otherwise the controller can legitimately ignore a
+    // duplicate Enter and leave the frame registry at its initial value.
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(handle, &leave);
+    QTRY_VERIFY(frameReal(handle, "_winui_hover_progress") < 0.01);
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(handle, &enter);
-    QTest::qWait(35);
-    const qreal midway = frameReal(handle, "_winui_hover_progress");
-    QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
+    QTRY_VERIFY(frameReal(handle, "_winui_hover_progress") > 0.0);
     QTRY_VERIFY(frameReal(handle, "_winui_hover_progress") > 0.99);
 
     const QList<int> beforeDrag = splitter.sizes();

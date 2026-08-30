@@ -13,6 +13,7 @@ class QAbstractItemView;
 class QAbstractSpinBox;
 class QFrame;
 class QString;
+class QWidget;
 
 namespace WinUI3 {
 
@@ -20,6 +21,13 @@ enum class ThemeMode {
     System,
     Light,
     Dark
+};
+
+// Controls the density metrics used by the style. Compact is the WinUI 3
+// compact sizing profile; it is intentionally independent from theme colors.
+enum class DensityMode {
+    Standard,
+    Compact
 };
 
 enum class ControlRole {
@@ -36,14 +44,24 @@ class WINUI3STYLE_EXPORT Style final : public QProxyStyle
 {
     Q_OBJECT
     Q_PROPERTY(WinUI3::ThemeMode themeMode READ themeMode WRITE setThemeMode NOTIFY themeChanged)
+    Q_PROPERTY(WinUI3::DensityMode densityMode READ densityMode WRITE setDensityMode NOTIFY densityChanged)
     Q_PROPERTY(QColor accentColor READ accentColor WRITE setAccentColor NOTIFY accentColorChanged)
 
 public:
     explicit Style(ThemeMode mode = ThemeMode::System);
+    explicit Style(DensityMode density);
+    Style(ThemeMode mode, DensityMode density);
     ~Style() override;
 
     ThemeMode themeMode() const;
     void setThemeMode(ThemeMode mode);
+
+    DensityMode densityMode() const;
+    void setDensityMode(DensityMode mode);
+
+    // Resolves a widget's local winuiDensity property through its parent
+    // chain, falling back to this style's global density mode.
+    DensityMode effectiveDensityMode(const QWidget *widget) const;
 
     QColor accentColor() const;
     void setAccentColor(const QColor &color);
@@ -54,6 +72,13 @@ public:
 
     static void setControlRole(QWidget *widget, ControlRole role);
     static ControlRole controlRole(const QWidget *widget);
+
+    // Dynamic-property helpers are convenient from C++ and Designer. The
+    // same property can also be set directly in a .ui file.
+    static constexpr const char *DensityProperty = "winuiDensity";
+    static void setDensityMode(QWidget *widget, DensityMode mode);
+    static DensityMode densityMode(const QWidget *widget);
+    static void clearDensityMode(QWidget *widget);
 
     // Designer-friendly semantic properties. Applications may use the helper
     // functions, but every visual variant can also be declared as a dynamic
@@ -111,6 +136,7 @@ public:
 
 signals:
     void themeChanged(WinUI3::ThemeMode mode);
+    void densityChanged(WinUI3::DensityMode mode);
     void accentColorChanged(const QColor &color);
 
 protected:
@@ -118,6 +144,7 @@ protected:
 
 private:
     void refreshApplicationAppearance();
+    void invalidateDensity(QWidget *scope = nullptr);
     void checkSystemAppearance();
     std::unique_ptr<StylePrivate> d;
 };
@@ -125,4 +152,5 @@ private:
 } // namespace WinUI3
 
 Q_DECLARE_METATYPE(WinUI3::ThemeMode)
+Q_DECLARE_METATYPE(WinUI3::DensityMode)
 Q_DECLARE_METATYPE(WinUI3::ControlRole)

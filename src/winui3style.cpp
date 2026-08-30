@@ -225,6 +225,57 @@ bool animationsAllowed()
     return Style::animationsAllowed();
 }
 
+bool densityModeFromProperty(const QVariant &value, WinUI3::DensityMode *mode)
+{
+    if (!value.isValid() || value.isNull() || !mode)
+        return false;
+
+    if (value.userType() == qMetaTypeId<WinUI3::DensityMode>()) {
+        *mode = value.value<WinUI3::DensityMode>();
+        return *mode == WinUI3::DensityMode::Standard
+            || *mode == WinUI3::DensityMode::Compact;
+    }
+
+    const QString name = value.toString().trimmed().toLower();
+    if (name == QLatin1String("standard") || name == QLatin1String("default")) {
+        *mode = WinUI3::DensityMode::Standard;
+        return true;
+    }
+    if (name == QLatin1String("compact")) {
+        *mode = WinUI3::DensityMode::Compact;
+        return true;
+    }
+    if (name == QLatin1String("inherit") || name.isEmpty())
+        return false;
+
+    bool converted = false;
+    const int numeric = value.toInt(&converted);
+    if (!converted || numeric < int(WinUI3::DensityMode::Standard)
+        || numeric > int(WinUI3::DensityMode::Compact))
+        return false;
+    *mode = static_cast<WinUI3::DensityMode>(numeric);
+    return true;
+}
+
+void invalidateDensityTree(QWidget *root)
+{
+    if (!root)
+        return;
+    const auto invalidateWidget = [](QWidget *widget) {
+        widget->updateGeometry();
+        widget->update();
+        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+            view->doItemsLayout();
+            if (view->viewport())
+                view->viewport()->update();
+        }
+    };
+    invalidateWidget(root);
+    const auto descendants = root->findChildren<QWidget *>();
+    for (QWidget *widget : descendants)
+        invalidateWidget(widget);
+}
+
 bool keyboardFocusVisible(const QWidget *widget)
 {
     return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
@@ -332,8 +383,9 @@ class StylePrivate
 public:
     using ToggleDragState = Private::ToggleDragState;
 
-    explicit StylePrivate(Style *owner, ThemeMode initialMode)
-        : q(owner), mode(initialMode), animationDriver(owner),
+    explicit StylePrivate(Style *owner, ThemeMode initialMode,
+                         WinUI3::DensityMode initialDensity)
+        : q(owner), mode(initialMode), density(initialDensity), animationDriver(owner),
           tableEditorTracker(owner)
     {
         Private::StyleInteractionCallbacks callbacks;
@@ -967,6 +1019,7 @@ public:
 
     Style *q = nullptr;
     ThemeMode mode = ThemeMode::System;
+    WinUI3::DensityMode density = WinUI3::DensityMode::Standard;
     QColor accent;
     FrameAnimationDriver animationDriver;
     QVector<QPointer<QProgressBar>> progressBars;
@@ -999,7 +1052,18 @@ public:
 };
 
 Style::Style(ThemeMode mode)
-    : QProxyStyle(new QCommonStyle), d(std::make_unique<StylePrivate>(this, mode))
+    : Style(mode, WinUI3::DensityMode::Standard)
+{
+}
+
+Style::Style(WinUI3::DensityMode density)
+    : Style(ThemeMode::System, density)
+{
+}
+
+Style::Style(ThemeMode mode, WinUI3::DensityMode density)
+    : QProxyStyle(new QCommonStyle),
+      d(std::make_unique<StylePrivate>(this, mode, density))
 {
     setObjectName(QStringLiteral("winui3"));
     d->progressTimer = new QTimer(this);
@@ -1031,6 +1095,22 @@ ThemeMode Style::themeMode() const
     return d->mode;
 }
 
+WinUI3::DensityMode Style::densityMode() const
+{
+    return d->density;
+}
+
+WinUI3::DensityMode Style::effectiveDensityMode(const QWidget *widget) const
+{
+    for (const QWidget *candidate = widget; candidate;
+         candidate = candidate->parentWidget()) {
+        WinUI3::DensityMode local = WinUI3::DensityMode::Standard;
+        if (densityModeFromProperty(candidate->property(DensityProperty), &local))
+            return local;
+    }
+    return d->density;
+}
+
 void Style::setThemeMode(ThemeMode mode)
 {
     if (d->mode == mode)
@@ -1039,6 +1119,15 @@ void Style::setThemeMode(ThemeMode mode)
     refreshApplicationAppearance();
     d->restartSystemAppearanceWatchdog();
     emit themeChanged(mode);
+}
+
+void Style::setDensityMode(WinUI3::DensityMode mode)
+{
+    if (d->density == mode)
+        return;
+    d->density = mode;
+    invalidateDensity();
+    emit densityChanged(mode);
 }
 
 QColor Style::accentColor() const
@@ -1147,6 +1236,27 @@ void Style::refreshApplicationAppearance()
     }
 }
 
+void Style::invalidateDensity(QWidget *scope)
+{
+    if (scope) {
+        invalidateDensityTree(scope);
+        return;
+    }
+    if (!qApp)
+        return;
+    const auto topLevels = qApp->topLevelWidgets();
+    if (!topLevels.isEmpty()) {
+        for (QWidget *window : topLevels)
+            invalidateDensityTree(window);
+        return;
+    }
+    // Widgets can exist before they are assigned a top-level window (for
+    // example while a Designer form is being assembled).
+    const auto widgets = QApplication::allWidgets();
+    for (QWidget *widget : widgets)
+        invalidateDensityTree(widget);
+}
+
 void Style::checkSystemAppearance()
 {
     Private::invalidateSystemAppearanceCache();
@@ -1187,6 +1297,46 @@ void Style::setControlRole(QWidget *widget, ControlRole role)
     }
     widget->setProperty(roleProperty, static_cast<int>(role));
     widget->update();
+}
+
+void Style::setDensityMode(QWidget *widget, WinUI3::DensityMode mode)
+{
+    if (!widget)
+        return;
+    widget->setProperty(DensityProperty, QVariant::fromValue(mode));
+    invalidateDensityTree(widget);
+}
+
+WinUI3::DensityMode Style::densityMode(const QWidget *widget)
+{
+    if (!widget)
+        return qApp && qobject_cast<const Style *>(qApp->style())
+            ? qobject_cast<const Style *>(qApp->style())->densityMode()
+            : WinUI3::DensityMode::Standard;
+
+    if (const auto *style = qobject_cast<const Style *>(widget->style()))
+        return style->effectiveDensityMode(widget);
+
+    for (const QWidget *candidate = widget; candidate;
+         candidate = candidate->parentWidget()) {
+        WinUI3::DensityMode local = WinUI3::DensityMode::Standard;
+        if (densityModeFromProperty(candidate->property(DensityProperty), &local))
+            return local;
+    }
+
+    if (qApp) {
+        if (const auto *style = qobject_cast<const Style *>(qApp->style()))
+            return style->densityMode();
+    }
+    return WinUI3::DensityMode::Standard;
+}
+
+void Style::clearDensityMode(QWidget *widget)
+{
+    if (!widget)
+        return;
+    widget->setProperty(DensityProperty, QVariant());
+    invalidateDensityTree(widget);
 }
 
 ControlRole Style::controlRole(const QWidget *widget)
@@ -2091,7 +2241,11 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
     if (event->type() == QEvent::DynamicPropertyChange) {
         auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
         if (auto *widget = qobject_cast<QWidget *>(watched)) {
-            if (change->propertyName() == ControlRoleProperty) {
+            if (change->propertyName() == DensityProperty) {
+                // Density is inherited, so a change on a container affects
+                // every descendant's geometry as well as its paint state.
+                invalidateDensityTree(widget);
+            } else if (change->propertyName() == ControlRoleProperty) {
                 widget->update();
             } else if (change->propertyName() == SurfaceProperty) {
                 const QVariant surface = widget->property(SurfaceProperty);

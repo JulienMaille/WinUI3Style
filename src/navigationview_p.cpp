@@ -2,6 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3density_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -101,7 +102,10 @@ public:
         m_selectionModel.clear();
     }
 
-    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override { return {220, 40}; }
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override
+    {
+        return {220, Private::densityMetricsFor(m_view).navigationItemHeight};
+    }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override
@@ -144,7 +148,10 @@ public:
         if (m_indicatorY >= 0.0) {
             const qreal indicatorX = option.direction == Qt::RightToLeft ? option.rect.right() - 5.0
                                                                            : option.rect.left() + 2.0;
-            const QRectF indicator(indicatorX, m_indicatorY + 12.0, 3.0, 16.0);
+            const int rowHeight = Private::densityMetricsFor(m_view).navigationItemHeight;
+            const QRectF indicator(indicatorX,
+                                   m_indicatorY + (rowHeight - 16.0) / 2.0,
+                                   3.0, 16.0);
             if (indicator.intersects(option.rect))
                 roundedRect(painter, indicator, t.selectionAccent, Qt::transparent, 1.5);
         }

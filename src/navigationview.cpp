@@ -57,7 +57,6 @@ int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &tit
     const int index = m_stack->addWidget(page);
     auto *item = new QListWidgetItem(icon, title, m_list);
     item->setData(Qt::UserRole, index);
-    item->setSizeHint(QSize(220, 40));
     if (m_list->count() == 1) {
         m_list->setCurrentItem(item);
         m_stack->QStackedWidget::setCurrentIndex(index);

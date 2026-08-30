@@ -158,10 +158,14 @@ void SettingsCard::refreshChevronPixmap()
         : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
                                                 : Icon::ChevronRight;
     const Private::Tokens t = Private::tokens(palette());
-    m_chevronLabel->setPixmap(iconPixmap(
-        WinUI3::icon(glyph), QSize(20, 20), devicePixelRatioF(),
-        isEnabled() ? t.textSecondary : t.textDisabled,
-        isEnabled() ? QIcon::Normal : QIcon::Disabled));
+    const bool enabled = isEnabled();
+    const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
+    // The glyph is transient while the coloured Fluent icon is cached by
+    // glyph and colour. Rendering that stable source directly prevents a
+    // stale neutral-mask pixmap from surviving a Right/Down state change.
+    m_chevronLabel->setPixmap(Private::iconPixmap(
+        WinUI3::icon(glyph, foreground), QSize(20, 20), devicePixelRatioF(),
+        enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off));
     m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph",
                                static_cast<int>(glyph));
     m_chevronLabel->setVisible(m_expandableWidget != nullptr);

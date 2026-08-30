@@ -1,6 +1,7 @@
 #include "winui3style_contracts_p.h"
 
 #include "winui3geometry_p.h"
+#include "winui3density_p.h"
 #include "winui3style_properties_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -11,6 +12,7 @@
 #include <QAbstractSpinBox>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTimeEdit>
 #include <QFontMetrics>
 #include <QFrame>
 #include <QLineEdit>
@@ -71,8 +73,6 @@ const QAbstractItemView *itemView(const QWidget *widget)
     return nullptr;
 }
 
-constexpr int itemSelectionGutter = 12;
-
 const QAbstractItemView *selectionMarkerView(const QWidget *widget)
 {
     const QAbstractItemView *view = itemView(widget);
@@ -108,7 +108,7 @@ int treeItemIndent(const QStyleOptionViewItem &option,
 int pixelMetric(const Style *style, QStyle::PixelMetric metric,
                 const QStyleOption *option, const QWidget *widget)
 {
-    if (const auto value = pixelMetricValue(metric, toggleSwitch(widget)))
+    if (const auto value = pixelMetricValue(metric, toggleSwitch(widget), widget))
         return *value;
     return style->QProxyStyle::pixelMetric(metric, option, widget);
 }
@@ -117,35 +117,45 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
                        const QStyleOption *option, const QSize &contentsSize,
                        const QWidget *widget)
 {
+    const DensityMetrics &density = densityMetricsFor(widget);
     QSize size = contentsSize;
     switch (type) {
     case QStyle::CT_PushButton:
-        size += QSize(24, 12);
+        size += QSize(2 * density.buttonHorizontalPadding,
+                       2 * density.buttonVerticalPadding);
         if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);
             button && (button->features & QStyleOptionButton::HasMenu))
             size.rwidth() += 22;
         size.setWidth(qMax(size.width(), 32));
-        size.setHeight(qMax(size.height(), 32));
+        size.setHeight(qMax(size.height(), density.buttonHeight));
         break;
     case QStyle::CT_ComboBox:
-        size += QSize(50, 12);
+        size += QSize(2 * density.comboHorizontalPadding,
+                       2 * density.comboVerticalPadding);
         size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), 32));
+        size.setHeight(qMax(size.height(), density.comboBoxHeight));
         break;
     case QStyle::CT_LineEdit:
-        size += QSize(16, 12);
-        size.setHeight(qMax(size.height(), 32));
+        size += QSize(2 * density.lineEditHorizontalPadding,
+                       2 * density.lineEditVerticalPadding);
+        size.setHeight(qMax(size.height(), density.textBoxHeight));
         break;
     case QStyle::CT_SpinBox:
-        size += QSize(verticalSpinButtons(widget) ? 44 : 84, 0);
-        size.setHeight(qMax(size.height(), 32));
+        size += QSize(verticalSpinButtons(widget)
+                          ? density.verticalSpinButtonWidth + 12
+                          : 2 * density.spinButtonWidth + 12,
+                      0);
+        size.setHeight(qMax(size.height(),
+                            qobject_cast<const QDateTimeEdit *>(widget)
+                                ? density.textBoxHeight
+                                : density.buttonHeight));
         size.setWidth(qMax(size.width(), 120));
         break;
     case QStyle::CT_ToolButton:
         if (textBoxHelperButton(widget))
-            return QSize(30, 32);
+            return QSize(30, density.toolButtonHeight);
         if (widget && qobject_cast<const QTabBar *>(widget->parentWidget()))
-            return QSize(32, 24);
+            return QSize(density.tabCloseWidth, density.tabCloseHeight);
         if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
             const QFontMetrics metrics(tool->fontMetrics);
             const int textWidth = metrics.horizontalAdvance(tool->text);
@@ -159,27 +169,30 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
                     size.setWidth(qMax(size.width(), textWidth + 16));
             }
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup)
-                size.rwidth() += 24;
+                size.rwidth() += density.toolButtonMenuWidth;
         }
         if (size.isEmpty())
             size = QSize(20, 20);
-        size += QSize(12, 12);
-        size.setHeight(qMax(size.height(), 32));
-        size.setWidth(qMax(size.width(), 32));
+        size += QSize(2 * density.toolButtonHorizontalPadding,
+                      2 * density.toolButtonVerticalPadding);
+        size.setHeight(qMax(size.height(), density.toolButtonHeight));
+        size.setWidth(qMax(size.width(), density.toolButtonHeight));
         break;
     case QStyle::CT_MenuBarItem:
-        size = contentsSize + QSize(24, 12);
-        size.setHeight(qMax(size.height(), 32));
+        size = contentsSize + QSize(2 * density.menuBarHorizontalPadding,
+                                    2 * density.menuBarVerticalPadding);
+        size.setHeight(qMax(size.height(), density.menuBarItemHeight));
         break;
     case QStyle::CT_TabBarTab:
-        size += QSize(16, 8);
-        size.setHeight(32);
+        size += QSize(2 * density.tabHorizontalPadding,
+                      2 * density.tabVerticalPadding);
+        size.setHeight(density.tabHeight);
         size.setWidth(qBound(100, size.width(), 240));
         break;
     case QStyle::CT_MenuItem:
         if (const auto *menu = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
             if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
-                size.setHeight(7);
+                size.setHeight(density.menuSeparatorHeight);
                 break;
             }
             const QStringList parts = menu->text.split(QLatin1Char('\t'));
@@ -188,30 +201,34 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
             const int shortcutWidth = parts.size() > 1
                 ? metrics.horizontalAdvance(parts.value(1)) : 0;
             const int trailing = menu->menuItemType == QStyleOptionMenuItem::SubMenu
-                ? 24 : 0;
+                ? density.toolButtonMenuWidth : 0;
             const bool comboItem = qobject_cast<const QComboBox *>(widget);
-            const int leading = comboItem && menu->icon.isNull() ? 16 : 42;
-            const int requiredWidth = leading + mainWidth + 16 + trailing
-                + (shortcutWidth > 0 ? 20 + shortcutWidth : 0);
+            const int leading = comboItem && menu->icon.isNull()
+                ? density.menuItemNoIconSlot : density.menuItemIconSlot;
+            const int requiredWidth = leading + mainWidth
+                + 2 * density.menuItemHorizontalPadding + trailing
+                + (shortcutWidth > 0 ? density.menuItemShortcutGap + shortcutWidth : 0);
             size.setWidth(qMax(size.width(), qMax(requiredWidth, 120)));
-            size.setHeight(comboItem ? 40 : 36);
+            size.setHeight(comboItem ? density.menuItemHeightInComboBox
+                                     : density.menuItemHeight);
         }
         break;
     case QStyle::CT_ItemViewItem:
         if (widget && widget->window()
             && widget->window()->windowType() == Qt::Popup) {
-            size.setHeight(40);
+            size.setHeight(density.listItemHeight);
         } else if (qobject_cast<const QTreeView *>(itemView(widget))) {
-            size.setHeight(28);
+            size.setHeight(density.treeItemHeight);
         } else if (qobject_cast<const QTableView *>(itemView(widget))) {
-            size.setHeight(36);
+            size.setHeight(density.tableItemHeight);
         } else {
-            size.setHeight(40);
+            size.setHeight(density.listItemHeight);
         }
         break;
     case QStyle::CT_HeaderSection:
-        size += QSize(24, 8);
-        size.setHeight(qMax(size.height(), 32));
+        size += QSize(2 * density.headerHorizontalPadding,
+                      2 * density.headerVerticalPadding);
+        size.setHeight(qMax(size.height(), density.headerHeight));
         break;
     case QStyle::CT_CheckBox:
         if (toggleSwitch(widget)) {
@@ -224,7 +241,9 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
                                                : widget->fontMetrics();
             const int labelWidth = qMax(metrics.horizontalAdvance(onText),
                                         metrics.horizontalAdvance(offText));
-            size = QSize(labelWidth > 0 ? qMax(154, 50 + labelWidth) : 40, 40);
+            size = QSize(labelWidth > 0 ? qMax(154, 50 + labelWidth)
+                                        : density.toggleSlotWidth,
+                         density.toggleSlotHeight);
             break;
         }
         // Label is painted from x=32 with a 4px right margin; Qt passes only
@@ -254,7 +273,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
     }
     case QStyle::CT_Slider:
         size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), 32));
+        size.setHeight(qMax(size.height(), density.buttonHeight));
         break;
     case QStyle::CT_ScrollBar:
         size.setWidth(qMax(size.width(), 12));
@@ -273,6 +292,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
 QRect subElementRect(const Style *style, QStyle::SubElement element,
                      const QStyleOption *option, const QWidget *widget)
 {
+    const DensityMetrics &density = densityMetricsFor(widget);
     if (element == QStyle::SE_PushButtonContents)
         return option->rect.adjusted(8, 4, -8, -4);
     if (element == QStyle::SE_ToolButtonLayoutItem)
@@ -314,7 +334,8 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
         if (view && (element == QStyle::SE_ItemViewItemCheckIndicator
                      || element == QStyle::SE_ItemViewItemDecoration
                      || element == QStyle::SE_ItemViewItemText)) {
-            const int offset = treeItemIndent(*source, view) + itemSelectionGutter;
+            const int offset = treeItemIndent(*source, view)
+                + density.itemSelectionGutter;
             const int delta = source->direction == Qt::RightToLeft ? -offset : offset;
             result.translate(delta, 0);
             QRect content = source->rect;
@@ -330,8 +351,10 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
     const bool popup = widget && widget->window()
         && widget->window()->windowType() == Qt::Popup;
     if (popup && element == QStyle::SE_ItemViewItemText) {
-        result.setLeft(qMax(result.left(), option->rect.left() + 42));
-        result.setRight(qMin(result.right(), option->rect.right() - 12));
+        result.setLeft(qMax(result.left(),
+                            option->rect.left() + density.menuItemIconSlot));
+        result.setRight(qMin(result.right(),
+                             option->rect.right() - density.menuItemHorizontalPadding));
     }
     return result;
 }
