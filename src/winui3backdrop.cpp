@@ -92,6 +92,8 @@ void restoreBackdropState(QWidget *window)
 
 namespace Private {
 
+void applyWindowRoundedRegion(QWidget *window, int radius);
+
 void prepareBackdropSurface(QWidget *window, Backdrop backdrop)
 {
 #ifdef Q_OS_WIN
@@ -136,14 +138,29 @@ void applyPopupRoundedCorners(QWidget *window)
     if (SUCCEEDED(DwmSetWindowAttribute(hwnd, cornerPreferenceAttribute,
                                         &cornerRound, sizeof(cornerRound))))
         return;
+    applyWindowRoundedRegion(window, OverlayRadius);
+#else
+    Q_UNUSED(window)
+#endif
+}
+
+void applyWindowRoundedRegion(QWidget *window, int radius)
+{
+#ifdef Q_OS_WIN
+    if (!window || !window->isWindow())
+        return;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return;
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
     const QRect rect = window->rect();
     const HRGN region = CreateRoundRectRgn(
         0, 0, rect.width() + 1, rect.height() + 1,
-        OverlayRadius * 2, OverlayRadius * 2);
-    if (region)
-        SetWindowRgn(hwnd, region, TRUE);
+        radius * 2, radius * 2);
+    if (region && !SetWindowRgn(hwnd, region, TRUE))
+        DeleteObject(region); // ownership transfers only on success
 #else
     Q_UNUSED(window)
+    Q_UNUSED(radius)
 #endif
 }
 

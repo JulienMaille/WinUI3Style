@@ -78,6 +78,7 @@
 #include <QStyleOptionGroupBox>
 #include <QStyleOptionProgressBar>
 #include <QStyleOptionTab>
+#include <QToolTip>
 #include <QStyleOptionToolButton>
 #include <QStyleHints>
 #include <QStyledItemDelegate>
@@ -420,6 +421,7 @@ bool coveredPrimitive(QStyle::PrimitiveElement element)
     case QStyle::PE_PanelItemViewItem:
     case QStyle::PE_IndicatorBranch:
     case QStyle::PE_IndicatorHeaderArrow:
+    case QStyle::PE_PanelTipLabel:
     case QStyle::PE_IndicatorToolBarSeparator:
     case QStyle::PE_FrameDockWidget:
     case QStyle::PE_IndicatorDockWidgetResizeHandle:
@@ -1244,6 +1246,7 @@ void Style::refreshApplicationAppearance()
     const QColor applicationAccent = accentColor();
     const bool darkTheme = d->dark();
     qApp->setPalette(applicationPalette);
+    QToolTip::setPalette(applicationPalette);
     // A popup's view and viewport are often created after their combo box was
     // polished. Prepare and register them now that the popup exists, before
     // walking the bounded owner registry below.
@@ -1593,6 +1596,14 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
                                  ControlRadius, ControlRadius);
         painter->restore();
+        return;
+    }
+
+    if (element == PE_PanelTipLabel) {
+        const QColor fill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
+        const QColor stroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
+        roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1),
+                    fill, stroke, 4);
         return;
     }
 
@@ -2001,6 +2012,7 @@ void Style::polish(QApplication *application)
     font.setPixelSize(14);
     application->setFont(font);
     application->setPalette(standardPalette());
+    QToolTip::setPalette(standardPalette());
     d->systemAppearanceWatcher->setActive(true);
     d->restartSystemAppearanceWatchdog();
 }

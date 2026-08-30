@@ -611,6 +611,12 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::Show:
+        // A tooltip HWND keeps the opaque system backing store; the rounded
+        // PE_PanelTipLabel card leaves dark corner rectangles visible. Clip
+        // the window to the card's 4px rounding with a window region.
+        if (widget->isWindow() && widget->windowType() == Qt::ToolTip
+            && widget->windowHandle())
+            applyWindowRoundedRegion(widget, 5);
         // Establish popup margins before measuring or anchoring any child view.
         // Doing this after ComboBox centering shifts the reused popup by the
         // combined top/bottom inset on its second opening.
@@ -689,6 +695,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (widget->isWindow() && widget->windowType() == Qt::Popup
             && widget->windowHandle())
             applyPopupRoundedCorners(widget);
+        if (widget->isWindow() && widget->windowType() == Qt::ToolTip
+            && widget->windowHandle())
+            applyWindowRoundedRegion(widget, 5);
         break;
     case QEvent::Hide:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {

@@ -64,6 +64,8 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
     case QStyle::PM_ComboBoxFrameWidth:
     case QStyle::PM_SpinBoxFrameWidth:
         return 1;
+    case QStyle::PM_ToolTipLabelFrameWidth:
+        return 6;
     case QStyle::PM_IndicatorWidth:
     case QStyle::PM_IndicatorHeight:
     case QStyle::PM_ExclusiveIndicatorWidth:

@@ -15,6 +15,10 @@ void prepareBackdropSurface(QWidget *window, Backdrop backdrop);
 // rounded window region.
 void applyPopupRoundedCorners(QWidget *window);
 
+// Clip an opaque frameless window (e.g. a tooltip) to a rounded rectangle of
+// the given radius using a plain window region.
+void applyWindowRoundedRegion(QWidget *window, int radius);
+
 // Follows the application theme for a dialog window's native title bar: sets
 // the immersive dark-mode attribute and title text color. No-op until the
 // native handle exists and on platforms without DWM.
