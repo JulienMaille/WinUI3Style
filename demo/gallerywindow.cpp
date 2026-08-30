@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QColorDialog>
+#include <QCompleter>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -72,6 +73,8 @@ void GalleryWindow::configureGallery()
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
+    ui->autoSuggestEdit->setCompleter(new QCompleter(
+        {tr("Alpha"), tr("Beta"), tr("Gamma")}, ui->autoSuggestEdit));
     ui->selectedEdit->selectAll();
     ui->advancedDetails->setVisible(ui->advancedCard->isChecked());
     ui->collectionsTabs->setTabEnabled(ui->collectionsTabs->indexOf(ui->disabledTab), false);

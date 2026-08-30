@@ -73,6 +73,15 @@ const QAbstractItemView *itemView(const QWidget *widget)
     return nullptr;
 }
 
+bool comboPopupItemView(const QWidget *widget)
+{
+    const QAbstractItemView *view = itemView(widget);
+    if (!view || !view->window()
+        || view->window()->windowType() != Qt::Popup)
+        return false;
+    return qobject_cast<const QComboBox *>(view->window()->parentWidget());
+}
+
 const QAbstractItemView *selectionMarkerView(const QWidget *widget)
 {
     const QAbstractItemView *view = itemView(widget);
@@ -117,7 +126,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
                        const QStyleOption *option, const QSize &contentsSize,
                        const QWidget *widget)
 {
-    const DensityMetrics &density = densityMetricsFor(widget);
+    const DensityMetrics &density = densityMetricsFor(widget, style);
     QSize size = contentsSize;
     switch (type) {
     case QStyle::CT_PushButton:
@@ -130,10 +139,22 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
         size.setHeight(qMax(size.height(), density.buttonHeight));
         break;
     case QStyle::CT_ComboBox:
-        size += QSize(2 * density.comboHorizontalPadding,
-                       2 * density.comboVerticalPadding);
+        if (densityModeFor(widget) == DensityMode::Compact) {
+            size.rwidth() += 2 * density.comboHorizontalPadding;
+            // QComboBox may pass a contents height cached under the previous
+            // profile. Recompute Compact from the current font so that stale
+            // Standard contents cannot pin it at the old height.
+            size.setHeight(qMax(density.comboBoxHeight,
+                                option ? option->fontMetrics.height()
+                                             + 2 * density.comboVerticalPadding
+                                       : contentsSize.height()));
+        } else {
+            // Preserve the established Standard geometry pixel-for-pixel.
+            size += QSize(2 * density.comboHorizontalPadding,
+                          2 * density.comboVerticalPadding);
+            size.setHeight(qMax(size.height(), density.comboBoxHeight));
+        }
         size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), density.comboBoxHeight));
         break;
     case QStyle::CT_LineEdit:
         size += QSize(2 * density.lineEditHorizontalPadding,
@@ -152,8 +173,17 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
         size.setWidth(qMax(size.width(), 120));
         break;
     case QStyle::CT_ToolButton:
-        if (textBoxHelperButton(widget))
+        if (textBoxHelperButton(widget)) {
+            // QLineEditIconButton is a private QToolButton.  Its geometry is
+            // used by QLineEdit to reserve the DeleteButton slot, so leaving
+            // the historical 30x32 helper size in Compact mode makes a
+            // 24px TextBox grow back to the Standard height.  Keep the
+            // established Standard slot byte-for-byte and compact both axes
+            // with the editor template.
+            if (densityModeFor(widget) == DensityMode::Compact)
+                return QSize(density.textBoxHeight, density.textBoxHeight);
             return QSize(30, density.toolButtonHeight);
+        }
         if (widget && qobject_cast<const QTabBar *>(widget->parentWidget()))
             return QSize(density.tabCloseWidth, density.tabCloseHeight);
         if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
@@ -214,8 +244,14 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
         }
         break;
     case QStyle::CT_ItemViewItem:
-        if (widget && widget->window()
-            && widget->window()->windowType() == Qt::Popup) {
+        if (comboPopupItemView(widget)) {
+            // ComboBoxItem has its own resource.  Keep it separate from the
+            // ListView row metric even while both profiles currently resolve
+            // to the same 40/32 values; the templates are independently
+            // configurable in WinUI and must not silently drift together.
+            size.setHeight(density.comboPopupItemHeight);
+        } else if (widget && widget->window()
+                   && widget->window()->windowType() == Qt::Popup) {
             size.setHeight(density.listItemHeight);
         } else if (qobject_cast<const QTreeView *>(itemView(widget))) {
             size.setHeight(density.treeItemHeight);
@@ -292,7 +328,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
 QRect subElementRect(const Style *style, QStyle::SubElement element,
                      const QStyleOption *option, const QWidget *widget)
 {
-    const DensityMetrics &density = densityMetricsFor(widget);
+    const DensityMetrics &density = densityMetricsFor(widget, style);
     if (element == QStyle::SE_PushButtonContents)
         return option->rect.adjusted(8, 4, -8, -4);
     if (element == QStyle::SE_ToolButtonLayoutItem)

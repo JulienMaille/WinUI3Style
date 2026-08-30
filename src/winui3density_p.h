@@ -8,6 +8,7 @@
 #include <winui3style/winui3style.h>
 
 #include <QMetaType>
+#include <QApplication>
 #include <QStyle>
 #include <QVariant>
 #include <QWidget>
@@ -155,12 +156,21 @@ inline DensityMode densityModeFor(const QWidget *widget)
             return mode;
     }
 
-    if (widget) {
-        if (const QStyle *style = widget->style()) {
-            DensityMode mode = DensityMode::Standard;
-            if (parseDensity(style->property("densityMode"), &mode))
-                return mode;
-        }
+    // QMenuBar and a few other Qt geometry queries call the style with a
+    // null widget.  Resolve the application style in that case; otherwise
+    // those queries silently fall back to Standard while a global Compact
+    // profile is active.  Prefer the concrete API so setDensityMode() and a
+    // dynamic densityMode property have exactly the same result.
+    const QStyle *style = widget ? widget->style()
+                                 : (qApp ? qApp->style() : nullptr);
+    if (const auto *winui = qobject_cast<const WinUI3::Style *>(style)) {
+        return widget ? winui->effectiveDensityMode(widget)
+                      : winui->densityMode();
+    }
+    if (style) {
+        DensityMode mode = DensityMode::Standard;
+        if (parseDensity(style->property("densityMode"), &mode))
+            return mode;
     }
     return DensityMode::Standard;
 }
@@ -173,6 +183,15 @@ inline DensityMode effectiveDensity(const QWidget *widget)
 inline const DensityMetrics &densityMetricsFor(const QWidget *widget)
 {
     return densityMetrics(densityModeFor(widget));
+}
+
+inline const DensityMetrics &densityMetricsFor(const QWidget *widget,
+                                               const WinUI3::Style *fallbackStyle)
+{
+    if (widget)
+        return densityMetricsFor(widget);
+    return densityMetrics(fallbackStyle ? fallbackStyle->densityMode()
+                                        : densityModeFor(nullptr));
 }
 
 } // namespace WinUI3::Private

@@ -5,6 +5,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "winui3geometry_p.h"
+#include "winui3density_p.h"
 #include "winui3animations_p.h"
 #include "winui3backdrop_p.h"
 #include "winui3buttons_p.h"
@@ -30,9 +31,11 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QComboBox>
+#include <QCompleter>
 #include <QCheckBox>
 #include <QCommonStyle>
 #include <QDateTime>
+#include <QDateTimeEdit>
 #include <QDialog>
 #include <QDockWidget>
 #include <QDynamicPropertyChangeEvent>
@@ -52,6 +55,7 @@
 #include <QKeyEvent>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QParallelAnimationGroup>
@@ -227,34 +231,95 @@ bool animationsAllowed()
 
 bool densityModeFromProperty(const QVariant &value, WinUI3::DensityMode *mode)
 {
-    if (!value.isValid() || value.isNull() || !mode)
-        return false;
+    return Private::parseDensity(value, mode);
+}
 
-    if (value.userType() == qMetaTypeId<WinUI3::DensityMode>()) {
-        *mode = value.value<WinUI3::DensityMode>();
-        return *mode == WinUI3::DensityMode::Standard
-            || *mode == WinUI3::DensityMode::Compact;
-    }
+constexpr auto completerOwnerProperty = "_winui_completer_owner";
+constexpr auto completerLastPopupProperty = "_winui_completer_last_popup";
+constexpr auto completerOriginalDensityProperty = "_winui_completer_original_density";
+constexpr auto completerOriginalDensityValidProperty =
+    "_winui_completer_original_density_valid";
 
-    const QString name = value.toString().trimmed().toLower();
-    if (name == QLatin1String("standard") || name == QLatin1String("default")) {
-        *mode = WinUI3::DensityMode::Standard;
-        return true;
+void syncCompleterPopupDensity(QLineEdit *editor)
+{
+    if (!editor || !editor->completer() || !editor->completer()->popup())
+        return;
+    QWidget *popup = editor->completer()->popup();
+    const quintptr owner = reinterpret_cast<quintptr>(editor->style());
+    auto restorePopup = [owner](QWidget *candidate) {
+        if (!candidate || candidate->property(completerOwnerProperty).value<quintptr>()
+                != owner)
+            return;
+        if (candidate->property(completerOriginalDensityValidProperty).toBool())
+            candidate->setProperty(Style::DensityProperty,
+                candidate->property(completerOriginalDensityProperty));
+        else
+            candidate->setProperty(Style::DensityProperty, {});
+        for (const char *property : {completerOwnerProperty,
+                 completerOriginalDensityProperty, completerOriginalDensityValidProperty})
+            candidate->setProperty(property, {});
+    };
+    auto *previous = qobject_cast<QWidget *>(
+        editor->property(completerLastPopupProperty).value<QObject *>());
+    if (previous && previous != popup)
+        restorePopup(previous);
+    if (previous != popup) {
+        editor->setProperty(completerLastPopupProperty,
+                            QVariant::fromValue<QObject *>(popup));
+        QObject::connect(popup, &QObject::destroyed, editor,
+                         [editor](QObject *destroyed) {
+            if (editor->property(completerLastPopupProperty).value<QObject *>()
+                == destroyed)
+                editor->setProperty(completerLastPopupProperty, {});
+        });
     }
-    if (name == QLatin1String("compact")) {
-        *mode = WinUI3::DensityMode::Compact;
-        return true;
+    if (!popup->property(completerOwnerProperty).isValid()) {
+        popup->setProperty(completerOwnerProperty, QVariant::fromValue(owner));
+        popup->setProperty(completerOriginalDensityValidProperty,
+                           popup->property(Style::DensityProperty).isValid());
+        popup->setProperty(completerOriginalDensityProperty,
+                           popup->property(Style::DensityProperty));
     }
-    if (name == QLatin1String("inherit") || name.isEmpty())
-        return false;
+    if (popup->property(completerOwnerProperty).value<quintptr>() != owner)
+        return;
+    const QVariant density = QVariant::fromValue(Style::densityMode(editor));
+    if (popup->property(Style::DensityProperty) != density)
+        popup->setProperty(Style::DensityProperty, density);
+    // QCompleter's private delegate caches its size hint. FontChange is the
+    // least invasive public invalidation event that clears that cache; a
+    // geometry update alone leaves the old 12 px native row in place.
+    QEvent fontChange(QEvent::FontChange);
+    QCoreApplication::sendEvent(popup, &fontChange);
+    popup->updateGeometry();
+    if (auto *view = qobject_cast<QAbstractItemView *>(popup)) {
+        view->doItemsLayout();
+        if (view->viewport())
+            view->viewport()->update();
+    }
+}
 
-    bool converted = false;
-    const int numeric = value.toInt(&converted);
-    if (!converted || numeric < int(WinUI3::DensityMode::Standard)
-        || numeric > int(WinUI3::DensityMode::Compact))
-        return false;
-    *mode = static_cast<WinUI3::DensityMode>(numeric);
-    return true;
+void restoreCompleterPopup(QLineEdit *editor, Style *style)
+{
+    if (!editor)
+        return;
+    auto *popup = qobject_cast<QWidget *>(
+        editor->property(completerLastPopupProperty).value<QObject *>());
+    if (!popup) {
+        editor->setProperty(completerLastPopupProperty, {});
+        return;
+    }
+    if (popup->property(completerOwnerProperty).value<quintptr>()
+        != reinterpret_cast<quintptr>(style))
+        return;
+    if (popup->property(completerOriginalDensityValidProperty).toBool())
+        popup->setProperty(Style::DensityProperty,
+                           popup->property(completerOriginalDensityProperty));
+    else
+        popup->setProperty(Style::DensityProperty, {});
+    for (const char *property : {completerOwnerProperty,
+             completerOriginalDensityProperty, completerOriginalDensityValidProperty})
+        popup->setProperty(property, {});
+    editor->setProperty(completerLastPopupProperty, {});
 }
 
 void invalidateDensityTree(QWidget *root)
@@ -264,6 +329,25 @@ void invalidateDensityTree(QWidget *root)
     const auto invalidateWidget = [](QWidget *widget) {
         widget->updateGeometry();
         widget->update();
+        if (auto *editor = qobject_cast<QLineEdit *>(widget))
+            syncCompleterPopupDensity(editor);
+        if (qobject_cast<QMenuBar *>(widget)) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(widget, &styleChange);
+        } else if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+            // Prime the old private size-hint cache, then invalidate it via
+            // Qt's standard font-change path. Without the first query Qt may
+            // lazily rebuild the stale profile during the event itself.
+            (void) combo->sizeHint();
+            QEvent fontChange(QEvent::FontChange);
+            QCoreApplication::sendEvent(combo, &fontChange);
+        } else if (auto *dateTime = qobject_cast<QDateTimeEdit *>(widget)) {
+            // QDateTimeEdit has an equivalent private cache; use the same
+            // public invalidation event while preserving value and selection.
+            (void) dateTime->sizeHint();
+            QEvent fontChange(QEvent::FontChange);
+            QCoreApplication::sendEvent(dateTime, &fontChange);
+        }
         if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
             view->doItemsLayout();
             if (view->viewport())
@@ -1977,8 +2061,16 @@ void Style::polish(QWidget *widget)
                                 widget->hasFocus() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, focusVisibleProperty,
                                 widget->hasFocus() && d->keyboardInput);
-    if (auto *lineEdit = qobject_cast<QLineEdit *>(widget))
+    if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
         prepareLineEditHelperButtons(lineEdit, this);
+        syncCompleterPopupDensity(lineEdit);
+    }
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+        if (auto *completer = qobject_cast<QCompleter *>(view->parent())) {
+            if (auto *editor = qobject_cast<QLineEdit *>(completer->widget()))
+                syncCompleterPopupDensity(editor);
+        }
+    }
     if (qobject_cast<QScrollBar *>(widget)) {
         framePropertyRegistry().set(widget, scrollBarInsideProperty,
                                     widget->underMouse());
@@ -2136,6 +2228,7 @@ void Style::unpolish(QWidget *widget)
         if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
             cancelLineEditHelperUpdate(lineEdit);
             cacheLineEditClearButton(lineEdit, nullptr);
+            restoreCompleterPopup(lineEdit, this);
         }
     }
     if (auto *combo = qobject_cast<QComboBox *>(widget))
@@ -2238,6 +2331,14 @@ void Style::unpolish(QWidget *widget)
 
 bool Style::eventFilter(QObject *watched, QEvent *event)
 {
+    if (auto *editor = qobject_cast<QLineEdit *>(watched);
+        editor && (event->type() == QEvent::FocusIn
+                   || event->type() == QEvent::KeyPress
+                   || event->type() == QEvent::MouseButtonPress)) {
+        // setCompleter() has no change signal. User interaction is the point
+        // at which a replacement popup can first become visible.
+        syncCompleterPopupDensity(editor);
+    }
     if (event->type() == QEvent::DynamicPropertyChange) {
         auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
         if (auto *widget = qobject_cast<QWidget *>(watched)) {

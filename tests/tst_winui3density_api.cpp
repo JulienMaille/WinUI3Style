@@ -81,6 +81,10 @@ void WinUI3DensityApiTest::inheritedLocalProperty()
     root.setStyle(&style);
 
     QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Standard);
+    root.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("dense"));
+    QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Compact);
+    root.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("normal"));
+    QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Standard);
     root.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
     QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Compact);
     QCOMPARE(WinUI3::Style::densityMode(&button), WinUI3::DensityMode::Compact);

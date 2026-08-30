@@ -2,6 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3density_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -116,6 +117,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
+            const DensityMetrics &density = densityMetricsFor(widget);
             if (widget && widget->parentWidget()
                 && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
@@ -149,8 +151,10 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             if (combo->subControls & QStyle::SC_ComboBoxArrow) {
                 // Keep the chevron rectangle logical; paintThemedIcon resolves
                 // the pixmap's DPR without changing this geometry.
-                const QRect logicalArrow(combo->rect.right() - 37,
-                                         combo->rect.top(), 38,
+                const QRect logicalArrow(combo->rect.right()
+                                             - density.comboArrowWidth + 1,
+                                         combo->rect.top(),
+                                         density.comboArrowWidth,
                                          combo->rect.height());
                 const QRect logicalChevron(
                     logicalArrow.left() + (logicalArrow.width() - 12) / 2,

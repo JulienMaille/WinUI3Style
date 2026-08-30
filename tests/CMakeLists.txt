@@ -36,6 +36,14 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_density_api_tests winui3styleplugin)
 endif()
 
+add_executable(winui3style_density_widgets_tests
+    tst_winui3density_widgets.cpp)
+target_link_libraries(winui3style_density_widgets_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_density_widgets_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -45,6 +53,27 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     if(WINUI3STYLE_BUILD_PLUGIN)
         add_dependencies(winui3style_native_tests winui3styleplugin)
     endif()
+endif()
+
+# On Windows the executable directory is searched before PATH. Keep the
+# runtime DLL beside every linked test executable so an old manual copy can
+# never shadow the library that was just rebuilt.
+if(WIN32 AND NOT WINUI3STYLE_STATIC)
+    set(_winui3style_linked_test_targets
+        winui3style_tests
+        winui3style_frameproperties_tests
+        winui3style_density_tests
+        winui3style_density_api_tests
+        winui3style_density_widgets_tests)
+    if(WINUI3STYLE_BUILD_NATIVE_TESTS)
+        list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
+    endif()
+    foreach(_target IN LISTS _winui3style_linked_test_targets)
+        add_custom_command(TARGET ${_target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:winui3style>
+                $<TARGET_FILE_DIR:${_target}>)
+    endforeach()
 endif()
 
 # Interactive-state tests must never inherit the deterministic snapshot flag
@@ -61,6 +90,8 @@ add_test(NAME winui3style_density_unit
          COMMAND winui3style_density_tests)
 add_test(NAME winui3style_density_api_unit
          COMMAND winui3style_density_api_tests)
+add_test(NAME winui3style_density_widgets_unit
+         COMMAND winui3style_density_widgets_tests)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -91,6 +122,9 @@ set_tests_properties(winui3style_density_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_density_api_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_density_widgets_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 
