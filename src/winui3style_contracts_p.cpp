@@ -15,10 +15,12 @@
 #include <QFrame>
 #include <QLineEdit>
 #include <QListView>
+#include <QProgressBar>
 #include <QTableView>
 #include <QTabBar>
 #include <QStyleOptionButton>
 #include <QStyleOptionMenuItem>
+#include <QStyleOptionProgressBar>
 #include <QStyleOptionToolButton>
 #include <QStyleOptionViewItem>
 #include <QTreeView>
@@ -225,17 +227,31 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
             size = QSize(labelWidth > 0 ? qMax(154, 50 + labelWidth) : 40, 40);
             break;
         }
-        size += QSize(32, 8);
+        // Label is painted from x=32 with a 4px right margin; Qt passes only
+        // the text size as contents, so the hint must cover indicator, gap,
+        // and trailing margin to avoid clipping the last glyph.
+        size += QSize(36, 8);
         size.setHeight(qMax(size.height(), 28));
         break;
     case QStyle::CT_RadioButton:
-        size += QSize(32, 8);
+        size += QSize(36, 8);
         size.setHeight(qMax(size.height(), 28));
         break;
-    case QStyle::CT_ProgressBar:
+    case QStyle::CT_ProgressBar: {
+        // QStyleOptionProgressBar::orientation only exists from Qt 5.13;
+        // query the widget for a 5.12-compatible check.
+        const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
+        const bool horizontal = !progressBar
+            || progressBar->orientation() == Qt::Horizontal;
+        const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
+        const bool showsText = bar && bar->textVisible && !bar->text.isEmpty()
+            && horizontal;
         size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), 20));
+        size.setHeight(showsText
+            ? qMax(size.height(), size.height() + 6) // text + thin underline
+            : qMax(size.height(), 8));
         break;
+    }
     case QStyle::CT_Slider:
         size.setWidth(qMax(size.width(), 120));
         size.setHeight(qMax(size.height(), 32));

@@ -592,6 +592,22 @@ QWidget *GalleryWindow::controlsPage()
     auto *values = new QVBoxLayout;
     auto *progress = new QProgressBar;
     progress->setValue(64);
+    // SoulseekQt's transfer list renders text inside progress bars
+    // (textVisible=true). The style draws the label above a thin accent
+    // underline instead of overlapping the fill.
+    auto *labeledProgress = new QProgressBar;
+    labeledProgress->setRange(0, 10000);
+    labeledProgress->setValue(290);
+    labeledProgress->setFormat(QStringLiteral("2,513,696 (%p%)"));
+    auto *labeledProgressHalf = new QProgressBar;
+    labeledProgressHalf->setRange(0, 10000);
+    labeledProgressHalf->setValue(2200);
+    labeledProgressHalf->setFormat(QStringLiteral("2,513,696 (%p%)"));
+    auto *labeledDisabled = new QProgressBar;
+    labeledDisabled->setRange(0, 100);
+    labeledDisabled->setValue(64);
+    labeledDisabled->setFormat(QStringLiteral("%p%"));
+    labeledDisabled->setEnabled(false);
     auto *indeterminate = new QProgressBar;
     indeterminate->setRange(0, 0);
     auto *slider = new QSlider(Qt::Horizontal);
@@ -632,6 +648,10 @@ QWidget *GalleryWindow::controlsPage()
     orientationRow->addWidget(verticalScrollBar);
     orientationRow->addStretch();
     values->addWidget(progress);
+    values->addWidget(new QLabel(tr("Progress bar with text (text above thin line)")));
+    values->addWidget(labeledProgress);
+    values->addWidget(labeledProgressHalf);
+    values->addWidget(labeledDisabled);
     values->addWidget(indeterminate);
     values->addWidget(new QLabel(tr("Slider: ticks, inverted, disabled")));
     values->addWidget(slider);
@@ -642,6 +662,24 @@ QWidget *GalleryWindow::controlsPage()
     values->addWidget(disabledScrollBar);
     values->addLayout(orientationRow);
     content->addWidget(section(tr("Progress and values"), values));
+
+    // Reproduces SoulseekQt's download dialog footer: a checkbox squeezed
+    // against buttons inside a fixed-width row (the "Queue paused" label
+    // must never be clipped by its neighbors).
+    auto *footer = new QVBoxLayout;
+    auto *footerBox = new QFrame;
+    footerBox->setFrameShape(QFrame::StyledPanel);
+    footerBox->setFixedWidth(480);
+    auto *footerRow = new QHBoxLayout(footerBox);
+    footerRow->setContentsMargins(8, 8, 8, 8);
+    auto *queuePaused = new QCheckBox(tr("Queue paused"));
+    footerRow->addWidget(queuePaused);
+    footerRow->addStretch();
+    footerRow->addWidget(new QPushButton(tr("Download Selected")));
+    auto *cancelButton = new QPushButton(tr("Cancel"));
+    footerRow->addWidget(cancelButton);
+    footer->addWidget(footerBox, 0, Qt::AlignLeft);
+    content->addWidget(section(tr("Dialog footer (fixed width)"), footer));
     return scrollingPage(tr("Controls"), content);
 }
 
@@ -668,14 +706,24 @@ QWidget *GalleryWindow::collectionsPage()
     list->setCurrentRow(0);
     auto *tree = new QTreeWidget;
     tree->setHeaderHidden(true);
-    auto *root = new QTreeWidgetItem(tree, {tr("Workspace")});
+    auto *root = new QTreeWidgetItem(tree, {tr("Alabama Shakes - 2026 - I Must Be Dreaming")});
     root->setIcon(0, WinUI3::icon(WinUI3::Icon::Folder));
-    auto *source = new QTreeWidgetItem(root, {tr("src")});
-    source->setIcon(0, WinUI3::icon(WinUI3::Icon::Folder));
-    auto *tests = new QTreeWidgetItem(root, {tr("tests")});
-    tests->setIcon(0, WinUI3::icon(WinUI3::Icon::Folder));
-    new QTreeWidgetItem(source, {tr("winui3style.cpp")});
-    new QTreeWidgetItem(tests, {tr("tst_winui3style.cpp")});
+    // SoulseekQt's download folder tree: a tristate parent with checkable
+    // track children.  This is the layout that showed the label/checkbox
+    // misalignment report.
+    root->setFlags(root->flags() | Qt::ItemIsUserCheckable
+                   | Qt::ItemIsAutoTristate);
+    root->setCheckState(0, Qt::PartiallyChecked);
+    const QStringList tracks{
+        tr("01 - Tea Time.mp3"), tr("02 - Another Life.mp3"),
+        tr("03 - Garden.mp3"), tr("04 - I Feel Hope Coming.mp3"),
+        tr("05 - Time.mp3"), tr("06 - Friends.mp3")
+    };
+    for (int i = 0; i < tracks.size(); ++i) {
+        auto *track = new QTreeWidgetItem(root, {tracks.at(i)});
+        track->setFlags(track->flags() | Qt::ItemIsUserCheckable);
+        track->setCheckState(0, i % 3 == 2 ? Qt::Unchecked : Qt::Checked);
+    }
     tree->expandAll();
     tree->setCurrentItem(root);
     auto *table = new QTableWidget(4, 3);

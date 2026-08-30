@@ -1482,9 +1482,16 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
         const bool horizontal = !progressBar
             || progressBar->orientation() == Qt::Horizontal;
+        const bool textAboveLine = horizontal && bar && bar->textVisible
+            && !bar->text.isEmpty();
         const QRect groove = horizontal
-            ? QRect(option->rect.left(), option->rect.center().y() - 2,
-                    option->rect.width(), 4)
+            ? (textAboveLine
+               // The label owns the bar's body; the track becomes a thin
+               // underline so the text never overlaps the fill.
+               ? QRect(option->rect.left(), option->rect.bottom() - 2,
+                       option->rect.width(), 3)
+               : QRect(option->rect.left(), option->rect.center().y() - 2,
+                       option->rect.width(), 4))
             : QRect(option->rect.center().x() - 2, option->rect.top(),
                     4, option->rect.height());
         roundedRect(painter, groove, t.stroke, Qt::transparent, 2);
@@ -1498,9 +1505,14 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 || progressBar->orientation() == Qt::Horizontal;
             const bool inverted = progressBar ? progressBar->invertedAppearance()
                                                : bar->invertedAppearance;
+            const bool textAboveLine = horizontal && bar->textVisible
+                && !bar->text.isEmpty();
             const QRect track = horizontal
-                ? QRect(option->rect.left(), option->rect.center().y() - 2,
-                        option->rect.width(), 4)
+                ? (textAboveLine
+                   ? QRect(option->rect.left(), option->rect.bottom() - 2,
+                           option->rect.width(), 3)
+                   : QRect(option->rect.left(), option->rect.center().y() - 2,
+                           option->rect.width(), 4))
                 : QRect(option->rect.center().x() - 2, option->rect.top(),
                         4, option->rect.height());
             const QColor indicatorColor = bar->state & State_Enabled
@@ -1579,10 +1591,21 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 const QPalette &pal = option->palette;
                 const QColor fg = pal.color(QPalette::WindowText);
                 painter->setPen(QPen(fg));
-                // Text right-aligned reading (like Qt's default) would
-                // overlap the fill at high progress; centered keeps it legible
-                // in both halves.
-                painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
+                const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
+                const bool horizontal = !progressBar
+                    || progressBar->orientation() == Qt::Horizontal;
+                if (horizontal) {
+                    // The thin track sits at the bottom of the rect; the label
+                    // owns the area above it.  Elide so long transfer strings
+                    // (e.g. "2,513,696 (22.0%)") never bleed past the bar.
+                    const QRect labelRect = bar->rect.adjusted(0, 0, 0, -6);
+                    painter->drawText(labelRect, Qt::AlignCenter,
+                                      option->fontMetrics.elidedText(
+                                          bar->text, Qt::ElideRight,
+                                          labelRect.width()));
+                } else {
+                    painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
+                }
                 painter->restore();
             }
             return;
@@ -1666,16 +1689,28 @@ void Style::polish(QApplication *application)
         d->originalApplicationPalette = application->palette();
         d->applicationStateSaved = true;
     }
-    QFont font(QStringLiteral("Segoe UI Variable Text"));
+    QByteArray overrideFamily = qgetenv("WINUI3STYLE_APP_FONT");
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    if (!QFontDatabase::families().contains(font.family()))
+    // Qt 6 renders the Windows 11 variable font natively.
+    QString preferred = overrideFamily.isEmpty()
+        ? QStringLiteral("Segoe UI Variable Text")
+        : QString::fromLocal8Bit(overrideFamily);
+    if (!QFontDatabase::families().contains(preferred))
+        preferred = QStringLiteral("Segoe UI");
 #else
+    // Qt 5.x's DirectWrite path can rasterize the variable-font outlines
+    // with touching/overlapping glyphs ("o"+"a" looking glued).  Use the
+    // static family unless the app opts in via WINUI3STYLE_APP_FONT.
+    QString preferred = overrideFamily.isEmpty()
+        ? QStringLiteral("Segoe UI")
+        : QString::fromLocal8Bit(overrideFamily);
     // QFontDatabase::families() is static from Qt 6 onward; instantiate on
     // Qt 5.
     const QFontDatabase fontDatabase;
-    if (!fontDatabase.families().contains(font.family()))
+    if (!fontDatabase.families().contains(preferred))
+        preferred = QStringLiteral("Segoe UI");
 #endif
-        font.setFamily(QStringLiteral("Segoe UI"));
+    QFont font(preferred);
     font.setPixelSize(14);
     application->setFont(font);
     application->setPalette(standardPalette());
