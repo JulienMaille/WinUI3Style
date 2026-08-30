@@ -138,6 +138,16 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         }
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
+        // Subtle toolbar buttons intentionally have a transparent resting
+        // fill. On a native backdrop that transparency cannot erase the
+        // previous animated hover frame, so restore the declared opaque
+        // parent surface before painting the new state.
+        if (element == QStyle::PE_PanelButtonTool && widget
+            && widget->parentWidget()
+            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+            painter->fillRect(option->rect,
+                              widget->parentWidget()->palette().color(QPalette::Window));
+        }
         QColor fill = t.control;
         QColor stroke = t.stroke;
 
@@ -297,6 +307,11 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // "double outline".
         if (comboBoxEditor(widget))
             return true;
+        if (widget && widget->parentWidget()
+            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+            painter->fillRect(option->rect,
+                              widget->parentWidget()->palette().color(QPalette::Window));
+        }
         const bool focused = option->state & QStyle::State_HasFocus;
         const qreal lineEditHover = progress(widget, hoverProperty,
                                      option->state & QStyle::State_MouseOver ? 1.0 : 0.0);

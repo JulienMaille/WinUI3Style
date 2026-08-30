@@ -652,6 +652,8 @@ void WinUI3StyleTest::buttonToolButtonAndIconContracts()
     menu->addAction(QStringLiteral("Choice"));
     tool->setMenu(menu);
     toolbar.addWidget(tool);
+    toolbar.setProperty(WinUI3::Style::SurfaceProperty,
+                        QStringLiteral("layer"));
     toolbar.show();
     QVERIFY(!toolbar.grab().isNull());
 
@@ -693,6 +695,31 @@ void WinUI3StyleTest::buttonToolButtonAndIconContracts()
                                        &separator, &painter, &toolbar);
     }
     QVERIFY(horizontalToolbarSeparator != verticalToolbarSeparator);
+
+    QStyleOptionToolButton hoverOption;
+    hoverOption.initFrom(tool);
+    hoverOption.rect = tool->rect();
+    hoverOption.state = QStyle::State_Enabled | QStyle::State_MouseOver;
+    const QColor toolbarSurface = toolbar.palette().color(QPalette::Window);
+    QImage hoverTrail(tool->size(), QImage::Format_ARGB32_Premultiplied);
+    hoverTrail.fill(toolbarSurface);
+    WinUI3::Private::framePropertyRegistry().set(
+        tool, "_winui_hover_progress", 1.0);
+    {
+        QPainter painter(&hoverTrail);
+        tool->style()->drawPrimitive(QStyle::PE_PanelButtonTool,
+                                     &hoverOption, &painter, tool);
+    }
+    QVERIFY(hoverTrail.pixelColor(tool->rect().center()) != toolbarSurface);
+    hoverOption.state = QStyle::State_Enabled;
+    WinUI3::Private::framePropertyRegistry().set(
+        tool, "_winui_hover_progress", 0.0);
+    {
+        QPainter painter(&hoverTrail);
+        tool->style()->drawPrimitive(QStyle::PE_PanelButtonTool,
+                                     &hoverOption, &painter, tool);
+    }
+    QCOMPARE(hoverTrail.pixelColor(tool->rect().center()), toolbarSurface);
 }
 
 void WinUI3StyleTest::iconPixmapCacheDprAndPalette()
@@ -3606,6 +3633,7 @@ void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()
     QVERIFY(style);
 
     QMenuBar bar;
+    bar.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("layer"));
     QAction *file = bar.addAction(QStringLiteral("File"));
     QAction *view = bar.addAction(QStringLiteral("View"));
     bar.resize(180, 32);
@@ -3644,6 +3672,8 @@ void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()
         const QPoint viewSample(viewRect.left() + 4, viewRect.top() + 4);
         QVERIFY(image.pixelColor(fileSample) != surface);
         QCOMPARE(image.pixelColor(viewSample), surface);
+        drawItem(file, fileRect, QStyle::State_Enabled);
+        QCOMPARE(image.pixelColor(fileSample), surface);
     }
 }
 

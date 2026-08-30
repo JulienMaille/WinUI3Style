@@ -55,8 +55,12 @@ public:
     static void setControlRole(QWidget *widget, ControlRole role);
     static ControlRole controlRole(const QWidget *widget);
 
-    // A ToggleSwitch is a semantic QCheckBox variant. Applications may call
-    // these helpers or set the documented dynamic properties directly.
+    // Designer-friendly semantic properties. Applications may use the helper
+    // functions, but every visual variant can also be declared as a dynamic
+    // property in a .ui file without including this library's headers.
+    static constexpr const char *ControlRoleProperty = "winuiControlRole";
+    static constexpr const char *BackdropProperty = "winuiBackdrop";
+    static constexpr const char *SurfaceProperty = "winuiSurface";
     static constexpr const char *ToggleSwitchProperty = "winuiToggleSwitch";
     static constexpr const char *ToggleSwitchOnTextProperty = "winuiOnText";
     static constexpr const char *ToggleSwitchOffTextProperty = "winuiOffText";

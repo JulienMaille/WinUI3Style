@@ -2,7 +2,7 @@
 
 #include <QMainWindow>
 
-namespace WinUI3 { class NavigationView; }
+namespace Ui { class GalleryWindow; }
 
 class GalleryWindow final : public QMainWindow
 {
@@ -10,15 +10,14 @@ class GalleryWindow final : public QMainWindow
 
 public:
     explicit GalleryWindow(QWidget *parent = nullptr);
+    ~GalleryWindow() override;
     bool saveSnapshots(const QString &directory);
 
 private:
-    QWidget *controlsPage();
-    QWidget *collectionsPage();
-    QWidget *settingsPage();
-    QWidget *dialogsPage();
-    QWidget *palettePage();
+    void configureGallery();
+    void populateCollections();
+    void configurePaletteLab();
     void setTheme(int index);
 
-    WinUI3::NavigationView *m_navigation = nullptr;
+    Ui::GalleryWindow *ui;
 };

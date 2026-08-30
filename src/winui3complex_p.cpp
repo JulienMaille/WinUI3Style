@@ -116,6 +116,11 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
+            if (widget && widget->parentWidget()
+                && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+                painter->fillRect(combo->rect,
+                                  widget->parentWidget()->palette().color(QPalette::Window));
+            }
             const bool enabled = combo->state & QStyle::State_Enabled;
             const bool hovered = combo->state & QStyle::State_MouseOver;
             const bool pressed = combo->state & (QStyle::State_Sunken | QStyle::State_On);

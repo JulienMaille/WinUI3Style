@@ -122,6 +122,9 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
 
     if (element == QStyle::CE_MenuBarItem) {
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
+            if (widget && widget->property(Style::SurfaceProperty).isValid())
+                painter->fillRect(item->rect,
+                                  widget->palette().color(QPalette::Window));
             // QMenuBar owns the animation properties, while this option is
             // painted once per QAction. Never let the shared bar progress
             // leak into a sibling item that is not active.

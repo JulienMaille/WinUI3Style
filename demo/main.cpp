@@ -1,10 +1,9 @@
 #include "gallerywindow.h"
 
-#include <winui3style/winui3backdrop.h>
-#include <winui3style/winui3style.h>
-
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDebug>
+#include <QStyleFactory>
 #include <QTimer>
 
 int main(int argc, char *argv[])
@@ -12,7 +11,12 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     application.setApplicationName(QStringLiteral("WinUI 3 Style Gallery"));
     application.setOrganizationName(QStringLiteral("WinUI3Style"));
-    application.setStyle(new WinUI3::Style(WinUI3::ThemeMode::System));
+    if (QStyle *style = QStyleFactory::create(QStringLiteral("winui3")))
+        application.setStyle(style);
+    else {
+        qCritical() << "The winui3 QStyle plugin could not be loaded.";
+        return 1;
+    }
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("WinUI 3 Qt Widgets gallery"));
@@ -34,7 +38,7 @@ int main(int argc, char *argv[])
 
     GalleryWindow window;
     window.resize(1180, 780);
-    WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica);
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
     window.show();
     if (captureMode) {
         QTimer::singleShot(250, &application, [&application, &window, &parser, captureOption] {

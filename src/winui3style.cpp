@@ -94,6 +94,25 @@ using namespace PaintPrivate;
 using namespace Private;
 namespace {
 
+Backdrop backdropFromProperty(const QVariant &value)
+{
+    const QString name = value.toString().trimmed().toLower();
+    if (name == QLatin1String("mica"))
+        return Backdrop::Mica;
+    if (name == QLatin1String("micaalt") || name == QLatin1String("mica-alt"))
+        return Backdrop::MicaAlt;
+    if (name == QLatin1String("acrylic"))
+        return Backdrop::Acrylic;
+    if (name == QLatin1String("none"))
+        return Backdrop::None;
+    bool ok = false;
+    const int numeric = value.toInt(&ok);
+    if (ok && numeric >= static_cast<int>(Backdrop::None)
+        && numeric <= static_cast<int>(Backdrop::Acrylic))
+        return static_cast<Backdrop>(numeric);
+    return Backdrop::None;
+}
+
 bool toggleSwitch(const QWidget *widget)
 {
     return qobject_cast<const QCheckBox *>(widget)
@@ -1083,7 +1102,11 @@ void Style::refreshApplicationAppearance()
             continue;
         } else {
             QPalette palette = applicationPalette;
-            if (qobject_cast<QTableView *>(widget)) {
+            if (widget->property(SurfaceProperty).toString().compare(
+                    QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+                palette.setColor(QPalette::Window,
+                                 Private::popupSurfaceColor(applicationPalette));
+            } else if (qobject_cast<QTableView *>(widget)) {
                 palette.setColor(QPalette::Highlight,
                                  applicationTokens.subtleHover);
                 palette.setColor(QPalette::HighlightedText,
@@ -1168,6 +1191,26 @@ ControlRole Style::controlRole(const QWidget *widget)
 {
     if (!widget)
         return ControlRole::Standard;
+    const QVariant designerRole = widget->property(ControlRoleProperty);
+    if (designerRole.isValid()) {
+        const QString name = designerRole.toString().trimmed().toLower();
+        if (name == QLatin1String("accent"))
+            return ControlRole::Accent;
+        if (name == QLatin1String("subtle"))
+            return ControlRole::Subtle;
+        if (name == QLatin1String("navigation"))
+            return ControlRole::Navigation;
+        if (name == QLatin1String("destructive"))
+            return ControlRole::Destructive;
+        if (name == QLatin1String("standard"))
+            return ControlRole::Standard;
+        bool converted = false;
+        const int numericRole = designerRole.toInt(&converted);
+        if (converted && numericRole >= int(ControlRole::Standard)
+            && numericRole <= int(ControlRole::Destructive)) {
+            return static_cast<ControlRole>(numericRole);
+        }
+    }
     if (!widget->property(roleProperty).isValid()) {
         if (const auto *button = qobject_cast<const QPushButton *>(widget);
             button && button->isDefault()) {
@@ -1730,6 +1773,40 @@ void Style::polish(QWidget *widget)
     remember(widget, originalRoleProperty, widget->property(roleProperty));
     widget->setAttribute(Qt::WA_Hover, true);
     widget->installEventFilter(this);
+    const QVariant surface = widget->property(SurfaceProperty);
+    const QString surfaceName = surface.toString();
+    if (surface.toBool()
+        || surfaceName.compare(QLatin1String("content"),
+                               Qt::CaseInsensitive) == 0
+        || surfaceName.compare(QLatin1String("layer"),
+                               Qt::CaseInsensitive) == 0) {
+        // A native backdrop makes the top-level Window role transparent.
+        // Standard stacked/page widgets otherwise retain stale backing-store
+        // pixels while scrolling or switching pages. An explicit content
+        // layer is the Qt equivalent of WinUI's opaque content surface.
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        remember(widget, originalOpaquePaintProperty,
+                 widget->testAttribute(Qt::WA_OpaquePaintEvent));
+        QPalette palette = standardPalette();
+        if (surfaceName.compare(QLatin1String("layer"),
+                                Qt::CaseInsensitive) == 0)
+            palette.setColor(QPalette::Window,
+                             Private::popupSurfaceColor(palette));
+        widget->setPalette(palette);
+        widget->setAutoFillBackground(true);
+        widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    }
+    if (widget->isWindow()) {
+        const QVariant backdrop = widget->property(BackdropProperty);
+        if (backdrop.isValid()) {
+            QPointer<QWidget> guarded(widget);
+            QTimer::singleShot(0, widget, [guarded, backdrop] {
+                if (guarded)
+                    applyBackdrop(guarded, backdropFromProperty(backdrop));
+            });
+        }
+    }
     framePropertyRegistry().set(widget, hoverProperty,
                                 widget->isEnabled() && widget->underMouse()
                                     ? 1.0 : 0.0);
@@ -1999,6 +2076,41 @@ void Style::unpolish(QWidget *widget)
 
 bool Style::eventFilter(QObject *watched, QEvent *event)
 {
+    if (event->type() == QEvent::DynamicPropertyChange) {
+        auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
+        if (auto *widget = qobject_cast<QWidget *>(watched)) {
+            if (change->propertyName() == ControlRoleProperty) {
+                widget->update();
+            } else if (change->propertyName() == SurfaceProperty) {
+                const QVariant surface = widget->property(SurfaceProperty);
+                const QString surfaceName = surface.toString();
+                const bool enabled = surface.toBool()
+                    || surfaceName.compare(QLatin1String("content"),
+                                           Qt::CaseInsensitive) == 0
+                    || surfaceName.compare(QLatin1String("layer"),
+                                           Qt::CaseInsensitive) == 0;
+                if (enabled) {
+                    widget->setProperty(ownedPaletteProperty, true);
+                    d->registerPaletteOwner(widget);
+                    remember(widget, originalOpaquePaintProperty,
+                             widget->testAttribute(Qt::WA_OpaquePaintEvent));
+                    QPalette palette = standardPalette();
+                    if (surfaceName.compare(QLatin1String("layer"),
+                                            Qt::CaseInsensitive) == 0)
+                        palette.setColor(QPalette::Window,
+                                         Private::popupSurfaceColor(palette));
+                    widget->setPalette(palette);
+                    widget->setAutoFillBackground(true);
+                    widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
+                }
+                widget->update();
+            } else if (change->propertyName() == BackdropProperty
+                       && widget->isWindow()) {
+                applyBackdrop(widget, backdropFromProperty(
+                    widget->property(BackdropProperty)));
+            }
+        }
+    }
     if (d->interactionController->eventFilter(watched, event))
         return true;
     return QProxyStyle::eventFilter(watched, event);

@@ -1,0 +1,20 @@
+set(_demo_dir "${SOURCE_DIR}/demo")
+if(NOT EXISTS "${_demo_dir}/gallerywindow.ui")
+    message(FATAL_ERROR "The gallery must be defined by a Qt Designer .ui file")
+endif()
+
+file(READ "${_demo_dir}/gallerywindow.cpp" _gallery_cpp)
+file(READ "${_demo_dir}/main.cpp" _main_cpp)
+foreach(_forbidden "winui3style/" "WinUI3::")
+    string(FIND "${_gallery_cpp}${_main_cpp}" "${_forbidden}" _found)
+    if(NOT _found EQUAL -1)
+        message(FATAL_ERROR
+            "The gallery is a plain Qt client; forbidden dependency: ${_forbidden}")
+    endif()
+endforeach()
+
+file(READ "${_demo_dir}/CMakeLists.txt" _demo_cmake)
+string(FIND "${_demo_cmake}" "WinUI3::Widgets" _linked)
+if(NOT _linked EQUAL -1)
+    message(FATAL_ERROR "The gallery must load the QStyle plugin, not link WinUI3::Widgets")
+endif()

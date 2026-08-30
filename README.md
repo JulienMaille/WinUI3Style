@@ -19,6 +19,10 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 The `winui3style_gallery` executable is the interactive reference application.
+Its complete widget hierarchy lives in `demo/gallerywindow.ui`: it links only
+Qt Widgets and deliberately uses no `WinUI3::*` API. This makes it an executable
+example of the same deployment model available to an existing Designer-based
+application.
 The style can also be loaded through `QStyleFactory::create("winui3")` when the
 plugin is deployed under Qt's `styles` plugin directory.
 
@@ -40,43 +44,43 @@ repeatable without making performance work part of the normal test gate.
 ## Native widget variants
 
 Visual variants retain Qt's native semantics and are selected with dynamic
-properties. A ToggleSwitch is fundamentally a `QCheckBox`:
+properties. In Qt Designer, add these properties with the Property Editor's
+`+` button. A ToggleSwitch is fundamentally a `QCheckBox` with
+`winuiToggleSwitch=true`; `winuiOnText` and `winuiOffText` are optional strings.
+No application-side painting or animation is required.
+
+Other Designer properties are:
+
+- `winuiControlRole`: `standard`, `accent`, `subtle`, `navigation`, or
+  `destructive` on buttons.
+- `winuiVerticalSpinButtons=true` on `QSpinBox`/`QDoubleSpinBox`.
+- `winuiSettingsCard=true` on a standard `QFrame` or `QGroupBox`.
+- `winuiNavigationView=true` on a standard Qt item view.
+- `winuiContentDialog=true` on a standard `QDialog`.
+- `winuiBackdrop`: `none`, `mica`, `mica-alt`, or `acrylic` on a top-level
+  window.
+- `winuiSurface=content` or `layer` on client regions placed over a native
+  backdrop. These create opaque WinUI content and navigation layers and prevent
+  backing-store trails during hover, scrolling and page changes.
+
+The equivalent C++ property call, when a form cannot be edited, is simply:
 
 ```cpp
 auto *toggle = new QCheckBox;
-WinUI3::Style::setToggleSwitch(toggle);
-WinUI3::Style::setToggleSwitchText(toggle, tr("On"), tr("Off")); // optional
+toggle->setProperty("winuiToggleSwitch", true);
+toggle->setProperty("winuiOnText", tr("On"));
+toggle->setProperty("winuiOffText", tr("Off"));
 ```
 
-The equivalent direct property contract is `winuiToggleSwitch=true`, with
-optional `winuiOnText` and `winuiOffText` strings. QStyle owns its complete
-geometry, painting, focus treatment, click/drag interaction, and state
-animation. Applications that prefer a named type, including Qt Designer forms,
-can use the style-library convenience class without introducing application-side
-painting or animation:
-
-```cpp
-#include <winui3style/toggleswitch.h>
-
-auto *toggle = new WinUI3::ToggleSwitch;
-toggle->setOnText(tr("On"));
-toggle->setOffText(tr("Off"));
-```
-
-The same opt-in model is available for style-owned settings-card chrome and
-navigation items through `Style::setSettingsCard()` and
-`Style::setNavigationView()`. Compound helper classes remain only where Qt does
-not provide page composition or expansion behavior.
+QStyle owns its complete geometry, painting, focus treatment, click/drag
+interaction, and state animation. The public helper methods and convenience
+classes remain source-compatible wrappers, but applications do not need them.
 
 `QSpinBox` and `QDoubleSpinBox` use WinUI's horizontal inline buttons by
 default. Applications that prefer the traditional Qt arrangement can opt into
 stacked buttons without subclassing:
 
-```cpp
-WinUI3::Style::setVerticalSpinButtons(spinBox);
-```
-
-The equivalent dynamic property is `winuiVerticalSpinButtons=true`.
+Set `winuiVerticalSpinButtons=true` for the traditional stacked arrangement.
 
 Item views use standard Qt models and delegates. `QListView` maps to WinUI
 ListView, while a headerless `QTreeView` maps to TreeView. Multi-column tree
@@ -86,9 +90,7 @@ WinUI does not expose a matching core widget contract.
 ContentDialog client chrome can be applied to an ordinary `QDialog` without a
 custom dialog subclass:
 
-```cpp
-WinUI3::Style::setContentDialog(dialog);
-```
+Set `winuiContentDialog=true` on the dialog.
 
 The style supplies the surface, spacing, primary-button role and entrance
 motion. The application continues to own the dialog's content and command

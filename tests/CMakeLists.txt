@@ -36,6 +36,10 @@ add_test(NAME winui3style_frameproperties_unit
          COMMAND winui3style_frameproperties_tests)
 add_test(NAME winui3style_appearancewatcher_unit
          COMMAND winui3style_appearancewatcher_tests)
+add_test(NAME winui3style_designer_gallery_contract
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_designer_gallery.cmake)
 set(_winui3style_test_environment
     "QT_QPA_PLATFORM=offscreen"
     "QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"

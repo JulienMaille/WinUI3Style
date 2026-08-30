@@ -1,88 +1,26 @@
 #include "gallerywindow.h"
+#include "ui_gallerywindow.h"
 
-#include <winui3style/navigationview.h>
-#include <winui3style/animatedstack.h>
-#include <winui3style/settingscard.h>
-#include <winui3style/winui3backdrop.h>
-#include <winui3style/winui3icons.h>
-#include <winui3style/winui3style.h>
-
-#include <QAction>
-#include <QAbstractItemView>
 #include <QApplication>
-#include <QCheckBox>
-#include <QComboBox>
+#include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
-#include <QDockWidget>
-#include <QEvent>
-#include <QCursor>
-#include <QFormLayout>
-#include <QGroupBox>
+#include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
-#include <QKeySequence>
-#include <QLineEdit>
-#include <QListWidget>
-#include <QMenu>
-#include <QMenuBar>
 #include <QMessageBox>
-#include <QMouseEvent>
-#include <QProgressBar>
-#include <QPlainTextEdit>
-#include <QPushButton>
-#include <QRadioButton>
-#include <QColorDialog>
-#include <QPixmap>
-#include <QScrollArea>
-#include <QScrollBar>
 #include <QScreen>
 #include <QScopeGuard>
-#include <QSlider>
-#include <QSplitter>
-#include <QSpinBox>
-#include <QTabWidget>
-#include <QTableWidget>
-#include <QTextEdit>
-#include <QToolBar>
-#include <QToolButton>
-#include <QTreeWidget>
+#include <QStyle>
+#include <QTableWidgetItem>
+#include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
 namespace {
-
-QWidget *scrollingPage(const QString &title, QLayout *content)
-{
-    auto *body = new QWidget;
-    auto *layout = new QVBoxLayout(body);
-    layout->setContentsMargins(28, 20, 28, 28);
-    layout->setSpacing(16);
-    auto *heading = new QLabel(title);
-    QFont font = heading->font();
-    font.setPixelSize(28);
-    font.setWeight(QFont::DemiBold);
-    heading->setFont(font);
-    layout->addWidget(heading);
-    layout->addLayout(content);
-    layout->addStretch();
-    auto *area = new QScrollArea;
-    area->setFrameShape(QFrame::NoFrame);
-    area->setWidgetResizable(true);
-    area->setWidget(body);
-    return area;
-}
-
-QGroupBox *section(const QString &title, QLayout *layout)
-{
-    auto *box = new QGroupBox(title);
-    box->setLayout(layout);
-    return box;
-}
-
 void configureContentDialog(QDialog *dialog)
 {
-    WinUI3::Style::setContentDialog(dialog);
+    dialog->setProperty("winuiContentDialog", true);
     dialog->setWindowTitle(QObject::tr("Content dialog"));
     dialog->resize(420, 220);
     auto *layout = new QVBoxLayout(dialog);
@@ -93,88 +31,175 @@ void configureContentDialog(QDialog *dialog)
     title->setFont(titleFont);
     layout->addWidget(title);
     auto *description = new QLabel(QObject::tr(
-        "Every control remains a native QWidget, with WinUI spacing and interaction states."));
+        "Every control remains a native QWidget configured through Qt properties."));
     description->setWordWrap(true);
     layout->addWidget(description);
     layout->addStretch();
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok
-                                         | QDialogButtonBox::Cancel);
-    if (auto *primary = buttons->button(QDialogButtonBox::Ok)) {
-        primary->setDefault(true);
-        primary->setMinimumWidth(120);
-    }
-    if (auto *close = buttons->button(QDialogButtonBox::Cancel))
-        close->setMinimumWidth(120);
-    QObject::connect(buttons, &QDialogButtonBox::accepted,
-                     dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected,
-                     dialog, &QDialog::reject);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    buttons->button(QDialogButtonBox::Ok)->setDefault(true);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     layout->addWidget(buttons);
 }
 
+void setHeadingFont(QLabel *heading)
+{
+    QFont font = heading->font();
+    font.setPixelSize(28);
+    font.setWeight(QFont::DemiBold);
+    heading->setFont(font);
+}
 } // namespace
 
 GalleryWindow::GalleryWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , m_navigation(new WinUI3::NavigationView(this))
+    : QMainWindow(parent), ui(new Ui::GalleryWindow)
 {
-    setWindowTitle(tr("WinUI 3 for Qt Widgets"));
-    auto *fileMenu = menuBar()->addMenu(tr("File"));
-    auto *newAction = fileMenu->addAction(WinUI3::icon(WinUI3::Icon::Add),
-                                          tr("New project"));
-    newAction->setShortcut(QKeySequence::New);
-    auto *openAction = fileMenu->addAction(WinUI3::icon(WinUI3::Icon::Folder),
-        tr("Open a recent project with a deliberately long name"));
-    openAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
-    auto *autoSave = fileMenu->addAction(tr("Save changes automatically"));
-    autoSave->setCheckable(true);
-    autoSave->setChecked(true);
-    auto *exportMenu = fileMenu->addMenu(tr("Export"));
-    exportMenu->addAction(tr("Portable document"));
-    exportMenu->addAction(tr("Image"));
-    fileMenu->addSeparator();
-    fileMenu->addAction(tr("Exit"), this, &QWidget::close);
-    auto *viewMenu = menuBar()->addMenu(tr("View"));
-    viewMenu->addAction(tr("Navigation pane"))->setCheckable(true);
+    ui->setupUi(this);
+    configureGallery();
+    populateCollections();
+    configurePaletteLab();
+}
 
-    auto *toolbar = addToolBar(tr("Command bar"));
-    toolbar->setMovable(false);
-    toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    toolbar->addAction(WinUI3::icon(WinUI3::Icon::Add), tr("New"));
-    toolbar->addAction(WinUI3::icon(WinUI3::Icon::Save), tr("Save"));
-    toolbar->addSeparator();
-    auto *play = toolbar->addAction(WinUI3::icon(WinUI3::Icon::Play), tr("Preview"));
-    play->setCheckable(true);
-    toolbar->addAction(WinUI3::icon(WinUI3::Icon::More), tr("More"));
-    auto *textTool = new QToolButton(toolbar);
-    textTool->setText(tr("Text tool"));
-    textTool->setIcon(WinUI3::icon(WinUI3::Icon::Edit));
-    textTool->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    toolbar->addWidget(textTool);
-    auto *checkTool = new QToolButton(toolbar);
-    checkTool->setText(tr("Pin"));
-    checkTool->setIcon(WinUI3::icon(WinUI3::Icon::Save));
-    checkTool->setCheckable(true);
-    checkTool->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    toolbar->addWidget(checkTool);
+GalleryWindow::~GalleryWindow() { delete ui; }
 
-    auto *theme = new QComboBox(toolbar);
-    theme->addItems({tr("System theme"), tr("Light"), tr("Dark")});
-    theme->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    theme->setMinimumContentsLength(theme->itemText(0).size());
-    // Keep the longest setting visible in the compact command bar. The
-    // explicit minimum also survives a toolbar relayout before first show.
-    theme->setMinimumWidth(theme->sizeHint().width());
-    theme->setAccessibleName(tr("Theme"));
-    toolbar->addWidget(theme);
-    connect(theme, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GalleryWindow::setTheme);
+void GalleryWindow::configureGallery()
+{
+    setProperty("winuiBackdrop", QStringLiteral("mica"));
+    for (QLabel *heading : {ui->controlsHeading, ui->collectionsHeading,
+                            ui->settingsHeading, ui->dialogsHeading,
+                            ui->paletteHeading})
+        setHeadingFont(heading);
+    ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
+    ui->selectedEdit->selectAll();
+    ui->advancedDetails->setVisible(ui->advancedCard->isChecked());
+    ui->collectionsTabs->setTabEnabled(ui->collectionsTabs->indexOf(ui->disabledTab), false);
 
-    m_navigation->addPage(controlsPage(), WinUI3::icon(WinUI3::Icon::Home), tr("Controls"));
-    m_navigation->addPage(collectionsPage(), WinUI3::icon(WinUI3::Icon::Folder), tr("Collections"));
-    m_navigation->addPage(settingsPage(), WinUI3::icon(WinUI3::Icon::Settings), tr("Settings"));
-    m_navigation->addPage(dialogsPage(), WinUI3::icon(WinUI3::Icon::More), tr("Dialogs & states"));
-    m_navigation->addPage(palettePage(), WinUI3::icon(WinUI3::Icon::Edit), tr("Palette lab"));
-    setCentralWidget(m_navigation);
+    const auto icon = [this](QStyle::StandardPixmap pixmap) {
+        return style()->standardIcon(pixmap, nullptr, this);
+    };
+    ui->newProjectAction->setIcon(icon(QStyle::SP_FileIcon));
+    ui->openProjectAction->setIcon(icon(QStyle::SP_DirOpenIcon));
+    ui->newAction->setIcon(icon(QStyle::SP_FileIcon));
+    ui->saveAction->setIcon(icon(QStyle::SP_DialogSaveButton));
+    ui->previewAction->setIcon(icon(QStyle::SP_MediaPlay));
+    ui->moreAction->setIcon(icon(QStyle::SP_TitleBarMenuButton));
+    ui->textToolAction->setIcon(icon(QStyle::SP_FileDialogDetailedView));
+    ui->pinAction->setIcon(icon(QStyle::SP_DialogApplyButton));
+    const QList<QStyle::StandardPixmap> navigationIcons = {
+        QStyle::SP_DesktopIcon, QStyle::SP_DirIcon, QStyle::SP_FileDialogContentsView,
+        QStyle::SP_MessageBoxInformation, QStyle::SP_FileDialogDetailedView};
+    for (int row = 0; row < ui->navigationList->count(); ++row)
+        ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
+
+    connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &GalleryWindow::setTheme);
+    connect(ui->advancedCard, &QGroupBox::toggled,
+            ui->advancedDetails, &QWidget::setVisible);
+    connect(ui->searchSettings, &QLineEdit::textChanged, this,
+            [this](const QString &text) {
+        for (int row = 0; row < ui->navigationList->count(); ++row) {
+            QListWidgetItem *item = ui->navigationList->item(row);
+            item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
+        }
+    });
+    connect(ui->messageDialogButton, &QPushButton::clicked, this, [this] {
+        QMessageBox::information(this, tr("WinUI 3 Style"),
+            tr("This is a native Qt message box rendered by the style."));
+    });
+    connect(ui->contentDialogButton, &QPushButton::clicked, this, [this] {
+        QDialog dialog(this);
+        configureContentDialog(&dialog);
+        dialog.exec();
+    });
+}
+
+void GalleryWindow::populateCollections()
+{
+    const QIcon folder = style()->standardIcon(QStyle::SP_DirIcon, nullptr, this);
+    const QIcon file = style()->standardIcon(QStyle::SP_FileIcon, nullptr, this);
+    for (const QString &text : {tr("Documents"), tr("Pictures"), tr("Downloads")})
+        new QListWidgetItem(folder, text, ui->listViewTab);
+    new QListWidgetItem(file, tr("Readme.txt"), ui->listViewTab);
+    auto *root = new QTreeWidgetItem(ui->treeViewTab, {tr("This PC")});
+    root->setIcon(0, style()->standardIcon(QStyle::SP_ComputerIcon, nullptr, this));
+    auto *documents = new QTreeWidgetItem(root, {tr("Documents")});
+    documents->setIcon(0, folder);
+    new QTreeWidgetItem(documents, {tr("Design notes")});
+    new QTreeWidgetItem(documents, {tr("Release checklist")});
+    new QTreeWidgetItem(root, {tr("Pictures")});
+    root->setExpanded(true);
+    documents->setExpanded(true);
+    const QString rows[4][3] = {
+        {tr("Button"), tr("Ready"), tr("Complete")},
+        {tr("ComboBox"), tr("Interactive"), tr("Complete")},
+        {tr("TreeView"), tr("Expanded"), tr("Complete")},
+        {tr("TableView"), tr("Editable"), tr("Complete")}};
+    for (int row = 0; row < 4; ++row)
+        for (int column = 0; column < 3; ++column)
+            ui->tableViewTab->setItem(row, column, new QTableWidgetItem(rows[row][column]));
+    ui->tableViewTab->horizontalHeader()->setStretchLastSection(true);
+}
+
+void GalleryWindow::configurePaletteLab()
+{
+    struct RoleRow { QPalette::ColorRole role; const char *label; };
+    static const RoleRow roles[] = {
+        {QPalette::Window, QT_TR_NOOP("Window (paper)")},
+        {QPalette::WindowText, QT_TR_NOOP("WindowText/Text (ink)")},
+        {QPalette::Base, QT_TR_NOOP("Base (layer)")},
+        {QPalette::Button, QT_TR_NOOP("Button (control fill)")},
+        {QPalette::Highlight, QT_TR_NOOP("Highlight (selection)")}};
+    struct PaletteState { QPalette working; QList<QLabel *> swatches; };
+    auto *state = new PaletteState{ui->palettePreview->palette(), {}};
+    connect(ui->palettePreview, &QObject::destroyed, [state] { delete state; });
+    const auto refresh = [state] {
+        for (qsizetype i = 0; i < state->swatches.size(); ++i) {
+            QPixmap pixmap(48, 20);
+            pixmap.fill(state->working.color(roles[i].role));
+            state->swatches[i]->setPixmap(pixmap);
+        }
+    };
+    for (int i = 0; i < int(std::size(roles)); ++i) {
+        auto *label = new QLabel(tr(roles[i].label));
+        auto *swatch = new QLabel;
+        swatch->setFixedSize(48, 20);
+        state->swatches.append(swatch);
+        auto *pick = new QPushButton(tr("Edit..."));
+        connect(pick, &QPushButton::clicked, this,
+                [this, state, role = roles[i].role, refresh] {
+            const QColor color = QColorDialog::getColor(state->working.color(role),
+                this, tr("Choose color"), QColorDialog::ShowAlphaChannel);
+            if (!color.isValid()) return;
+            for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+                state->working.setColor(group, role, color);
+                if (role == QPalette::WindowText) {
+                    state->working.setColor(group, QPalette::Text, color);
+                    state->working.setColor(group, QPalette::ButtonText, color);
+                }
+            }
+            ui->palettePreview->setPalette(state->working);
+            refresh();
+        });
+        const int row = i / 3;
+        const int column = (i % 3) * 3;
+        ui->paletteRolesLayout->addWidget(label, row, column);
+        ui->paletteRolesLayout->addWidget(swatch, row, column + 1);
+        ui->paletteRolesLayout->addWidget(pick, row, column + 2);
+    }
+    auto *accent = new QPushButton(tr("Edit application accent..."));
+    connect(accent, &QPushButton::clicked, this, [this] {
+        const QColor current = qApp->style()->property("accentColor").value<QColor>();
+        const QColor color = QColorDialog::getColor(current, this, tr("Choose accent"));
+        if (color.isValid()) qApp->style()->setProperty("accentColor", color);
+    });
+    ui->paletteRolesLayout->addWidget(accent, 2, 6, 1, 2);
+    refresh();
+}
+
+void GalleryWindow::setTheme(int index)
+{
+    qApp->style()->setProperty("themeMode", index);
+    setProperty("winuiBackdrop", QStringLiteral("mica"));
 }
 
 bool GalleryWindow::saveSnapshots(const QString &directory)
@@ -182,852 +207,106 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
     QDir output;
     if (!output.mkpath(directory)) return false;
     output.setPath(directory);
-    auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style());
-    if (!winuiStyle) return false;
-
-    const int previousDuration = m_navigation->stack()->duration();
-    const auto previousTheme = winuiStyle->themeMode();
-    const QColor previousAccent = winuiStyle->accentColor();
+    QStyle *activeStyle = qApp->style();
+    if (!activeStyle->property("themeMode").isValid()) return false;
+    const QVariant previousTheme = activeStyle->property("themeMode");
+    const QVariant previousAccent = activeStyle->property("accentColor");
+    const QVariant previousBackdrop = property("winuiBackdrop");
     const QPalette previousPalette = palette();
     const bool previousAutoFill = autoFillBackground();
-    m_navigation->stack()->setDuration(0);
-    const bool animationsWereDisabled = qEnvironmentVariableIsSet(
-        "WINUI3STYLE_DISABLE_ANIMATIONS");
-    const QByteArray previousAnimationSetting = qgetenv(
-        "WINUI3STYLE_DISABLE_ANIMATIONS");
+    const bool animationsWereDisabled = qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
+    const QByteArray previousAnimationSetting = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
-    // Snapshots must not depend on the host's current Windows accent. Keep the
-    // interactive gallery system-aware, but use Fluent's reference blue for
-    // deterministic visual baselines across machines. Disable the native DWM
-    // material BEFORE changing the accent: setAccentColor() refreshes the
-    // application appearance and would otherwise re-apply the still-active
-    // backdrop on the next event loop iteration.
-    const QVariant previousBackdrop = property("_winui_backdrop");
-    WinUI3::applyBackdrop(this, WinUI3::Backdrop::None);
-    setProperty("_winui_backdrop", QVariant());
+    setProperty("winuiBackdrop", QStringLiteral("none"));
     setPalette(QPalette());
     setAutoFillBackground(true);
-    winuiStyle->setAccentColor(QColor(0, 120, 212));
-    const bool mouseEventsWereTransparent =
-        testAttribute(Qt::WA_TransparentForMouseEvents);
+    activeStyle->setProperty("accentColor", QColor(0, 120, 212));
+    const bool mouseEventsWereTransparent = testAttribute(Qt::WA_TransparentForMouseEvents);
     const QPoint previousCursorPosition = QCursor::pos();
-    const auto restoreCaptureState = qScopeGuard([&] {
-        m_navigation->stack()->setDuration(previousDuration);
-        winuiStyle->setThemeMode(previousTheme);
-        winuiStyle->setAccentColor(previousAccent);
-        if (previousBackdrop.isValid())
-            WinUI3::applyBackdrop(this,
-                static_cast<WinUI3::Backdrop>(previousBackdrop.toInt()));
-        else {
-            WinUI3::applyBackdrop(this, WinUI3::Backdrop::None);
-            setProperty("_winui_backdrop", QVariant());
-        }
-        if (animationsWereDisabled)
-            qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
-        else
-            qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    const auto restore = qScopeGuard([&] {
+        activeStyle->setProperty("themeMode", previousTheme);
+        activeStyle->setProperty("accentColor", previousAccent);
+        setProperty("winuiBackdrop", previousBackdrop);
+        if (animationsWereDisabled) qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
+        else qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
         setPalette(previousPalette);
         setAutoFillBackground(previousAutoFill);
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
         QCursor::setPos(previousCursorPosition);
-        for (QWidget *topLevel : qApp->topLevelWidgets()) {
-            if (topLevel->windowType() == Qt::Popup
-                || topLevel->windowType() == Qt::ToolTip)
-                topLevel->hide();
-        }
     });
     if (QScreen *screen = QGuiApplication::primaryScreen())
         QCursor::setPos(screen->availableGeometry().bottomRight());
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    const auto settlePointerStates = [this] {
-        if (QWidget *focused = qApp->focusWidget())
-            focused->clearFocus();
-        QEvent leave(QEvent::Leave);
-        QCoreApplication::sendEvent(this, &leave);
-        const auto descendants = findChildren<QWidget *>();
-        for (QWidget *descendant : descendants) {
-            QEvent descendantLeave(QEvent::Leave);
-            QCoreApplication::sendEvent(descendant, &descendantLeave);
+    const auto settle = [this] {
+        if (QWidget *focused = qApp->focusWidget()) focused->clearFocus();
+        for (QWidget *widget : findChildren<QWidget *>()) {
+            QEvent leave(QEvent::Leave);
+            QCoreApplication::sendEvent(widget, &leave);
         }
         qApp->processEvents();
     };
-    settlePointerStates();
-    qApp->processEvents();
     bool success = true;
-    for (const auto mode : {WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark}) {
-        winuiStyle->setThemeMode(mode);
-        const QString theme = mode == WinUI3::ThemeMode::Light
-            ? QStringLiteral("light") : QStringLiteral("dark");
-
-        if (auto *fileMenu = menuBar()->actions().value(0)->menu()) {
-            fileMenu->popup(menuBar()->mapToGlobal(
-                QPoint(menuBar()->actionGeometry(menuBar()->actions().value(0)).left(),
-                       menuBar()->height())));
+    for (int mode : {1, 2}) {
+        activeStyle->setProperty("themeMode", mode);
+        const QString theme = mode == 1 ? QStringLiteral("light") : QStringLiteral("dark");
+        ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
+            ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(), ui->menuBar->height())));
+        qApp->processEvents();
+        success = ui->fileMenu->grab().save(output.filePath(theme + "-menu.png"), "PNG") && success;
+        ui->fileMenu->hide();
+        for (int page = 0; page < ui->pages->count(); ++page) {
+            if (ui->pages->widget(page) == ui->paletteLabPage) continue;
+            ui->pages->setCurrentIndex(page);
             qApp->processEvents();
-            success = fileMenu->grab().save(
-                output.filePath(theme + QStringLiteral("-menu.png")), "PNG") && success;
-            if (QAction *firstAction = fileMenu->actions().value(0)) {
-                fileMenu->setActiveAction(firstAction);
-                qApp->processEvents();
-                success = fileMenu->grab().save(output.filePath(
-                    theme + QStringLiteral("-state-menu-hover.png")), "PNG")
-                    && success;
-                const QPoint local = fileMenu->actionGeometry(firstAction).center();
-                QMouseEvent press(QEvent::MouseButtonPress, QPointF(local),
-                                  QPointF(fileMenu->mapToGlobal(local)),
-                                  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-                QCoreApplication::sendEvent(fileMenu, &press);
-                qApp->processEvents();
-                success = fileMenu->grab().save(output.filePath(
-                    theme + QStringLiteral("-state-menu-pressed.png")), "PNG")
-                    && success;
-            }
-            fileMenu->hide();
-        }
-        for (int page = 0; page < m_navigation->count(); ++page) {
-            // The palette lab page is a live playground whose contents depend
-            // on user interaction; it has no approved baseline. Skip it in the
-            // deterministic matrix.
-            if (QWidget *pageWidget = m_navigation->widget(page);
-                pageWidget && pageWidget->objectName()
-                                   == QLatin1String("paletteLabPage"))
-                continue;
-            m_navigation->setCurrentIndex(page);
-            qApp->processEvents();
-            settlePointerStates();
-            const QString name = QStringLiteral("%1-page-%2.png").arg(theme).arg(page);
-            success = grab().save(output.filePath(name), "PNG") && success;
-            if (auto *area = qobject_cast<QScrollArea *>(m_navigation->widget(page));
-                area && area->verticalScrollBar()->maximum() > 0) {
+            settle();
+            success = grab().save(output.filePath(QStringLiteral("%1-page-%2.png").arg(theme).arg(page)), "PNG") && success;
+            auto *area = qobject_cast<QScrollArea *>(ui->pages->widget(page));
+            if (area && area->verticalScrollBar()->maximum() > 0) {
                 area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum());
                 qApp->processEvents();
-                settlePointerStates();
-                const QString scrolledName = QStringLiteral("%1-page-%2-scrolled.png")
-                    .arg(theme).arg(page);
-                success = grab().save(output.filePath(scrolledName), "PNG") && success;
+                success = grab().save(output.filePath(QStringLiteral("%1-page-%2-scrolled.png").arg(theme).arg(page)), "PNG") && success;
                 area->verticalScrollBar()->setValue(0);
             }
-            if (auto *area = qobject_cast<QScrollArea *>(m_navigation->widget(page));
-                area && area->widget()) {
+            if (area && area->widget()) {
                 if (auto *tabs = area->widget()->findChild<QTabWidget *>()) {
-                    const int previousTab = tabs->currentIndex();
+                    const int oldTab = tabs->currentIndex();
                     for (int tab = 0; tab < tabs->count(); ++tab) {
-                        if (!tabs->isTabEnabled(tab))
-                            continue;
+                        if (!tabs->isTabEnabled(tab)) continue;
                         tabs->setCurrentIndex(tab);
                         qApp->processEvents();
-                        const QString tabName = QStringLiteral("%1-page-%2-tab-%3.png")
-                            .arg(theme).arg(page).arg(tab);
-                        success = grab().save(output.filePath(tabName), "PNG")
-                            && success;
+                        success = grab().save(output.filePath(QStringLiteral("%1-page-%2-tab-%3.png").arg(theme).arg(page).arg(tab)), "PNG") && success;
                     }
-                    tabs->setCurrentIndex(previousTab);
+                    tabs->setCurrentIndex(oldTab);
                 }
             }
         }
-
-        m_navigation->setCurrentIndex(0);
+        ui->pages->setCurrentIndex(0);
         qApp->processEvents();
-        if (auto *area = qobject_cast<QScrollArea *>(m_navigation->widget(0));
-            area && area->widget()) {
-            if (auto *combo = area->widget()->findChild<QComboBox *>()) {
-                combo->showPopup();
-                qApp->processEvents();
-                if (QWidget *popup = combo->view()->window())
-                    success = popup->grab().save(output.filePath(
-                        theme + QStringLiteral("-combo-popup.png")), "PNG") && success;
-                combo->hidePopup();
-            }
-
-            const auto saveControl = [&](QWidget *control,
-                                         const QString &state) {
-                if (!control)
-                    return false;
-                qApp->processEvents();
-                return control->grab().save(output.filePath(
-                    theme + QStringLiteral("-state-") + state
-                    + QStringLiteral(".png")), "PNG");
-            };
-            const auto sendPointerState = [&](QWidget *control,
-                                              bool hovered, bool pressed) {
-                if (!control)
-                    return;
-                QEvent boundary(hovered ? QEvent::Enter : QEvent::Leave);
-                QCoreApplication::sendEvent(control, &boundary);
-                const QPointF local(control->rect().center());
-                const QPointF global(control->mapToGlobal(
-                    control->rect().center()));
-                QMouseEvent mouse(pressed ? QEvent::MouseButtonPress
-                                          : QEvent::MouseButtonRelease,
-                                  local, global, Qt::LeftButton,
-                                  pressed ? Qt::LeftButton : Qt::NoButton,
-                                  Qt::NoModifier);
-                QCoreApplication::sendEvent(control, &mouse);
-                qApp->processEvents();
-            };
-
-            QWidget *body = area->widget();
-            auto *button = body->findChild<QPushButton *>(
-                QStringLiteral("galleryStandardButton"));
-            auto *lineEdit = body->findChild<QLineEdit *>(
-                QStringLiteral("galleryLineEdit"));
-            auto *stateCombo = body->findChild<QComboBox *>(
-                QStringLiteral("galleryComboBox"));
-            auto *checkBox = body->findChild<QCheckBox *>(
-                QStringLiteral("galleryCheckBox"));
-            auto *radio = body->findChild<QRadioButton *>(
-                QStringLiteral("galleryRadioButton"));
-            auto *disabledRadio = body->findChild<QRadioButton *>(
-                QStringLiteral("galleryRadioButtonDisabled"));
-            auto *disabledToggle = body->findChild<QCheckBox *>(
-                QStringLiteral("galleryToggleSwitchDisabled"));
-            auto *slider = body->findChild<QSlider *>(
-                QStringLiteral("gallerySlider"));
-
-            success = disabledRadio && !disabledRadio->isEnabled() && success;
-            success = disabledToggle && !disabledToggle->isEnabled()
-                && WinUI3::Style::isToggleSwitch(disabledToggle) && success;
-
-            success = saveControl(button, QStringLiteral("button-rest")) && success;
-            sendPointerState(button, true, false);
-            success = saveControl(button, QStringLiteral("button-hover")) && success;
-            sendPointerState(button, true, true);
-            success = saveControl(button, QStringLiteral("button-pressed")) && success;
-            sendPointerState(button, false, false);
-
-            if (lineEdit) {
-                lineEdit->setFocus(Qt::TabFocusReason);
-                success = saveControl(lineEdit,
-                    QStringLiteral("textbox-keyboard-focus")) && success;
-                lineEdit->clearFocus();
-            }
-            if (stateCombo) {
-                sendPointerState(stateCombo, true, true);
-                success = saveControl(stateCombo,
-                    QStringLiteral("combobox-pressed")) && success;
-                sendPointerState(stateCombo, false, false);
-                stateCombo->hidePopup();
-            }
-            if (checkBox) {
-                checkBox->setChecked(true);
-                success = saveControl(checkBox,
-                    QStringLiteral("checkbox-checked")) && success;
-                checkBox->setChecked(false);
-                success = saveControl(checkBox,
-                    QStringLiteral("checkbox-unchecked")) && success;
-            }
-            if (radio) {
-                radio->setChecked(true);
-                success = saveControl(radio,
-                    QStringLiteral("radio-checked")) && success;
-            }
-            if (slider) {
-                sendPointerState(slider, true, false);
-                success = saveControl(slider,
-                    QStringLiteral("slider-hover")) && success;
-                sendPointerState(slider, false, false);
-            }
-        }
-
+        ui->galleryComboBox->showPopup();
+        qApp->processEvents();
+        if (QWidget *popup = ui->galleryComboBox->view()->window())
+            success = popup->grab().save(output.filePath(theme + "-combo-popup.png"), "PNG") && success;
+        ui->galleryComboBox->hidePopup();
+        const auto saveControl = [&](QWidget *control, const QString &state) {
+            qApp->processEvents();
+            return control && control->grab().save(output.filePath(theme + "-state-" + state + ".png"), "PNG");
+        };
+        success = saveControl(ui->galleryStandardButton, "button-rest") && success;
+        ui->galleryLineEdit->setFocus(Qt::TabFocusReason);
+        success = saveControl(ui->galleryLineEdit, "textbox-keyboard-focus") && success;
+        ui->galleryCheckBox->setChecked(true);
+        success = saveControl(ui->galleryCheckBox, "checkbox-checked") && success;
+        ui->galleryRadioButton->setChecked(true);
+        success = saveControl(ui->galleryRadioButton, "radio-checked") && success;
+        success = !ui->galleryRadioButtonDisabled->isEnabled() && success;
+        success = !ui->galleryToggleSwitchDisabled->isEnabled()
+            && ui->galleryToggleSwitchDisabled->property("winuiToggleSwitch").toBool() && success;
         QDialog contentDialog(this);
         configureContentDialog(&contentDialog);
         contentDialog.show();
         qApp->processEvents();
-        success = contentDialog.grab().save(output.filePath(
-            theme + QStringLiteral("-content-dialog.png")), "PNG") && success;
+        success = contentDialog.grab().save(output.filePath(theme + "-content-dialog.png"), "PNG") && success;
         contentDialog.close();
-
-        QMessageBox messageBox(QMessageBox::Information,
-            tr("WinUI 3 Style"),
-            tr("This is a native Qt message box rendered by the style."),
-            QMessageBox::Ok, this);
-        messageBox.show();
-        qApp->processEvents();
-        success = messageBox.grab().save(output.filePath(
-            theme + QStringLiteral("-message-box.png")), "PNG") && success;
-        messageBox.close();
     }
     return success;
-}
-
-QWidget *GalleryWindow::controlsPage()
-{
-    auto *content = new QVBoxLayout;
-    content->setSpacing(16);
-
-    auto *buttons = new QHBoxLayout;
-    auto *standard = new QPushButton(tr("Standard"));
-    standard->setObjectName(QStringLiteral("galleryStandardButton"));
-    auto *accent = new QPushButton(tr("Accent"));
-    WinUI3::Style::setControlRole(accent, WinUI3::ControlRole::Accent);
-    auto *subtle = new QPushButton(tr("Subtle"));
-    WinUI3::Style::setControlRole(subtle, WinUI3::ControlRole::Subtle);
-    auto *destructive = new QPushButton(tr("Delete"));
-    WinUI3::Style::setControlRole(destructive, WinUI3::ControlRole::Destructive);
-    auto *disabled = new QPushButton(tr("Disabled"));
-    disabled->setEnabled(false);
-    buttons->addWidget(standard);
-    buttons->addWidget(accent);
-    buttons->addWidget(subtle);
-    buttons->addWidget(destructive);
-    buttons->addWidget(disabled);
-    buttons->addStretch();
-    content->addWidget(section(tr("Buttons"), buttons));
-
-    auto *selection = new QGridLayout;
-    auto *check = new QCheckBox(tr("Check box"));
-    check->setObjectName(QStringLiteral("galleryCheckBox"));
-    check->setChecked(true);
-    auto *tri = new QCheckBox(tr("Indeterminate"));
-    tri->setTristate(true);
-    tri->setCheckState(Qt::PartiallyChecked);
-    auto *radioA = new QRadioButton(tr("Option A"));
-    radioA->setObjectName(QStringLiteral("galleryRadioButton"));
-    auto *radioB = new QRadioButton(tr("Option B"));
-    auto *radioDisabled = new QRadioButton(tr("Disabled option"));
-    radioDisabled->setObjectName(QStringLiteral("galleryRadioButtonDisabled"));
-    radioDisabled->setEnabled(false);
-    radioA->setChecked(true);
-    auto *toggle = new QCheckBox;
-    auto *toggleOff = new QCheckBox;
-    auto *toggleDisabled = new QCheckBox;
-    toggleDisabled->setObjectName(QStringLiteral("galleryToggleSwitchDisabled"));
-    WinUI3::Style::setToggleSwitch(toggle);
-    WinUI3::Style::setToggleSwitch(toggleOff);
-    WinUI3::Style::setToggleSwitch(toggleDisabled);
-    WinUI3::Style::setToggleSwitchText(toggle, tr("On"), tr("Off"));
-    WinUI3::Style::setToggleSwitchText(toggleOff, tr("On"), tr("Off"));
-    WinUI3::Style::setToggleSwitchText(toggleDisabled, tr("On"), tr("Off"));
-    toggle->setChecked(true);
-    toggleDisabled->setEnabled(false);
-    selection->addWidget(check, 0, 0);
-    selection->addWidget(tri, 0, 1);
-    selection->addWidget(radioA, 1, 0);
-    selection->addWidget(radioB, 1, 1);
-    selection->addWidget(radioDisabled, 3, 0);
-    selection->addWidget(toggle, 2, 0);
-    selection->addWidget(toggleOff, 2, 1);
-    selection->addWidget(toggleDisabled, 3, 1);
-    content->addWidget(section(tr("Selection controls"), selection));
-
-    auto *groupStates = new QHBoxLayout;
-    auto *plainGroup = new QGroupBox(tr("Standard group"));
-    auto *plainLayout = new QVBoxLayout(plainGroup);
-    plainLayout->addWidget(new QLabel(tr("A WinUI-consistent card for grouped Qt content.")));
-    auto *checkedGroup = new QGroupBox(tr("Enable diagnostics"));
-    checkedGroup->setCheckable(true);
-    checkedGroup->setChecked(true);
-    auto *checkedLayout = new QVBoxLayout(checkedGroup);
-    checkedLayout->addWidget(new QCheckBox(tr("Include detailed logs")));
-    auto *uncheckedGroup = new QGroupBox(tr("Use proxy server"));
-    uncheckedGroup->setCheckable(true);
-    uncheckedGroup->setChecked(false);
-    auto *uncheckedLayout = new QVBoxLayout(uncheckedGroup);
-    uncheckedLayout->addWidget(new QLineEdit(tr("proxy.example")));
-    groupStates->addWidget(plainGroup);
-    groupStates->addWidget(checkedGroup);
-    groupStates->addWidget(uncheckedGroup);
-    content->addWidget(section(tr("Group boxes"), groupStates));
-
-    auto *inputs = new QFormLayout;
-    inputs->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
-    auto *line = new QLineEdit;
-    line->setObjectName(QStringLiteral("galleryLineEdit"));
-    line->setText(tr("Text to clear"));
-    line->setPlaceholderText(tr("Placeholder text"));
-    line->setClearButtonEnabled(true);
-    line->setFixedWidth(300);
-    auto *password = new QLineEdit;
-    password->setEchoMode(QLineEdit::Password);
-    password->setText(QStringLiteral("password"));
-    password->setFixedWidth(300);
-    auto *readOnlyLine = new QLineEdit(tr("Read-only text can still be selected"));
-    readOnlyLine->setReadOnly(true);
-    readOnlyLine->setClearButtonEnabled(true);
-    readOnlyLine->setFixedWidth(300);
-    auto *selectedLine = new QLineEdit(tr("Selected text"));
-    selectedLine->setFixedWidth(300);
-    selectedLine->selectAll();
-    auto *disabledLine = new QLineEdit(tr("Disabled text"));
-    disabledLine->setPlaceholderText(tr("Disabled placeholder"));
-    disabledLine->setEnabled(false);
-    disabledLine->setFixedWidth(300);
-    auto *combo = new QComboBox;
-    combo->setObjectName(QStringLiteral("galleryComboBox"));
-    combo->addItems({tr("First item"), tr("Second item"), tr("Third item")});
-    combo->setCurrentIndex(1);
-    combo->setFixedWidth(200);
-    auto *spin = new QSpinBox;
-    spin->setRange(0, 100);
-    spin->setValue(42);
-    spin->setFixedWidth(150);
-    auto *verticalSpin = new QSpinBox;
-    verticalSpin->setRange(0, 100);
-    verticalSpin->setValue(42);
-    verticalSpin->setFixedWidth(150);
-    WinUI3::Style::setVerticalSpinButtons(verticalSpin);
-    auto *disabledSpin = new QSpinBox;
-    disabledSpin->setObjectName(QStringLiteral("galleryDisabledSpinBox"));
-    disabledSpin->setRange(0, 100);
-    disabledSpin->setValue(42);
-    disabledSpin->setFixedWidth(150);
-    disabledSpin->setEnabled(false);
-    inputs->addRow(tr("Text box"), line);
-    inputs->addRow(tr("Password"), password);
-    inputs->addRow(tr("Read-only"), readOnlyLine);
-    inputs->addRow(tr("Selection"), selectedLine);
-    inputs->addRow(tr("Disabled"), disabledLine);
-    inputs->addRow(tr("Combo box"), combo);
-    auto *editableCombo = new QComboBox;
-    editableCombo->setEditable(true);
-    editableCombo->addItems({tr("First item"), tr("Second item"), tr("Third item")});
-    editableCombo->setCurrentText(QStringLiteral("2416"));
-    editableCombo->setFixedWidth(200);
-    inputs->addRow(tr("Combo box (editable)"), editableCombo);
-    inputs->addRow(tr("Number box (WinUI)"), spin);
-    inputs->addRow(tr("Number box (vertical)"), verticalSpin);
-    inputs->addRow(tr("Number box (disabled)"), disabledSpin);
-    content->addWidget(section(tr("Input"), inputs));
-
-    auto *values = new QVBoxLayout;
-    auto *progress = new QProgressBar;
-    progress->setValue(64);
-    // SoulseekQt's transfer list renders text inside progress bars
-    // (textVisible=true). The style draws the label above a thin accent
-    // underline instead of overlapping the fill.
-    auto *labeledProgress = new QProgressBar;
-    labeledProgress->setRange(0, 10000);
-    labeledProgress->setValue(290);
-    labeledProgress->setFormat(QStringLiteral("2,513,696 (%p%)"));
-    auto *labeledProgressHalf = new QProgressBar;
-    labeledProgressHalf->setRange(0, 10000);
-    labeledProgressHalf->setValue(2200);
-    labeledProgressHalf->setFormat(QStringLiteral("2,513,696 (%p%)"));
-    auto *labeledDisabled = new QProgressBar;
-    labeledDisabled->setRange(0, 100);
-    labeledDisabled->setValue(64);
-    labeledDisabled->setFormat(QStringLiteral("%p%"));
-    labeledDisabled->setEnabled(false);
-    auto *indeterminate = new QProgressBar;
-    indeterminate->setRange(0, 0);
-    auto *slider = new QSlider(Qt::Horizontal);
-    slider->setObjectName(QStringLiteral("gallerySlider"));
-    slider->setRange(0, 100);
-    slider->setValue(42);
-    slider->setTickPosition(QSlider::TicksBelow);
-    slider->setTickInterval(10);
-    auto *invertedSlider = new QSlider(Qt::Horizontal);
-    invertedSlider->setRange(0, 100);
-    invertedSlider->setValue(42);
-    invertedSlider->setInvertedAppearance(true);
-    auto *disabledSlider = new QSlider(Qt::Horizontal);
-    disabledSlider->setRange(0, 100);
-    disabledSlider->setValue(42);
-    disabledSlider->setEnabled(false);
-    auto *verticalSlider = new QSlider(Qt::Vertical);
-    verticalSlider->setRange(0, 100);
-    verticalSlider->setValue(42);
-    verticalSlider->setFixedHeight(112);
-    auto *horizontalScrollBar = new QScrollBar(Qt::Horizontal);
-    horizontalScrollBar->setRange(0, 100);
-    horizontalScrollBar->setPageStep(24);
-    horizontalScrollBar->setValue(35);
-    auto *verticalScrollBar = new QScrollBar(Qt::Vertical);
-    verticalScrollBar->setRange(0, 100);
-    verticalScrollBar->setPageStep(24);
-    verticalScrollBar->setValue(35);
-    verticalScrollBar->setFixedHeight(112);
-    auto *disabledScrollBar = new QScrollBar(Qt::Horizontal);
-    disabledScrollBar->setRange(0, 100);
-    disabledScrollBar->setPageStep(24);
-    disabledScrollBar->setValue(35);
-    disabledScrollBar->setEnabled(false);
-    auto *orientationRow = new QHBoxLayout;
-    orientationRow->addWidget(verticalSlider);
-    orientationRow->addSpacing(20);
-    orientationRow->addWidget(verticalScrollBar);
-    orientationRow->addStretch();
-    values->addWidget(progress);
-    values->addWidget(new QLabel(tr("Progress bar with text (text above thin line)")));
-    values->addWidget(labeledProgress);
-    values->addWidget(labeledProgressHalf);
-    values->addWidget(labeledDisabled);
-    values->addWidget(indeterminate);
-    values->addWidget(new QLabel(tr("Slider: ticks, inverted, disabled")));
-    values->addWidget(slider);
-    values->addWidget(invertedSlider);
-    values->addWidget(disabledSlider);
-    values->addWidget(new QLabel(tr("ScrollBar: horizontal, vertical, disabled")));
-    values->addWidget(horizontalScrollBar);
-    values->addWidget(disabledScrollBar);
-    values->addLayout(orientationRow);
-    content->addWidget(section(tr("Progress and values"), values));
-
-    // Reproduces SoulseekQt's download dialog footer: a checkbox squeezed
-    // against buttons inside a fixed-width row (the "Queue paused" label
-    // must never be clipped by its neighbors).
-    auto *footer = new QVBoxLayout;
-    auto *footerBox = new QFrame;
-    footerBox->setFrameShape(QFrame::StyledPanel);
-    footerBox->setFixedWidth(480);
-    auto *footerRow = new QHBoxLayout(footerBox);
-    footerRow->setContentsMargins(8, 8, 8, 8);
-    auto *queuePaused = new QCheckBox(tr("Queue paused"));
-    footerRow->addWidget(queuePaused);
-    footerRow->addStretch();
-    footerRow->addWidget(new QPushButton(tr("Download Selected")));
-    auto *cancelButton = new QPushButton(tr("Cancel"));
-    footerRow->addWidget(cancelButton);
-    footer->addWidget(footerBox, 0, Qt::AlignLeft);
-    content->addWidget(section(tr("Dialog footer (fixed width)"), footer));
-    return scrollingPage(tr("Controls"), content);
-}
-
-QWidget *GalleryWindow::collectionsPage()
-{
-    auto *content = new QVBoxLayout;
-    auto *tabs = new QTabWidget;
-    tabs->setTabsClosable(true);
-    tabs->setMovable(true);
-    auto *list = new QListWidget;
-    const QList<QPair<WinUI3::Icon, QString>> listEntries{
-        {WinUI3::Icon::Folder, tr("Documents")},
-        {WinUI3::Icon::More, tr("Pictures")},
-        {WinUI3::Icon::Play, tr("Music")},
-        {WinUI3::Icon::Settings, tr("Videos")}
-    };
-    for (const auto &[glyph, text] : listEntries) {
-        auto *item = new QListWidgetItem(WinUI3::icon(glyph), text, list);
-        item->setFlags(item->flags() | Qt::ItemIsEditable);
-    }
-    list->item(3)->setFlags(list->item(3)->flags() & ~Qt::ItemIsEnabled);
-    list->setEditTriggers(QAbstractItemView::DoubleClicked
-                          | QAbstractItemView::EditKeyPressed);
-    list->setCurrentRow(0);
-    auto *tree = new QTreeWidget;
-    tree->setHeaderHidden(true);
-    auto *root = new QTreeWidgetItem(tree, {tr("Alabama Shakes - 2026 - I Must Be Dreaming")});
-    root->setIcon(0, WinUI3::icon(WinUI3::Icon::Folder));
-    // SoulseekQt's download folder tree: a tristate parent with checkable
-    // track children.  This is the layout that showed the label/checkbox
-    // misalignment report.
-    root->setFlags(root->flags() | Qt::ItemIsUserCheckable
-                   | Qt::ItemIsAutoTristate);
-    root->setCheckState(0, Qt::PartiallyChecked);
-    const QStringList tracks{
-        tr("01 - Tea Time.mp3"), tr("02 - Another Life.mp3"),
-        tr("03 - Garden.mp3"), tr("04 - I Feel Hope Coming.mp3"),
-        tr("05 - Time.mp3"), tr("06 - Friends.mp3")
-    };
-    for (int i = 0; i < tracks.size(); ++i) {
-        auto *track = new QTreeWidgetItem(root, {tracks.at(i)});
-        track->setFlags(track->flags() | Qt::ItemIsUserCheckable);
-        track->setCheckState(0, i % 3 == 2 ? Qt::Unchecked : Qt::Checked);
-    }
-    tree->expandAll();
-    tree->setCurrentItem(root);
-    auto *table = new QTableWidget(4, 3);
-    table->setHorizontalHeaderLabels({tr("Control"), tr("State"), tr("Coverage")});
-    const QStringList names{tr("Button"), tr("Toggle"), tr("Navigation"), tr("Menu")};
-    for (int row = 0; row < names.size(); ++row) {
-        table->setItem(row, 0, new QTableWidgetItem(names.at(row)));
-        table->setItem(row, 1, new QTableWidgetItem(tr("Implemented")));
-        table->setItem(row, 2, new QTableWidgetItem(QString::number(95 - row) + QLatin1Char('%')));
-    }
-    table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    table->setCurrentCell(0, 0);
-    table->setSortingEnabled(true);
-    table->horizontalHeader()->setStretchLastSection(true);
-    tabs->addTab(list, WinUI3::icon(WinUI3::Icon::More), tr("List view"));
-    tabs->addTab(tree, WinUI3::icon(WinUI3::Icon::Folder), tr("Tree view"));
-    tabs->addTab(table, WinUI3::icon(WinUI3::Icon::Settings), tr("Data grid"));
-    const int disabledTab = tabs->addTab(new QWidget, tr("Disabled"));
-    tabs->setTabEnabled(disabledTab, false);
-    content->addWidget(tabs);
-    return scrollingPage(tr("Collections"), content);
-}
-
-QWidget *GalleryWindow::settingsPage()
-{
-    auto *content = new QVBoxLayout;
-    auto card = [](const QString &title, const QString &description,
-                   WinUI3::Icon glyph, QWidget *trailing) {
-        auto *item = new WinUI3::SettingsCard;
-        item->setTitle(title);
-        item->setDescription(description);
-        item->setIcon(WinUI3::icon(glyph));
-        item->setTrailingWidget(trailing);
-        return item;
-    };
-    auto *notifications = new QCheckBox;
-    WinUI3::Style::setToggleSwitch(notifications);
-    notifications->setChecked(true);
-    content->addWidget(card(tr("Notifications"), tr("Show alerts and status messages"),
-                            WinUI3::Icon::Settings, notifications));
-    auto *updates = new QComboBox;
-    updates->addItems({tr("Automatic"), tr("Notify me"), tr("Manual")});
-    content->addWidget(card(tr("Updates"), tr("Choose how updates are installed"),
-                            WinUI3::Icon::Refresh, updates));
-    auto *advanced = card(tr("Advanced options"), tr("Developer and diagnostic settings"),
-                          WinUI3::Icon::More, nullptr);
-    auto *details = new QTextEdit;
-    details->setPlainText(tr("Expanded settings content. This area uses the WinUI expand/collapse motion token."));
-    details->setMaximumHeight(100);
-    advanced->setExpandableWidget(details);
-    content->addWidget(advanced);
-    return scrollingPage(tr("Settings"), content);
-}
-
-QWidget *GalleryWindow::palettePage()
-{
-    // Live palette playground: the preview panel below carries an explicit
-    // widget palette, which the style now honors. Editing a role repaints the
-    // whole panel through the palette-derived token pipeline.
-    auto *content = new QVBoxLayout;
-
-    auto *preview = new QWidget;
-    preview->setAutoFillBackground(true);
-    auto *previewLayout = new QVBoxLayout(preview);
-    previewLayout->setContentsMargins(16, 16, 16, 16);
-    previewLayout->setSpacing(12);
-    auto *buttonRow = new QHBoxLayout;
-    buttonRow->addWidget(new QPushButton(tr("Preview button")));
-    buttonRow->addWidget(new QPushButton(tr("Secondary")));
-    buttonRow->addStretch();
-    previewLayout->addLayout(buttonRow);
-    auto *previewCheck = new QCheckBox(tr("Preview checkbox"));
-    previewCheck->setChecked(true);
-    previewLayout->addWidget(previewCheck);
-    previewLayout->addWidget(new QLineEdit(tr("Typed text preview")));
-    preview->setMinimumHeight(150);
-
-    struct RoleRow {
-        QPalette::ColorRole role;
-        const char *label;
-    };
-    static const QVector<RoleRow> roles = {
-        { QPalette::Window, QT_TR_NOOP("Window (paper)") },
-        // The "ink" entry drives both text roles: WinUI has a single
-        // TextFillColorPrimary, and QLineEdit/QTextEdit use QPalette::Text
-        // where buttons use QPalette::WindowText.
-        { QPalette::WindowText, QT_TR_NOOP("WindowText/Text (ink)") },
-        { QPalette::Base, QT_TR_NOOP("Base (layer)") },
-        { QPalette::Button, QT_TR_NOOP("Button (control fill)") },
-        { QPalette::Highlight, QT_TR_NOOP("Highlight (selection)") },
-    };
-
-    // State shared by every swatch lambda; owned by the preview panel so the
-    // captures stay valid until the page is destroyed.
-    struct PaletteState {
-        QPalette working;
-        QVector<QLabel *> swatches;
-    };
-    auto *state = new PaletteState{ preview->palette(), {} };
-
-    auto applyPalette = [preview, state] {
-        preview->setPalette(state->working);
-        preview->update();
-    };
-    auto refreshSwatches = [state] {
-        for (int i = 0; i < state->swatches.size(); ++i) {
-            QPixmap pixmap(48, 20);
-            pixmap.fill(state->working.color(roles[i].role));
-            state->swatches[i]->setPixmap(pixmap);
-        }
-    };
-
-    auto *rolesGrid = new QGridLayout;
-    for (int i = 0; i < roles.size(); ++i) {
-        auto *label = new QLabel(tr(roles[i].label));
-        auto *swatch = new QLabel;
-        swatch->setFixedSize(48, 20);
-        state->swatches.append(swatch);
-        auto *pick = new QPushButton(tr("Edit..."));
-        connect(pick, &QPushButton::clicked, this,
-                [this, state, role = roles[i].role, refreshSwatches,
-                 applyPalette] {
-                    const QColor color = QColorDialog::getColor(
-                        state->working.color(role), this, tr("Choose color"),
-                        QColorDialog::ShowAlphaChannel);
-                    if (!color.isValid())
-                        return;
-                    const auto setRole = [state, color](QPalette::ColorRole r,
-                                                        QPalette::ColorGroup g) {
-                        state->working.setColor(g, r, color);
-                    };
-                    for (const QPalette::ColorGroup g :
-                         {QPalette::Active, QPalette::Inactive}) {
-                        setRole(role, g);
-                        // The ink applies to every text-carrying role so the
-                        // panel renders uniform text like WinUI does.
-                        if (role == QPalette::WindowText) {
-                            setRole(QPalette::Text, g);
-                            setRole(QPalette::ButtonText, g);
-                        }
-                    }
-                    refreshSwatches();
-                    applyPalette();
-                });
-        const int gridRow = i / 3;
-        const int gridCol = (i % 3) * 3;
-        rolesGrid->addWidget(label, gridRow, gridCol);
-        rolesGrid->addWidget(swatch, gridRow, gridCol + 1);
-        rolesGrid->addWidget(pick, gridRow, gridCol + 2);
-    }
-    refreshSwatches();
-    // The accent is not a per-panel palette role: it lives on the style and
-    // rebuilds the whole application palette (Accent + Highlight roles and
-    // the accent ramp) at once.
-    auto *accentLabel = new QLabel(tr("Accent (style-wide)"));
-    auto *accentSwatch = new QLabel;
-    accentSwatch->setFixedSize(48, 20);
-    auto *accentPick = new QPushButton(tr("Edit..."));
-    const auto updateAccentSwatch = [this, accentSwatch] {
-        QPixmap pixmap(48, 20);
-        if (auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style()))
-            pixmap.fill(winuiStyle->accentColor());
-        accentSwatch->setPixmap(pixmap);
-    };
-    updateAccentSwatch();
-    connect(accentPick, &QPushButton::clicked, this,
-            [this, updateAccentSwatch] {
-                auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style());
-                if (!winuiStyle)
-                    return;
-                const QColor color = QColorDialog::getColor(
-                    winuiStyle->accentColor(), this, tr("Choose accent"));
-                if (!color.isValid())
-                    return;
-                winuiStyle->setAccentColor(color);
-                updateAccentSwatch();
-            });
-    rolesGrid->addWidget(accentLabel, 2, 0);
-    rolesGrid->addWidget(accentSwatch, 2, 1);
-    rolesGrid->addWidget(accentPick, 2, 2);
-
-    auto *reset = new QPushButton(tr("Reset panel palette"));
-    connect(reset, &QPushButton::clicked, this,
-            [preview, state, refreshSwatches] {
-                state->working = qApp->palette();
-                preview->setPalette(state->working);
-                refreshSwatches();
-            });
-    rolesGrid->addWidget(reset, 2, 3, 1, 2);
-    auto *accentReset = new QPushButton(tr("Reset accent"));
-    connect(accentReset, &QPushButton::clicked, this, [updateAccentSwatch] {
-        if (auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style())) {
-            winuiStyle->setAccentColor({}); // invalid -> Windows system accent
-            updateAccentSwatch();
-        }
-    });
-    rolesGrid->addWidget(accentReset, 2, 5, 1, 2);
-    rolesGrid->setColumnStretch(8, 1);
-
-    // Delete `state` with the preview panel it describes.
-    connect(preview, &QObject::destroyed, [state] { delete state; });
-
-    content->addLayout(rolesGrid);
-    content->addWidget(preview);
-    content->addSpacing(8);
-    auto *note = new QLabel(tr(
-        "This panel once edited carries an explicit palette "
-        "(Qt::WA_SetPalette): the style no longer restamps it on theme "
-        "refresh, and its text, strokes and fills are derived from whatever "
-        "colors you pick above."));
-    note->setWordWrap(true);
-    content->addWidget(note);
-    QWidget *page = scrollingPage(tr("Palette lab"), content);
-    page->setObjectName(QStringLiteral("paletteLabPage"));
-    return page;
-}
-
-QWidget *GalleryWindow::dialogsPage()
-{
-    auto *content = new QVBoxLayout;
-    auto *row = new QHBoxLayout;
-    auto *message = new QPushButton(tr("Message dialog"));
-    auto *modal = new QPushButton(tr("Content dialog"));
-    row->addWidget(message);
-    row->addWidget(modal);
-    row->addStretch();
-    connect(message, &QPushButton::clicked, this, [this] {
-        QMessageBox::information(this, tr("WinUI 3 Style"),
-                                 tr("This is a native Qt message box rendered by the style."));
-    });
-    connect(modal, &QPushButton::clicked, this, [this] {
-        QDialog dialog(this);
-        configureContentDialog(&dialog);
-        dialog.exec();
-    });
-    content->addWidget(section(tr("Dialogs"), row));
-
-    auto *states = new QGridLayout;
-    for (int i = 0; i < 8; ++i) {
-        auto *button = new QPushButton(i & 1 ? tr("Toggle button") : tr("Command"));
-        button->setCheckable(i & 1);
-        button->setChecked(i == 3);
-        button->setEnabled(i < 6);
-        states->addWidget(button, i / 4, i % 4);
-    }
-    content->addWidget(section(tr("Persistent states"), states));
-
-    auto *splitter = new QSplitter(Qt::Horizontal);
-    splitter->setChildrenCollapsible(false);
-    auto *leftPane = new QTextEdit;
-    leftPane->setPlainText(tr("Drag the fluent splitter handle to resize this pane."));
-    auto *rightPane = new QTextEdit;
-    rightPane->setPlainText(tr("The neutral one-pixel divider reveals on hover and uses the accent while dragged."));
-    splitter->addWidget(leftPane);
-    splitter->addWidget(rightPane);
-    splitter->setSizes({320, 320});
-    splitter->setMinimumHeight(130);
-    auto *splitterLayout = new QVBoxLayout;
-    splitterLayout->addWidget(splitter);
-    auto *verticalSplitter = new QSplitter(Qt::Vertical);
-    auto *plainPane = new QPlainTextEdit;
-    plainPane->setPlainText(tr("QPlainTextEdit uses the same RichEditBox frame and focus contract."));
-    auto *verticalLabel = new QLabel(tr("Both splitter orientations use the same fluent handle."));
-    verticalLabel->setAlignment(Qt::AlignCenter);
-    verticalSplitter->addWidget(plainPane);
-    verticalSplitter->addWidget(verticalLabel);
-    verticalSplitter->setSizes({90, 40});
-    verticalSplitter->setMinimumHeight(140);
-    splitterLayout->addWidget(verticalSplitter);
-    content->addWidget(section(tr("Splitter and resize handle"), splitterLayout));
-
-    auto *dockHost = new QMainWindow;
-    dockHost->setWindowFlags(Qt::Widget);
-    dockHost->setMinimumHeight(220);
-    auto *workspace = new QLabel(tr("Docking workspace"));
-    workspace->setAlignment(Qt::AlignCenter);
-    dockHost->setCentralWidget(workspace);
-    auto *inspector = new QDockWidget(tr("Inspector"), dockHost);
-    inspector->setObjectName(QStringLiteral("embeddedInspector"));
-    inspector->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    inspector->setFeatures(QDockWidget::DockWidgetClosable
-                           | QDockWidget::DockWidgetFloatable
-                           | QDockWidget::DockWidgetMovable);
-    auto *inspectorBody = new QWidget(inspector);
-    auto *inspectorLayout = new QFormLayout(inspectorBody);
-    inspectorLayout->addRow(tr("Name"), new QLineEdit(tr("Selected control")));
-    auto *visible = new QCheckBox(tr("Visible"));
-    visible->setChecked(true);
-    inspectorLayout->addRow(visible);
-    inspector->setWidget(inspectorBody);
-    inspector->setMinimumWidth(240);
-    dockHost->addDockWidget(Qt::RightDockWidgetArea, inspector);
-    auto *dockLayout = new QVBoxLayout;
-    dockLayout->addWidget(dockHost);
-    content->addWidget(section(tr("Dock widget and dock separator"), dockLayout));
-    return scrollingPage(tr("Dialogs & states"), content);
-}
-
-void GalleryWindow::setTheme(int index)
-{
-    auto *winuiStyle = qobject_cast<WinUI3::Style *>(qApp->style());
-    if (!winuiStyle) return;
-    const auto mode = index == 1 ? WinUI3::ThemeMode::Light
-        : index == 2 ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::System;
-    winuiStyle->setThemeMode(mode);
-    WinUI3::applyBackdrop(this, WinUI3::Backdrop::Mica);
 }
