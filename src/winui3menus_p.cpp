@@ -115,8 +115,12 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
         return false;
     }
 
-    if (element == QStyle::CE_MenuBarEmptyArea)
+    if (element == QStyle::CE_MenuBarEmptyArea) {
+        if (widget && widget->property(Style::SurfaceProperty).isValid())
+            painter->fillRect(option->rect,
+                              widget->palette().color(QPalette::Window));
         return true;
+    }
 
     const Tokens t = tokens(option->palette);
 

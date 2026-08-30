@@ -10,6 +10,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QScreen>
 #include <QScopeGuard>
 #include <QStyle>
@@ -120,15 +121,20 @@ void GalleryWindow::populateCollections()
     for (const QString &text : {tr("Documents"), tr("Pictures"), tr("Downloads")})
         new QListWidgetItem(folder, text, ui->listViewTab);
     new QListWidgetItem(file, tr("Readme.txt"), ui->listViewTab);
-    auto *root = new QTreeWidgetItem(ui->treeViewTab, {tr("This PC")});
-    root->setIcon(0, style()->standardIcon(QStyle::SP_ComputerIcon, nullptr, this));
-    auto *documents = new QTreeWidgetItem(root, {tr("Documents")});
-    documents->setIcon(0, folder);
-    new QTreeWidgetItem(documents, {tr("Design notes")});
-    new QTreeWidgetItem(documents, {tr("Release checklist")});
-    new QTreeWidgetItem(root, {tr("Pictures")});
+    auto *root = new QTreeWidgetItem(ui->treeViewTab,
+                                     {tr("Example album — Selected tracks")});
+    root->setIcon(0, folder);
+    root->setFlags(root->flags() | Qt::ItemIsUserCheckable
+                   | Qt::ItemIsAutoTristate);
+    root->setCheckState(0, Qt::PartiallyChecked);
+    const QStringList tracks{tr("01 — First track"), tr("02 — Second track"),
+                             tr("03 — Third track"), tr("04 — Fourth track")};
+    for (int index = 0; index < tracks.size(); ++index) {
+        auto *track = new QTreeWidgetItem(root, {tracks.at(index)});
+        track->setFlags(track->flags() | Qt::ItemIsUserCheckable);
+        track->setCheckState(0, index == 2 ? Qt::Unchecked : Qt::Checked);
+    }
     root->setExpanded(true);
-    documents->setExpanded(true);
     const QString rows[4][3] = {
         {tr("Button"), tr("Ready"), tr("Complete")},
         {tr("ComboBox"), tr("Interactive"), tr("Complete")},
@@ -253,6 +259,20 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
             ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(), ui->menuBar->height())));
         qApp->processEvents();
         success = ui->fileMenu->grab().save(output.filePath(theme + "-menu.png"), "PNG") && success;
+        if (QAction *firstAction = ui->fileMenu->actions().value(0)) {
+            ui->fileMenu->setActiveAction(firstAction);
+            qApp->processEvents();
+            success = ui->fileMenu->grab().save(
+                output.filePath(theme + "-state-menu-hover.png"), "PNG") && success;
+            const QPoint local = ui->fileMenu->actionGeometry(firstAction).center();
+            QMouseEvent press(QEvent::MouseButtonPress, QPointF(local),
+                              QPointF(ui->fileMenu->mapToGlobal(local)),
+                              Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(ui->fileMenu, &press);
+            qApp->processEvents();
+            success = ui->fileMenu->grab().save(
+                output.filePath(theme + "-state-menu-pressed.png"), "PNG") && success;
+        }
         ui->fileMenu->hide();
         for (int page = 0; page < ui->pages->count(); ++page) {
             if (ui->pages->widget(page) == ui->paletteLabPage) continue;
@@ -291,13 +311,43 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
             qApp->processEvents();
             return control && control->grab().save(output.filePath(theme + "-state-" + state + ".png"), "PNG");
         };
+        const auto sendPointerState = [](QWidget *control, bool hovered, bool pressed) {
+            if (!control)
+                return;
+            QEvent boundary(hovered ? QEvent::Enter : QEvent::Leave);
+            QCoreApplication::sendEvent(control, &boundary);
+            const QPoint local = control->rect().center();
+            QMouseEvent mouse(pressed ? QEvent::MouseButtonPress
+                                      : QEvent::MouseButtonRelease,
+                              QPointF(local), QPointF(control->mapToGlobal(local)),
+                              Qt::LeftButton,
+                              pressed ? Qt::LeftButton : Qt::NoButton,
+                              Qt::NoModifier);
+            QCoreApplication::sendEvent(control, &mouse);
+            qApp->processEvents();
+        };
         success = saveControl(ui->galleryStandardButton, "button-rest") && success;
+        sendPointerState(ui->galleryStandardButton, true, false);
+        success = saveControl(ui->galleryStandardButton, "button-hover") && success;
+        sendPointerState(ui->galleryStandardButton, true, true);
+        success = saveControl(ui->galleryStandardButton, "button-pressed") && success;
+        sendPointerState(ui->galleryStandardButton, false, false);
         ui->galleryLineEdit->setFocus(Qt::TabFocusReason);
         success = saveControl(ui->galleryLineEdit, "textbox-keyboard-focus") && success;
+        ui->galleryLineEdit->clearFocus();
+        sendPointerState(ui->galleryComboBox, true, true);
+        success = saveControl(ui->galleryComboBox, "combobox-pressed") && success;
+        sendPointerState(ui->galleryComboBox, false, false);
+        ui->galleryComboBox->hidePopup();
         ui->galleryCheckBox->setChecked(true);
         success = saveControl(ui->galleryCheckBox, "checkbox-checked") && success;
+        ui->galleryCheckBox->setChecked(false);
+        success = saveControl(ui->galleryCheckBox, "checkbox-unchecked") && success;
         ui->galleryRadioButton->setChecked(true);
         success = saveControl(ui->galleryRadioButton, "radio-checked") && success;
+        sendPointerState(ui->gallerySlider, true, false);
+        success = saveControl(ui->gallerySlider, "slider-hover") && success;
+        sendPointerState(ui->gallerySlider, false, false);
         success = !ui->galleryRadioButtonDisabled->isEnabled() && success;
         success = !ui->galleryToggleSwitchDisabled->isEnabled()
             && ui->galleryToggleSwitchDisabled->property("winuiToggleSwitch").toBool() && success;
@@ -307,6 +357,15 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         qApp->processEvents();
         success = contentDialog.grab().save(output.filePath(theme + "-content-dialog.png"), "PNG") && success;
         contentDialog.close();
+
+        QMessageBox messageBox(QMessageBox::Information, tr("WinUI 3 Style"),
+            tr("This is a native Qt message box rendered by the style."),
+            QMessageBox::Ok, this);
+        messageBox.show();
+        qApp->processEvents();
+        success = messageBox.grab().save(
+            output.filePath(theme + "-message-box.png"), "PNG") && success;
+        messageBox.close();
     }
     return success;
 }

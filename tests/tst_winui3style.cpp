@@ -423,6 +423,7 @@ private slots:
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
     void progressAnimationAndOrientations();
+    void progressTextAndDisabledPaletteContract();
     void sliderExtremeRangeTicks();
     void rtlGeometryAndHitTesting();
     void itemViewMouseFocusReset();
@@ -656,6 +657,20 @@ void WinUI3StyleTest::buttonToolButtonAndIconContracts()
                         QStringLiteral("layer"));
     toolbar.show();
     QVERIFY(!toolbar.grab().isNull());
+
+    QStyleOption toolbarPanel;
+    toolbarPanel.initFrom(&toolbar);
+    toolbarPanel.rect = QRect(0, 0, 80, 24);
+    QImage toolbarPanelImage(toolbarPanel.rect.size(),
+                             QImage::Format_ARGB32_Premultiplied);
+    toolbarPanelImage.fill(Qt::black);
+    {
+        QPainter painter(&toolbarPanelImage);
+        toolbar.style()->drawControl(QStyle::CE_ToolBar, &toolbarPanel,
+                                     &painter, &toolbar);
+    }
+    QCOMPARE(toolbarPanelImage.pixelColor(70, 12),
+             toolbar.palette().color(QPalette::Window));
 
     QStyleOptionToolButton option;
     option.initFrom(tool);
@@ -3367,6 +3382,13 @@ void WinUI3StyleTest::checkboxGlyphGeometryContract()
                                         nullptr, &check), 20);
     QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorHeight,
                                         nullptr, &check), 20);
+    const int checkTextWidth = check.fontMetrics().size(
+        Qt::TextShowMnemonic, check.text()).width();
+    QVERIFY(check.sizeHint().width() >= checkTextWidth + 36);
+    QRadioButton radio(QStringLiteral("Radio"));
+    const int radioTextWidth = radio.fontMetrics().size(
+        Qt::TextShowMnemonic, radio.text()).width();
+    QVERIFY(radio.sizeHint().width() >= radioTextWidth + 36);
     QVERIFY(bounds.width() >= 19);
     QVERIFY(bounds.height() >= 19);
     QVERIFY(bounds.width() <= 21);
@@ -3650,7 +3672,16 @@ void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()
 
         QImage image(bar.size(), QImage::Format_ARGB32_Premultiplied);
         const QColor surface = bar.palette().color(QPalette::Window);
-        image.fill(surface);
+        image.fill(Qt::black);
+        QStyleOption emptyArea;
+        emptyArea.initFrom(&bar);
+        emptyArea.rect = image.rect();
+        {
+            QPainter painter(&image);
+            style->drawControl(QStyle::CE_MenuBarEmptyArea, &emptyArea,
+                               &painter, &bar);
+        }
+        QCOMPARE(image.pixelColor(image.width() - 2, image.height() / 2), surface);
         auto drawItem = [&](QAction *action, const QRect &rect,
                             QStyle::State state) {
             QStyleOptionMenuItem option;
@@ -3675,6 +3706,18 @@ void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()
         drawItem(file, fileRect, QStyle::State_Enabled);
         QCOMPARE(image.pixelColor(fileSample), surface);
     }
+
+    QListWidget navigation;
+    navigation.setProperty(WinUI3::Style::NavigationViewProperty, true);
+    navigation.setProperty(WinUI3::Style::SurfaceProperty,
+                           QStringLiteral("layer"));
+    navigation.addItem(QStringLiteral("Controls"));
+    navigation.resize(220, 120);
+    navigation.show();
+    QTRY_VERIFY(navigation.isVisible());
+    const QColor navigationWindow = navigation.palette().color(QPalette::Window);
+    QCOMPARE(navigation.palette().color(QPalette::Base), navigationWindow);
+    QCOMPARE(navigationWindow.alpha(), 255);
 }
 
 void WinUI3StyleTest::groupBoxContract()
@@ -4980,6 +5023,57 @@ void WinUI3StyleTest::progressAnimationAndOrientations()
 
     style->unpolish(&bar);
     QVERIFY(!timer->isActive());
+}
+
+void WinUI3StyleTest::progressTextAndDisabledPaletteContract()
+{
+    QProgressBar bar;
+    bar.setRange(0, 100);
+    bar.setValue(42);
+    bar.setFormat(QStringLiteral("Transferred %p%"));
+
+    bar.setTextVisible(false);
+    const QSize bareHint = bar.sizeHint();
+    bar.setTextVisible(true);
+    const QSize textHint = bar.sizeHint();
+    QVERIFY(textHint.height() >= bareHint.height() + 6);
+
+    QPalette palette = bar.palette();
+    const QColor activeText(210, 20, 10);
+    const QColor disabledText(10, 20, 210);
+    palette.setColor(QPalette::Active, QPalette::WindowText, activeText);
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, disabledText);
+    bar.setPalette(palette);
+    bar.setEnabled(false);
+
+    QStyleOptionProgressBar option;
+    option.initFrom(&bar);
+    option.rect = QRect(QPoint(0, 0), QSize(220, textHint.height()));
+    option.minimum = bar.minimum();
+    option.maximum = bar.maximum();
+    option.progress = bar.value();
+    option.text = bar.text();
+    option.textVisible = true;
+
+    QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    bar.style()->drawControl(QStyle::CE_ProgressBarLabel, &option, &painter, &bar);
+    painter.end();
+
+    bool foundDisabledText = false;
+    bool foundActiveText = false;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() == 0)
+                continue;
+            foundDisabledText |= pixel.blue() > pixel.red() + 40;
+            foundActiveText |= pixel.red() > pixel.blue() + 40;
+        }
+    }
+    QVERIFY(foundDisabledText);
+    QVERIFY(!foundActiveText);
 }
 
 void WinUI3StyleTest::progressTimerScalingAndLifecycle()

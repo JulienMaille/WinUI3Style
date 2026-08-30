@@ -1104,8 +1104,10 @@ void Style::refreshApplicationAppearance()
             QPalette palette = applicationPalette;
             if (widget->property(SurfaceProperty).toString().compare(
                     QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
-                palette.setColor(QPalette::Window,
-                                 Private::popupSurfaceColor(applicationPalette));
+                const QColor layer = Private::popupSurfaceColor(applicationPalette);
+                palette.setColor(QPalette::Window, layer);
+                if (qobject_cast<QAbstractItemView *>(widget))
+                    palette.setColor(QPalette::Base, layer);
             } else if (qobject_cast<QTableView *>(widget)) {
                 palette.setColor(QPalette::Highlight,
                                  applicationTokens.subtleHover);
@@ -1625,14 +1627,18 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
 
     if (element == CE_ProgressBarLabel) {
         // WinUI's ProgressBar shows no inline percentage text, but Qt-based
-        // applications (e.g. SoulseekQt transfer lists) render meaningful
-        // information there with textVisible=true.  Keep their label: paint
+        // applications may render meaningful information there with
+        // textVisible=true. Keep their label: paint
         // it centered over the bar using the style's text color.
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
             if (bar->textVisible && !bar->text.isEmpty()) {
                 painter->save();
                 const QPalette &pal = option->palette;
-                const QColor fg = pal.color(QPalette::WindowText);
+                const QPalette::ColorGroup group = !(bar->state & State_Enabled)
+                    ? QPalette::Disabled
+                    : (bar->state & State_Active
+                       ? QPalette::Active : QPalette::Inactive);
+                const QColor fg = pal.color(group, QPalette::WindowText);
                 painter->setPen(QPen(fg));
                 const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
                 const bool horizontal = !progressBar
@@ -1656,6 +1662,9 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
     }
 
     if (element == CE_ToolBar) {
+        if (widget && widget->property(SurfaceProperty).isValid())
+            painter->fillRect(option->rect,
+                              widget->palette().color(QPalette::Window));
         return;
     }
 
@@ -1790,9 +1799,12 @@ void Style::polish(QWidget *widget)
                  widget->testAttribute(Qt::WA_OpaquePaintEvent));
         QPalette palette = standardPalette();
         if (surfaceName.compare(QLatin1String("layer"),
-                                Qt::CaseInsensitive) == 0)
-            palette.setColor(QPalette::Window,
-                             Private::popupSurfaceColor(palette));
+                                Qt::CaseInsensitive) == 0) {
+            const QColor layer = Private::popupSurfaceColor(palette);
+            palette.setColor(QPalette::Window, layer);
+            if (qobject_cast<QAbstractItemView *>(widget))
+                palette.setColor(QPalette::Base, layer);
+        }
         widget->setPalette(palette);
         widget->setAutoFillBackground(true);
         widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
@@ -2096,9 +2108,12 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                              widget->testAttribute(Qt::WA_OpaquePaintEvent));
                     QPalette palette = standardPalette();
                     if (surfaceName.compare(QLatin1String("layer"),
-                                            Qt::CaseInsensitive) == 0)
-                        palette.setColor(QPalette::Window,
-                                         Private::popupSurfaceColor(palette));
+                                            Qt::CaseInsensitive) == 0) {
+                        const QColor layer = Private::popupSurfaceColor(palette);
+                        palette.setColor(QPalette::Window, layer);
+                        if (qobject_cast<QAbstractItemView *>(widget))
+                            palette.setColor(QPalette::Base, layer);
+                    }
                     widget->setPalette(palette);
                     widget->setAutoFillBackground(true);
                     widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
