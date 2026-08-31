@@ -30,6 +30,7 @@
 #include <QAbstractScrollArea>
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QCalendarWidget>
 #include <QComboBox>
 #include <QCompleter>
 #include <QCheckBox>
@@ -2177,8 +2178,21 @@ void Style::polish(QWidget *widget)
 
     if (auto *toolButton = qobject_cast<QAbstractButton *>(widget)) {
         if (qobject_cast<QToolBar *>(toolButton->parentWidget())
-            || qobject_cast<QTabBar *>(toolButton->parentWidget()))
+            || qobject_cast<QTabBar *>(toolButton->parentWidget())
+            || (toolButton->parentWidget()
+                && toolButton->parentWidget()->objectName()
+                    == QStringLiteral("qt_calendar_navigationbar")))
             setControlRole(toolButton, ControlRole::Subtle);
+    }
+
+    // Qt hard-codes QCalendarWidget's navigation bar to the Highlight role,
+    // producing an accent-blue strip unrelated to WinUI's CalendarView. Keep
+    // the native calendar implementation but place its navigation controls on
+    // the same neutral popup surface as the day grid.
+    if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
+        && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
+        widget->setBackgroundRole(QPalette::Window);
+        widget->update();
     }
 
     if (qobject_cast<QComboBox *>(widget))

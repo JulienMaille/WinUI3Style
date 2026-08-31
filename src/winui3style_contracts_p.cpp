@@ -11,6 +11,7 @@
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QCheckBox>
+#include <QCalendarWidget>
 #include <QComboBox>
 #include <QDateTimeEdit>
 #include <QFontMetrics>
@@ -80,6 +81,16 @@ bool comboPopupItemView(const QWidget *widget)
         || view->window()->windowType() != Qt::Popup)
         return false;
     return qobject_cast<const QComboBox *>(view->window()->parentWidget());
+}
+
+bool calendarPopupItemView(const QWidget *widget)
+{
+    for (const QWidget *candidate = widget; candidate;
+         candidate = candidate->parentWidget()) {
+        if (qobject_cast<const QCalendarWidget *>(candidate))
+            return true;
+    }
+    return false;
 }
 
 const QAbstractItemView *selectionMarkerView(const QWidget *widget)
@@ -385,7 +396,8 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
         }
     }
     const bool popup = widget && widget->window()
-        && widget->window()->windowType() == Qt::Popup;
+        && widget->window()->windowType() == Qt::Popup
+        && !calendarPopupItemView(widget);
     if (popup && element == QStyle::SE_ItemViewItemText) {
         result.setLeft(qMax(result.left(),
                             option->rect.left() + density.menuItemIconSlot));

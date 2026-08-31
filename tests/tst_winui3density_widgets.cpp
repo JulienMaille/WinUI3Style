@@ -12,6 +12,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QPushButton>
 #include <QSlider>
 #include <QSpinBox>
@@ -375,6 +376,49 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
             QStringLiteral("qt_calendar_calendarview"));
         QVERIFY(view);
         QVERIFY(view->isVisible());
+        auto *navigation = calendar->findChild<QWidget *>(
+            QStringLiteral("qt_calendar_navigationbar"));
+        QVERIFY(navigation);
+        QCOMPARE(navigation->backgroundRole(), QPalette::Window);
+        auto *monthButton = calendar->findChild<QWidget *>(
+            QStringLiteral("qt_calendar_monthbutton"));
+        QVERIFY(monthButton);
+        QTest::mouseMove(monthButton, monthButton->rect().center());
+        QCoreApplication::processEvents();
+        const QModelIndex dayIndex = view->model()->index(2, 3);
+        QVERIFY(dayIndex.isValid());
+        QStyleOptionViewItem dayOption;
+        dayOption.initFrom(view->viewport());
+        dayOption.rect = view->visualRect(dayIndex);
+        dayOption.index = dayIndex;
+        dayOption.text = dayIndex.data(Qt::DisplayRole).toString();
+        dayOption.features = QStyleOptionViewItem::HasDisplay;
+        const QRect dayTextRect = style.subElementRect(
+            QStyle::SE_ItemViewItemText, &dayOption, view->viewport());
+        QVERIFY2(dayTextRect.width() >= dayOption.rect.width() / 2,
+                 "calendar day text must not be squeezed into the menu icon gutter");
+        QVERIFY2(dayTextRect.contains(dayOption.rect.center()),
+                 "calendar day text must remain centered in its day cell");
+        QStyleOptionViewItem selectedDay = dayOption;
+        selectedDay.state |= QStyle::State_Selected;
+        QImage selectedImage(selectedDay.rect.size(),
+                             QImage::Format_ARGB32_Premultiplied);
+        selectedImage.fill(Qt::transparent);
+        selectedDay.rect.moveTopLeft(QPoint());
+        {
+            QPainter painter(&selectedImage);
+            style.drawControl(QStyle::CE_ItemViewItem, &selectedDay, &painter,
+                              view->viewport());
+        }
+        const QColor selectedCenter = selectedImage.pixelColor(
+            selectedImage.rect().center());
+        QVERIFY2(selectedCenter.alpha() > 0,
+                 "calendar selection must render a visible WinUI item surface");
+        const QColor selectedCorner = selectedImage.pixelColor(0, 0);
+        QVERIFY2(selectedCorner.alpha() > 0,
+                 "calendar cells must paint an opaque popup surface");
+        QVERIFY2(selectedCorner.rgba() != selectedCenter.rgba(),
+                 "calendar selection must not fill the complete Qt table cell");
         const QPalette palette = view->palette();
         const QColor text = palette.color(QPalette::Text);
         const QColor background = palette.color(QPalette::Base);
@@ -389,6 +433,16 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
 
         const QImage image = view->grab().toImage().convertToFormat(
             QImage::Format_ARGB32);
+        const QRect headerCell = view->visualRect(view->model()->index(0, 1));
+        QVERIFY(headerCell.isValid());
+        const QColor headerSurface = image.pixelColor(
+            headerCell.topLeft() + QPoint(2, 2));
+        if (mode == WinUI3::ThemeMode::Dark)
+            QVERIFY2(qGray(headerSurface.rgb()) < 100,
+                     "hovering the month must not turn the dark weekday row white");
+        else
+            QVERIFY2(qGray(headerSurface.rgb()) > 180,
+                     "the light weekday row must remain a light popup surface");
         int readablePixels = 0;
         for (int y = 0; y < image.height(); ++y) {
             for (int x = 0; x < image.width(); ++x) {

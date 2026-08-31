@@ -14,6 +14,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QCalendarWidget>
 #include <QDialog>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -37,6 +38,16 @@ namespace WinUI3::Private {
 using namespace PaintPrivate;
 
 namespace {
+
+bool calendarView(const QWidget *widget)
+{
+    for (const QWidget *candidate = widget; candidate;
+         candidate = candidate->parentWidget()) {
+        if (qobject_cast<const QCalendarWidget *>(candidate))
+            return true;
+    }
+    return false;
+}
 
 struct LineEditClearButtonCache
 {
@@ -611,7 +622,14 @@ void preparePopupSurface(QWidget *widget)
         view = popup->findChild<QAbstractItemView *>();
     if (view) {
         rememberPalette(view);
-        const QPalette viewPalette = effectivePopupPalette(view, popupPalette);
+        QPalette viewPalette = effectivePopupPalette(view, popupPalette);
+        if (calendarView(view)) {
+            // QTableView paints its native rectangular selection underneath
+            // the delegate. CalendarView uses its own rounded day chrome.
+            viewPalette.setColor(QPalette::Highlight, Qt::transparent);
+            viewPalette.setColor(QPalette::HighlightedText,
+                                 popupTokens.textPrimary);
+        }
         view->setPalette(viewPalette);
         rememberPalette(view->viewport());
         remember(view->viewport(), originalAutoFillProperty,

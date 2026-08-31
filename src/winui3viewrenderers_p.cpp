@@ -136,9 +136,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     if (element == QStyle::PE_PanelItemViewItem) {
         const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
         const QAbstractItemView *view = itemView(widget);
+        const bool calendar = calendarPopupView(widget);
         const bool popup = widget && widget->window()
             && widget->window()->windowType() == Qt::Popup
-            && !calendarPopupView(widget);
+            && !calendar;
         const auto *popupCombo = popup && widget->window()->parentWidget()
             ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
             : nullptr;
@@ -151,6 +152,30 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const bool selected = option->state & QStyle::State_Selected;
         const bool hovered = option->state & QStyle::State_MouseOver;
         const bool pressedItem = hovered && (option->state & QStyle::State_Sunken);
+        const bool calendarHeader = calendar && viewOption
+            && viewOption->index.isValid() && viewOption->index.row() == 0;
+        if (calendar) {
+            if (calendarHeader)
+                return true;
+            QColor calendarFill = Qt::transparent;
+            if (selected)
+                calendarFill = enabled ? itemTokens.accentFill
+                                       : itemTokens.accentFillDisabled;
+            else if (pressedItem)
+                calendarFill = itemTokens.subtlePressed;
+            else if (hovered)
+                calendarFill = itemTokens.subtleHover;
+            if (calendarFill.alpha() > 0) {
+                const int side = qMin(32, qMin(option->rect.width() - 4,
+                                               option->rect.height() - 4));
+                const QRectF circle(option->rect.center().x() - side / 2.0,
+                                    option->rect.center().y() - side / 2.0,
+                                    side, side);
+                roundedRect(painter, circle, calendarFill, Qt::transparent,
+                            side / 2.0);
+            }
+            return true;
+        }
         QColor fill = Qt::transparent;
         if (pressedItem)
             fill = itemTokens.subtlePressed;
@@ -295,9 +320,16 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
 
     if (element == QStyle::CE_ItemViewItem) {
         if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
-            if (source->backgroundBrush.style() != Qt::NoBrush) {
+            const bool calendar = calendarPopupView(widget);
+            if (calendar) {
+                // preparePopupSurface has already resolved Base to the opaque
+                // flyout color. Lifting it again here would turn #2C2C2C into
+                // #383838 each time the popup is prepared.
+                painter->fillRect(source->rect,
+                                  source->palette.color(QPalette::Base));
+            } else if (source->backgroundBrush.style() != Qt::NoBrush) {
                 painter->fillRect(source->rect, source->backgroundBrush);
-            } else if (source->features & QStyleOptionViewItem::Alternate) {
+            } else if (!calendar && source->features & QStyleOptionViewItem::Alternate) {
                 painter->fillRect(source->rect,
                                   source->palette.brush(QPalette::AlternateBase));
             }
@@ -311,6 +343,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
             const Tokens itemTokens = tokens(option->palette);
             const bool enabled = source->state & QStyle::State_Enabled;
+            const bool calendarHeader = calendar && source->index.isValid()
+                && source->index.row() == 0;
             const bool checkedPopupSelection = popup && !comboPopup
                 && (source->state & QStyle::State_Selected);
 
@@ -362,8 +396,28 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                     : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
                 painter->save();
                 painter->setFont(source->font);
-                painter->setPen(enabled ? itemTokens.textPrimary
-                                        : itemTokens.textDisabled);
+                QColor textColor = enabled ? itemTokens.textPrimary
+                                           : itemTokens.textDisabled;
+                if (calendarHeader) {
+                    textColor = enabled ? itemTokens.textSecondary
+                                        : itemTokens.textDisabled;
+                } else if (calendar && (source->state & QStyle::State_Selected)) {
+                    textColor = enabled ? itemTokens.textOnAccentPrimary
+                                        : itemTokens.controlOnAccentDisabled;
+                } else if (calendar && source->index.isValid()) {
+                    // QCalendarWidget injects platform-specific weekday
+                    // colors (notably red weekends). WinUI uses the normal
+                    // foreground and only dims days outside the shown month.
+                    bool numberOk = false;
+                    const int day = source->text.toInt(&numberOk);
+                    const int row = source->index.row();
+                    const bool outsideMonth = numberOk
+                        && ((row == 1 && day > 7)
+                            || (row >= 5 && day < 15));
+                    if (outsideMonth)
+                        textColor = itemTokens.textDisabled;
+                }
+                painter->setPen(textColor);
                 Qt::Alignment alignment = Qt::Alignment(source->displayAlignment)
                     | Qt::AlignVCenter;
                 alignment = QStyle::visualAlignment(source->direction, alignment);
