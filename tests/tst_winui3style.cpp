@@ -3138,11 +3138,11 @@ void WinUI3StyleTest::comboChevronGeometry()
                                               &painter, &combo);
         }
 
-        const QRect logicalArrow(option.rect.right() - 37, option.rect.top(),
-                                 38, option.rect.height());
-        const QRect logicalChevron(
-            logicalArrow.left() + (logicalArrow.width() - 12) / 2,
-            logicalArrow.top() + (logicalArrow.height() - 12) / 2, 12, 12);
+        const QRect logicalGlyphBox(option.rect.right() - 14 - 12 + 1,
+                                    option.rect.top()
+                                        + (option.rect.height() - 12) / 2,
+                                    12, 12);
+        const QRect logicalChevron(logicalGlyphBox.adjusted(1, 1, -1, -1));
         const QRect expected = QStyle::visualRect(direction, option.rect,
                                                   logicalChevron);
         QRect ink;
@@ -3163,12 +3163,12 @@ void WinUI3StyleTest::comboChevronGeometry()
             && ltr.first.contains(ltr.second.bottomRight()));
     QVERIFY(rtl.first.contains(rtl.second.topLeft())
             && rtl.first.contains(rtl.second.bottomRight()));
-    QVERIFY(ltr.second.width() <= 12);
-    QVERIFY(ltr.second.height() <= 12);
-    QVERIFY(rtl.second.width() <= 12);
-    QVERIFY(rtl.second.height() <= 12);
-    QCOMPARE(ltr.first.size(), QSize(12, 12));
-    QCOMPARE(rtl.first.size(), QSize(12, 12));
+    QVERIFY(ltr.second.width() <= 9);
+    QVERIFY(ltr.second.height() <= 6);
+    QVERIFY(rtl.second.width() <= 9);
+    QVERIFY(rtl.second.height() <= 6);
+    QCOMPARE(ltr.first.size(), QSize(10, 10));
+    QCOMPARE(rtl.first.size(), QSize(10, 10));
     QCOMPARE(ltr.first.center().y(), rtl.first.center().y());
     QCOMPARE(ltr.first.center().x() + rtl.first.center().x(),
              combo.rect().left() + combo.rect().right() - 1);

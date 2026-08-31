@@ -149,17 +149,25 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
             if (combo->subControls & QStyle::SC_ComboBoxArrow) {
-                // Keep the chevron rectangle logical; paintThemedIcon resolves
-                // the pixmap's DPR without changing this geometry.
-                const QRect logicalArrow(combo->rect.right()
-                                             - density.comboArrowWidth + 1,
-                                         combo->rect.top(),
-                                         density.comboArrowWidth,
-                                         combo->rect.height());
+                // WinUI places a 12 px AnimatedIcon box 14 px from the trailing
+                // edge.  Its AnimatedChevronDownSmall artwork is narrower than
+                // the 12 px Segoe Fluent fallback, so render that fallback at
+                // 10 px while preserving the official box position.
+                constexpr int glyphBoxSize = 12;
+                constexpr int glyphTrailingMargin = 14;
+                constexpr int fallbackGlyphSize = 10;
+                const QRect logicalGlyphBox(
+                    combo->rect.right() - glyphTrailingMargin
+                        - glyphBoxSize + 1,
+                    combo->rect.top()
+                        + (combo->rect.height() - glyphBoxSize) / 2,
+                    glyphBoxSize, glyphBoxSize);
                 const QRect logicalChevron(
-                    logicalArrow.left() + (logicalArrow.width() - 12) / 2,
-                    logicalArrow.top() + (logicalArrow.height() - 12) / 2,
-                    12, 12);
+                    logicalGlyphBox.left()
+                        + (glyphBoxSize - fallbackGlyphSize) / 2,
+                    logicalGlyphBox.top()
+                        + (glyphBoxSize - fallbackGlyphSize) / 2,
+                    fallbackGlyphSize, fallbackGlyphSize);
                 const QRect chevronRect = QStyle::visualRect(combo->direction,
                                                              combo->rect,
                                                              logicalChevron);
