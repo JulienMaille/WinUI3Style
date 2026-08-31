@@ -358,6 +358,7 @@ private slots:
     void controlRoles();
     void toggleConvenienceWidget();
     void toggleInteraction();
+    void togglePressedThumbGeometry();
     void toggleDragInteraction();
     void toggleRtlGeometryAndInteraction();
     void backdropLifecycleContract();
@@ -1456,6 +1457,47 @@ void WinUI3StyleTest::toggleInteraction()
     QVERIFY(frameBool(&toggle, "_winui_focus_visible"));
     toggle.setEnabled(false);
     QVERIFY(!toggle.grab().isNull());
+}
+
+void WinUI3StyleTest::togglePressedThumbGeometry()
+{
+    QCheckBox toggle;
+    WinUI3::Style::setToggleSwitch(&toggle);
+    toggle.resize(80, 32);
+    toggle.setChecked(true);
+    setFrame(&toggle, "_winui_toggle_position", 1.0);
+    setFrame(&toggle, "_winui_hover_progress", 1.0);
+    setFrame(&toggle, "_winui_press_progress", 1.0);
+
+    QStyleOptionButton option;
+    option.initFrom(&toggle);
+    option.rect = toggle.rect();
+    option.state = QStyle::State_Enabled | QStyle::State_On
+        | QStyle::State_MouseOver | QStyle::State_Sunken;
+    QImage image(toggle.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    {
+        QPainter painter(&image);
+        toggle.style()->drawControl(QStyle::CE_CheckBox, &option,
+                                    &painter, &toggle);
+    }
+
+    const QRectF track(option.rect.left(), option.rect.center().y() - 10,
+                       40, 20);
+    QRect whiteInk;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() > 200 && pixel.red() > 240
+                && pixel.green() > 240 && pixel.blue() > 240)
+                whiteInk |= QRect(x, y, 1, 1);
+        }
+    }
+    QVERIFY(!whiteInk.isEmpty());
+    QVERIFY(whiteInk.width() <= 17);
+    QVERIFY(whiteInk.height() <= 14);
+    QVERIFY2(track.right() - whiteInk.right() >= 3.0,
+             "pressed on-thumb must retain WinUI's trailing inset");
 }
 
 void WinUI3StyleTest::toggleDragInteraction()

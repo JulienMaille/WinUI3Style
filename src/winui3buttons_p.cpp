@@ -489,12 +489,23 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             }
             roundedRect(painter, track, trackFill, trackStroke, 10.0);
 
-            const qreal knobWidth = 12.0 + 2.0 * hover + 3.0 * press;
-            const qreal knobHeight = 12.0 + 2.0 * hover;
+            const qreal hoverSize = 12.0 + 2.0 * hover;
+            // WinUI animates the thumb to 17 x 14 independently of how far
+            // the pointer-over transition had progressed before the press.
+            const qreal knobWidth = hoverSize + (17.0 - hoverSize) * press;
+            const qreal knobHeight = hoverSize + (14.0 - hoverSize) * press;
             qreal visualPosition = position;
             if (check->direction == Qt::RightToLeft)
                 visualPosition = 1.0 - visualPosition;
-            const qreal knobCenter = track.left() + 10.0 + 20.0 * visualPosition;
+            // The XAML template uses a translated 20 px container. Its normal
+            // thumb is centred at 9.5 px; in Pressed it is aligned 3 px from
+            // the end, yielding centres 11.5 (off) and 28.5 (on). Interpolate
+            // the centre as well as the size so the elongated thumb never
+            // crowds either edge of the track.
+            const qreal normalCenter = 9.5 + 20.0 * visualPosition;
+            const qreal pressedCenter = 11.5 + 17.0 * visualPosition;
+            const qreal knobCenter = track.left()
+                + normalCenter + (pressedCenter - normalCenter) * press;
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
