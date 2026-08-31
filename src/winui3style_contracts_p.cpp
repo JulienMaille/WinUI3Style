@@ -466,6 +466,7 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard,
     case QStyle::SP_DialogYesButton: return WinUI3::icon(Icon::Save);
     case QStyle::SP_DirIcon:
     case QStyle::SP_DirOpenIcon: return WinUI3::icon(Icon::Folder);
+    case QStyle::SP_DirHomeIcon: return WinUI3::icon(Icon::Home);
     case QStyle::SP_FileDialogNewFolder: return WinUI3::icon(Icon::Add);
     case QStyle::SP_MediaPause: return WinUI3::icon(Icon::Pause);
     case QStyle::SP_MediaPlay: return WinUI3::icon(Icon::Play);
