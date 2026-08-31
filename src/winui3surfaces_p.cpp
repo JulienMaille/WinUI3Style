@@ -568,6 +568,10 @@ void preparePopupSurface(QWidget *widget)
     QWidget *popup = widget->window();
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
+    remember(popup, originalTranslucentBackgroundProperty,
+             popup->testAttribute(Qt::WA_TranslucentBackground));
+    remember(popup, originalNoSystemBackgroundProperty,
+             popup->testAttribute(Qt::WA_NoSystemBackground));
     // Popup widgets keep an explicit palette after their first polish. Rebase
     // every show on the current application palette so runtime theme changes
     // cannot leave stale text or surface roles behind. The surface is opaque;

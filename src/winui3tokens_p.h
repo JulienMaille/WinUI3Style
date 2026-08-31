@@ -47,6 +47,11 @@ struct Tokens {
     QColor accentFillHover;
     QColor accentFillPressed;
     QColor accentFillDisabled;
+    // WinUI's check/radio/toggle templates always use white ink on their
+    // accent fill. Keep this separate from textOnAccentPrimary, which is
+    // contrast-resolved so arbitrary custom accent buttons remain readable.
+    QColor controlOnAccentPrimary;
+    QColor controlOnAccentDisabled;
     QColor textOnAccentPrimary;
     QColor textOnAccentSecondary;
     QColor textOnAccentDisabled;
@@ -171,6 +176,8 @@ inline Tokens buildTokens(const QPalette &palette)
     t.accentFillPressed.setAlphaF(t.accentFill.alphaF() * 0.8);
     t.accentFillDisabled = t.dark ? QColor(255, 255, 255, 40)
                                   : QColor(0, 0, 0, 55);
+    t.controlOnAccentPrimary = QColor(Qt::white);
+    t.controlOnAccentDisabled = withAlpha(t.controlOnAccentPrimary, 135);
     // A custom Windows accent can be arbitrarily light or dark. Resolve the
     // foreground from the actual fill so Accent buttons remain readable even
     // when the user selects a pale yellow or near-black accent.

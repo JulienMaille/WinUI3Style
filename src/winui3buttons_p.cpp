@@ -246,8 +246,8 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                                      3, 3);
 
         if (checkAmount > 0.001) {
-            const QColor onAccent = enabled ? t.textOnAccentPrimary
-                                             : t.textOnAccentDisabled;
+            const QColor onAccent = enabled ? t.controlOnAccentPrimary
+                                             : t.controlOnAccentDisabled;
             if (element == QStyle::PE_IndicatorRadioButton) {
                 painter->setBrush(onAccent);
                 painter->setPen(Qt::NoPen);
@@ -462,18 +462,19 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             if (!enabled) {
                 trackFill = checked ? t.accentFillDisabled : Qt::transparent;
                 trackStroke = withAlpha(t.strokeStrong, 40);
-                knob = withAlpha(checked ? t.textOnAccentDisabled : t.textDisabled, 150);
+                knob = withAlpha(checked ? t.controlOnAccentDisabled : t.textDisabled,
+                                 150);
             } else if (dragging) {
                 const QColor off = t.dark ? QColor(0, 0, 0, 25)
                                           : QColor(0, 0, 0, 6);
                 trackFill = mix(off, t.accentFillPressed, position);
                 trackStroke = mix(t.strokeStrong, t.accentFillPressed, position);
-                knob = mix(t.textSecondary, t.textOnAccentPrimary, position);
+                knob = mix(t.textSecondary, t.controlOnAccentPrimary, position);
             } else if (checked) {
                 trackFill = mix(t.accentFill, t.accentFillHover, hover * (1.0 - press));
                 trackFill = mix(trackFill, t.accentFillPressed, press);
                 trackStroke = trackFill;
-                knob = t.textOnAccentPrimary;
+                knob = t.controlOnAccentPrimary;
             } else {
                 const QColor off = t.dark ? QColor(0, 0, 0, 25)
                                           : QColor(0, 0, 0, 6);

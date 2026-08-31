@@ -5,6 +5,7 @@
 #include <QFrame>
 #include <QIcon>
 #include <QPointer>
+#include <QString>
 
 class QLabel;
 class QGridLayout;
@@ -24,6 +25,13 @@ class WINUI3STYLE_EXPORT SettingsCard final : public QFrame
     Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY titleChanged)
     Q_PROPERTY(QString description READ description WRITE setDescription NOTIFY descriptionChanged)
     Q_PROPERTY(QIcon icon READ icon WRITE setIcon NOTIFY iconChanged)
+    // Designer cannot serialize QWidget* properties directly.  These string
+    // bridges let a .ui form place the trailing/expandable child under the
+    // card and bind it by objectName after setupUi() has created the complete
+    // hierarchy.
+    Q_PROPERTY(QString iconName READ iconName WRITE setIconName)
+    Q_PROPERTY(QString trailingWidgetName READ trailingWidgetName WRITE setTrailingWidgetName)
+    Q_PROPERTY(QString expandableWidgetName READ expandableWidgetName WRITE setExpandableWidgetName)
     Q_PROPERTY(bool expanded READ isExpanded WRITE setExpanded NOTIFY expandedChanged)
     Q_PROPERTY(qreal expansionProgress READ expansionProgress WRITE setExpansionProgress)
 
@@ -37,6 +45,13 @@ public:
     void setDescription(const QString &description);
     QIcon icon() const;
     void setIcon(const QIcon &icon);
+    QString iconName() const;
+    void setIconName(const QString &name);
+
+    QString trailingWidgetName() const;
+    void setTrailingWidgetName(const QString &name);
+    QString expandableWidgetName() const;
+    void setExpandableWidgetName(const QString &name);
 
     QWidget *trailingWidget() const;
     void setTrailingWidget(QWidget *widget);
@@ -90,6 +105,9 @@ private:
     QWidget *m_expandableHost = nullptr;
     QVariantAnimation *m_expansionAnimation = nullptr;
     QIcon m_icon;
+    QString m_iconName;
+    QString m_trailingWidgetName;
+    QString m_expandableWidgetName;
     QMetaObject::Connection m_expandableDestroyedConnection;
     qreal m_expansionProgress = 0.0;
     int m_expandableContentHeight = 0;
@@ -100,6 +118,8 @@ private:
     bool m_expandableHeightRefreshPending = false;
     bool m_expanded = false;
     bool m_pressed = false;
+    bool m_trailingBindingPending = false;
+    bool m_expandableBindingPending = false;
 };
 
 } // namespace WinUI3

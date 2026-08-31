@@ -11,6 +11,7 @@
 
 #include <QAbstractItemDelegate>
 #include <QAbstractItemView>
+#include <QFrame>
 #include <QItemSelectionModel>
 #include <QPainter>
 #include <QPointer>
@@ -118,6 +119,17 @@ public:
         const bool hovered = option.state & QStyle::State_MouseOver;
         const qreal press = progress(option.widget, "_winui_press_progress",
                                      option.state & QStyle::State_Sunken ? 1.0 : 0.0);
+        // A transparent NavigationView is composited over the window backdrop.
+        // QAbstractItemView does not erase transparent rows before asking the
+        // delegate to repaint them, so the previous selection fill/indicator
+        // otherwise remains in the backing store after currentRow changes.
+        // Clear this row's pixels with Source composition before rebuilding it.
+        if (m_view && m_view->palette().color(QPalette::Base).alpha() == 0) {
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(option.rect, Qt::transparent);
+            painter->restore();
+        }
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         QColor fill = selected ? t.subtlePressed : Qt::transparent;
@@ -239,7 +251,71 @@ public:
     }
     QPointer<NavigationItemDelegate> delegate;
     QPointer<QAbstractItemDelegate> original;
+    QPalette viewPalette;
+    QPalette viewportPalette;
+    QFrame::Shape frameShape = QFrame::NoFrame;
+    bool viewportAutoFill = false;
+    bool viewportOpaque = false;
+    bool surfaceStateSaved = false;
 };
+
+void restoreNavigationSurface(QAbstractItemView *view,
+                              NavigationViewState *state);
+
+void prepareNavigationSurface(QAbstractItemView *view,
+                              NavigationViewState *state)
+{
+    if (!view || !view->viewport() || !state)
+        return;
+    // An explicit surface is an application override (for example a list on
+    // an opaque content card).  Only the default NavigationView surface is
+    // transparent so a top-level Mica backdrop can show through.
+    if (view->property(Style::SurfaceProperty).isValid())
+        return;
+    const QString backdrop = view->window()
+        ? view->window()->property(Style::BackdropProperty).toString()
+        : QString();
+    const bool translucentBackdrop = backdrop.compare(
+        QLatin1String("mica"), Qt::CaseInsensitive) == 0
+        || backdrop.compare(QLatin1String("acrylic"), Qt::CaseInsensitive) == 0;
+    if (!translucentBackdrop) {
+        restoreNavigationSurface(view, state);
+        return;
+    }
+    if (state->surfaceStateSaved)
+        return;
+    state->viewPalette = view->palette();
+    state->viewportPalette = view->viewport()->palette();
+    state->frameShape = view->frameShape();
+    state->viewportAutoFill = view->viewport()->autoFillBackground();
+    state->viewportOpaque = view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent);
+    state->surfaceStateSaved = true;
+
+    QPalette transparent = view->palette();
+    transparent.setColor(QPalette::Base, Qt::transparent);
+    transparent.setColor(QPalette::Window, Qt::transparent);
+    view->setPalette(transparent);
+    view->setFrameShape(QFrame::NoFrame);
+    view->viewport()->setPalette(transparent);
+    view->viewport()->setAutoFillBackground(false);
+    view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
+}
+
+void restoreNavigationSurface(QAbstractItemView *view,
+                              NavigationViewState *state)
+{
+    if (!view || !state || !state->surfaceStateSaved)
+        return;
+    view->setPalette(state->viewPalette);
+    view->setFrameShape(state->frameShape);
+    if (view->viewport()) {
+        view->viewport()->setPalette(state->viewportPalette);
+        view->viewport()->setAutoFillBackground(state->viewportAutoFill);
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent,
+                                       state->viewportOpaque);
+    }
+    state->surfaceStateSaved = false;
+}
 
 NavigationViewState *navigationState(QAbstractItemView *view, bool create)
 {
@@ -289,6 +365,7 @@ void prepareNavigationView(QAbstractItemView *view)
     if (!view || !view->property(Style::NavigationViewProperty).toBool())
         return;
     NavigationViewState *state = navigationState(view, true);
+    prepareNavigationSurface(view, state);
     if (state->delegate && view->itemDelegate() == state->delegate)
         return;
     if (state->delegate)
@@ -330,9 +407,10 @@ void restoreNavigationView(QAbstractItemView *view)
     if (!view)
         return;
     NavigationViewState *state = navigationState(view, false);
-    if (state)
+    if (state) {
         retireNavigationDelegate(view, state);
-    else
+        restoreNavigationSurface(view, state);
+    } else
         clearNavigationProperties(view);
     if (view->viewport()->property(originalMouseTrackingProperty).isValid())
         view->viewport()->setMouseTracking(view->viewport()->property(originalMouseTrackingProperty).toBool());

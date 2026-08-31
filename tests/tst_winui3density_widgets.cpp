@@ -2,9 +2,11 @@
 #include <winui3style/winui3style.h>
 
 #include <QComboBox>
+#include <QCalendarWidget>
 #include <QCompleter>
 #include <QDateEdit>
 #include <QHeaderView>
+#include <QImage>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -114,6 +116,7 @@ private slots:
     void allOfficialWidgetsUseCompactMetricsAfterRealLayout();
     void inheritedDensityWorksForRealWidgets();
     void compactDoesNotResizeUnlistedControls();
+    void calendarPopupRemainsReadableInLightAndDark();
 };
 
 void WinUI3DensityWidgetsTest::init()
@@ -334,6 +337,73 @@ void WinUI3DensityWidgetsTest::compactDoesNotResizeUnlistedControls()
     QCOMPARE(table.rowHeight(0), tableRowStandard);
     QCOMPARE(table.horizontalHeader()->sectionSize(0), headerStandard);
     QCOMPARE(menu.actionGeometry(&menuAction).height(), menuItemStandard);
+}
+
+void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
+{
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    QWidget root;
+    root.setStyle(&style);
+    QDateEdit date(&root);
+    date.setCalendarPopup(true);
+    date.setDate(QDate(2026, 8, 15));
+    date.resize(200, 40);
+    root.show();
+    QCoreApplication::processEvents();
+    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
+                                         WinUI3::ThemeMode::Dark}) {
+        if (style.themeMode() != mode)
+            style.setThemeMode(mode);
+        QCoreApplication::processEvents();
+        QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5,
+                                                            date.height() / 2));
+        QCoreApplication::processEvents();
+        auto *calendar = date.calendarWidget();
+        QVERIFY(calendar);
+        // The offscreen QPA plugin does not always route a synthetic click to
+        // QDateTimeEdit's private arrow subcontrol after a live palette flip.
+        // Showing the already-configured calendar is equivalent to the popup
+        // window that the edit creates and keeps this test focused on its
+        // rendered day grid.
+        if (!calendar->isVisible()) {
+            calendar->show();
+            QCoreApplication::processEvents();
+        }
+        QVERIFY(calendar->isVisible());
+        auto *view = calendar->findChild<QAbstractItemView *>(
+            QStringLiteral("qt_calendar_calendarview"));
+        QVERIFY(view);
+        QVERIFY(view->isVisible());
+        const QPalette palette = view->palette();
+        const QColor text = palette.color(QPalette::Text);
+        const QColor background = palette.color(QPalette::Base);
+        QVERIFY(text.isValid());
+        QVERIFY(background.isValid());
+        if (mode == WinUI3::ThemeMode::Dark)
+            QVERIFY2(qGray(text.rgb()) > 150,
+                     "dark calendar text must use a light foreground");
+        else
+            QVERIFY2(qGray(text.rgb()) < 100,
+                     "light calendar text must use a dark foreground");
+
+        const QImage image = view->grab().toImage().convertToFormat(
+            QImage::Format_ARGB32);
+        int readablePixels = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                const int gray = qGray(pixel.rgb());
+                if ((mode == WinUI3::ThemeMode::Dark && gray > 150)
+                    || (mode == WinUI3::ThemeMode::Light && gray < 100))
+                    ++readablePixels;
+            }
+        }
+        QVERIFY2(readablePixels > 10,
+                 "calendar day cells must contain visible date glyphs");
+        calendar->hide();
+        QCoreApplication::processEvents();
+    }
 }
 
 QTEST_MAIN(WinUI3DensityWidgetsTest)

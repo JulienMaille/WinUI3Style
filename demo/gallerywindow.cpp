@@ -38,7 +38,12 @@ void configureContentDialog(QDialog *dialog)
     layout->addWidget(description);
     layout->addStretch();
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    buttons->button(QDialogButtonBox::Ok)->setDefault(true);
+    if (auto *primary = buttons->button(QDialogButtonBox::Ok)) {
+        primary->setDefault(true);
+        primary->setMinimumWidth(120);
+    }
+    if (auto *close = buttons->button(QDialogButtonBox::Cancel))
+        close->setMinimumWidth(120);
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     layout->addWidget(buttons);
@@ -66,7 +71,14 @@ GalleryWindow::~GalleryWindow() { delete ui; }
 
 void GalleryWindow::configureGallery()
 {
-    setProperty("winuiBackdrop", QStringLiteral("mica"));
+    // Let the scroll area honor the embedded QMainWindow/QDockWidget minimum
+    // height instead of compressing the Designer-owned dock host to zero.
+    ui->dialogsLayout->setSizeConstraint(QLayout::SetMinimumSize);
+    // QMainWindow's default window type remains top-level even when uic gives
+    // it a parent. The old imperative gallery explicitly embedded this host;
+    // preserve that lifecycle while keeping its contents Designer-owned.
+    ui->dockHost->setWindowFlags(Qt::Widget);
+    ui->dockHost->show();
     for (QLabel *heading : {ui->controlsHeading, ui->collectionsHeading,
                             ui->settingsHeading, ui->dialogsHeading,
                             ui->paletteHeading})
@@ -76,7 +88,6 @@ void GalleryWindow::configureGallery()
     ui->autoSuggestEdit->setCompleter(new QCompleter(
         {tr("Alpha"), tr("Beta"), tr("Gamma")}, ui->autoSuggestEdit));
     ui->selectedEdit->selectAll();
-    ui->advancedDetails->setVisible(ui->advancedCard->isChecked());
     ui->collectionsTabs->setTabEnabled(ui->collectionsTabs->indexOf(ui->disabledTab), false);
 
     const auto icon = [this](QStyle::StandardPixmap pixmap) {
@@ -103,8 +114,6 @@ void GalleryWindow::configureGallery()
         if (qApp->style())
             qApp->style()->setProperty("densityMode", index);
     });
-    connect(ui->advancedCard, &QGroupBox::toggled,
-            ui->advancedDetails, &QWidget::setVisible);
     connect(ui->searchSettings, &QLineEdit::textChanged, this,
             [this](const QString &text) {
         for (int row = 0; row < ui->navigationList->count(); ++row) {
@@ -214,7 +223,12 @@ void GalleryWindow::configurePaletteLab()
 void GalleryWindow::setTheme(int index)
 {
     qApp->style()->setProperty("themeMode", index);
-    setProperty("winuiBackdrop", QStringLiteral("mica"));
+    // DWM's system Mica brush follows the Windows theme, not a Qt-only theme
+    // override.  Keep the native material for System mode and use the style's
+    // opaque theme surface for explicit Light/Dark modes so foreground and
+    // background can never diverge.
+    setProperty("winuiBackdrop", index == 0
+        ? QStringLiteral("mica") : QStringLiteral("none"));
 }
 
 bool GalleryWindow::saveSnapshots(const QString &directory)

@@ -2378,6 +2378,19 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                        && widget->isWindow()) {
                 applyBackdrop(widget, backdropFromProperty(
                     widget->property(BackdropProperty)));
+                // Navigation surfaces are transparent only while a real
+                // backdrop is active. Refresh just the opted-in views when a
+                // window changes backdrop so offscreen/opaque windows never
+                // retain transparent backing-store rows.
+                if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+                    if (view->property(NavigationViewProperty).toBool())
+                        NavigationPrivate::prepareNavigationView(view);
+                }
+                const auto views = widget->findChildren<QAbstractItemView *>();
+                for (QAbstractItemView *view : views) {
+                    if (view->property(NavigationViewProperty).toBool())
+                        NavigationPrivate::prepareNavigationView(view);
+                }
             }
         }
     }

@@ -34,7 +34,13 @@ SettingsCard::SettingsCard(QWidget *parent)
     Style::setSettingsCard(this);
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    // A SettingsCard owns its vertical rhythm.  QSizePolicy::Minimum carries
+    // GrowFlag, so Designer layouts used to distribute every spare pixel
+    // between collapsed cards and turn the standard 85 px rows into tall
+    // panels.  Fixed still follows sizeHint()/updateGeometry() while the
+    // expandable content animates, but leaves spare page height to the
+    // layout's trailing stretch.
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAttribute(Qt::WA_Hover);
 
     m_rootLayout->setContentsMargins(16, 0, 16, 0);
@@ -138,6 +144,76 @@ void SettingsCard::setIcon(const QIcon &icon)
     m_headerWidth = -1;
     refreshHeaderGeometry();
     emit iconChanged(icon);
+}
+
+QString SettingsCard::iconName() const { return m_iconName; }
+void SettingsCard::setIconName(const QString &name)
+{
+    if (m_iconName == name)
+        return;
+    m_iconName = name;
+
+    const QString key = name.trimmed().toLower();
+    if (key == QLatin1String("add")) setIcon(WinUI3::icon(Icon::Add));
+    else if (key == QLatin1String("back")) setIcon(WinUI3::icon(Icon::Back));
+    else if (key == QLatin1String("check")) setIcon(WinUI3::icon(Icon::Check));
+    else if (key == QLatin1String("delete")) setIcon(WinUI3::icon(Icon::Delete));
+    else if (key == QLatin1String("edit")) setIcon(WinUI3::icon(Icon::Edit));
+    else if (key == QLatin1String("folder")) setIcon(WinUI3::icon(Icon::Folder));
+    else if (key == QLatin1String("home")) setIcon(WinUI3::icon(Icon::Home));
+    else if (key == QLatin1String("info")) setIcon(WinUI3::icon(Icon::Info));
+    else if (key == QLatin1String("more")) setIcon(WinUI3::icon(Icon::More));
+    else if (key == QLatin1String("refresh")) setIcon(WinUI3::icon(Icon::Refresh));
+    else if (key == QLatin1String("save")) setIcon(WinUI3::icon(Icon::Save));
+    else if (key == QLatin1String("settings")) setIcon(WinUI3::icon(Icon::Settings));
+    else if (key == QLatin1String("warning")) setIcon(WinUI3::icon(Icon::Warning));
+    else setIcon(QIcon());
+}
+
+QString SettingsCard::trailingWidgetName() const { return m_trailingWidgetName; }
+void SettingsCard::setTrailingWidgetName(const QString &name)
+{
+    m_trailingWidgetName = name;
+    if (name.isEmpty()) {
+        setTrailingWidget(nullptr);
+        return;
+    }
+    if (QWidget *widget = findChild<QWidget *>(name)) {
+        setTrailingWidget(widget);
+    } else if (!m_trailingBindingPending) {
+        // uic applies custom-widget properties before constructing nested
+        // children. Resolve once the generated setupUi() has finished.
+        m_trailingBindingPending = true;
+        QMetaObject::invokeMethod(this, [this] {
+            m_trailingBindingPending = false;
+            if (!m_trailingWidgetName.isEmpty()) {
+                if (QWidget *widget = findChild<QWidget *>(m_trailingWidgetName))
+                    setTrailingWidget(widget);
+            }
+        }, Qt::QueuedConnection);
+    }
+}
+
+QString SettingsCard::expandableWidgetName() const { return m_expandableWidgetName; }
+void SettingsCard::setExpandableWidgetName(const QString &name)
+{
+    m_expandableWidgetName = name;
+    if (name.isEmpty()) {
+        setExpandableWidget(nullptr);
+        return;
+    }
+    if (QWidget *widget = findChild<QWidget *>(name)) {
+        setExpandableWidget(widget);
+    } else if (!m_expandableBindingPending) {
+        m_expandableBindingPending = true;
+        QMetaObject::invokeMethod(this, [this] {
+            m_expandableBindingPending = false;
+            if (!m_expandableWidgetName.isEmpty()) {
+                if (QWidget *widget = findChild<QWidget *>(m_expandableWidgetName))
+                    setExpandableWidget(widget);
+            }
+        }, Qt::QueuedConnection);
+    }
 }
 
 void SettingsCard::refreshIconPixmap()

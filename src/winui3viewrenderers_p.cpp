@@ -11,6 +11,7 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QCalendarWidget>
 #include <QComboBox>
 #include <QListView>
 #include <QPainter>
@@ -50,6 +51,25 @@ const QAbstractItemView *itemView(const QWidget *widget)
             return view;
     }
     return nullptr;
+}
+
+// QCalendarWidget uses a QTableView for its day grid, but that grid is not a
+// WinUI flyout list. Applying the flyout's leading checkmark/content gutter to
+// each seven-column day cell leaves no room for the date text (the old popup
+// renderer starts text at x=42). Keep calendar cells on the regular item-view
+// geometry while still allowing the popup surface itself to be prepared.
+bool calendarPopupView(const QWidget *widget)
+{
+    if (!widget)
+        return false;
+    if (qobject_cast<const QCalendarWidget *>(widget->window()))
+        return true;
+    for (const QWidget *candidate = widget; candidate;
+         candidate = candidate->parentWidget()) {
+        if (qobject_cast<const QCalendarWidget *>(candidate))
+            return true;
+    }
+    return false;
 }
 
 constexpr int itemSelectionGutter = 12;
@@ -117,7 +137,8 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
         const QAbstractItemView *view = itemView(widget);
         const bool popup = widget && widget->window()
-            && widget->window()->windowType() == Qt::Popup;
+            && widget->window()->windowType() == Qt::Popup
+            && !calendarPopupView(widget);
         const auto *popupCombo = popup && widget->window()->parentWidget()
             ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
             : nullptr;
@@ -284,7 +305,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             const QAbstractItemView *view = itemView(widget);
             const auto *tableView = qobject_cast<const QTableView *>(view);
             const bool popup = widget && widget->window()
-                && widget->window()->windowType() == Qt::Popup;
+                && widget->window()->windowType() == Qt::Popup
+                && !calendarPopupView(widget);
             const bool comboPopup = popup && widget->window()->parentWidget()
                 && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
             const Tokens itemTokens = tokens(option->palette);

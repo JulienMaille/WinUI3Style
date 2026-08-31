@@ -5,7 +5,8 @@ add_executable(winui3style_gallery
     gallerywindow.ui
 )
 
-target_link_libraries(winui3style_gallery PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(winui3style_gallery PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Widgets)
 set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 
 add_custom_command(TARGET winui3style_gallery POST_BUILD
