@@ -545,8 +545,11 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                 const bool accent = role == ControlRole::Accent
                     || role == ControlRole::Destructive
                     || ((button->state & QStyle::State_On) && role == ControlRole::Standard);
+                const bool pressed = enabled && (button->state & QStyle::State_Sunken);
                 const QColor textColor = !enabled ? t.textDisabled
-                    : accent ? t.textOnAccentPrimary : t.textPrimary;
+                    : accent ? (pressed ? t.textOnAccentSecondary
+                                        : t.textOnAccentPrimary)
+                             : (pressed ? t.textSecondary : t.textPrimary);
                 QRect content = style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
                 if (button->features & QStyleOptionButton::HasMenu) {
                     const QRect logical = content.adjusted(0, 0, -22, 0);
@@ -599,7 +602,9 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             const bool pressed = tool->state & QStyle::State_Sunken;
             const QColor textColor = !enabled ? t.textDisabled
                 : textHelper ? (pressed ? t.textTertiary : t.textSecondary)
-                : accent ? t.textOnAccentPrimary : t.textPrimary;
+                : accent ? (pressed ? t.textOnAccentSecondary
+                                    : t.textOnAccentPrimary)
+                         : (pressed ? t.textSecondary : t.textPrimary);
             const QRectF content = QRectF(style->subControlRect(QStyle::CC_ToolButton, tool,
                                                          QStyle::SC_ToolButton, widget))
                                        .adjusted(4.0, 2.0, -4.0, -2.0);

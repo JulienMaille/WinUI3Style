@@ -256,6 +256,8 @@ public:
     QFrame::Shape frameShape = QFrame::NoFrame;
     bool viewportAutoFill = false;
     bool viewportOpaque = false;
+    bool viewPaletteExplicit = false;
+    bool viewportPaletteExplicit = false;
     bool surfaceStateSaved = false;
 };
 
@@ -289,6 +291,8 @@ void prepareNavigationSurface(QAbstractItemView *view,
     state->frameShape = view->frameShape();
     state->viewportAutoFill = view->viewport()->autoFillBackground();
     state->viewportOpaque = view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent);
+    state->viewPaletteExplicit = view->testAttribute(Qt::WA_SetPalette);
+    state->viewportPaletteExplicit = view->viewport()->testAttribute(Qt::WA_SetPalette);
     state->surfaceStateSaved = true;
 
     QPalette transparent = view->palette();
@@ -306,10 +310,11 @@ void restoreNavigationSurface(QAbstractItemView *view,
 {
     if (!view || !state || !state->surfaceStateSaved)
         return;
-    view->setPalette(state->viewPalette);
+    view->setPalette(state->viewPaletteExplicit ? state->viewPalette : QPalette());
     view->setFrameShape(state->frameShape);
     if (view->viewport()) {
-        view->viewport()->setPalette(state->viewportPalette);
+        view->viewport()->setPalette(state->viewportPaletteExplicit
+            ? state->viewportPalette : QPalette());
         view->viewport()->setAutoFillBackground(state->viewportAutoFill);
         view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent,
                                        state->viewportOpaque);

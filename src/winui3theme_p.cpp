@@ -92,48 +92,43 @@ SystemAccentRamp systemAccentRamp()
     auto &cache = systemAppearanceCache();
     if (cache.accentInitialized && cache.accentFresh())
         return cache.accentRamp;
-    // Explorer stores the Windows accent ramp as BGRA entries ordered
+    // Explorer stores the Windows accent ramp as RGBA entries ordered
     // Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, complement.
     // These are the same SystemAccentColor* roles consumed by WinUI's
     // Common_themeresources_any.xaml.
-    // DWM is the live system source used by the shell and WinUI Gallery. Do
-    // not combine its current base with Explorer's cached role entries: that
-    // produces a ramp whose selection and control-fill roles belong to
-    // different accent families when the registry lags behind the shell.
-    DWORD color = 0;
-    BOOL opaque = FALSE;
-    bool dwmAccentAvailable = false;
-    if (SUCCEEDED(DwmGetColorizationColor(&color, &opaque))) {
-        QColor result = QColor::fromRgba(color);
-        result.setAlpha(255);
-        if (result.isValid()) {
-            ramp.accent = result;
-            ramp.light1 = mix(ramp.accent, QColor(Qt::white), 0.15);
-            ramp.light2 = mix(ramp.accent, QColor(Qt::white), 0.32);
-            ramp.dark1 = mix(ramp.accent, QColor(Qt::black), 0.18);
-            dwmAccentAvailable = true;
+    BYTE nativeBytes[32] = {};
+    DWORD nativeSize = sizeof(nativeBytes);
+    const LSTATUS paletteStatus = RegGetValueW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
+        L"AccentPalette", RRF_RT_REG_BINARY, nullptr, nativeBytes, &nativeSize);
+    const QByteArray bytes = paletteStatus == ERROR_SUCCESS
+        ? QByteArray(reinterpret_cast<const char *>(nativeBytes), int(nativeSize))
+        : QByteArray{};
+    const auto entry = [&bytes](int index) {
+        const int offset = index * 4;
+        if (bytes.size() < offset + 3)
+            return QColor{};
+        return QColor(quint8(bytes.at(offset)), quint8(bytes.at(offset + 1)),
+                      quint8(bytes.at(offset + 2)));
+    };
+    const SystemAccentRamp explorerRamp{entry(3), entry(2), entry(1), entry(4)};
+    // AccentPalette is the exact SystemAccentColor role family consumed by
+    // WinUI. DwmGetColorizationColor is not equivalent: Windows may apply its
+    // colorization-balance transform, yielding an intermediate colour that is
+    // visibly wrong when used to synthesize Light2/Dark1.
+    if (explorerRamp.accent.isValid() && explorerRamp.light1.isValid()
+        && explorerRamp.light2.isValid() && explorerRamp.dark1.isValid()) {
+        ramp = explorerRamp;
+    } else {
+        DWORD color = 0;
+        BOOL opaque = FALSE;
+        if (SUCCEEDED(DwmGetColorizationColor(&color, &opaque))) {
+            // DwmGetColorizationColor returns 0xAARRGGBB.
+            ramp.accent = QColor::fromRgb((color >> 16) & 0xff,
+                                          (color >> 8) & 0xff,
+                                          color & 0xff);
         }
-    }
-
-    if (!dwmAccentAvailable) {
-        // AccentPalette is a complete fallback source. It is intentionally
-        // read only when DWM cannot provide the live family, so the three
-        // roles remain atomic.
-        QSettings settings(QStringLiteral(
-            "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent"),
-            QSettings::NativeFormat);
-        const QByteArray bytes = settings.value(QStringLiteral("AccentPalette")).toByteArray();
-        const auto entry = [&bytes](int index) {
-            const int offset = index * 4;
-            if (bytes.size() < offset + 3)
-                return QColor{};
-            return QColor(quint8(bytes.at(offset + 2)), quint8(bytes.at(offset + 1)),
-                          quint8(bytes.at(offset)));
-        };
-        ramp.light2 = entry(1);
-        ramp.light1 = entry(2);
-        ramp.accent = entry(3);
-        ramp.dark1 = entry(4);
     }
 #endif
     if (!ramp.accent.isValid())
@@ -162,9 +157,12 @@ QPalette standardPalette(bool darkTheme, const QColor &accent,
 {
     const SystemAccentRamp systemRamp = explicitAccent
         ? SystemAccentRamp{} : systemAccentRamp();
+    // WinUI AccentFillColorDefaultBrush is theme-specific: Light uses
+    // SystemAccentColorDark1, while Dark uses SystemAccentColorLight2.
     const QColor accentFill = explicitAccent
-        ? mix(accent, QColor(Qt::white), darkTheme ? 0.32 : 0.15)
-        : (darkTheme ? systemRamp.light2 : systemRamp.light1);
+        ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
+                     : mix(accent, QColor(Qt::black), 0.18))
+        : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
     QPalette palette;
 
     if (darkTheme) {
@@ -213,7 +211,9 @@ QPalette standardPalette(bool darkTheme, const QColor &accent,
         palette.setColor(QPalette::Disabled, QPalette::Base, QColor(246, 246, 246, 128));
     }
 
-    const QColor textOnAccent = contrastText(accent);
+    // TextOnAccentFillColorSelectedText is fixed white in both WinUI theme
+    // dictionaries; it is distinct from button text-on-accent roles.
+    const QColor textOnAccent(Qt::white);
     palette.setColor(QPalette::Highlight, accent); // system selection accent
     palette.setColor(QPalette::HighlightedText, textOnAccent);
     palette.setColor(QPalette::Link, accent);

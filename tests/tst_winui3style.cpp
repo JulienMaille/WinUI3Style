@@ -346,6 +346,7 @@ private slots:
     void systemAccentRampIsAtomic();
     void buttonToolButtonAndIconContracts();
     void buttonPressedStateFollowsQtState();
+    void buttonPressedForegroundRoles();
     void coloredIconCacheReuseAndPixelContract();
     void iconPixmapCacheDprAndPalette();
     void buttonPressedPulseContract();
@@ -390,7 +391,8 @@ private slots:
     void checkboxAcceptAnimation();
     void checkboxGlyphGeometryContract();
     void lightModeIndicatorOnAccentIsWhite();
-    void customAccentKeepsTextContrastSeparateFromControlInk();
+    void darkModeIndicatorOnAccentIsBlack();
+    void customAccentKeepsThemeTextSeparateFromControlInk();
     void checkboxGapHitTest();
     void checkboxDisabledStopsAnimation();
     void radioStateMotion();
@@ -474,8 +476,10 @@ void WinUI3StyleTest::palettes()
             > dark.standardPalette().color(QPalette::Window).lightness());
     QCOMPARE(light.standardPalette().color(QPalette::Highlight), light.accentColor());
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
-    QVERIFY(light.standardPalette().color(QPalette::Accent) != light.accentColor());
-    QVERIFY(dark.standardPalette().color(QPalette::Accent) != dark.accentColor());
+    QVERIFY(light.standardPalette().color(QPalette::Accent).lightness()
+            < light.accentColor().lightness());
+    QVERIFY(dark.standardPalette().color(QPalette::Accent).lightness()
+            > dark.accentColor().lightness());
 #endif
     QCOMPARE(light.standardPalette().color(QPalette::Button), QColor(255, 255, 255, 179));
     QCOMPARE(light.standardPalette().color(QPalette::WindowText), QColor(0, 0, 0, 228));
@@ -897,7 +901,9 @@ void WinUI3StyleTest::buttonPressedPulseContract()
     QVERIFY(style);
 
     for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
-                                           WinUI3::ControlRole::Subtle}) {
+                                           WinUI3::ControlRole::Accent,
+                                           WinUI3::ControlRole::Subtle,
+                                           WinUI3::ControlRole::Destructive}) {
         QPushButton button(QStringLiteral("Rapid"));
         WinUI3::Style::setControlRole(&button, role);
         button.resize(120, 32);
@@ -989,6 +995,56 @@ void WinUI3StyleTest::buttonPressedStateFollowsQtState()
                      ? "standard State_Sunken frame is not visible"
                      : "subtle State_Sunken frame is not visible");
     }
+}
+
+void WinUI3StyleTest::buttonPressedForegroundRoles()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
+                                         WinUI3::ThemeMode::Dark}) {
+        style->setThemeMode(mode);
+        const WinUI3::Private::Tokens t =
+            WinUI3::Private::buildTokens(style->standardPalette());
+        QCOMPARE(t.textOnAccentSecondary,
+                 mode == WinUI3::ThemeMode::Dark
+                     ? QColor(0, 0, 0, 128)
+                     : QColor(255, 255, 255, 179));
+
+        for (const WinUI3::ControlRole role : {
+                 WinUI3::ControlRole::Standard,
+                 WinUI3::ControlRole::Accent,
+                 WinUI3::ControlRole::Subtle,
+                 WinUI3::ControlRole::Destructive}) {
+            QPushButton button(QStringLiteral("Hold"));
+            WinUI3::Style::setControlRole(&button, role);
+            button.resize(100, 32);
+            QStyleOptionButton option;
+            option.initFrom(&button);
+            option.rect = button.rect();
+            option.palette = style->standardPalette();
+            option.text = button.text();
+            const auto renderLabel = [&](QStyle::State state) {
+                option.state = state;
+                QImage image(option.rect.size(),
+                             QImage::Format_ARGB32_Premultiplied);
+                image.fill(Qt::transparent);
+                QPainter painter(&image);
+                style->drawControl(QStyle::CE_PushButtonLabel, &option,
+                                   &painter, &button);
+                return image;
+            };
+            const QImage normal = renderLabel(QStyle::State_Enabled);
+            const QImage pressed = renderLabel(QStyle::State_Enabled
+                                               | QStyle::State_Sunken);
+            QVERIFY2(normal != pressed,
+                     qPrintable(QStringLiteral(
+                         "pressed foreground unchanged for mode=%1 role=%2")
+                                    .arg(int(mode)).arg(int(role))));
+        }
+    }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 
 void WinUI3StyleTest::disabledButtonHasNoInteractionState()
@@ -3505,7 +3561,75 @@ void WinUI3StyleTest::lightModeIndicatorOnAccentIsWhite()
              "light checked toggle has no white WinUI on-knob");
 }
 
-void WinUI3StyleTest::customAccentKeepsTextContrastSeparateFromControlInk()
+void WinUI3StyleTest::darkModeIndicatorOnAccentIsBlack()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    const QPalette palette = style->standardPalette();
+    const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(palette);
+    QCOMPARE(t.controlOnAccentPrimary, QColor(Qt::black));
+
+    const auto hasBlackPixel = [](const QImage &image, const QRect &rect) {
+        for (int y = rect.top(); y <= rect.bottom(); ++y) {
+            for (int x = rect.left(); x <= rect.right(); ++x) {
+                if (image.rect().contains(x, y)
+                    && colorDistance(image.pixelColor(x, y), QColor(Qt::black)) < 8)
+                    return true;
+            }
+        }
+        return false;
+    };
+    const auto renderIndicator = [&](QStyle::PrimitiveElement element,
+                                     QAbstractButton &button) {
+        button.resize(32, 32);
+        setFrame(&button, "_winui_check_progress", 1.0);
+        QStyleOptionButton option;
+        option.initFrom(&button);
+        option.palette = palette;
+        option.rect = QRect(6, 6, 20, 20);
+        option.state = QStyle::State_Enabled | QStyle::State_On;
+        QImage image(button.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(palette.color(QPalette::Window));
+        QPainter painter(&image);
+        style->drawPrimitive(element, &option, &painter, &button);
+        return qMakePair(image, option.rect);
+    };
+
+    QCheckBox check;
+    const auto checkRender = renderIndicator(QStyle::PE_IndicatorCheckBox, check);
+    QVERIFY2(hasBlackPixel(checkRender.first, checkRender.second),
+             "dark checked checkbox has no black WinUI checkmark");
+    QRadioButton radio;
+    const auto radioRender = renderIndicator(QStyle::PE_IndicatorRadioButton, radio);
+    QVERIFY2(hasBlackPixel(radioRender.first, radioRender.second),
+             "dark checked radio has no black WinUI dot");
+
+    QCheckBox toggle;
+    WinUI3::Style::setToggleSwitch(&toggle);
+    toggle.resize(64, 32);
+    toggle.setChecked(true);
+    setFrame(&toggle, "_winui_toggle_position", 1.0);
+    QStyleOptionButton option;
+    option.initFrom(&toggle);
+    option.palette = palette;
+    option.rect = toggle.rect();
+    option.state = QStyle::State_Enabled | QStyle::State_On;
+    QImage image(toggle.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(palette.color(QPalette::Window));
+    {
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_CheckBox, &option, &painter, &toggle);
+    }
+    const QRect track(toggle.rect().left(), toggle.rect().center().y() - 10,
+                      40, 20);
+    const QRect knob(track.right() - 16, track.center().y() - 8, 16, 16);
+    QVERIFY2(hasBlackPixel(image, knob),
+             "dark checked toggle has no black WinUI on-knob");
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+void WinUI3StyleTest::customAccentKeepsThemeTextSeparateFromControlInk()
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     QPalette palette = qApp->palette();
@@ -3514,9 +3638,8 @@ void WinUI3StyleTest::customAccentKeepsTextContrastSeparateFromControlInk()
     palette.setColor(QPalette::Accent, paleAccent);
     const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(palette);
 
-    // Text on an arbitrary pale accent remains contrast-resolved, while the
-    // official WinUI control glyph keeps its fixed white foreground.
-    QCOMPARE(t.textOnAccentPrimary, QColor(Qt::black));
+    // WinUI resolves both roles from the theme; in Light they are white.
+    QCOMPARE(t.textOnAccentPrimary, QColor(Qt::white));
     QCOMPARE(t.controlOnAccentPrimary, QColor(Qt::white));
 #endif
 }
@@ -5675,6 +5798,26 @@ void WinUI3StyleTest::navigationDelegateLifecycle()
                            QStringLiteral("none"));
     QTRY_COMPARE(opaqueView.palette().color(QPalette::Base),
                  opaquePalette.color(QPalette::Base));
+
+    QWidget backdropHost;
+    QListView inheritedView(&backdropHost);
+    WinUI3::Style::setNavigationView(&inheritedView);
+    backdropHost.show();
+    QCoreApplication::processEvents();
+    const bool inheritedViewPaletteExplicit =
+        inheritedView.testAttribute(Qt::WA_SetPalette);
+    const bool inheritedViewportPaletteExplicit =
+        inheritedView.viewport()->testAttribute(Qt::WA_SetPalette);
+    backdropHost.setProperty(WinUI3::Style::BackdropProperty,
+                             QStringLiteral("mica"));
+    QTRY_COMPARE(inheritedView.palette().color(QPalette::Base),
+                 QColor(Qt::transparent));
+    backdropHost.setProperty(WinUI3::Style::BackdropProperty,
+                             QStringLiteral("none"));
+    QTRY_COMPARE(inheritedView.testAttribute(Qt::WA_SetPalette),
+                 inheritedViewPaletteExplicit);
+    QTRY_COMPARE(inheritedView.viewport()->testAttribute(Qt::WA_SetPalette),
+                 inheritedViewportPaletteExplicit);
 }
 
 void WinUI3StyleTest::runtimeAppearanceAndDialogLifecycle()

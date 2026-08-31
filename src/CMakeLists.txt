@@ -78,7 +78,7 @@ target_include_directories(winui3style
 target_link_libraries(winui3style PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
 
 if(WIN32)
-    target_link_libraries(winui3style PRIVATE dwmapi user32)
+    target_link_libraries(winui3style PRIVATE advapi32 dwmapi user32)
 endif()
 
 set_target_properties(winui3style PROPERTIES

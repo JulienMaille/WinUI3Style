@@ -159,13 +159,11 @@ inline Tokens buildTokens(const QPalette &palette)
     // QPalette::Accent was introduced in Qt 6.6. Keep the WinUI selection
     // role distinct from the control-fill ramp for the supported Qt 6.5
     // build instead of collapsing both roles onto Highlight. The selection
-    // role is the raw accent (QPalette::Highlight); map it onto the Fluent
-    // AccentFillColorDefault ramp: SystemAccentColorLight1 in light theme,
-    // SystemAccentColorLight2 in dark. Darkening (the old dark1 mapping)
-    // made control fills visibly darker than WinUI's.
+    // role is the raw accent (QPalette::Highlight); map it onto WinUI's
+    // AccentFillColorDefault ramp: Dark1 in Light, Light2 in Dark.
     t.accentFill = mix(t.selectionAccent,
-                       QColor(Qt::white),
-                       t.dark ? 0.32 : 0.15);
+                       t.dark ? QColor(Qt::white) : QColor(Qt::black),
+                       t.dark ? 0.32 : 0.18);
 #endif
     // WinUI maps pointer-over and pressed AccentFill brushes to the same
     // accent-ramp colour at 90% and 80% opacity. Do not synthesize unrelated
@@ -176,14 +174,16 @@ inline Tokens buildTokens(const QPalette &palette)
     t.accentFillPressed.setAlphaF(t.accentFill.alphaF() * 0.8);
     t.accentFillDisabled = t.dark ? QColor(255, 255, 255, 40)
                                   : QColor(0, 0, 0, 55);
-    t.controlOnAccentPrimary = QColor(Qt::white);
-    t.controlOnAccentDisabled = withAlpha(t.controlOnAccentPrimary, 135);
-    // A custom Windows accent can be arbitrarily light or dark. Resolve the
-    // foreground from the actual fill so Accent buttons remain readable even
-    // when the user selects a pale yellow or near-black accent.
-    t.textOnAccentPrimary = contrastText(t.accentFill);
-    t.textOnAccentSecondary = t.textOnAccentPrimary;
-    t.textOnAccentSecondary.setAlpha(179);
+    // CheckBox, RadioButton and ToggleSwitch use TextOnAccentFillColorPrimary
+    // for their checked glyph/knob: black in Dark, white in Light.
+    t.controlOnAccentPrimary = t.dark ? QColor(Qt::black) : QColor(Qt::white);
+    t.controlOnAccentDisabled = t.dark ? QColor(255, 255, 255, 135)
+                                       : QColor(Qt::white);
+    // WinUI's TextOnAccentFillColorPrimary is a theme resource, not a
+    // contrast calculation: white in Light and black in Dark.
+    t.textOnAccentPrimary = t.dark ? QColor(Qt::black) : QColor(Qt::white);
+    t.textOnAccentSecondary = t.dark ? QColor(0, 0, 0, 128)
+                                     : QColor(255, 255, 255, 179);
     t.textOnAccentDisabled = t.textOnAccentPrimary;
     t.textOnAccentDisabled.setAlpha(135);
     t.danger = QColor(196, 43, 28);
