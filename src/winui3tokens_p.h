@@ -11,9 +11,8 @@ namespace WinUI3::Private {
 constexpr int FasterDuration = 83;
 constexpr int FastDuration = 167;
 // AnimatedAcceptVisualSource uses the fast control transition for the
-// NormalOffToNormalOn segment. Its generated source has a short initial hold
-// followed by the path reveal; the Qt implementation remaps those keyframes
-// onto this same 167 ms control duration.
+// NormalOffToNormalOn segment. AnimatedIcon starts playback at that segment's
+// Start marker, so frames preceding the marker must not become an extra hold.
 constexpr int CheckBoxDuration = FastDuration;
 constexpr int NormalDuration = 250;
 constexpr qreal ControlRadius = 4.0;

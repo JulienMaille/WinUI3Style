@@ -3642,6 +3642,33 @@ void WinUI3StyleTest::checkboxAcceptAnimation()
     QCheckBox check(QStringLiteral("Animated accept"));
     check.resize(check.sizeHint());
     check.show();
+
+    const auto renderIndicator = [&](qreal progress, bool checked) {
+        setFrame(&check, "_winui_check_progress", progress);
+        QStyleOptionButton option;
+        option.initFrom(&check);
+        option.rect = QRect(0, 0, 20, 20);
+        option.state = QStyle::State_Enabled
+            | (checked ? QStyle::State_On : QStyle::State_Off);
+        QImage image(20, 20, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox,
+                                     &option, &painter, &check);
+        return image;
+    };
+    const QImage checkedAtStart = renderIndicator(0.0, true);
+    const QImage checkedAtEnd = renderIndicator(1.0, true);
+    const QImage unchecked = renderIndicator(0.0, false);
+    // Checked fill/stroke are discrete in the WinUI template; the corner is
+    // outside the accept path and therefore must not fade with glyph progress.
+    QCOMPARE(checkedAtStart.pixelColor(2, 2), checkedAtEnd.pixelColor(2, 2));
+    QVERIFY(checkedAtStart.pixelColor(2, 2) != unchecked.pixelColor(2, 2));
+    // The official transition starts at frame 15, not frame 0: there is no
+    // second hold after AnimatedIcon has jumped to its Start marker.
+    QVERIFY(renderIndicator(0.05, true) != checkedAtStart);
+
+    setFrame(&check, "_winui_check_progress", 0.0);
     check.setChecked(true);
     QTest::qWait(55);
     const qreal midway = frameReal(&check, "_winui_check_progress");

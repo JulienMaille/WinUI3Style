@@ -198,6 +198,11 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         const bool checked = option->state & (QStyle::State_On | QStyle::State_NoChange);
         const qreal checkAmount = progress(widget, checkProperty,
                                            checked ? 1.0 : 0.0);
+        // WinUI changes the rectangle's fill and stroke with discrete
+        // keyframes at state entry. Only AnimatedAcceptVisualSource is
+        // progressive; fading the accent surface made the whole control feel
+        // slower even with the correct 167 ms glyph duration.
+        const qreal stateAmount = checked ? 1.0 : 0.0;
         // WinUI's template owns a 20 x 20 logical indicator. Do not shrink
         // that layout slot before painting it: the one-pixel border is part
         // of the template geometry and UseLayoutRounding is disabled there.
@@ -205,19 +210,19 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         const qreal indicatorHover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
         const qreal indicatorPress = progress(widget, pressProperty,
                                      option->state & QStyle::State_Sunken ? 1.0 : 0.0);
-        QColor fill = mix(t.layer, t.accentFill, checkAmount);
-        QColor stroke = mix(t.strokeStrong, t.accentFill, checkAmount);
+        QColor fill = mix(t.layer, t.accentFill, stateAmount);
+        QColor stroke = mix(t.strokeStrong, t.accentFill, stateAmount);
         if (!enabled) {
-            fill = mix(t.controlDisabled, t.accentFillDisabled, checkAmount);
-            stroke = mix(t.textDisabled, t.accentFillDisabled, checkAmount);
+            fill = mix(t.controlDisabled, t.accentFillDisabled, stateAmount);
+            stroke = mix(t.textDisabled, t.accentFillDisabled, stateAmount);
         } else {
             const QColor hoverFill = mix(mix(t.layer, t.textPrimary, 0.05),
-                                         t.accentFillHover, checkAmount);
+                                         t.accentFillHover, stateAmount);
             const QColor pressedFill = mix(t.controlPressed,
-                                           t.accentFillPressed, checkAmount);
+                                           t.accentFillPressed, stateAmount);
             fill = mix(fill, hoverFill, indicatorHover);
             fill = mix(fill, pressedFill, indicatorPress);
-            if (checkAmount < 0.001)
+            if (!checked)
                 stroke = mix(stroke, t.textDisabled, indicatorPress);
         }
         painter->save();
@@ -256,18 +261,10 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             } else {
                 // Port the generated AnimatedAcceptVisualSource geometry:
                 // a 48 px canvas, 0.7 scale, (24,23) offset, rounded 4-unit
-                // stroke. The source holds until 15/160 of its timeline and
-                // completes the visible reveal over the fast transition.
-                constexpr qreal hold = 15.0 / 160.0;
-                // Mapping the generated 34/160 keyframe directly onto our
-                // normalized progress compressed the stroke to about 20 ms,
-                // making it appear instantaneous. Keep the official hold,
-                // then use the remainder of the 167 ms transition.
-                constexpr qreal end = 1.0;
-                const qreal reveal = checkAmount <= hold
-                    ? 0.0
-                    : qBound<qreal>(0.0, (checkAmount - hold) / (end - hold),
-                                    1.0);
+                // stroke. AnimatedIcon jumps to the Start marker (frame 15)
+                // before playback, so the visible frame-15..34 reveal maps
+                // directly onto this transition with no additional hold.
+                const qreal reveal = checkAmount;
                 painter->setPen(QPen(onAccent, 4.0 * 0.7 * 20.0 / 48.0,
                                      Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
                 if (reveal > 0.0) {
