@@ -3,6 +3,7 @@
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3density_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -23,6 +24,8 @@ namespace WinUI3::NavigationPrivate {
 namespace {
 
 using namespace WinUI3::PaintPrivate;
+using WinUI3::Private::progress;
+using WinUI3::Private::keyboardFocusVisible;
 
 constexpr auto navigationIndicatorProperty = "_winui_navigation_indicator_y";
 constexpr auto navigationDelegateProperty = "_winui_navigation_delegate";
@@ -30,20 +33,9 @@ constexpr auto navigationOriginalDelegateProperty = "_winui_navigation_original_
 constexpr auto navigationStateProperty = "_winui_navigation_state";
 constexpr auto originalMouseTrackingProperty = "_winui_original_mouse_tracking";
 
-qreal progress(const QWidget *widget, const char *name, qreal fallback)
-{
-    return WinUI3::Private::framePropertyRegistry().real(widget, name, fallback);
-}
-
 bool animationsAllowed()
 {
     return Style::animationsAllowed();
-}
-
-bool keyboardFocusVisible(const QWidget *widget)
-{
-    return widget && WinUI3::Private::framePropertyRegistry()
-        .value(widget, WinUI3::Private::focusVisibleProperty).toBool();
 }
 
 const QEasingCurve &fluentCurve()

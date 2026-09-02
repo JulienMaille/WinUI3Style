@@ -3,6 +3,7 @@
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3geometry_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
@@ -31,12 +32,6 @@ using namespace PaintPrivate;
 
 namespace {
 
-bool toggleSwitch(const QWidget *widget)
-{
-    return qobject_cast<const QCheckBox *>(widget)
-        && widget->property(Style::ToggleSwitchProperty).toBool();
-}
-
 bool spinBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
@@ -47,12 +42,6 @@ bool comboBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
         && qobject_cast<const QComboBox *>(widget->parentWidget());
-}
-
-bool textBoxHelperButton(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractButton *>(widget)
-        && qobject_cast<const QLineEdit *>(widget->parentWidget());
 }
 
 void drawEditorScopedClearSurface(const QStyleOption *option,
@@ -83,16 +72,6 @@ void drawEditorScopedClearSurface(const QStyleOption *option,
     surface = surface.intersected(option->rect);
     if (!surface.isEmpty())
         roundedRect(painter, surface, fill, Qt::transparent, ControlRadius);
-}
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
-{
-    return framePropertyRegistry().real(widget, name, fallback);
-}
-
-bool keyboardFocusVisible(const QWidget *widget)
-{
-    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
 } // namespace
@@ -333,18 +312,9 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                 drawEditorScopedClearSurface(option, painter, lineEdit,
                                              clearFill);
         }
-        if (focused) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            QPainterPath clip;
-            clip.addRoundedRect(QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5),
-                                ControlRadius, ControlRadius);
-            painter->setClipPath(clip);
-            painter->setPen(QPen(t.accentFill, 2.0, Qt::SolidLine, Qt::FlatCap));
-            painter->drawLine(option->rect.left(), option->rect.bottom() - 1,
-                              option->rect.right(), option->rect.bottom() - 1);
-            painter->restore();
-        }
+        if (focused)
+            drawEditorFocusUnderline(painter, QRectF(option->rect),
+                                     t.accentFill, ControlRadius);
         return true;
     }
 
@@ -629,8 +599,6 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             const QFontMetrics metrics(tool->fontMetrics);
             const int textWidth = tool->text.isEmpty()
                 ? 0 : metrics.horizontalAdvance(tool->text);
-            if (buttonStyle == Qt::ToolButtonTextOnly)
-                painter->setPen(textColor);
             if (buttonStyle == Qt::ToolButtonTextOnly || !hasIcon) {
                 painter->save();
                 painter->setFont(tool->font);

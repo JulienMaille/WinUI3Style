@@ -10,6 +10,7 @@
 #include "winui3backdrop_p.h"
 #include "winui3buttons_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3helpers_p.h"
 #include "winui3menus_p.h"
 #include "winui3style_contracts_p.h"
 #include "winui3complex_p.h"
@@ -38,48 +39,31 @@
 #include <QDateTime>
 #include <QDateTimeEdit>
 #include <QDialog>
-#include <QDockWidget>
 #include <QDynamicPropertyChangeEvent>
 #include <QEvent>
-#include <QFocusEvent>
 #include <QFrame>
 #include <QFontDatabase>
-#include <QFontMetrics>
 #include <QGroupBox>
 #include <QGuiApplication>
-#include <QHeaderView>
 #include <QLinearGradient>
 #include <QListView>
-#include <QLineF>
 #include <QLineEdit>
-#include <QItemSelectionModel>
-#include <QKeyEvent>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QMouseEvent>
-#include <QParallelAnimationGroup>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPointer>
-#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
-#include <QSet>
 #include <QSlider>
 #include <QStyleOption>
-#include <QStyleOptionButton>
-#include <QStyleOptionDockWidget>
-#include <QStyleOptionFocusRect>
-#include <QStyleOptionGroupBox>
 #include <QStyleOptionProgressBar>
-#include <QStyleOptionTab>
 #include <QToolTip>
-#include <QStyleOptionToolButton>
 #include <QStyleHints>
 #include <QStyledItemDelegate>
 #include <QTabBar>
@@ -88,7 +72,6 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTimer>
-#include <QTreeView>
 #include <QVariantAnimation>
 #include <QVector>
 #include <QWidget>
@@ -119,37 +102,6 @@ Backdrop backdropFromProperty(const QVariant &value)
     return Backdrop::None;
 }
 
-bool toggleSwitch(const QWidget *widget)
-{
-    return qobject_cast<const QCheckBox *>(widget)
-        && widget->property(Style::ToggleSwitchProperty).toBool();
-}
-
-bool verticalSpinButtons(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractSpinBox *>(widget)
-        && widget->property(Style::VerticalSpinButtonsProperty).toBool();
-}
-
-bool spinBoxEditor(const QWidget *widget)
-{
-    return qobject_cast<const QLineEdit *>(widget)
-        && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget());
-}
-
-bool textBoxHelperButton(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractButton *>(widget)
-        && qobject_cast<const QLineEdit *>(widget->parentWidget());
-}
-
-bool buttonPressPulse(const QWidget *widget)
-{
-    return !textBoxHelperButton(widget)
-        && (qobject_cast<const QPushButton *>(widget)
-            || qobject_cast<const QToolButton *>(widget));
-}
-
 const QAbstractItemView *itemView(const QWidget *widget)
 {
     if (const auto *view = qobject_cast<const QAbstractItemView *>(widget))
@@ -174,53 +126,12 @@ const QWidget *richTextEditor(const QWidget *widget)
     return nullptr;
 }
 
-enum class InteractionMotion {
-    Hover,
-    Press,
-    Focus
-};
-
-int interactionDuration(const QWidget *widget, InteractionMotion motion,
-                        bool active)
-{
-    // TextBox and NumberBox switch their common visual states through setters;
-    // their templates define no timed transition. The TextBox helper button is
-    // discrete as well. Other button-like surfaces use WinUI's faster brush
-    // transition, while RadioButton's dot uses the normal duration.
-    if (qobject_cast<const QLineEdit *>(widget)
-        || qobject_cast<const QAbstractSpinBox *>(widget)
-        || qobject_cast<const QTabBar *>(widget)
-        || textBoxHelperButton(widget)) {
-        return 0;
-    }
-    if (qobject_cast<const QRadioButton *>(widget))
-        return Private::NormalDuration;
-    if (qobject_cast<const QSlider *>(widget)) {
-        if (motion == InteractionMotion::Focus)
-            return 0;
-        return active ? Private::NormalDuration : Private::FastDuration;
-    }
-    if (qobject_cast<const QScrollBar *>(widget))
-        return Private::FastDuration;
-    return Private::FasterDuration;
-}
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0);
-const QEasingCurve &fluentCurve();
-bool keyboardFocusVisible(const QWidget *widget);
-bool animationsAllowed();
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback)
-{
-    return framePropertyRegistry().real(widget, name, fallback);
-}
-
 const QEasingCurve &fluentCurve()
 {
     static const QEasingCurve curve = [] {
         QEasingCurve result(QEasingCurve::BezierSpline);
         result.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0),
-                                     QPointF(1.0, 1.0));
+                                      QPointF(1.0, 1.0));
         return result;
     }();
     return curve;
@@ -360,33 +271,6 @@ void invalidateDensityTree(QWidget *root)
     const auto descendants = root->findChildren<QWidget *>();
     for (QWidget *widget : descendants)
         invalidateWidget(widget);
-}
-
-bool keyboardFocusVisible(const QWidget *widget)
-{
-    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
-}
-
-bool revealsKeyboardFocus(int key)
-{
-    switch (key) {
-    case Qt::Key_Tab:
-    case Qt::Key_Backtab:
-    case Qt::Key_Left:
-    case Qt::Key_Right:
-    case Qt::Key_Up:
-    case Qt::Key_Down:
-    case Qt::Key_Home:
-    case Qt::Key_End:
-    case Qt::Key_PageUp:
-    case Qt::Key_PageDown:
-    case Qt::Key_Space:
-    case Qt::Key_Return:
-    case Qt::Key_Enter:
-        return true;
-    default:
-        return false;
-    }
 }
 
 Icon arrowIcon(QStyle::PrimitiveElement element)
@@ -996,7 +880,6 @@ public:
             return;
         QComboBox *combo = association->data();
         comboPopupAssociations.erase(association);
-        preparedComboPopups.remove(popup);
         if (const auto connection = comboPopupPopupConnections.take(popup))
             QObject::disconnect(connection);
         if (combo && comboPopupByCombo.value(combo) == popup) {
@@ -1051,7 +934,6 @@ public:
         associateComboPopup(combo, popup);
         if (!popup)
             return;
-        preparedComboPopups.insert(popup);
         // QComboBox can change the popup viewport geometry between the view's
         // Show event and the popup window's Show event. Re-running this
         // idempotent preparation makes the selected-row anchor deterministic
@@ -1073,7 +955,6 @@ public:
                 }
                 releaseComboChevron(combo);
             }
-            preparedComboPopups.remove(popup);
         }
     }
 
@@ -1123,7 +1004,6 @@ public:
     QHash<QComboBox *, QWidget *> comboPopupByCombo;
     QHash<QWidget *, QMetaObject::Connection> comboPopupPopupConnections;
     QHash<QComboBox *, QMetaObject::Connection> comboPopupComboConnections;
-    QSet<QWidget *> preparedComboPopups;
     QVector<QPointer<QWidget>> paletteOwners;
     QHash<QWidget *, QMetaObject::Connection> paletteOwnerConnections;
     bool keyboardInput = false;
@@ -1560,18 +1440,6 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     using namespace Private;
     const Tokens t = tokens(option->palette);
     const bool enabled = option->state & State_Enabled;
-    const bool hovered = enabled && (option->state & State_MouseOver);
-    const bool pressed = enabled && (option->state & State_Sunken);
-    const qreal hover = enabled
-        ? progress(widget, hoverProperty, hovered ? 1.0 : 0.0) : 0.0;
-    // State_Sunken is the authoritative instantaneous state. The property is
-    // an animation/pulse cache and can briefly still contain zero when Qt has
-    // entered the pressed state (notably on rapid press/reversal sequences).
-    const qreal press = enabled
-        ? qMax(progress(widget, pressProperty, pressed ? 1.0 : 0.0),
-              pressed ? 1.0 : 0.0)
-        : 0.0;
-
 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
@@ -1635,30 +1503,22 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         return;
     }
 
-    if (element == PE_Frame && richTextEditor(widget)) {
-        const QWidget *editor = richTextEditor(widget);
-        const bool focused = editor->hasFocus();
-        const bool editorEnabled = option->state & State_Enabled;
-        const QColor fill = !editorEnabled ? t.controlDisabled
-            : focused ? (t.dark ? QColor(30, 30, 30, 179)
-                              : QColor(255, 255, 255))
-                      : (option->state & State_MouseOver ? t.controlHover
-                                                        : t.control);
-        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary,
-                       ControlRadius);
-        if (focused) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            QPainterPath clip;
-            clip.addRoundedRect(QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5),
-                                ControlRadius, ControlRadius);
-            painter->setClipPath(clip);
-            painter->setPen(QPen(t.accentFill, 2.0, Qt::SolidLine, Qt::FlatCap));
-            painter->drawLine(option->rect.left(), option->rect.bottom() - 1,
-                              option->rect.right(), option->rect.bottom() - 1);
-            painter->restore();
+    if (element == PE_Frame) {
+        if (const QWidget *editor = richTextEditor(widget)) {
+            const bool focused = editor->hasFocus();
+            const bool editorEnabled = option->state & State_Enabled;
+            const QColor fill = !editorEnabled ? t.controlDisabled
+                : focused ? (t.dark ? QColor(30, 30, 30, 179)
+                                  : QColor(255, 255, 255))
+                          : (option->state & State_MouseOver ? t.controlHover
+                                                            : t.control);
+            controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary,
+                           ControlRadius);
+            if (focused)
+                drawEditorFocusUnderline(painter, QRectF(option->rect),
+                                         t.accentFill, ControlRadius);
+            return;
         }
-        return;
     }
 
     if (element == PE_IndicatorToolBarSeparator) {
@@ -1860,11 +1720,14 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 else
                     fill.setWidth(length);
             } else {
+                // Qt fills a vertical, non-inverted bar from the bottom up
+                // (QCommonStyle flips "reverse" for vertical orientation), so
+                // invertedAppearance must grow from the top instead.
                 const int length = qRound(track.height() * ratio);
                 if (inverted)
-                    fill.setTop(track.bottom() - length + 1);
-                else
                     fill.setHeight(length);
+                else
+                    fill.setTop(track.bottom() - length + 1);
             }
             if (!fill.isEmpty())
                 roundedRect(painter, fill, indicatorColor, Qt::transparent, 2);
@@ -2335,7 +2198,6 @@ void Style::unpolish(QWidget *widget)
         }
         if (auto *slider = qobject_cast<QSlider *>(widget))
             hideSliderValueToolTip(slider);
-        widget->removeEventFilter(this);
         framePropertyRegistry().clearObject(widget);
         widget->setProperty(ownedPaletteProperty, {});
         widget->setProperty(originalPaletteProperty, {});

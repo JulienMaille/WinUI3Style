@@ -43,6 +43,7 @@ add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     winui3tableeditors_p.cpp
     winui3frameproperties_p.h
     winui3frameproperties_p.cpp
+    winui3helpers_p.h
     winui3surfaces_p.h
     winui3surfaces_p.cpp
     winui3complex_p.h

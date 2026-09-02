@@ -2,6 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -25,11 +26,6 @@ namespace {
 constexpr int MenuChevronSlotSize = 16;
 constexpr int MenuChevronFontSize = 12;
 constexpr int MenuChevronRightPadding = 9;
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
-{
-    return framePropertyRegistry().real(widget, name, fallback);
-}
 
 const QFont &menuChevronFont()
 {

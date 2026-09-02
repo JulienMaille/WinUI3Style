@@ -2,7 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
-#include "winui3density_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -31,16 +31,6 @@ bool verticalSpinButtons(const QWidget *widget)
 {
     return qobject_cast<const QAbstractSpinBox *>(widget)
         && widget->property(Style::VerticalSpinButtonsProperty).toBool();
-}
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
-{
-    return framePropertyRegistry().real(widget, name, fallback);
-}
-
-bool keyboardFocusVisible(const QWidget *widget)
-{
-    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
 } // namespace
@@ -117,7 +107,6 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
-            const DensityMetrics &density = densityMetricsFor(widget);
             if (widget && widget->parentWidget()
                 && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
@@ -127,23 +116,22 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             const bool hovered = combo->state & QStyle::State_MouseOver;
             const bool pressed = combo->state & (QStyle::State_Sunken | QStyle::State_On);
             const bool editable = combo->editable;
+            const QLineEdit *comboEditor = editable ? widget
+                ? widget->findChild<QLineEdit *>() : nullptr : nullptr;
             const bool editableFocused = editable && enabled
                 && (combo->state & QStyle::State_HasFocus
                     || (widget && widget->isActiveWindow()
-                        && widget->findChild<QLineEdit *>()
-                        && widget->findChild<QLineEdit *>()->hasFocus()));
-            const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
-            const qreal press = progress(widget, pressProperty, pressed ? 1.0 : 0.0);
+                        && comboEditor && comboEditor->hasFocus()));
             QColor fill = enabled ? t.control : t.controlDisabled;
             // An editable ComboBox behaves like a TextBox once it owns
             // keyboard focus: flat light surface, no hover tint.
             if (!editableFocused) {
+                const qreal hover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
+                const qreal press = progress(widget, pressProperty, pressed ? 1.0 : 0.0);
                 fill = mix(fill, t.controlHover, hover);
                 fill = mix(fill, t.controlPressed, press);
             } else {
                 fill = t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255);
-                Q_UNUSED(hover);
-                Q_UNUSED(press);
             }
             if (combo->subControls & QStyle::SC_ComboBoxFrame)
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,

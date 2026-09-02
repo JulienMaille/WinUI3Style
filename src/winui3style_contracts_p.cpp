@@ -2,6 +2,7 @@
 
 #include "winui3geometry_p.h"
 #include "winui3density_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -32,12 +33,6 @@
 namespace WinUI3::Private {
 namespace {
 
-bool toggleSwitch(const QWidget *widget)
-{
-    return qobject_cast<const QCheckBox *>(widget)
-        && widget->property(Style::ToggleSwitchProperty).toBool();
-}
-
 bool verticalSpinButtons(const QWidget *widget)
 {
     return qobject_cast<const QAbstractSpinBox *>(widget)
@@ -54,12 +49,6 @@ bool comboBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
         && qobject_cast<const QComboBox *>(widget->parentWidget());
-}
-
-bool textBoxHelperButton(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractButton *>(widget)
-        && qobject_cast<const QLineEdit *>(widget->parentWidget());
 }
 
 const QAbstractItemView *itemView(const QWidget *widget)
@@ -314,7 +303,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
             && horizontal;
         size.setWidth(qMax(size.width(), 120));
         size.setHeight(showsText
-            ? qMax(size.height(), size.height() + 6) // text + thin underline
+            ? size.height() + 6 // text + thin underline
             : qMax(size.height(), 8));
         break;
     }
@@ -406,10 +395,25 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
         && widget->window()->windowType() == Qt::Popup
         && !calendarPopupItemView(widget);
     if (popup && element == QStyle::SE_ItemViewItemText) {
-        result.setLeft(qMax(result.left(),
-                            option->rect.left() + density.menuItemIconSlot));
-        result.setRight(qMin(result.right(),
-                             option->rect.right() - density.menuItemHorizontalPadding));
+        // Reserve the icon-slot inset on the leading edge in the reading
+        // direction, mirroring the reservation for RTL layouts.
+        const QStyleOptionViewItem *item =
+            qstyleoption_cast<const QStyleOptionViewItem *>(option);
+        const Qt::LayoutDirection direction = item
+            ? item->direction : option->direction;
+        const int iconSlot = density.menuItemIconSlot;
+        const int padding = density.menuItemHorizontalPadding;
+        if (direction == Qt::RightToLeft) {
+            result.setRight(qMin(result.right(),
+                                 option->rect.right() - iconSlot));
+            result.setLeft(qMax(result.left(),
+                                option->rect.left() + padding));
+        } else {
+            result.setLeft(qMax(result.left(),
+                                option->rect.left() + iconSlot));
+            result.setRight(qMin(result.right(),
+                                 option->rect.right() - padding));
+        }
     }
     return result;
 }

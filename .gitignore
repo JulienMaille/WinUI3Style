@@ -4,3 +4,4 @@ __pycache__/
 *.user
 *.pyc
 *.log
+*.obj

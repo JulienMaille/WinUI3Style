@@ -4,6 +4,7 @@
 #include "winui3backdrop_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3geometry_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
@@ -11,8 +12,6 @@
 #include <winui3style/winui3style.h>
 
 #include <winui3style/winui3backdrop.h>
-
-#include "winui3backdrop_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -25,7 +24,6 @@
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFrame>
-#include <QGroupBox>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -48,25 +46,6 @@
 
 namespace WinUI3::Private {
 namespace {
-
-bool toggleSwitch(const QWidget *widget)
-{
-    return qobject_cast<const QCheckBox *>(widget)
-        && widget->property(Style::ToggleSwitchProperty).toBool();
-}
-
-bool textBoxHelperButton(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractButton *>(widget)
-        && qobject_cast<const QLineEdit *>(widget->parentWidget());
-}
-
-bool buttonPressPulse(const QWidget *widget)
-{
-    return !textBoxHelperButton(widget)
-        && (qobject_cast<const QPushButton *>(widget)
-            || qobject_cast<const QToolButton *>(widget));
-}
 
 bool comboPressOpensPopup(QComboBox *combo, const QPoint &position)
 {
@@ -159,11 +138,6 @@ int interactionDuration(const QWidget *widget, InteractionMotion motion,
     if (qobject_cast<const QScrollBar *>(widget))
         return FastDuration;
     return FasterDuration;
-}
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
-{
-    return framePropertyRegistry().real(widget, name, fallback);
 }
 
 bool revealsKeyboardFocus(int key)

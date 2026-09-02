@@ -2,6 +2,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
@@ -30,16 +31,6 @@ namespace WinUI3::Private {
 using namespace PaintPrivate;
 
 namespace {
-
-qreal progress(const QWidget *widget, const char *name, qreal fallback = 0.0)
-{
-    return framePropertyRegistry().real(widget, name, fallback);
-}
-
-bool keyboardFocusVisible(const QWidget *widget)
-{
-    return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
-}
 
 const QAbstractItemView *itemView(const QWidget *widget)
 {
@@ -145,7 +136,6 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             : nullptr;
         const bool comboPopup = popupCombo;
         const Tokens t = tokens(option->palette);
-        const Tokens itemTokens = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
         const bool tree = qobject_cast<const QTreeView *>(view);
         const bool table = qobject_cast<const QTableView *>(view);
@@ -159,12 +149,12 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                 return true;
             QColor calendarFill = Qt::transparent;
             if (selected)
-                calendarFill = enabled ? itemTokens.accentFill
-                                       : itemTokens.accentFillDisabled;
+                calendarFill = enabled ? t.accentFill
+                                       : t.accentFillDisabled;
             else if (pressedItem)
-                calendarFill = itemTokens.subtlePressed;
+                calendarFill = t.subtlePressed;
             else if (hovered)
-                calendarFill = itemTokens.subtleHover;
+                calendarFill = t.subtleHover;
             if (calendarFill.alpha() > 0) {
                 const int side = qMin(32, qMin(option->rect.width() - 4,
                                                option->rect.height() - 4));
@@ -178,11 +168,11 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         }
         QColor fill = Qt::transparent;
         if (pressedItem)
-            fill = itemTokens.subtlePressed;
+            fill = t.subtlePressed;
         else if (selected && hovered)
-            fill = itemTokens.subtlePressed;
+            fill = t.subtlePressed;
         else if (selected || hovered)
-            fill = itemTokens.subtleHover;
+            fill = t.subtleHover;
         // Pointer events and animation invalidation belong to the viewport.
         // Delegates may invoke the style with either the view or its viewport,
         // so resolve the actual event surface explicitly.
@@ -208,8 +198,8 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? itemTokens.selectionAccent
-                                       : itemTokens.accentFillDisabled);
+            painter->setBrush(enabled ? t.selectionAccent
+                                       : t.accentFillDisabled);
             // WinUI's selected-item pill compresses to 62.5% while the
             // pointer is held. The interaction controller uses the same
             // 167 ms transition as the current DropdownContent template.
@@ -244,8 +234,8 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? itemTokens.selectionAccent
-                                       : itemTokens.accentFillDisabled);
+            painter->setBrush(enabled ? t.selectionAccent
+                                       : t.accentFillDisabled);
             const QRectF indicator = selectionMarkerRect(*viewOption, view);
             painter->drawRoundedRect(indicator, 1.5, 1.5);
             painter->restore();
@@ -369,7 +359,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 && !calendarPopupView(widget);
             const bool comboPopup = popup && widget->window()->parentWidget()
                 && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
-            const Tokens itemTokens = tokens(option->palette);
+            const Tokens t = tokens(option->palette);
             const bool enabled = source->state & QStyle::State_Enabled;
             const bool calendarHeader = calendar && source->index.isValid()
                 && source->index.row() == 0;
@@ -398,7 +388,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                     QStyle::SE_ItemViewItemDecoration, source, widget);
                 paintThemedIcon(painter, source->icon, decoration,
                     source->decorationAlignment,
-                    enabled ? itemTokens.textPrimary : itemTokens.textDisabled,
+                    enabled ? t.textPrimary : t.textDisabled,
                     enabled ? QIcon::Normal : QIcon::Disabled,
                     source->state & QStyle::State_Selected ? QIcon::On : QIcon::Off);
             }
@@ -413,25 +403,28 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 const bool hasLeadingContent =
                     (source->features & QStyleOptionViewItem::HasDecoration)
                     || (source->features & QStyleOptionViewItem::HasCheckIndicator);
+                // The leading 42px reservation must follow the reading
+                // direction, otherwise RTL popup text overlaps the icon and
+                // marker zone painted on the right edge.
+                const int leading = comboPopup && !hasLeadingContent
+                    ? comboPopupItemPaddingLeft + 5 : 42;
+                const int trailing = comboPopup && !hasLeadingContent
+                    ? comboPopupItemPaddingRight + 5 : 12;
                 QRect textRect = popup
-                    ? source->rect.adjusted(
-                        comboPopup && !hasLeadingContent
-                            ? comboPopupItemPaddingLeft + 5 : 42,
-                        0,
-                        comboPopup && !hasLeadingContent
-                            ? -(comboPopupItemPaddingRight + 5) : -12,
-                        0)
+                    ? QStyle::visualRect(source->direction, source->rect,
+                                         source->rect.adjusted(
+                                             leading, 0, -trailing, 0))
                     : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
                 painter->save();
                 painter->setFont(source->font);
-                QColor textColor = enabled ? itemTokens.textPrimary
-                                           : itemTokens.textDisabled;
+                QColor textColor = enabled ? t.textPrimary
+                                           : t.textDisabled;
                 if (calendarHeader) {
-                    textColor = enabled ? itemTokens.textSecondary
-                                        : itemTokens.textDisabled;
+                    textColor = enabled ? t.textSecondary
+                                        : t.textDisabled;
                 } else if (calendar && (source->state & QStyle::State_Selected)) {
-                    textColor = enabled ? itemTokens.textOnAccentPrimary
-                                        : itemTokens.controlOnAccentDisabled;
+                    textColor = enabled ? t.textOnAccentPrimary
+                                        : t.controlOnAccentDisabled;
                 } else if (calendar && source->index.isValid()) {
                     // QCalendarWidget injects platform-specific weekday
                     // colors (notably red weekends). WinUI uses the normal
@@ -443,7 +436,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                         && ((row == 1 && day > 7)
                             || (row >= 5 && day < 15));
                     if (outsideMonth)
-                        textColor = itemTokens.textDisabled;
+                        textColor = t.textDisabled;
                 }
                 painter->setPen(textColor);
                 Qt::Alignment alignment = Qt::Alignment(source->displayAlignment)
@@ -469,11 +462,11 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 painter->save();
                 painter->setRenderHint(QPainter::Antialiasing);
                 painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(itemTokens.focusOuter, 2.0));
+                painter->setPen(QPen(t.focusOuter, 2.0));
                 painter->drawRoundedRect(focusRect.adjusted(1, 1, -1, -1),
                                          table ? 0.0 : 5.0,
                                          table ? 0.0 : 5.0);
-                painter->setPen(QPen(itemTokens.focusInner, 1.0));
+                painter->setPen(QPen(t.focusInner, 1.0));
                 painter->drawRoundedRect(focusRect.adjusted(3, 3, -3, -3),
                                          table ? 0.0 : 3.0,
                                          table ? 0.0 : 3.0);
@@ -743,7 +736,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             painter->restore();
             return true;
         }
-        return true;
+        return false;
     }
 
     return false;
