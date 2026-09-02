@@ -141,13 +141,11 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
     case QStyle::CT_ComboBox:
         if (densityModeFor(widget) == DensityMode::Compact) {
             size.rwidth() += 2 * density.comboHorizontalPadding;
-            // QComboBox may pass a contents height cached under the previous
-            // profile. Recompute Compact from the current font so that stale
-            // Standard contents cannot pin it at the old height.
-            size.setHeight(qMax(density.comboBoxHeight,
-                                option ? option->fontMetrics.height()
-                                             + 2 * density.comboVerticalPadding
-                                       : contentsSize.height()));
+            const int targetHeight = density.comboBoxHeight;
+            if (option && (option->fontMetrics.height() + 2 * density.comboVerticalPadding > targetHeight + 4))
+                size.setHeight(option->fontMetrics.height() + 2 * density.comboVerticalPadding);
+            else
+                size.setHeight(targetHeight);
         } else {
             // Preserve the established Standard geometry pixel-for-pixel.
             size += QSize(2 * density.comboHorizontalPadding,
@@ -157,19 +155,37 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
         size.setWidth(qMax(size.width(), 120));
         break;
     case QStyle::CT_LineEdit:
-        size += QSize(2 * density.lineEditHorizontalPadding,
-                       2 * density.lineEditVerticalPadding);
-        size.setHeight(qMax(size.height(), density.textBoxHeight));
+        if (densityModeFor(widget) == DensityMode::Compact) {
+            size.rwidth() += 2 * density.lineEditHorizontalPadding;
+            const int targetHeight = density.textBoxHeight;
+            if (option && (option->fontMetrics.height() + 2 * density.lineEditVerticalPadding > targetHeight + 4))
+                size.setHeight(option->fontMetrics.height() + 2 * density.lineEditVerticalPadding);
+            else
+                size.setHeight(targetHeight);
+        } else {
+            size += QSize(2 * density.lineEditHorizontalPadding,
+                          2 * density.lineEditVerticalPadding);
+            size.setHeight(qMax(size.height(), density.textBoxHeight));
+        }
         break;
     case QStyle::CT_SpinBox:
         size += QSize(verticalSpinButtons(widget)
                           ? density.verticalSpinButtonWidth + 12
                           : 2 * density.spinButtonWidth + 12,
                       0);
-        size.setHeight(qMax(size.height(),
-                            qobject_cast<const QDateTimeEdit *>(widget)
-                                ? density.textBoxHeight
-                                : density.buttonHeight));
+        if (densityModeFor(widget) == DensityMode::Compact
+            && qobject_cast<const QDateTimeEdit *>(widget)) {
+            const int targetHeight = density.textBoxHeight;
+            if (option && (option->fontMetrics.height() + 8 > targetHeight + 4))
+                size.setHeight(option->fontMetrics.height() + 8);
+            else
+                size.setHeight(targetHeight);
+        } else {
+            size.setHeight(qMax(size.height(),
+                                qobject_cast<const QDateTimeEdit *>(widget)
+                                    ? density.textBoxHeight
+                                    : density.buttonHeight));
+        }
         size.setWidth(qMax(size.width(), 120));
         break;
     case QStyle::CT_ToolButton:
@@ -285,12 +301,22 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
         // Label is painted from x=32 with a 4px right margin; Qt passes only
         // the text size as contents, so the hint must cover indicator, gap,
         // and trailing margin to avoid clipping the last glyph.
-        size += QSize(36, 8);
-        size.setHeight(qMax(size.height(), 28));
+        if (densityModeFor(widget) == DensityMode::Compact) {
+            size += QSize(36, 4);
+            size.setHeight(qMax(size.height(), 24));
+        } else {
+            size += QSize(36, 8);
+            size.setHeight(qMax(size.height(), 28));
+        }
         break;
     case QStyle::CT_RadioButton:
-        size += QSize(36, 8);
-        size.setHeight(qMax(size.height(), 28));
+        if (densityModeFor(widget) == DensityMode::Compact) {
+            size += QSize(36, 4);
+            size.setHeight(qMax(size.height(), 24));
+        } else {
+            size += QSize(36, 8);
+            size.setHeight(qMax(size.height(), 28));
+        }
         break;
     case QStyle::CT_ProgressBar: {
         // QStyleOptionProgressBar::orientation only exists from Qt 5.13;
@@ -360,7 +386,10 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
         if (comboBoxEditor(widget))
             return option->rect;
         if (!spinBoxEditor(widget)) {
-            const QRect logical = option->rect.adjusted(10, 5, -6, -6);
+            const bool compact = densityModeFor(widget) == DensityMode::Compact;
+            const QRect logical = compact
+                ? option->rect.adjusted(10, 2, -6, -2)
+                : option->rect.adjusted(10, 5, -6, -6);
             return QStyle::visualRect(option->direction, option->rect, logical);
         }
     }

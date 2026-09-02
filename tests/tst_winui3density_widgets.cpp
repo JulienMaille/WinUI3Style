@@ -1,10 +1,12 @@
 #include <winui3style/navigationview.h>
 #include <winui3style/winui3style.h>
 
-#include <QComboBox>
 #include <QCalendarWidget>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QCompleter>
 #include <QDateEdit>
+#include <QRadioButton>
 #include <QHeaderView>
 #include <QImage>
 #include <QLineEdit>
@@ -187,7 +189,7 @@ void WinUI3DensityWidgetsTest::allOfficialWidgetsUseCompactMetricsAfterRealLayou
         {widgets.datePicker.sizeHint().height(), dateStandard},
         {widgets.timePicker.sizeHint().height(), timeStandard}};
     for (const auto &[compact, standard] : editorHeights) {
-        QVERIFY(compact >= 24);
+        QCOMPARE(compact, 24);
         QVERIFY(compact < standard);
     }
     QCOMPARE(rowHeight(widgets.listView), 32);
@@ -225,18 +227,22 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     QComboBox comboBox(&panel);
     QDateEdit datePicker(&panel);
     QTimeEdit timePicker(&panel);
+    QCheckBox checkBox(QStringLiteral("Option"), &panel);
+    QRadioButton radioButton(QStringLiteral("Choice"), &panel);
     QListView listView(&panel);
     QStandardItemModel listModel(1, 1, &listView);
     listModel.setData(listModel.index(0, 0), QStringLiteral("Item"));
     listView.setModel(&listModel);
     applyStyleToWidgets(style, QList<QWidget *> {
         &panel, &textBox, &autoSuggestBox, &comboBox, &datePicker, &timePicker,
-        &listView});
+        &checkBox, &radioButton, &listView});
     panelLayout.addWidget(&textBox);
     panelLayout.addWidget(&autoSuggestBox);
     panelLayout.addWidget(&comboBox);
     panelLayout.addWidget(&datePicker);
     panelLayout.addWidget(&timePicker);
+    panelLayout.addWidget(&checkBox);
+    panelLayout.addWidget(&radioButton);
     panelLayout.addWidget(&listView);
     rootLayout.addWidget(&panel);
 
@@ -246,9 +252,11 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     const int comboCompact = comboBox.sizeHint().height();
     const int dateCompact = datePicker.sizeHint().height();
     const int timeCompact = timePicker.sizeHint().height();
+    const int checkCompact = checkBox.sizeHint().height();
+    const int radioCompact = radioButton.sizeHint().height();
     for (int height : {textCompact, autoSuggestCompact, comboCompact,
-                       dateCompact, timeCompact})
-        QVERIFY(height >= 24);
+                       dateCompact, timeCompact, checkCompact, radioCompact})
+        QCOMPARE(height, 24);
     QCOMPARE(rowHeight(listView), 32);
     autoSuggestBox.completer()->setCompletionPrefix(QStringLiteral("A"));
     autoSuggestBox.completer()->complete();
@@ -277,6 +285,8 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     QVERIFY(comboBox.sizeHint().height() > comboCompact);
     QVERIFY(datePicker.sizeHint().height() > dateCompact);
     QVERIFY(timePicker.sizeHint().height() > timeCompact);
+    QVERIFY(checkBox.sizeHint().height() > checkCompact);
+    QVERIFY(radioButton.sizeHint().height() > radioCompact);
     QCOMPARE(rowHeight(listView), 40);
     autoSuggestBox.completer()->complete();
     QCoreApplication::processEvents();

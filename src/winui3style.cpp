@@ -248,18 +248,17 @@ void invalidateDensityTree(QWidget *root)
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(widget, &styleChange);
         } else if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            // Prime the old private size-hint cache, then invalidate it via
-            // Qt's standard font-change path. Without the first query Qt may
-            // lazily rebuild the stale profile during the event itself.
-            (void) combo->sizeHint();
-            QEvent fontChange(QEvent::FontChange);
-            QCoreApplication::sendEvent(combo, &fontChange);
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(combo, &styleChange);
+            combo->updateGeometry();
         } else if (auto *dateTime = qobject_cast<QDateTimeEdit *>(widget)) {
-            // QDateTimeEdit has an equivalent private cache; use the same
-            // public invalidation event while preserving value and selection.
-            (void) dateTime->sizeHint();
-            QEvent fontChange(QEvent::FontChange);
-            QCoreApplication::sendEvent(dateTime, &fontChange);
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(dateTime, &styleChange);
+            dateTime->updateGeometry();
+        } else if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(button, &styleChange);
+            button->updateGeometry();
         }
         if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
             view->doItemsLayout();
@@ -1938,9 +1937,29 @@ void Style::polish(QWidget *widget)
                                 widget->hasFocus() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, focusVisibleProperty,
                                 widget->hasFocus() && d->keyboardInput);
+    if (widget->property(DensityProperty).isValid())
+        invalidateDensityTree(widget);
     if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
         prepareLineEditHelperButtons(lineEdit, this);
         syncCompleterPopupDensity(lineEdit);
+    } else if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (effectiveDensityMode(combo) == DensityMode::Compact) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(combo, &styleChange);
+            combo->updateGeometry();
+        }
+    } else if (auto *dateTime = qobject_cast<QDateTimeEdit *>(widget)) {
+        if (effectiveDensityMode(dateTime) == DensityMode::Compact) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(dateTime, &styleChange);
+            dateTime->updateGeometry();
+        }
+    } else if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
+        if (effectiveDensityMode(button) == DensityMode::Compact) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(button, &styleChange);
+            button->updateGeometry();
+        }
     }
     if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
         if (auto *completer = qobject_cast<QCompleter *>(view->parent())) {
