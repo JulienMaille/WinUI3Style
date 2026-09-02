@@ -85,8 +85,13 @@ void GalleryWindow::configureGallery()
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
-    ui->autoSuggestEdit->setCompleter(new QCompleter(
-        {tr("Alpha"), tr("Beta"), tr("Gamma")}, ui->autoSuggestEdit));
+    auto *autoSuggestCompleter = new QCompleter(
+        {tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"),
+         tr("Settings"), tr("Controls")}, ui->autoSuggestEdit);
+    autoSuggestCompleter->setCaseSensitivity(Qt::CaseInsensitive);
+    autoSuggestCompleter->setFilterMode(Qt::MatchContains);
+    autoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
+    ui->autoSuggestEdit->setCompleter(autoSuggestCompleter);
     ui->selectedEdit->selectAll();
     ui->collectionsTabs->setTabEnabled(ui->collectionsTabs->indexOf(ui->disabledTab), false);
 

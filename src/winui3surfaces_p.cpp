@@ -478,6 +478,7 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
                 clearButton = button;
                 button->setVisible(!guardedLineEdit->isReadOnly()
                                    && guardedLineEdit->isEnabled()
+                                   && guardedLineEdit->hasFocus()
                                    && guardedLineEdit->isClearButtonEnabled()
                                    && !guardedLineEdit->text().isEmpty());
             }

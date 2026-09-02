@@ -55,4 +55,24 @@ inline bool keyboardFocusVisible(const QWidget *widget)
         && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
+// True only when the widget paints straight into an active translucent DWM
+// backdrop. An intervening content/layer surface is opaque and must never be
+// cleared, otherwise a child control would punch through that surface.
+inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
+{
+    if (!widget || !widget->window()
+        || widget->window()->property("_winui_backdrop").toInt() == 0)
+        return false;
+    for (const QWidget *parent = widget->parentWidget();
+         parent && parent != widget->window(); parent = parent->parentWidget()) {
+        const QVariant surface = parent->property(Style::SurfaceProperty);
+        const QString name = surface.toString();
+        if (surface.toBool()
+            || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+            || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0)
+            return false;
+    }
+    return true;
+}
+
 } // namespace WinUI3::Private

@@ -115,6 +115,16 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                     return true;
             }
         }
+        // A translucent QWidget backing store retains previous SourceOver
+        // pixels. Rebuild button frames from transparent when the button sits
+        // directly on DWM Mica; otherwise repeated hover frames accumulate
+        // into a visible ghost. Opaque content/layer ancestors are excluded.
+        if (paintsDirectlyOnBackdrop(widget)) {
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(option->rect, Qt::transparent);
+            painter->restore();
+        }
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         // Subtle toolbar buttons intentionally have a transparent resting
@@ -580,22 +590,34 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                 || role == ControlRole::Destructive
                 || ((tool->state & QStyle::State_On) && role == ControlRole::Standard);
             const bool textHelper = textBoxHelperButton(widget);
+            const auto *helperEditor = widget
+                ? qobject_cast<const QLineEdit *>(widget->parentWidget()) : nullptr;
+            const bool clearHelper = helperEditor
+                && lineEditClearButton(helperEditor) == widget;
             const bool pressed = tool->state & QStyle::State_Sunken;
             const QColor textColor = !enabled ? t.textDisabled
                 : textHelper ? (pressed ? t.textTertiary : t.textSecondary)
                 : accent ? (pressed ? t.textOnAccentSecondary
                                     : t.textOnAccentPrimary)
                          : (pressed ? t.textSecondary : t.textPrimary);
-            const QRectF content = QRectF(style->subControlRect(QStyle::CC_ToolButton, tool,
-                                                         QStyle::SC_ToolButton, widget))
-                                       .adjusted(4.0, 2.0, -4.0, -2.0);
+            const QRectF buttonRect(style->subControlRect(
+                QStyle::CC_ToolButton, tool, QStyle::SC_ToolButton, widget));
+            // WinUI's 30 px DeleteButton contains a 12 px E894 glyph inside
+            // TextBoxInnerButtonMargin 0,4,4,4. Mirror that asymmetric margin
+            // in RTL instead of centring Qt's default 16 px icon in the slot.
+            const QRectF content = clearHelper
+                ? visualRectF(tool->direction, buttonRect,
+                              buttonRect.adjusted(0.0, 4.0, -4.0, -4.0))
+                : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
             Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
             if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
                 buttonStyle = toolButton->toolButtonStyle();
             if (buttonStyle == Qt::ToolButtonFollowStyle)
                 buttonStyle = Qt::ToolButtonIconOnly;
             const bool hasIcon = !tool->icon.isNull();
-            const QSize iconSize = tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16);
+            const QSize iconSize = clearHelper
+                ? QSize(12, 12)
+                : (tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16));
             const QFontMetrics metrics(tool->fontMetrics);
             const int textWidth = tool->text.isEmpty()
                 ? 0 : metrics.horizontalAdvance(tool->text);
@@ -641,10 +663,17 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                   Qt::AlignCenter | Qt::TextShowMnemonic, tool->text);
                 painter->restore();
             } else if (hasIcon) {
+                QRectF iconRect(content.center().x() - iconSize.width() / 2.0,
+                                content.center().y() - iconSize.height() / 2.0,
+                                iconSize.width(), iconSize.height());
+                // Segoe Fluent's E894 ink sits three pixels above/left of its
+                // nominal 12 px advance box in Qt. WinUI's GlyphElement
+                // compensates through its text layout; match the visible ink
+                // centre explicitly in the private QLineEdit button.
+                if (clearHelper)
+                    iconRect.translate(3.0, 3.0);
                 paintThemedIcon(painter, tool->icon,
-                    QRectF(content.center().x() - iconSize.width() / 2.0,
-                           content.center().y() - iconSize.height() / 2.0,
-                           iconSize.width(), iconSize.height()), Qt::AlignCenter, textColor,
+                    iconRect, Qt::AlignCenter, textColor,
                     enabled ? QIcon::Normal : QIcon::Disabled,
                     tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
             }

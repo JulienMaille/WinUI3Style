@@ -47,6 +47,31 @@ foreach(_forbidden_card
     endif()
 endforeach()
 
+# The density comparison must exercise selection indicators in both inherited
+# modes, not only editor heights.
+foreach(_required_density_control
+        "name=\"standardDensityCheck\""
+        "name=\"standardDensityRadio\""
+        "name=\"compactDensityCheck\""
+        "name=\"compactDensityRadio\"")
+    string(FIND "${_gallery_ui}" "${_required_density_control}" _found)
+    if(_found EQUAL -1)
+        message(FATAL_ERROR
+            "Designer gallery is missing density selection coverage: ${_required_density_control}")
+    endif()
+endforeach()
+
+foreach(_required_completer_setting
+        "setCaseSensitivity(Qt::CaseInsensitive)"
+        "setFilterMode(Qt::MatchContains)"
+        "setCompletionMode(QCompleter::PopupCompletion)")
+    string(FIND "${_gallery_cpp}" "${_required_completer_setting}" _found)
+    if(_found EQUAL -1)
+        message(FATAL_ERROR
+            "Gallery AutoSuggestBox is missing: ${_required_completer_setting}")
+    endif()
+endforeach()
+
 # Keep the menu hierarchy in the form so submenu glyph/spacing regressions are
 # exercised by the gallery without imperative construction code.
 foreach(_required_menu

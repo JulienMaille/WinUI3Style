@@ -118,6 +118,7 @@ private slots:
     void cleanup();
     void allOfficialWidgetsUseCompactMetricsAfterRealLayout();
     void inheritedDensityWorksForRealWidgets();
+    void autoSuggestMatchesCaseInsensitiveSubstrings();
     void compactDoesNotResizeUnlistedControls();
     void calendarPopupRemainsReadableInLightAndDark();
 };
@@ -298,6 +299,25 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     QVERIFY(!autoSuggestBox.completer()->popup()
                  ->property(WinUI3::Style::DensityProperty).isValid());
     autoSuggestBox.setStyle(&style);
+}
+
+void WinUI3DensityWidgetsTest::autoSuggestMatchesCaseInsensitiveSubstrings()
+{
+    QLineEdit editor;
+    auto *completer = new QCompleter(
+        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                    QStringLiteral("Settings")}, &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(240, editor.sizeHint().height());
+    editor.show();
+    editor.setFocus();
+    QTest::keyClicks(&editor, QStringLiteral("ET"));
+    QTRY_COMPARE(completer->completionPrefix(), QStringLiteral("ET"));
+    QTRY_COMPARE(completer->completionCount(), 2);
+    QTRY_VERIFY(completer->popup()->isVisible());
 }
 
 void WinUI3DensityWidgetsTest::compactDoesNotResizeUnlistedControls()

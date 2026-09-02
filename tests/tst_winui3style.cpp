@@ -7,6 +7,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "../src/winui3frameproperties_p.h"
+#include "../src/winui3helpers_p.h"
 #include "../src/winui3tokens_p.h"
 
 #include <QLabel>
@@ -362,6 +363,7 @@ private slots:
     void toggleDragInteraction();
     void toggleRtlGeometryAndInteraction();
     void backdropLifecycleContract();
+    void backdropButtonRepaintDoesNotAccumulate();
     void settingsCardExpansion();
     void settingsCardDesignerPropertyBindings();
     void settingsCardTrailingWidgetsReceiveClicks();
@@ -378,6 +380,7 @@ private slots:
     void hoverAnimationProgresses();
     void textBoxInteraction();
     void clearButtonStateContract();
+    void clearButtonFocusAndGlyphContract();
     void textBoxStateMatrix();
     void themeComboSizingContract();
     void indeterminateProgressDeterminism();
@@ -2502,6 +2505,7 @@ void WinUI3StyleTest::clearButtonStateContract()
     edit.setClearButtonEnabled(true);
     edit.resize(240, 32);
     edit.show();
+    edit.setFocus(Qt::MouseFocusReason);
     QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
     QAbstractButton *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
     QVERIFY(clearButton);
@@ -2641,6 +2645,104 @@ void WinUI3StyleTest::clearButtonStateContract()
     const QImage pressedGlyph = glyphOnly(QStyle::State_Enabled | QStyle::State_Sunken);
     QCOMPARE(normalGlyph, hoverGlyph);
     QVERIFY(normalGlyph != pressedGlyph);
+}
+
+void WinUI3StyleTest::backdropButtonRepaintDoesNotAccumulate()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    QPushButton button(QStringLiteral("Mica"), &window);
+    button.resize(96, 32);
+
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    const auto paintFrame = [&](QImage &image, QStyle::State state) {
+        option.state = state;
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option,
+                             &painter, &button);
+    };
+    QImage normal(button.size(), QImage::Format_ARGB32_Premultiplied);
+    normal.fill(Qt::transparent);
+    paintFrame(normal, QStyle::State_Enabled);
+
+    QImage hoverThenNormal(button.size(), QImage::Format_ARGB32_Premultiplied);
+    hoverThenNormal.fill(Qt::transparent);
+    setFrame(&button, "_winui_hover_progress", 1.0);
+    paintFrame(hoverThenNormal,
+               QStyle::State_Enabled | QStyle::State_MouseOver);
+    setFrame(&button, "_winui_hover_progress", 0.0);
+    paintFrame(hoverThenNormal, QStyle::State_Enabled);
+    QCOMPARE(hoverThenNormal, normal);
+
+    QWidget opaqueLayer(&window);
+    opaqueLayer.setProperty(WinUI3::Style::SurfaceProperty,
+                            QStringLiteral("content"));
+    QPushButton layeredButton(QStringLiteral("Layered"), &opaqueLayer);
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&layeredButton));
+}
+
+void WinUI3StyleTest::clearButtonFocusAndGlyphContract()
+{
+    QWidget host;
+    QVBoxLayout layout(&host);
+    QLineEdit edit(QStringLiteral("Clear me"));
+    edit.setClearButtonEnabled(true);
+    QPushButton other(QStringLiteral("Other"));
+    layout.addWidget(&edit);
+    layout.addWidget(&other);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
+    QAbstractButton *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
+
+    other.setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(!clearButton->isVisible());
+    edit.clear();
+    edit.setText(QStringLiteral("Programmatic text"));
+    QTRY_VERIFY(!clearButton->isVisible());
+    edit.setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(clearButton->isVisible());
+    other.setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(!clearButton->isVisible());
+    edit.setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(clearButton->isVisible());
+
+    QStyleOptionToolButton option;
+    option.initFrom(clearButton);
+    option.rect = QRect(QPoint(), QSize(30, 32));
+    option.icon = clearButton->icon();
+    option.iconSize = QSize(16, 16); // Qt default; style must enforce WinUI 12 px.
+    option.state = QStyle::State_Enabled;
+    QImage glyph(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    glyph.fill(Qt::transparent);
+    {
+        QPainter painter(&glyph);
+        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &option,
+                                  &painter, clearButton);
+    }
+    QRect ink;
+    for (int y = 0; y < glyph.height(); ++y) {
+        for (int x = 0; x < glyph.width(); ++x) {
+            if (glyph.pixelColor(x, y).alpha() > 24)
+                ink |= QRect(x, y, 1, 1);
+        }
+    }
+    QVERIFY(!ink.isEmpty());
+    QVERIFY(ink.width() <= 12);
+    QVERIFY(ink.height() <= 12);
+    const QPointF officialCenter(13.0, 16.0);
+    QVERIFY2(qAbs(ink.center().x() - officialCenter.x()) <= 2.0,
+             qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
+                            .arg(ink.x()).arg(ink.y())
+                            .arg(ink.width()).arg(ink.height())));
+    QVERIFY2(qAbs(ink.center().y() - officialCenter.y()) <= 2.0,
+             qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
+                            .arg(ink.x()).arg(ink.y())
+                            .arg(ink.width()).arg(ink.height())));
 }
 
 void WinUI3StyleTest::textBoxStateMatrix()

@@ -218,6 +218,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (qobject_cast<QProgressBar *>(widget))
             m_callbacks.refreshProgressTimer();
+        m_callbacks.updateReadOnlyDeleteAffordance(
+            qobject_cast<QLineEdit *>(widget));
         widget->update();
         break;
     }
@@ -507,6 +509,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                             interactionDuration(widget,
                                                 InteractionMotion::Focus,
                                                 true));
+        m_callbacks.updateReadOnlyDeleteAffordance(
+            qobject_cast<QLineEdit *>(widget));
         break;
     case QEvent::FocusOut:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
@@ -532,6 +536,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                             interactionDuration(widget,
                                                 InteractionMotion::Focus,
                                                 false));
+        m_callbacks.updateReadOnlyDeleteAffordance(
+            qobject_cast<QLineEdit *>(widget));
         break;
     case QEvent::ReadOnlyChange:
         // WinUI TextBox does not expose its delete affordance while it is
@@ -597,6 +603,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         m_callbacks.preparePopupSurface(widget);
         m_callbacks.updateReadOnlyDeleteAffordance(
             qobject_cast<QLineEdit *>(widget));
+        if (textBoxHelperButton(widget))
+            m_callbacks.updateReadOnlyDeleteAffordance(
+                qobject_cast<QLineEdit *>(widget->parentWidget()));
         m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
         // The view is shown before its popup window. Prepare selection and
         // scroll position here so even a programmatic first showPopup() has a
