@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCalendarWidget>
+#include <QCompleter>
 #include <QDialog>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -578,6 +579,11 @@ void preparePopupSurface(QWidget *widget)
     if (!widget || !widget->window() || widget->window()->windowType() != Qt::Popup)
         return;
     QWidget *popup = widget->window();
+    QAbstractItemView *view = qobject_cast<QAbstractItemView *>(widget);
+    if (!view)
+        view = popup->findChild<QAbstractItemView *>();
+    const bool completerPopup = view
+        && qobject_cast<QCompleter *>(view->parent());
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
     remember(popup, originalTranslucentBackgroundProperty,
@@ -588,7 +594,14 @@ void preparePopupSurface(QWidget *widget)
     // every show on the current application palette so runtime theme changes
     // cannot leave stale text or surface roles behind. The surface is opaque;
     // rounded corners come from the native window corner preference.
-    QPalette popupPalette = effectivePopupPalette(popup, QApplication::palette());
+    // QCompleter creates its private popup while the editor is configured.
+    // Qt marks that inherited palette as explicit, so preserving it can retain
+    // a dark popup after the application switches to light (and vice versa).
+    // It is framework-owned rather than an application override: always rebase
+    // it on the current application palette.
+    QPalette popupPalette = completerPopup
+        ? QApplication::palette()
+        : effectivePopupPalette(popup, QApplication::palette());
     const Private::Tokens popupTokens = Private::tokens(popupPalette);
     const QColor popupSurface = Private::popupSurfaceColor(popupPalette);
     popupPalette.setColor(QPalette::Window, popupSurface);
@@ -618,12 +631,10 @@ void preparePopupSurface(QWidget *widget)
                  QVariant::fromValue(popup->contentsMargins()));
         menu->setContentsMargins(0, 2, 0, 2);
     }
-    QAbstractItemView *view = qobject_cast<QAbstractItemView *>(widget);
-    if (!view)
-        view = popup->findChild<QAbstractItemView *>();
     if (view) {
         rememberPalette(view);
-        QPalette viewPalette = effectivePopupPalette(view, popupPalette);
+        QPalette viewPalette = completerPopup
+            ? popupPalette : effectivePopupPalette(view, popupPalette);
         if (calendarView(view)) {
             // QTableView paints its native rectangular selection underneath
             // the delegate. CalendarView uses its own rounded day chrome.
@@ -637,8 +648,9 @@ void preparePopupSurface(QWidget *widget)
                  view->viewport()->autoFillBackground());
         remember(view->viewport(), originalOpaquePaintProperty,
                  view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
-        view->viewport()->setPalette(
-            effectivePopupPalette(view->viewport(), viewPalette));
+        view->viewport()->setPalette(completerPopup
+            ? viewPalette
+            : effectivePopupPalette(view->viewport(), viewPalette));
         view->viewport()->setAutoFillBackground(true);
         view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
         if (auto *list = qobject_cast<QListView *>(view)) {

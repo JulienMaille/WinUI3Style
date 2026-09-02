@@ -119,6 +119,7 @@ private slots:
     void allOfficialWidgetsUseCompactMetricsAfterRealLayout();
     void inheritedDensityWorksForRealWidgets();
     void autoSuggestMatchesCaseInsensitiveSubstrings();
+    void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
     void compactDoesNotResizeUnlistedControls();
     void calendarPopupRemainsReadableInLightAndDark();
 };
@@ -318,6 +319,55 @@ void WinUI3DensityWidgetsTest::autoSuggestMatchesCaseInsensitiveSubstrings()
     QTRY_COMPARE(completer->completionPrefix(), QStringLiteral("ET"));
     QTRY_COMPARE(completer->completionCount(), 2);
     QTRY_VERIFY(completer->popup()->isVisible());
+}
+
+void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph()
+{
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    QLineEdit editor;
+    auto *completer = new QCompleter(
+        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                    QStringLiteral("Gamma"), QStringLiteral("Delta")}, &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(300, editor.sizeHint().height());
+    editor.show();
+    editor.setFocus();
+    QTest::keyClicks(&editor, QStringLiteral("a"));
+    QTRY_VERIFY(completer->popup()->isVisible());
+    completer->popup()->hide();
+
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QCoreApplication::processEvents();
+    auto *popup = completer->popup();
+    const QPalette palette = popup->viewport()->palette();
+    QVERIFY(palette.color(QPalette::Base).lightness() > 180);
+    QVERIFY(palette.color(QPalette::Text).lightness() < 100);
+
+    popup->setCurrentIndex(popup->model()->index(0, 0));
+    QCoreApplication::processEvents();
+    const QImage image = popup->viewport()->grab().toImage();
+    const QRect row = popup->visualRect(popup->model()->index(0, 0));
+    // AutoSuggest rows use normal leading padding, not the checkmark gutter
+    // used by checked menu-like popups.
+    int contrastingPixelsInLeadingGlyphZone = 0;
+    const QRect glyphZone(row.left() + 10, row.center().y() - 8, 6, 16);
+    const QColor rowBackground = image.pixelColor(
+        row.left() + 10, row.center().y());
+    for (int y = glyphZone.top(); y <= glyphZone.bottom(); ++y)
+        for (int x = glyphZone.left(); x <= glyphZone.right(); ++x)
+            if (image.rect().contains(x, y)
+                && image.pixelColor(x, y).alpha() > 128
+                && qAbs(image.pixelColor(x, y).red() - rowBackground.red())
+                    + qAbs(image.pixelColor(x, y).green() - rowBackground.green())
+                    + qAbs(image.pixelColor(x, y).blue() - rowBackground.blue()) > 30)
+                ++contrastingPixelsInLeadingGlyphZone;
+    QCOMPARE(contrastingPixelsInLeadingGlyphZone, 0);
 }
 
 void WinUI3DensityWidgetsTest::compactDoesNotResizeUnlistedControls()

@@ -14,6 +14,7 @@
 #include <QApplication>
 #include <QCalendarWidget>
 #include <QComboBox>
+#include <QCompleter>
 #include <QListView>
 #include <QPainter>
 #include <QPainterPath>
@@ -42,6 +43,11 @@ const QAbstractItemView *itemView(const QWidget *widget)
             return view;
     }
     return nullptr;
+}
+
+bool completerPopupView(const QAbstractItemView *view)
+{
+    return view && qobject_cast<const QCompleter *>(view->parent());
 }
 
 // QCalendarWidget uses a QTableView for its day grid, but that grid is not a
@@ -135,6 +141,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
             : nullptr;
         const bool comboPopup = popupCombo;
+        const bool autoSuggestPopup = popup && completerPopupView(view);
         const Tokens t = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
         const bool tree = qobject_cast<const QTreeView *>(view);
@@ -222,7 +229,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                        indicatorWidth, indicatorHeight),
                 1.5, 1.5);
             painter->restore();
-        } else if (selected && popup && firstColumn) {
+        } else if (selected && popup && !autoSuggestPopup && firstColumn) {
             const QRect checkRect = QStyle::visualRect(option->direction, option->rect,
                 QRect(option->rect.left() + 12,
                       option->rect.center().y() - 8, 16, 16));
@@ -359,11 +366,13 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 && !calendarPopupView(widget);
             const bool comboPopup = popup && widget->window()->parentWidget()
                 && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
+            const bool autoSuggestPopup = popup && completerPopupView(view);
             const Tokens t = tokens(option->palette);
             const bool enabled = source->state & QStyle::State_Enabled;
             const bool calendarHeader = calendar && source->index.isValid()
                 && source->index.row() == 0;
             const bool checkedPopupSelection = popup && !comboPopup
+                && !autoSuggestPopup
                 && (source->state & QStyle::State_Selected);
 
             if (source->features & QStyleOptionViewItem::HasCheckIndicator) {
@@ -406,9 +415,11 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 // The leading 42px reservation must follow the reading
                 // direction, otherwise RTL popup text overlaps the icon and
                 // marker zone painted on the right edge.
-                const int leading = comboPopup && !hasLeadingContent
+                const int leading = (comboPopup || autoSuggestPopup)
+                        && !hasLeadingContent
                     ? comboPopupItemPaddingLeft + 5 : 42;
-                const int trailing = comboPopup && !hasLeadingContent
+                const int trailing = (comboPopup || autoSuggestPopup)
+                        && !hasLeadingContent
                     ? comboPopupItemPaddingRight + 5 : 12;
                 QRect textRect = popup
                     ? QStyle::visualRect(source->direction, source->rect,

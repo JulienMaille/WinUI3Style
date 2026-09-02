@@ -670,8 +670,13 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                 // nominal 12 px advance box in Qt. WinUI's GlyphElement
                 // compensates through its text layout; match the visible ink
                 // centre explicitly in the private QLineEdit button.
-                if (clearHelper)
-                    iconRect.translate(3.0, 3.0);
+                if (clearHelper) {
+                    // The private Qt button is not centred in the editor-scoped
+                    // DeleteButton surface.  WinUI's asymmetric 0,4,4,4 inner
+                    // margin requires a small trailing/down compensation, but
+                    // the previous 3 px shift put the X visibly low and right.
+                    iconRect.translate(2.0, 1.0);
+                }
                 paintThemedIcon(painter, tool->icon,
                     iconRect, Qt::AlignCenter, textColor,
                     enabled ? QIcon::Normal : QIcon::Disabled,

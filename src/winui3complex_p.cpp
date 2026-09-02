@@ -107,7 +107,15 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
-            if (widget && widget->parentWidget()
+            // Like buttons, controls painted directly on a native Mica window
+            // have a translucent backing store.  Clear the previous animated
+            // frame before compositing this one or hover/press fills accumulate.
+            if (paintsDirectlyOnBackdrop(widget)) {
+                painter->save();
+                painter->setCompositionMode(QPainter::CompositionMode_Source);
+                painter->fillRect(combo->rect, Qt::transparent);
+                painter->restore();
+            } else if (widget && widget->parentWidget()
                 && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
                                   widget->parentWidget()->palette().color(QPalette::Window));

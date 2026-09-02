@@ -364,6 +364,7 @@ private slots:
     void toggleRtlGeometryAndInteraction();
     void backdropLifecycleContract();
     void backdropButtonRepaintDoesNotAccumulate();
+    void backdropComboRepaintDoesNotAccumulate();
     void settingsCardExpansion();
     void settingsCardDesignerPropertyBindings();
     void settingsCardTrailingWidgetsReceiveClicks();
@@ -2685,6 +2686,40 @@ void WinUI3StyleTest::backdropButtonRepaintDoesNotAccumulate()
     QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&layeredButton));
 }
 
+void WinUI3StyleTest::backdropComboRepaintDoesNotAccumulate()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    QComboBox combo(&window);
+    combo.addItem(QStringLiteral("Theme"));
+    combo.resize(160, 32);
+
+    QStyleOptionComboBox option;
+    option.initFrom(&combo);
+    option.rect = combo.rect();
+    option.subControls = QStyle::SC_ComboBoxFrame | QStyle::SC_ComboBoxArrow;
+    const auto paintFrame = [&](QImage &image, QStyle::State state) {
+        option.state = state;
+        QPainter painter(&image);
+        style->drawComplexControl(QStyle::CC_ComboBox, &option, &painter, &combo);
+    };
+    QImage normal(combo.size(), QImage::Format_ARGB32_Premultiplied);
+    normal.fill(Qt::transparent);
+    setFrame(&combo, "_winui_hover_progress", 0.0);
+    paintFrame(normal, QStyle::State_Enabled);
+
+    QImage hoverThenNormal(combo.size(), QImage::Format_ARGB32_Premultiplied);
+    hoverThenNormal.fill(Qt::transparent);
+    setFrame(&combo, "_winui_hover_progress", 1.0);
+    paintFrame(hoverThenNormal,
+               QStyle::State_Enabled | QStyle::State_MouseOver);
+    setFrame(&combo, "_winui_hover_progress", 0.0);
+    paintFrame(hoverThenNormal, QStyle::State_Enabled);
+    QCOMPARE(hoverThenNormal, normal);
+}
+
 void WinUI3StyleTest::clearButtonFocusAndGlyphContract()
 {
     QWidget host;
@@ -2743,6 +2778,42 @@ void WinUI3StyleTest::clearButtonFocusAndGlyphContract()
              qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
                             .arg(ink.x()).arg(ink.y())
                             .arg(ink.width()).arg(ink.height())));
+
+    // Validate the real private-button geometry against the editor-scoped
+    // hover surface.  A synthetic 30x32 slot previously allowed an X that was
+    // visibly low/right in a live TextBox.
+    QStyleOptionToolButton liveOption;
+    liveOption.initFrom(clearButton);
+    liveOption.rect = clearButton->rect();
+    liveOption.icon = clearButton->icon();
+    liveOption.iconSize = QSize(16, 16);
+    liveOption.state = QStyle::State_Enabled | QStyle::State_MouseOver;
+    QImage liveGlyph(clearButton->size(), QImage::Format_ARGB32_Premultiplied);
+    liveGlyph.fill(Qt::transparent);
+    {
+        QPainter painter(&liveGlyph);
+        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &liveOption,
+                                  &painter, clearButton);
+    }
+    QRect liveInk;
+    for (int y = 0; y < liveGlyph.height(); ++y)
+        for (int x = 0; x < liveGlyph.width(); ++x)
+            if (liveGlyph.pixelColor(x, y).alpha() > 24)
+                liveInk |= QRect(x, y, 1, 1);
+    QVERIFY(!liveInk.isEmpty());
+    const QPointF inkCenter = QPointF(clearButton->geometry().topLeft())
+        + QPointF(liveInk.center());
+    const qreal surfaceTop = edit.rect().top() + 3.0;
+    const qreal surfaceBottom = edit.rect().bottom() - 2.0;
+    const qreal surfaceSide = surfaceBottom - surfaceTop;
+    const QPointF surfaceCenter(edit.rect().right() - 2.0 - surfaceSide / 2.0,
+                                (surfaceTop + surfaceBottom) / 2.0);
+    QVERIFY2(qAbs(inkCenter.x() - surfaceCenter.x()) <= 1.0,
+             qPrintable(QStringLiteral("ink x=%1 surface x=%2")
+                            .arg(inkCenter.x()).arg(surfaceCenter.x())));
+    QVERIFY2(qAbs(inkCenter.y() - surfaceCenter.y()) <= 1.0,
+             qPrintable(QStringLiteral("ink y=%1 surface y=%2")
+                            .arg(inkCenter.y()).arg(surfaceCenter.y())));
 }
 
 void WinUI3StyleTest::textBoxStateMatrix()
