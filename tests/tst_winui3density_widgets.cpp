@@ -353,6 +353,8 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     const QPalette palette = popup->viewport()->palette();
     QVERIFY(palette.color(QPalette::Base).lightness() > 180);
     QVERIFY(palette.color(QPalette::Text).lightness() < 100);
+    QVERIFY(popup->viewport()->autoFillBackground());
+    QVERIFY(!popup->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
 
     popup->setCurrentIndex(popup->model()->index(0, 0));
     QCoreApplication::processEvents();
@@ -386,6 +388,13 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
                 ++contrastingPixelsInLeadingGlyphZone;
             }
     QCOMPARE(contrastingPixelsInLeadingGlyphZone, 0);
+
+    const QImage firstFrame = popup->viewport()->grab().toImage();
+    for (int frame = 0; frame < 6; ++frame) {
+        popup->viewport()->repaint();
+        QCoreApplication::processEvents();
+    }
+    QCOMPARE(popup->viewport()->grab().toImage(), firstFrame);
 }
 
 void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()

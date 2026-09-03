@@ -653,7 +653,12 @@ void preparePopupSurface(QWidget *widget)
             ? viewPalette
             : effectivePopupPalette(view->viewport(), viewPalette));
         view->viewport()->setAutoFillBackground(true);
-        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        // A QCompleter's QListView is itself the native popup. Its delegate
+        // paints translucent item-state layers rather than every viewport
+        // pixel, so claiming an opaque paint event suppresses Qt's background
+        // erase and retains old frames as dark Mica-like ghosts.
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent,
+                                       !completerPopup);
         if (auto *list = qobject_cast<QListView *>(view)) {
             remember(list, originalListSpacingProperty, list->spacing());
             list->setSpacing(0);

@@ -347,10 +347,17 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
     if (element == QStyle::CE_ItemViewItem) {
         if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
             const bool calendar = calendarPopupView(widget);
-            if (calendar) {
+            const QAbstractItemView *view = itemView(widget);
+            const bool popup = widget && widget->window()
+                && widget->window()->windowType() == Qt::Popup && !calendar;
+            const bool comboPopup = popup && widget->window()->parentWidget()
+                && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
+            const bool autoSuggestPopup = popup && completerPopupView(view);
+            if (calendar || autoSuggestPopup) {
                 // preparePopupSurface has already resolved Base to the opaque
-                // flyout color. Lifting it again here would turn #2C2C2C into
-                // #383838 each time the popup is prepared.
+                // flyout color. AutoSuggest must also rebuild every item from
+                // that base before applying translucent hover/selection fills;
+                // otherwise partial native-popup repaints accumulate ghosts.
                 painter->fillRect(source->rect,
                                   source->palette.color(QPalette::Base));
             } else if (source->backgroundBrush.style() != Qt::NoBrush) {
@@ -360,14 +367,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                                   source->palette.brush(QPalette::AlternateBase));
             }
             style->drawPrimitive(QStyle::PE_PanelItemViewItem, source, painter, widget);
-            const QAbstractItemView *view = itemView(widget);
             const auto *tableView = qobject_cast<const QTableView *>(view);
-            const bool popup = widget && widget->window()
-                && widget->window()->windowType() == Qt::Popup
-                && !calendarPopupView(widget);
-            const bool comboPopup = popup && widget->window()->parentWidget()
-                && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
-            const bool autoSuggestPopup = popup && completerPopupView(view);
             const Tokens t = tokens(option->palette);
             const bool enabled = source->state & QStyle::State_Enabled;
             const bool calendarHeader = calendar && source->index.isValid()
