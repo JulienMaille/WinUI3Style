@@ -33,6 +33,8 @@ enum class Icon {
     Search,
     Settings,
     Stop,
+    Document,
+    List,
     Warning
 };
 

@@ -505,6 +505,9 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard,
     case QStyle::SP_DirIcon:
     case QStyle::SP_DirOpenIcon: return WinUI3::icon(Icon::Folder);
     case QStyle::SP_DirHomeIcon: return WinUI3::icon(Icon::Home);
+    case QStyle::SP_FileIcon: return WinUI3::icon(Icon::Document);
+    case QStyle::SP_FileDialogContentsView:
+    case QStyle::SP_FileDialogDetailedView: return WinUI3::icon(Icon::List);
     case QStyle::SP_FileDialogNewFolder: return WinUI3::icon(Icon::Add);
     case QStyle::SP_MediaPause: return WinUI3::icon(Icon::Pause);
     case QStyle::SP_MediaPlay: return WinUI3::icon(Icon::Play);
@@ -513,6 +516,7 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard,
     case QStyle::SP_MessageBoxInformation: return WinUI3::icon(Icon::Info);
     case QStyle::SP_MessageBoxQuestion: return WinUI3::icon(Icon::Help);
     case QStyle::SP_MessageBoxWarning: return WinUI3::icon(Icon::Warning);
+    case QStyle::SP_TitleBarMenuButton:
     case QStyle::SP_ToolBarHorizontalExtensionButton:
     case QStyle::SP_ToolBarVerticalExtensionButton: return WinUI3::icon(Icon::More);
     default: return style->QProxyStyle::standardIcon(standard, option, widget);

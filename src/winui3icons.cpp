@@ -58,6 +58,8 @@ QChar codePoint(Icon icon)
     case Icon::Search: return QChar(0xE721);
     case Icon::Settings: return QChar(0xE713);
     case Icon::Stop: return QChar(0xE71A);
+    case Icon::Document: return QChar(0xE7C3);
+    case Icon::List: return QChar(0xE8FD);
     case Icon::Warning: return QChar(0xE7BA);
     }
     return {};

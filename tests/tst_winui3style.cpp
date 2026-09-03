@@ -691,6 +691,16 @@ void WinUI3StyleTest::buttonToolButtonAndIconContracts()
     qApp->setPalette(originalApplicationPalette);
     QVERIFY(redArrow != blueArrow);
 
+    // The toolbar "More", "New", and "Text tool" buttons must resolve to
+    // Fluent glyphs rather than falling through to platform default Qt icons
+    // (green Qt-logo regression).
+    const QIcon toolbarMore = qApp->style()->standardIcon(QStyle::SP_TitleBarMenuButton);
+    const QIcon toolbarNew = qApp->style()->standardIcon(QStyle::SP_FileIcon);
+    const QIcon toolbarText = qApp->style()->standardIcon(QStyle::SP_FileDialogDetailedView);
+    QVERIFY(WinUI3::isFluentIcon(toolbarMore));
+    QVERIFY(WinUI3::isFluentIcon(toolbarNew));
+    QVERIFY(WinUI3::isFluentIcon(toolbarText));
+
     QPushButton push(QStringLiteral("Open"));
     push.setIcon(fluent);
     push.resize(140, 32);
