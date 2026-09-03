@@ -345,6 +345,7 @@ private slots:
     void paletteDerivedTokensMatchWinUIConstants();
     void customWidgetPaletteDrivesTokensAndPaint();
     void systemAccentRampIsAtomic();
+    void systemThemeMatchesResolvedExplicitTheme();
     void buttonToolButtonAndIconContracts();
     void buttonPressedStateFollowsQtState();
     void buttonPressedForegroundRoles();
@@ -402,10 +403,12 @@ private slots:
     void checkboxGapHitTest();
     void checkboxDisabledStopsAnimation();
     void radioStateMotion();
+    void radioRapidClickResponsiveness();
     void radioDotDpiGeometry();
     void menuSizingContract();
     void menuSubmenuChevronGeometry();
     void menuPaintTabParsing();
+    void compactMenuBarTextFits();
     void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
     void splitterHandleContract();
@@ -576,6 +579,44 @@ void WinUI3StyleTest::customWidgetPaletteDrivesTokensAndPaint()
     }
     QVERIFY2(foundRedInk,
              "button painted with a custom palette shows no custom-ink pixels");
+}
+
+void WinUI3StyleTest::systemThemeMatchesResolvedExplicitTheme()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    style->setThemeMode(WinUI3::ThemeMode::System);
+    const QPalette systemPalette = style->standardPalette();
+    const bool systemIsDark =
+        qGray(systemPalette.color(QPalette::Window).rgb()) < 128;
+
+    QMainWindow window;
+    auto *menu = window.menuBar()->addMenu(QStringLiteral("File"));
+    menu->addAction(QStringLiteral("Open"));
+    auto *navigation = new QListWidget(&window);
+    navigation->addItems({QStringLiteral("Controls"),
+                          QStringLiteral("Settings")});
+    window.setCentralWidget(navigation);
+    window.resize(320, 180);
+    window.show();
+    (void)QTest::qWaitForWindowExposed(&window);
+    qApp->processEvents();
+    const QImage systemWindow = window.grab().toImage();
+    menu->popup(window.mapToGlobal(QPoint(0, window.menuBar()->height())));
+    QTRY_VERIFY(menu->isVisible());
+    const QImage systemMenu = menu->grab().toImage();
+    menu->hide();
+
+    style->setThemeMode(systemIsDark ? WinUI3::ThemeMode::Dark
+                                     : WinUI3::ThemeMode::Light);
+    QCOMPARE(style->standardPalette(), systemPalette);
+    qApp->processEvents();
+    QCOMPARE(window.grab().toImage(), systemWindow);
+    menu->popup(window.mapToGlobal(QPoint(0, window.menuBar()->height())));
+    QTRY_VERIFY(menu->isVisible());
+    QCOMPARE(menu->grab().toImage(), systemMenu);
+    menu->hide();
 }
 
 void WinUI3StyleTest::systemAccentRampIsAtomic()
@@ -1523,6 +1564,42 @@ void WinUI3StyleTest::toolbarButtonCornerSymmetry()
              "a checked toolbar button must retain visible press feedback");
     QTest::mouseRelease(button, Qt::LeftButton, Qt::NoModifier,
                         button->rect().center());
+
+    // Exercise the real command-bar composition path.  Grabbing the child
+    // directly repaints it into a fresh pixmap and can hide clipping caused
+    // by a translucent top-level backing store.
+    QMainWindow host;
+    host.setProperty("_winui_backdrop", 1);
+    auto *micaToolbar = new QToolBar(&host);
+    micaToolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    host.addToolBar(micaToolbar);
+    QAction *leftAction = micaToolbar->addAction(QStringLiteral("Left"));
+    QAction *middleAction = micaToolbar->addAction(QStringLiteral("Middle"));
+    QAction *rightAction = micaToolbar->addAction(QStringLiteral("Right"));
+    host.resize(480, 160);
+    host.show();
+    (void)QTest::qWaitForWindowExposed(&host);
+    auto *micaButton = qobject_cast<QToolButton *>(
+        micaToolbar->widgetForAction(middleAction));
+    QVERIFY(micaButton);
+    const QRect leftGeometry =
+        micaToolbar->widgetForAction(leftAction)->geometry();
+    const QRect rightGeometry =
+        micaToolbar->widgetForAction(rightAction)->geometry();
+    QVERIFY2(!leftGeometry.intersects(micaButton->geometry()),
+             "toolbar action widgets must not overlap");
+    QVERIFY2(!micaButton->geometry().intersects(rightGeometry),
+             "toolbar action widgets must not overlap");
+    QVERIFY2(micaToolbar->rect().contains(micaButton->geometry()),
+             "toolbar action widgets must stay inside the toolbar paint area");
+    QTest::mouseMove(micaButton, micaButton->rect().center());
+    setFrame(micaButton, "_winui_hover_progress", 1.0);
+    micaButton->update();
+    qApp->processEvents();
+    const QImage composed =
+        micaToolbar->grab(micaButton->geometry()).toImage();
+    const QImage isolated = micaButton->grab().toImage();
+    QCOMPARE(composed, isolated);
 }
 
 void WinUI3StyleTest::togglePressedThumbGeometry()
@@ -4007,6 +4084,39 @@ void WinUI3StyleTest::radioStateMotion()
     QTRY_VERIFY(frameReal(&radio, "_winui_hover_progress") > 0.99);
 }
 
+void WinUI3StyleTest::radioRapidClickResponsiveness()
+{
+    QWidget host;
+    host.resize(180, 72);
+    auto *one = new QRadioButton(QStringLiteral("One"), &host);
+    auto *two = new QRadioButton(QStringLiteral("Two"), &host);
+    one->setGeometry(0, 0, 160, 32);
+    two->setGeometry(0, 36, 160, 32);
+    one->setChecked(true);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    QSignalSpy oneClicked(one, &QAbstractButton::clicked);
+    QSignalSpy twoClicked(two, &QAbstractButton::clicked);
+    for (int click = 0; click < 8; ++click) {
+        QRadioButton *target = (click % 2 == 0) ? two : one;
+        QTest::mousePress(target, Qt::LeftButton, Qt::NoModifier,
+                          target->rect().center());
+        qApp->processEvents();
+        QCOMPARE(frameReal(target, "_winui_press_progress"), 1.0);
+        QVERIFY(target->isDown());
+        QTest::mouseRelease(target, Qt::LeftButton, Qt::NoModifier,
+                            target->rect().center());
+        QVERIFY(target->isChecked());
+    }
+
+    QCOMPARE(oneClicked.count(), 4);
+    QCOMPARE(twoClicked.count(), 4);
+    QTest::qWait(320);
+    QVERIFY(frameReal(one, "_winui_press_progress") < 0.05);
+    QVERIFY(frameReal(two, "_winui_press_progress") < 0.05);
+}
+
 void WinUI3StyleTest::radioDotDpiGeometry()
 {
     QRadioButton radio(QStringLiteral("Radio"));
@@ -4200,6 +4310,43 @@ void WinUI3StyleTest::menuPaintTabParsing()
     const QImage twoFields = render(QStringLiteral("Open\tCtrl+O"));
     const QImage extraField = render(QStringLiteral("Open\tCtrl+O\tignored"));
     QVERIFY(twoFields == extraField);
+}
+
+void WinUI3StyleTest::compactMenuBarTextFits()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const WinUI3::DensityMode previous = style->densityMode();
+    style->setDensityMode(WinUI3::DensityMode::Compact);
+
+    QMenuBar bar;
+    QAction *action = bar.addAction(QStringLiteral("WWWWWW"));
+    bar.resize(bar.sizeHint());
+    bar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    const QRect actionRect = bar.actionGeometry(action);
+    const int required = bar.fontMetrics().horizontalAdvance(action->text())
+        + 2 * 8;
+    QVERIFY2(actionRect.width() >= required,
+             qPrintable(QStringLiteral("action=%1 required=%2")
+                            .arg(actionRect.width()).arg(required)));
+
+    const QImage rendered = bar.grab().toImage();
+    const QColor background = bar.palette().color(QPalette::Window);
+    int rightmostInk = -1;
+    for (int y = actionRect.top(); y <= actionRect.bottom(); ++y) {
+        for (int x = actionRect.left(); x <= actionRect.right(); ++x) {
+            if (colorDistance(rendered.pixelColor(x, y), background) > 24)
+                rightmostInk = qMax(rightmostInk, x);
+        }
+    }
+    // With the stale 10 px renderer inset, the final W is clipped and its
+    // right edge lands at least two pixels earlier than this compact contract.
+    QVERIFY2(rightmostInk >= actionRect.right() - 8,
+             qPrintable(QStringLiteral("rightmost ink=%1 action right=%2")
+                            .arg(rightmostInk).arg(actionRect.right())));
+
+    style->setDensityMode(previous);
 }
 
 void WinUI3StyleTest::menuBarOnlyActiveActionIsHighlighted()

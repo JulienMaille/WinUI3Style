@@ -1,5 +1,6 @@
 #include "winui3menus_p.h"
 
+#include "winui3density_p.h"
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3helpers_p.h"
@@ -143,7 +144,13 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
             painter->setFont(item->font);
             painter->setPen(item->state & QStyle::State_Enabled
                                 ? t.textPrimary : t.textDisabled);
-            painter->drawText(item->rect.adjusted(10, 0, -10, 0),
+            // CT_MenuBarItem reserves the density-specific horizontal inset.
+            // Keeping the historical fixed 10 px paint inset in Compact
+            // (which reserves 8 px) clipped four pixels from tight labels.
+            const int textInset = qMin(
+                10, densityMetricsFor(widget).menuBarHorizontalPadding);
+            painter->drawText(item->rect.adjusted(textInset, 0,
+                                                   -textInset, 0),
                               Qt::AlignCenter | Qt::TextShowMnemonic
                                   | Qt::TextSingleLine,
                               item->text);

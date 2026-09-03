@@ -14,6 +14,7 @@
 #include <QCheckBox>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QToolButton>
 
 namespace WinUI3::Private {
@@ -45,7 +46,10 @@ inline bool buttonPressPulse(const QWidget *widget)
 {
     return !textBoxHelperButton(widget)
         && (qobject_cast<const QPushButton *>(widget)
-            || qobject_cast<const QToolButton *>(widget));
+            || qobject_cast<const QToolButton *>(widget)
+            // A 250 ms RadioButton state transition can otherwise be
+            // reversed before producing a painted frame during rapid clicks.
+            || qobject_cast<const QRadioButton *>(widget));
 }
 
 // Focus visuals only appear after actual keyboard interaction.

@@ -227,19 +227,11 @@ void GalleryWindow::configurePaletteLab()
 
 void GalleryWindow::setTheme(int index)
 {
-    // DWM's system Mica brush follows the Windows theme, not a Qt-only theme
-    // override.  Keep the native material for System mode and use the style's
-    // opaque theme surface for explicit Light/Dark modes so foreground and
-    // background can never diverge.
-    if (index == 0) {
-        qApp->style()->setProperty("themeMode", index);
-        setProperty("winuiBackdrop", QStringLiteral("mica"));
-    } else {
-        // Restore the opaque window surface before installing the new palette;
-        // otherwise backdrop teardown can restore the previous theme palette.
-        setProperty("winuiBackdrop", QStringLiteral("none"));
-        qApp->style()->setProperty("themeMode", index);
-    }
+    // Theme selection must not also change the composition pipeline. System
+    // and an equivalent explicit Light/Dark mode use the same palette and
+    // therefore must render identically. Applications can opt into Mica
+    // independently through the winuiBackdrop top-level property.
+    qApp->style()->setProperty("themeMode", index);
 }
 
 bool GalleryWindow::saveSnapshots(const QString &directory)

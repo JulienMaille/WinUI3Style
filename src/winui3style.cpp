@@ -822,7 +822,10 @@ public:
             framePropertyRegistry().set(guardedWidget,
                                         buttonPressReleasePendingProperty,
                                         false);
-            animate(guardedWidget, pressProperty, 0.0, Private::FasterDuration);
+            animate(guardedWidget, pressProperty, 0.0,
+                    qobject_cast<QRadioButton *>(guardedWidget.data())
+                        ? Private::NormalDuration
+                        : Private::FasterDuration);
         });
     }
 
@@ -836,7 +839,10 @@ public:
                                     QVariant::fromValue(generation));
         framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
                                     false);
-        animate(widget, pressProperty, 0.0, Private::FasterDuration);
+        animate(widget, pressProperty, 0.0,
+                qobject_cast<QRadioButton *>(widget)
+                    ? Private::NormalDuration
+                    : Private::FasterDuration);
     }
 
     void clearPointerInteraction(QWidget *widget)

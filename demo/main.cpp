@@ -38,7 +38,6 @@ int main(int argc, char *argv[])
 
     GalleryWindow window;
     window.resize(1180, 780);
-    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
     window.show();
     if (captureMode) {
         QTimer::singleShot(250, &application, [&application, &window, &parser, captureOption] {

@@ -358,7 +358,12 @@ QRect subElementRect(const Style *style, QStyle::SubElement element,
     if (element == QStyle::SE_PushButtonContents)
         return option->rect.adjusted(8, 4, -8, -4);
     if (element == QStyle::SE_ToolButtonLayoutItem)
-        return option->rect.adjusted(4, 2, -4, -2);
+        // QToolBar interprets this sub-element as external layout margins,
+        // not content padding. Insets here enlarge adjacent QToolButtons into
+        // one another; the later sibling then clips the earlier button's
+        // rounded trailing corners. Content padding is already handled by
+        // CT_ToolButton and CE_ToolButtonLabel.
+        return option->rect;
     if (element == QStyle::SE_CheckBoxIndicator || element == QStyle::SE_RadioButtonIndicator) {
         const QRect logical(option->rect.left() + 4,
                             option->rect.center().y() - 10, 20, 20);
