@@ -353,6 +353,7 @@ private slots:
     void buttonPressedPulseContract();
     void disabledButtonHasNoInteractionState();
     void toolButtonIconVerticalCenter();
+    void toolbarButtonCornerSymmetry();
     void styleMutationRestoration();
     void accessibilityOwnershipContracts();
     void baseStyleContract();
@@ -1461,6 +1462,67 @@ void WinUI3StyleTest::toggleInteraction()
     QVERIFY(frameBool(&toggle, "_winui_focus_visible"));
     toggle.setEnabled(false);
     QVERIFY(!toggle.grab().isNull());
+}
+
+void WinUI3StyleTest::toolbarButtonCornerSymmetry()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    QToolBar toolbar;
+    toolbar.setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    toolbar.setProperty(WinUI3::Style::SurfaceProperty,
+                        QStringLiteral("layer"));
+    QAction *before = toolbar.addAction(QStringLiteral("Before"));
+    QAction *checked = toolbar.addAction(QStringLiteral("Checked"));
+    QAction *after = toolbar.addAction(QStringLiteral("After"));
+    Q_UNUSED(before);
+    Q_UNUSED(after);
+    checked->setCheckable(true);
+    checked->setChecked(true);
+    toolbar.show();
+    (void)QTest::qWaitForWindowExposed(&toolbar);
+
+    auto *button = qobject_cast<QToolButton *>(toolbar.widgetForAction(checked));
+    QVERIFY(button);
+    const QColor background = toolbar.palette().color(QPalette::Window);
+    const auto cornerInk = [&](const QImage &image, bool right, bool bottom) {
+        int count = 0;
+        for (int y = 0; y < 6; ++y) {
+            for (int x = 0; x < 6; ++x) {
+                const int px = right ? image.width() - 1 - x : x;
+                const int py = bottom ? image.height() - 1 - y : y;
+                if (colorDistance(image.pixelColor(px, py), background) > 4)
+                    ++count;
+            }
+        }
+        return count;
+    };
+    const auto verifyCorners = [&](const QImage &image) {
+        QCOMPARE(cornerInk(image, false, false), cornerInk(image, true, false));
+        QCOMPARE(cornerInk(image, false, true), cornerInk(image, true, true));
+        QCOMPARE(cornerInk(image, false, false), cornerInk(image, false, true));
+    };
+    verifyCorners(button->grab().toImage());
+
+    QTest::mouseMove(button, button->rect().center());
+    setFrame(button, "_winui_hover_progress", 1.0);
+    button->update();
+    qApp->processEvents();
+    const QImage hovered = button->grab().toImage();
+    verifyCorners(hovered);
+
+    QTest::mousePress(button, Qt::LeftButton, Qt::NoModifier,
+                      button->rect().center());
+    qApp->processEvents();
+    const QImage pressed = button->grab().toImage();
+    verifyCorners(pressed);
+    const QPoint fillProbe(2, button->height() / 2);
+    QVERIFY2(colorDistance(hovered.pixelColor(fillProbe),
+                           pressed.pixelColor(fillProbe)) > 2,
+             "a checked toolbar button must retain visible press feedback");
+    QTest::mouseRelease(button, Qt::LeftButton, Qt::NoModifier,
+                        button->rect().center());
 }
 
 void WinUI3StyleTest::togglePressedThumbGeometry()

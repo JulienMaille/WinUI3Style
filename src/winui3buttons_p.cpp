@@ -27,6 +27,8 @@
 #include <QToolButton>
 #include <QVariant>
 
+#include <cmath>
+
 namespace WinUI3::Private {
 using namespace PaintPrivate;
 
@@ -42,6 +44,23 @@ bool comboBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
         && qobject_cast<const QComboBox *>(widget->parentWidget());
+}
+
+QRectF devicePixelCenteredRect(const QPainter *painter, const QRectF &rect)
+{
+    if (!painter || rect.isEmpty())
+        return rect;
+    bool invertible = false;
+    const QTransform device = painter->deviceTransform();
+    const QTransform logical = device.inverted(&invertible);
+    if (!invertible)
+        return rect;
+    QRectF pixels = device.mapRect(rect);
+    pixels.setLeft(std::floor(pixels.left()) + 0.5);
+    pixels.setTop(std::floor(pixels.top()) + 0.5);
+    pixels.setRight(std::ceil(pixels.right()) - 0.5);
+    pixels.setBottom(std::ceil(pixels.bottom()) - 0.5);
+    return logical.mapRect(pixels);
 }
 
 void drawEditorScopedClearSurface(const QStyleOption *option,
@@ -127,6 +146,9 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         }
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
+        const bool toolbarButton = element == QStyle::PE_PanelButtonTool
+            && widget
+            && qobject_cast<const QToolBar *>(widget->parentWidget());
         // Subtle toolbar buttons intentionally have a transparent resting
         // fill. On a native backdrop that transparency cannot erase the
         // previous animated hover frame, so restore the declared opaque
@@ -152,13 +174,23 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             stroke = fill.darker(112);
         } else if (role == ControlRole::Subtle || role == ControlRole::Navigation
                    || (element == QStyle::PE_PanelButtonTool && widget
-                       && (qobject_cast<const QToolBar *>(widget->parentWidget())
-                           || textHelper))) {
-            fill = Qt::transparent;
-            fill = mix(fill, t.subtleHover, hover);
-            fill = mix(fill, t.subtlePressed, press);
-            if (option->state & QStyle::State_On)
-                fill = mix(t.subtleHover, t.accentFill, 0.14);
+                       && (toolbarButton || textHelper))) {
+            if (option->state & QStyle::State_On) {
+                // Command-bar toggle buttons retain a quiet selected surface,
+                // but PointerOver/Pressed remain distinct visual states.  The
+                // previous late assignment erased both interaction states.
+                const QColor checked = mix(t.subtleHover, t.accentFill, 0.14);
+                const QColor checkedHover = mix(t.subtleHover,
+                                                t.accentFillHover, 0.14);
+                const QColor checkedPressed = mix(t.subtlePressed,
+                                                  t.accentFillPressed, 0.14);
+                fill = mix(checked, checkedHover, hover);
+                fill = mix(fill, checkedPressed, press);
+            } else {
+                fill = Qt::transparent;
+                fill = mix(fill, t.subtleHover, hover);
+                fill = mix(fill, t.subtlePressed, press);
+            }
             stroke = Qt::transparent;
         } else {
             if (option->state & QStyle::State_On) {
@@ -180,6 +212,13 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             // editor-scoped surface from PE_PanelLineEdit above.
             const QRect logical = option->rect.adjusted(0, 3, -3, -3);
             surfaceRect = QStyle::visualRect(option->direction, option->rect, logical);
+        } else if (toolbarButton) {
+            // A fill-only rounded rect drawn exactly on a QWidget backing-
+            // store boundary can lose the antialiased half-pixel on one side,
+            // making one pair of corners look square.  Keep the 4 px WinUI
+            // radius but place all four edges on equivalent device-pixel
+            // centres at fractional scaling factors.
+            surfaceRect = devicePixelCenteredRect(painter, surfaceRect);
         }
         if (stroke.alpha() == 0) {
             roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
