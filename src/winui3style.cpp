@@ -147,7 +147,6 @@ bool densityModeFromProperty(const QVariant &value, WinUI3::DensityMode *mode)
     return Private::parseDensity(value, mode);
 }
 
-constexpr auto completerOwnerProperty = "_winui_completer_owner";
 constexpr auto completerLastPopupProperty = "_winui_completer_last_popup";
 constexpr auto completerOriginalDensityProperty = "_winui_completer_original_density";
 constexpr auto completerOriginalDensityValidProperty =

@@ -47,7 +47,8 @@ const QAbstractItemView *itemView(const QWidget *widget)
 
 bool completerPopupView(const QAbstractItemView *view)
 {
-    return view && qobject_cast<const QCompleter *>(view->parent());
+    return view && (view->property(completerOwnerProperty).isValid()
+                    || qobject_cast<const QCompleter *>(view->parent()));
 }
 
 // QCalendarWidget uses a QTableView for its day grid, but that grid is not a

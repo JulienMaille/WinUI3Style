@@ -50,5 +50,6 @@ inline constexpr auto originalNoSystemBackgroundProperty =
 inline constexpr auto originalListSpacingProperty =
     "_winui_original_list_spacing";
 inline constexpr auto ownedPaletteProperty = "_winui_theme_owned_palette";
+inline constexpr auto completerOwnerProperty = "_winui_completer_owner";
 
 } // namespace WinUI3::Private

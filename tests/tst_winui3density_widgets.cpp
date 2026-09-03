@@ -20,6 +20,7 @@
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QStyleFactory>
+#include <QStyleOptionViewItem>
 #include <QTabWidget>
 #include <QTableView>
 #include <QTest>
@@ -120,6 +121,8 @@ private slots:
     void inheritedDensityWorksForRealWidgets();
     void autoSuggestMatchesCaseInsensitiveSubstrings();
     void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
+    void runtimeThemeChangeRefreshesOpenComboPopup();
+    void runtimeThemeChangeRefreshesOpenCompleterPopup();
     void compactDoesNotResizeUnlistedControls();
     void calendarPopupRemainsReadableInLightAndDark();
 };
@@ -337,6 +340,8 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     editor.show();
     editor.setFocus();
     QTest::keyClicks(&editor, QStringLiteral("a"));
+    completer->setCompletionPrefix(QStringLiteral("a"));
+    completer->complete();
     QTRY_VERIFY(completer->popup()->isVisible());
     completer->popup()->hide();
 
@@ -351,23 +356,143 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
 
     popup->setCurrentIndex(popup->model()->index(0, 0));
     QCoreApplication::processEvents();
-    const QImage image = popup->viewport()->grab().toImage();
     const QRect row = popup->visualRect(popup->model()->index(0, 0));
-    // AutoSuggest rows use normal leading padding, not the checkmark gutter
-    // used by checked menu-like popups.
+    QStyleOptionViewItem selected;
+    selected.initFrom(popup->viewport());
+    selected.widget = popup->viewport();
+    selected.rect = QRect(0, 0, popup->viewport()->width(), row.height());
+    selected.index = popup->model()->index(0, 0);
+    selected.features = QStyleOptionViewItem::HasDisplay;
+    selected.state = QStyle::State_Enabled | QStyle::State_Selected;
+    // Render an empty selected suggestion so text bearings cannot be mistaken
+    // for the menu-style check glyph that AutoSuggest must not display.
+    QImage image(selected.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(palette.color(QPalette::Base));
+    {
+        QPainter painter(&image);
+        popup->style()->drawControl(QStyle::CE_ItemViewItem, &selected,
+                                    &painter, popup->viewport());
+    }
     int contrastingPixelsInLeadingGlyphZone = 0;
-    const QRect glyphZone(row.left() + 10, row.center().y() - 8, 6, 16);
-    const QColor rowBackground = image.pixelColor(
-        row.left() + 10, row.center().y());
+    const QRect glyphZone(10, selected.rect.center().y() - 5, 20, 11);
+    const QColor rowBackground = image.pixelColor(7, selected.rect.center().y());
     for (int y = glyphZone.top(); y <= glyphZone.bottom(); ++y)
         for (int x = glyphZone.left(); x <= glyphZone.right(); ++x)
             if (image.rect().contains(x, y)
                 && image.pixelColor(x, y).alpha() > 128
                 && qAbs(image.pixelColor(x, y).red() - rowBackground.red())
                     + qAbs(image.pixelColor(x, y).green() - rowBackground.green())
-                    + qAbs(image.pixelColor(x, y).blue() - rowBackground.blue()) > 30)
+                    + qAbs(image.pixelColor(x, y).blue() - rowBackground.blue()) > 30) {
                 ++contrastingPixelsInLeadingGlyphZone;
+            }
     QCOMPARE(contrastingPixelsInLeadingGlyphZone, 0);
+}
+
+void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
+{
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    QWidget root;
+    root.setStyle(&style);
+    QComboBox combo(&root);
+    combo.addItems({QStringLiteral("First item"), QStringLiteral("Second item"),
+                    QStringLiteral("Third item")});
+    combo.setCurrentIndex(1);
+    root.resize(420, 240);
+    combo.setGeometry(40, 40, 220, 36);
+    root.show();
+    QCoreApplication::processEvents();
+
+    combo.showPopup();
+    QTRY_VERIFY(combo.view()->isVisible());
+    QWidget *popup = combo.view()->window();
+    QVERIFY(popup);
+    QVERIFY(popup->isVisible());
+    const QRect initialGeometry = popup->geometry();
+    const QColor darkBase = combo.view()->viewport()->palette().color(QPalette::Base);
+    QVERIFY(qGray(darkBase.rgb()) < 128);
+
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    const QColor lightBase = combo.view()->viewport()->palette().color(QPalette::Base);
+    QVERIFY2(qGray(lightBase.rgb()) > 180,
+             "an open ComboBox popup must rebase its surface immediately");
+    QVERIFY(qGray(combo.view()->viewport()->palette().color(QPalette::Text).rgb()) < 100);
+    QCOMPARE(popup->geometry(), initialGeometry);
+
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    QVERIFY(qGray(combo.view()->viewport()->palette().color(QPalette::Base).rgb()) < 128);
+    QCOMPARE(popup->geometry(), initialGeometry);
+
+    style.setThemeMode(WinUI3::ThemeMode::System);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    const bool systemDark = qGray(qApp->palette().color(QPalette::Window).rgb()) < 128;
+    const int systemPopupLightness = qGray(
+        combo.view()->viewport()->palette().color(QPalette::Base).rgb());
+    if (systemDark)
+        QVERIFY(systemPopupLightness < 128);
+    else
+        QVERIFY(systemPopupLightness > 180);
+    QCOMPARE(popup->geometry(), initialGeometry);
+    combo.hidePopup();
+    QCoreApplication::processEvents();
+}
+
+void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
+{
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    QLineEdit editor;
+    auto *completer = new QCompleter(
+        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                    QStringLiteral("Gamma")}, &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(280, 36);
+    editor.show();
+    editor.setFocus();
+    QTest::keyClicks(&editor, QStringLiteral("a"));
+    completer->setCompletionPrefix(QStringLiteral("a"));
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QWidget *popup = completer->popup();
+    QVERIFY(popup);
+    auto *popupView = qobject_cast<QAbstractItemView *>(popup);
+    QVERIFY(popupView);
+    const QRect initialGeometry = popup->geometry();
+    QVERIFY(qGray(popupView->viewport()->palette().color(QPalette::Base).rgb()) < 128);
+
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    QVERIFY(qGray(popupView->viewport()->palette().color(QPalette::Base).rgb()) > 180);
+    QVERIFY(qGray(popupView->viewport()->palette().color(QPalette::Text).rgb()) < 100);
+    QCOMPARE(popup->geometry(), initialGeometry);
+
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    QVERIFY(qGray(popupView->viewport()->palette().color(QPalette::Base).rgb()) < 128);
+    QCOMPARE(popup->geometry(), initialGeometry);
+
+    style.setThemeMode(WinUI3::ThemeMode::System);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    const bool systemDark = qGray(qApp->palette().color(QPalette::Window).rgb()) < 128;
+    const int systemPopupLightness = qGray(
+        popupView->viewport()->palette().color(QPalette::Base).rgb());
+    if (systemDark)
+        QVERIFY(systemPopupLightness < 128);
+    else
+        QVERIFY(systemPopupLightness > 180);
+    QCOMPARE(popup->geometry(), initialGeometry);
+    popup->hide();
 }
 
 void WinUI3DensityWidgetsTest::compactDoesNotResizeUnlistedControls()

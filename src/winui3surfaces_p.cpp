@@ -583,7 +583,8 @@ void preparePopupSurface(QWidget *widget)
     if (!view)
         view = popup->findChild<QAbstractItemView *>();
     const bool completerPopup = view
-        && qobject_cast<QCompleter *>(view->parent());
+        && (view->property(completerOwnerProperty).isValid()
+            || qobject_cast<QCompleter *>(view->parent()));
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
     remember(popup, originalTranslucentBackgroundProperty,
