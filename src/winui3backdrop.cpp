@@ -173,13 +173,19 @@ void applyDialogCaptionTheme(QWidget *window)
         return;
     const HWND hwnd = reinterpret_cast<HWND>(window->winId());
     constexpr DWORD immersiveDarkModeAttribute = 20;
+    constexpr DWORD captionColorAttribute = 35;
     constexpr DWORD textColorAttribute = 36;
-    // Dialogs keep the system caption gradient; only the immersive dark-mode
-    // flag and the title text color follow the application theme so the
-    // native frame does not clash with an app dark theme (or vice versa).
-    const BOOL dark = qGray(themedWindowColor().rgb()) < 128;
+    // Caption and text are an inseparable pair. Leaving the native accent
+    // caption in place while forcing dark text produces black-on-blue title
+    // bars in a light application theme. Match the caption to the dialog
+    // surface and derive the foreground from that exact color.
+    const QColor surface = themedWindowColor();
+    const BOOL dark = qGray(surface.rgb()) < 128;
     DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute,
                           &dark, sizeof(dark));
+    const COLORREF caption = RGB(surface.red(), surface.green(), surface.blue());
+    DwmSetWindowAttribute(hwnd, captionColorAttribute,
+                          &caption, sizeof(caption));
     const COLORREF text = dark ? RGB(255, 255, 255) : RGB(0, 0, 0);
     DwmSetWindowAttribute(hwnd, textColorAttribute, &text, sizeof(text));
 #else

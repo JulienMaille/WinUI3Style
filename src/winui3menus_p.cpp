@@ -203,7 +203,15 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element,
                            3.0, markerHeight),
                     1.5, 1.5);
                 painter->restore();
-            } else if (menu->checked) {
+            }
+            // A ComboBox selection marker and its item decoration occupy
+            // separate leading slots in WinUI. The marker must not replace
+            // the selected item's icon.
+            if (comboItem && !menu->icon.isNull()) {
+                paintThemedIcon(painter, menu->icon, leading, Qt::AlignCenter,
+                    enabled ? t.textPrimary : t.textDisabled,
+                    enabled ? QIcon::Normal : QIcon::Disabled);
+            } else if (!comboItem && menu->checked) {
                 WinUI3::icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled).paint(painter,
                     leading,
                     Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);

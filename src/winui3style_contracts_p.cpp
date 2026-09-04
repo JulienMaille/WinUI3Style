@@ -13,6 +13,7 @@
 #include <QAbstractSpinBox>
 #include <QCheckBox>
 #include <QCalendarWidget>
+#include <QCommandLinkButton>
 #include <QComboBox>
 #include <QDateTimeEdit>
 #include <QFontMetrics>
@@ -130,6 +131,18 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
     QSize size = contentsSize;
     switch (type) {
     case QStyle::CT_PushButton:
+        if (const auto *command = qobject_cast<const QCommandLinkButton *>(widget)) {
+            QFont titleFont = command->font();
+            titleFont.setWeight(QFont::DemiBold);
+            const int textWidth = qMax(
+                QFontMetrics(titleFont).horizontalAdvance(command->text()),
+                command->fontMetrics().horizontalAdvance(command->description()));
+            size.setWidth(qMax(160, textWidth + 64));
+            size.setHeight(qMax(64,
+                QFontMetrics(titleFont).height()
+                    + command->fontMetrics().height() + 22));
+            break;
+        }
         size += QSize(2 * density.buttonHorizontalPadding,
                        2 * density.buttonVerticalPadding);
         if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);
@@ -173,8 +186,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type,
                           ? density.verticalSpinButtonWidth + 12
                           : 2 * density.spinButtonWidth + 12,
                       0);
-        if (densityModeFor(widget) == DensityMode::Compact
-            && qobject_cast<const QDateTimeEdit *>(widget)) {
+        if (densityModeFor(widget) == DensityMode::Compact) {
             const int targetHeight = density.textBoxHeight;
             if (option && (option->fontMetrics.height() + 8 > targetHeight + 4))
                 size.setHeight(option->fontMetrics.height() + 8);
@@ -474,6 +486,8 @@ int styleHint(const Style *style, QStyle::StyleHint hint,
     case QStyle::SH_MenuBar_MouseTracking:
     case QStyle::SH_Menu_MouseTracking: return 1;
     case QStyle::SH_Menu_SubMenuPopupDelay: return 400;
+    case QStyle::SH_MessageBox_TextInteractionFlags:
+        return int(Qt::LinksAccessibleByMouse);
     case QStyle::SH_Slider_AbsoluteSetButtons: return Qt::LeftButton;
     case QStyle::SH_ToolButtonStyle: return Qt::ToolButtonFollowStyle;
     default: return style->QProxyStyle::styleHint(hint, option, widget, returnData);

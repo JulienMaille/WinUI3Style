@@ -7,12 +7,13 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | Qt widget / variant | WinUI mapping | Mapping kind | Current status | Required state evidence |
 |---|---|---|---|---|
 | `QPushButton` | Button | Direct | source-audited | direct panel/label ownership, icon/text, menu reserve, rest/hover/down/disabled, mouse/keyboard focus and default/accent are under contract; live WinUI comparison remains |
+| `QCommandLinkButton` | Command-link composition | Consistency extension | source-audited | 160×64 minimum, title/description ownership, enabled/disabled surface and native activation are covered; live pointer/focus comparison remains |
 | checkable `QPushButton` | ToggleButton | Direct | source-audited | direct off/on surface, hover/down, disabled-on and focus paths are captured; live comparison remains |
 | `QToolButton` / toolbar | AppBarButton / CommandBar | Direct | source-audited | direct label painting, icon/text layouts, toggle, split-menu partition/hit test, dropdown glyph, hover/down and separator are covered; live overflow comparison remains |
 | `QLineEdit` | TextBox | Direct | source-audited | discrete hover/focus, 10/5/6/6 padding, focused 1/1/1/2 border, Clear glyph, disabled palette, read-only input/clear suppression and selection covered by offscreen contracts; native light/dark mouse and keyboard comparison remains |
 | `QTextEdit` / `QPlainTextEdit` | RichEditBox | Direct | source-audited | discrete rest/hover/focus surface, 2 px accent focus edge, text selection and scrolling tested; live disabled, read-only and dark keyboard pass remain |
 | `QComboBox` | ComboBox | Direct | source-audited | closed states, popup, selected pill, row hover/down, dismissal |
-| `QSpinBox` | NumberBox inline placement + optional stacked Qt variant | Direct + consistency extension | source-audited | horizontal 36 px and vertical 32 px button partitions, RTL, click and underline extent tested; dark, keyboard and bounds live pass remains |
+| `QSpinBox` | NumberBox inline placement + optional stacked Qt variant | Direct + consistency extension | source-audited | horizontal 36 px and vertical 32 px button partitions, compact 24 px editor height, RTL, click and underline extent tested; dark, keyboard and bounds live pass remains |
 | `QCheckBox` | CheckBox | Direct | source-audited | off/on/indeterminate, hover/down, animated accept, reversal, focus |
 | `QCheckBox[winuiToggleSwitch=true]` | ToggleSwitch | Semantic variant | source-audited | offscreen rest/hover/click/drag contract; tested travel midpoint/reversal, disabled and focus; dark keyboard pass remains |
 | `QRadioButton` | RadioButton | Direct | source-audited | off/on, hover/down dot sizes, group change, disabled, focus |
@@ -28,7 +29,9 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QGroupBox` | Fluent card grouping | Consistency extension | source-audited | plain/checkable, hover/down check, disabled, focus |
 | `QSplitter` | Fluent separator | Consistency extension | source-audited | both axes, hover, drag, clamp, release |
 | `QDockWidget` | Fluent layer/card docking | Consistency extension | source-audited | dock/floating title, buttons, separator hover/drag, focus |
-| opted-in `QDialog` / `QMessageBox` | ContentDialog | Compound mapping | source-audited | 320×184 minimum, 24 px content margin, 12 px spacing, accent default button, Fluent message glyphs and 83/250 ms show motion; live modality/dismissal/dark comparison remains |
+| `QStatusBar` / `QSizeGrip` | Window footer / resize affordance | Consistency extension | source-audited | layer surface, top separator, automatic grip discovery, 16 px metric and all-corner glyph geometry are covered; live resize and high-DPI comparison remain |
+| opted-in `QDialog` / `QMessageBox` | ContentDialog | Compound mapping | source-audited | distinct content and command/footer surfaces, 320×184 minimum, 24 px content margin, 12 px spacing, accent default button, Fluent message glyphs and 83/250 ms show motion; live modality/dismissal/dark comparison remains |
+| `QWizard` / `QWizardPage` | Multi-step dialog composition | Consistency extension | source-audited | separate content/footer surfaces and automatic accent Next/Finish roles are covered; native navigation, cancellation, RTL and live WinUI comparison remain |
 | `QAbstractItemView[winuiNavigationView=true]` | NavigationView item | Semantic variant | source-audited | style-owned delegate, real click, selected-pill transition tested; dark/keyboard live pass remains |
 | `QFrame[winuiSettingsCard=true]` / settings-card composition | Gallery settings card | Semantic variant + compound behavior | source-audited | style owns card chrome; helper owns composition/expansion, palette-aware icon and animation-disable behavior; dark live pass remains |
 

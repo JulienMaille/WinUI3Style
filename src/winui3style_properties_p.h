@@ -35,6 +35,10 @@ inline constexpr auto originalHoverAttributeProperty =
     "_winui_original_hover_attribute";
 inline constexpr auto originalMinimumSizeProperty =
     "_winui_original_minimum_size";
+inline constexpr auto originalMaximumSizeProperty =
+    "_winui_original_maximum_size";
+inline constexpr auto originalLayoutConstraintProperty =
+    "_winui_original_layout_size_constraint";
 inline constexpr auto originalFrameShapeProperty = "_winui_original_frame_shape";
 inline constexpr auto originalMarginsProperty = "_winui_original_layout_margins";
 inline constexpr auto originalSpacingProperty = "_winui_original_layout_spacing";

@@ -15,6 +15,7 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
+#include <QCommandLinkButton>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QPainter>
@@ -578,6 +579,14 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                         : t.textOnAccentPrimary)
                              : (pressed ? t.textSecondary : t.textPrimary);
                 QRect content = style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
+                if (qobject_cast<const QCommandLinkButton *>(widget)) {
+                    // QCommandLinkButton paints its title and description
+                    // after asking the style for CE_PushButtonLabel. Drawing
+                    // its icon or either string here duplicates the
+                    // widget-owned command-link contents. The surrounding
+                    // Fluent surface remains entirely style-owned.
+                    return true;
+                }
                 if (button->features & QStyleOptionButton::HasMenu) {
                     const QRect logical = content.adjusted(0, 0, -22, 0);
                     content = QStyle::visualRect(button->direction, button->rect, logical);

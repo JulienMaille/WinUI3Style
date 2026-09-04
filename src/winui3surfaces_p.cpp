@@ -17,6 +17,7 @@
 #include <QCalendarWidget>
 #include <QCompleter>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QFontMetrics>
 #include <QGuiApplication>
 #include <QHash>
@@ -25,6 +26,7 @@
 #include <QMetaObject>
 #include <QListView>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QParallelAnimationGroup>
@@ -39,6 +41,114 @@ namespace WinUI3::Private {
 using namespace PaintPrivate;
 
 namespace {
+
+constexpr auto contentDialogFooterName = "_winui_content_dialog_footer_surface";
+
+class ContentDialogFooterSurface final : public QWidget
+{
+public:
+    explicit ContentDialogFooterSurface(QDialog *dialog)
+        : QWidget(dialog), m_dialog(dialog)
+    {
+        setObjectName(QString::fromLatin1(contentDialogFooterName));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAutoFillBackground(false);
+        dialog->installEventFilter(this);
+        queueGeometrySync();
+    }
+
+    void setColors(const QColor &fill, const QColor &stroke)
+    {
+        if (m_fill == fill && m_stroke == stroke)
+            return;
+        m_fill = fill;
+        m_stroke = stroke;
+        update();
+    }
+
+    void queueGeometrySync()
+    {
+        if (m_syncQueued)
+            return;
+        m_syncQueued = true;
+        QTimer::singleShot(0, this, [this] {
+            m_syncQueued = false;
+            syncGeometry();
+        });
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_dialog
+            && (event->type() == QEvent::Resize
+                || event->type() == QEvent::Show
+                || event->type() == QEvent::LayoutRequest
+                || event->type() == QEvent::ChildAdded)) {
+            queueGeometrySync();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), m_fill);
+        painter.setPen(QPen(m_stroke, 1));
+        painter.drawLine(rect().topLeft(), rect().topRight());
+    }
+
+private:
+    void syncGeometry()
+    {
+        if (!m_dialog)
+            return;
+        if (qobject_cast<QMessageBox *>(m_dialog.data())) {
+            // QMessageBox recalculates and fixes its size in showEvent after
+            // the style's polish pass. Reassert the ContentDialog minimum on
+            // the queued, post-show layout pass so the body is not crushed
+            // into a single text line above an oversized footer.
+            if (QLayout *layout = m_dialog->layout())
+                layout->setSizeConstraint(QLayout::SetMinimumSize);
+            m_dialog->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+            m_dialog->setMinimumSize(qMax(320, m_dialog->minimumWidth()),
+                                     qMax(184, m_dialog->minimumHeight()));
+            if (m_dialog->height() < 184)
+                m_dialog->resize(m_dialog->width(), 184);
+        }
+        QDialogButtonBox *buttons = m_dialog->findChild<QDialogButtonBox *>();
+        if (!buttons) {
+            hide();
+            return;
+        }
+        const int commandInset = m_dialog->layout()
+            ? qMax(0, m_dialog->layout()->contentsMargins().bottom()) : 24;
+        const int buttonTop = buttons->mapTo(m_dialog, QPoint(0, 0)).y();
+        const int top = qBound(0, buttonTop - commandInset,
+                               m_dialog->height());
+        setGeometry(0, top, m_dialog->width(), m_dialog->height() - top);
+        lower();
+        setVisible(m_dialog->isVisible());
+    }
+
+    QPointer<QDialog> m_dialog;
+    QColor m_fill;
+    QColor m_stroke;
+    bool m_syncQueued = false;
+};
+
+ContentDialogFooterSurface *contentDialogFooter(QDialog *dialog, bool create)
+{
+    if (!dialog)
+        return nullptr;
+    auto *surface = static_cast<ContentDialogFooterSurface *>(
+        dialog->findChild<QWidget *>(QString::fromLatin1(contentDialogFooterName),
+                                     Qt::FindDirectChildrenOnly));
+    if (!surface && create)
+        surface = new ContentDialogFooterSurface(dialog);
+    return surface;
+}
 
 bool calendarView(const QWidget *widget)
 {
@@ -118,6 +228,7 @@ void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
     if (!dialog)
         return;
     stopDialogAnimations(dialog);
+    delete contentDialogFooter(dialog, false);
     restoreRememberedPalette(dialog);
     if (dialog->property(originalAutoFillProperty).isValid())
         dialog->setAutoFillBackground(
@@ -125,12 +236,18 @@ void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
     if (dialog->property(originalMinimumSizeProperty).isValid())
         dialog->setMinimumSize(
             dialog->property(originalMinimumSizeProperty).value<QSize>());
+    if (dialog->property(originalMaximumSizeProperty).isValid())
+        dialog->setMaximumSize(
+            dialog->property(originalMaximumSizeProperty).value<QSize>());
     if (QLayout *layout = dialog->layout()) {
         if (dialog->property(originalMarginsProperty).isValid())
             layout->setContentsMargins(
                 dialog->property(originalMarginsProperty).value<QMargins>());
         if (dialog->property(originalSpacingProperty).isValid())
             layout->setSpacing(dialog->property(originalSpacingProperty).toInt());
+        if (dialog->property(originalLayoutConstraintProperty).isValid())
+            layout->setSizeConstraint(static_cast<QLayout::SizeConstraint>(
+                dialog->property(originalLayoutConstraintProperty).toInt()));
     }
     dialog->setProperty(ownedPaletteProperty, {});
     if (clearSavedState) {
@@ -138,6 +255,8 @@ void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
         dialog->setProperty(originalPaletteExplicitProperty, {});
         dialog->setProperty(originalAutoFillProperty, {});
         dialog->setProperty(originalMinimumSizeProperty, {});
+        dialog->setProperty(originalMaximumSizeProperty, {});
+        dialog->setProperty(originalLayoutConstraintProperty, {});
         dialog->setProperty(originalMarginsProperty, {});
         dialog->setProperty(originalSpacingProperty, {});
     }
@@ -151,23 +270,36 @@ void prepareContentDialogState(QDialog *dialog, bool dark)
     remember(dialog, originalAutoFillProperty, dialog->autoFillBackground());
     remember(dialog, originalMinimumSizeProperty,
              QVariant::fromValue(dialog->minimumSize()));
+    remember(dialog, originalMaximumSizeProperty,
+             QVariant::fromValue(dialog->maximumSize()));
     if (QLayout *layout = dialog->layout()) {
         remember(dialog, originalMarginsProperty,
                  QVariant::fromValue(layout->contentsMargins()));
         remember(dialog, originalSpacingProperty, layout->spacing());
+        remember(dialog, originalLayoutConstraintProperty,
+                 int(layout->sizeConstraint()));
         layout->setContentsMargins(24, 24, 24, 24);
         layout->setSpacing(12);
     }
     dialog->setProperty(ownedPaletteProperty, true);
     QPalette palette = dialog->palette();
-    // WinUI ContentDialog background: SolidBackgroundFillColorBase
-    // (#202020 dark / #F3F3F3 light).
-    palette.setColor(QPalette::Window,
-                     dark ? QColor(0x20, 0x20, 0x20)
-                          : QColor(0xF3, 0xF3, 0xF3));
+    const QColor commandFill = dark ? QColor(0x20, 0x20, 0x20)
+                                    : QColor(0xF3, 0xF3, 0xF3);
+    // ContentDialog uses LayerFillColorAlt for its content region and
+    // SolidBackgroundFillColorBase for the full-width command footer.
+    // Always derive the layer from the fixed base token. prepare() is called
+    // again on runtime theme changes; lifting the already lifted color would
+    // drift #2C2C2C to #383838 on the second pass.
+    QPalette basePalette = palette;
+    basePalette.setColor(QPalette::Window, commandFill);
+    palette.setColor(QPalette::Window, popupSurfaceColor(basePalette));
     dialog->setPalette(palette);
     dialog->setAutoFillBackground(true);
     dialog->setMinimumSize(320, 184);
+    dialog->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    ContentDialogFooterSurface *footer = contentDialogFooter(dialog, true);
+    footer->setColors(commandFill, tokens(palette).stroke);
+    footer->queueGeometrySync();
 }
 
 namespace {

@@ -600,7 +600,10 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 fill = t.layer;
             roundedRect(painter, QRectF(option->rect).adjusted(2, 2, -2, -2),
                         fill, Qt::transparent, ControlRadius);
-            if (!selected && !(option->state & QStyle::State_MouseOver)) {
+            const bool nextTabSelected = tab
+                && tab->selectedPosition == QStyleOptionTab::NextIsSelected;
+            if (!selected && !nextTabSelected
+                && !(option->state & QStyle::State_MouseOver)) {
                 painter->setPen(t.stroke);
                 const int separatorX = option->direction == Qt::RightToLeft
                     ? option->rect.left() : option->rect.right();

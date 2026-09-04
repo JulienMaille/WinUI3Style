@@ -39,6 +39,7 @@
 #include <QDateTime>
 #include <QDateTimeEdit>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDynamicPropertyChangeEvent>
 #include <QEvent>
 #include <QFrame>
@@ -59,6 +60,8 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QStatusBar>
+#include <QStyleOptionSizeGrip>
 #include <QScrollBar>
 #include <QSlider>
 #include <QStyleOption>
@@ -70,6 +73,7 @@
 #include <QTableView>
 #include <QTextEdit>
 #include <QToolBar>
+#include <QWizard>
 #include <QToolButton>
 #include <QTimer>
 #include <QVariantAnimation>
@@ -250,10 +254,10 @@ void invalidateDensityTree(QWidget *root)
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(combo, &styleChange);
             combo->updateGeometry();
-        } else if (auto *dateTime = qobject_cast<QDateTimeEdit *>(widget)) {
+        } else if (auto *spinBox = qobject_cast<QAbstractSpinBox *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
-            QCoreApplication::sendEvent(dateTime, &styleChange);
-            dateTime->updateGeometry();
+            QCoreApplication::sendEvent(spinBox, &styleChange);
+            spinBox->updateGeometry();
         } else if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(button, &styleChange);
@@ -308,6 +312,7 @@ bool coveredPrimitive(QStyle::PrimitiveElement element)
     case QStyle::PE_IndicatorToolBarSeparator:
     case QStyle::PE_FrameDockWidget:
     case QStyle::PE_IndicatorDockWidgetResizeHandle:
+    case QStyle::PE_PanelStatusBar:
         return true;
     default:
         return false;
@@ -340,6 +345,7 @@ bool coveredControl(QStyle::ControlElement element)
     case QStyle::CE_Header:
     case QStyle::CE_HeaderLabel:
     case QStyle::CE_MenuItem:
+    case QStyle::CE_SizeGrip:
         return true;
     default:
         return false;
@@ -1164,7 +1170,14 @@ void Style::refreshApplicationAppearance()
             continue;
         } else {
             QPalette palette = applicationPalette;
-            if (widget->property(SurfaceProperty).toString().compare(
+            if (qobject_cast<QStatusBar *>(widget)
+                || qobject_cast<QWizard *>(widget)) {
+                palette.setColor(QPalette::Window,
+                                 Private::popupSurfaceColor(applicationPalette));
+            } else if (qobject_cast<QWizardPage *>(widget)) {
+                palette.setColor(QPalette::Window,
+                                 applicationPalette.color(QPalette::Window));
+            } else if (widget->property(SurfaceProperty).toString().compare(
                     QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
                 const QColor layer = Private::popupSurfaceColor(applicationPalette);
                 palette.setColor(QPalette::Window, layer);
@@ -1181,12 +1194,12 @@ void Style::refreshApplicationAppearance()
                 palette.setColor(QPalette::HighlightedText,
                                  applicationTokens.textOnAccentPrimary);
             } else if (qobject_cast<QDialog *>(widget)) {
-                // SolidBackgroundFillColorBase (#202020 dark / #F3F3F3 light).
                 palette.setColor(QPalette::Window,
-                    darkTheme ? QColor(0x20, 0x20, 0x20)
-                              : QColor(0xF3, 0xF3, 0xF3));
+                                 Private::popupSurfaceColor(applicationPalette));
             }
             widget->setPalette(palette);
+            if (auto *dialog = qobject_cast<QDialog *>(widget))
+                prepareContentDialogState(dialog, darkTheme);
         }
         widget->update();
         if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
@@ -1477,6 +1490,14 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         const QColor stroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
         roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1),
                     fill, stroke, 4);
+        return;
+    }
+
+    if (element == PE_PanelStatusBar) {
+        painter->fillRect(option->rect,
+                          option->palette.color(QPalette::Window));
+        painter->setPen(QPen(t.stroke, 1));
+        painter->drawLine(option->rect.topLeft(), option->rect.topRight());
         return;
     }
 
@@ -1782,6 +1803,32 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         return;
     }
 
+    if (element == CE_SizeGrip) {
+        const auto *grip = qstyleoption_cast<const QStyleOptionSizeGrip *>(option);
+        const Qt::Corner corner = grip ? grip->corner : Qt::BottomRightCorner;
+        const bool right = corner == Qt::TopRightCorner
+            || corner == Qt::BottomRightCorner;
+        const bool bottom = corner == Qt::BottomLeftCorner
+            || corner == Qt::BottomRightCorner;
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(t.textTertiary);
+        for (int row = 0; row < 3; ++row) {
+            for (int column = 0; column <= row; ++column) {
+                const int dx = 3 + column * 4;
+                const int dy = 3 + row * 4;
+                const qreal x = right ? option->rect.right() - dx
+                                      : option->rect.left() + dx;
+                const qreal y = bottom ? option->rect.bottom() - dy
+                                       : option->rect.top() + dy;
+                painter->drawEllipse(QPointF(x, y), 1.0, 1.0);
+            }
+        }
+        painter->restore();
+        return;
+    }
+
 
 
     Q_ASSERT_X(!coveredControl(element), "WinUI3::Style::drawControl",
@@ -1924,6 +1971,32 @@ void Style::polish(QWidget *widget)
         widget->setAutoFillBackground(true);
         widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
     }
+    // QDialogButtonBox is a layout container, not a command-surface panel.
+    // Filling its own inset geometry creates a rectangular footer inside a
+    // ContentDialog. It must inherit the dialog surface instead.
+    const bool automaticCommandSurface =
+        qobject_cast<QStatusBar *>(widget)
+        || qobject_cast<QWizard *>(widget);
+    const bool automaticDialogContent = qobject_cast<QWizardPage *>(widget);
+    if (!surface.isValid()
+        && (automaticCommandSurface || automaticDialogContent)) {
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        QPalette palette = standardPalette();
+        if (automaticCommandSurface)
+            palette.setColor(QPalette::Window,
+                             Private::popupSurfaceColor(palette));
+        widget->setPalette(palette);
+        widget->setAutoFillBackground(true);
+    }
+    if (auto *wizard = qobject_cast<QWizard *>(widget)) {
+        for (QWizard::WizardButton button : {QWizard::NextButton,
+                                             QWizard::FinishButton}) {
+            if (QAbstractButton *primary = wizard->button(button))
+                primary->setProperty(ControlRoleProperty,
+                                     QStringLiteral("accent"));
+        }
+    }
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);
         if (backdrop.isValid()) {
@@ -1953,11 +2026,11 @@ void Style::polish(QWidget *widget)
             QCoreApplication::sendEvent(combo, &styleChange);
             combo->updateGeometry();
         }
-    } else if (auto *dateTime = qobject_cast<QDateTimeEdit *>(widget)) {
-        if (effectiveDensityMode(dateTime) == DensityMode::Compact) {
+    } else if (auto *spinBox = qobject_cast<QAbstractSpinBox *>(widget)) {
+        if (effectiveDensityMode(spinBox) == DensityMode::Compact) {
             QEvent styleChange(QEvent::StyleChange);
-            QCoreApplication::sendEvent(dateTime, &styleChange);
-            dateTime->updateGeometry();
+            QCoreApplication::sendEvent(spinBox, &styleChange);
+            spinBox->updateGeometry();
         }
     } else if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
         if (effectiveDensityMode(button) == DensityMode::Compact) {
@@ -2234,6 +2307,8 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty("_winui_original_mouse_tracking", {});
         widget->setProperty(originalListSpacingProperty, {});
         widget->setProperty(originalMinimumSizeProperty, {});
+        widget->setProperty(originalMaximumSizeProperty, {});
+        widget->setProperty(originalLayoutConstraintProperty, {});
         widget->setProperty(originalFrameShapeProperty, {});
         widget->setProperty(originalMarginsProperty, {});
         widget->setProperty(originalSpacingProperty, {});

@@ -6,9 +6,11 @@
 #include <QComboBox>
 #include <QCompleter>
 #include <QDateEdit>
+#include <QFormLayout>
 #include <QRadioButton>
 #include <QHeaderView>
 #include <QImage>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -123,7 +125,8 @@ private slots:
     void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
     void runtimeThemeChangeRefreshesOpenComboPopup();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
-    void compactDoesNotResizeUnlistedControls();
+    void compactNumberBoxAndUnlistedControlGeometry();
+    void inheritedCompactNumberBoxMatchesTextBoxHeight();
     void calendarPopupRemainsReadableInLightAndDark();
 };
 
@@ -504,7 +507,7 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
     popup->hide();
 }
 
-void WinUI3DensityWidgetsTest::compactDoesNotResizeUnlistedControls()
+void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
 {
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
     QWidget root;
@@ -546,12 +549,54 @@ void WinUI3DensityWidgetsTest::compactDoesNotResizeUnlistedControls()
     QCoreApplication::processEvents();
 
     QCOMPARE(button.sizeHint(), buttonStandard);
-    QCOMPARE(spinBox.sizeHint(), spinStandard);
+    QVERIFY(spinStandard.height() > 24);
+    QCOMPARE(spinBox.sizeHint().height(), 24);
+    QCOMPARE(spinBox.sizeHint().width(), spinStandard.width());
     QCOMPARE(slider.sizeHint(), sliderStandard);
     QCOMPARE(tabs.sizeHint(), tabsStandard);
     QCOMPARE(table.rowHeight(0), tableRowStandard);
     QCOMPARE(table.horizontalHeader()->sectionSize(0), headerStandard);
     QCOMPARE(menu.actionGeometry(&menuAction).height(), menuItemStandard);
+}
+
+void WinUI3DensityWidgetsTest::inheritedCompactNumberBoxMatchesTextBoxHeight()
+{
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    QWidget panel;
+    panel.setStyle(&style);
+    QFormLayout layout(&panel);
+    QLabel title(QStringLiteral("Compact (24 px editors)"), &panel);
+    QLineEdit textBox(&panel);
+    QComboBox comboBox(&panel);
+    QDateEdit datePicker(&panel);
+    QCheckBox checkBox(QStringLiteral("Checked"), &panel);
+    QRadioButton radioButton(QStringLiteral("Selected"), &panel);
+    QSpinBox numberBox(&panel);
+    layout.addRow(&title);
+    layout.addRow(QStringLiteral("TextBox"), &textBox);
+    layout.addRow(QStringLiteral("ComboBox"), &comboBox);
+    layout.addRow(QStringLiteral("DatePicker"), &datePicker);
+    layout.addRow(QStringLiteral("CheckBox"), &checkBox);
+    layout.addRow(QStringLiteral("RadioButton"), &radioButton);
+    layout.addRow(QStringLiteral("NumberBox"), &numberBox);
+    // uic assigns dynamic properties during retranslateUi(), after the child
+    // controls and their layout items have already queried Standard metrics.
+    // Reproduce that ordering so a stale QAbstractSpinBox size cache cannot
+    // hide behind the simpler property-before-construction test path.
+    QVERIFY(numberBox.sizeHint().height() > 24);
+    panel.setProperty(WinUI3::Style::DensityProperty,
+                      QStringLiteral("compact"));
+    panel.resize(400, 264);
+    panel.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&panel, 1000) || panel.isVisible());
+    layout.activate();
+    QCoreApplication::processEvents();
+
+    QCOMPARE(WinUI3::Style::densityMode(&numberBox),
+             WinUI3::DensityMode::Compact);
+    QCOMPARE(numberBox.sizeHint().height(), textBox.sizeHint().height());
+    QCOMPARE(numberBox.height(), textBox.height());
+    QCOMPARE(numberBox.height(), 24);
 }
 
 void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()

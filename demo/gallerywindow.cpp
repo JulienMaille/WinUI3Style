@@ -7,17 +7,22 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEventLoop>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QScreen>
 #include <QScopeGuard>
 #include <QStyle>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
+#include <QWizard>
+#include <QWizardPage>
 
 namespace {
 void configureContentDialog(QDialog *dialog)
@@ -93,7 +98,6 @@ void GalleryWindow::configureGallery()
     autoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
     ui->autoSuggestEdit->setCompleter(autoSuggestCompleter);
     ui->selectedEdit->selectAll();
-    ui->collectionsTabs->setTabEnabled(ui->collectionsTabs->indexOf(ui->disabledTab), false);
 
     const auto icon = [this](QStyle::StandardPixmap pixmap) {
         return style()->standardIcon(pixmap, nullptr, this);
@@ -106,6 +110,21 @@ void GalleryWindow::configureGallery()
     ui->moreAction->setIcon(icon(QStyle::SP_TitleBarMenuButton));
     ui->textToolAction->setIcon(icon(QStyle::SP_FileDialogDetailedView));
     ui->pinAction->setIcon(icon(QStyle::SP_DialogApplyButton));
+    ui->standaloneToolButton->setIcon(icon(QStyle::SP_FileDialogDetailedView));
+    ui->splitToolButton->setIcon(icon(QStyle::SP_DirOpenIcon));
+    ui->iconCombo->setItemIcon(0, icon(QStyle::SP_FileIcon));
+    ui->iconCombo->setItemIcon(1, icon(QStyle::SP_DirIcon));
+    auto *buttonMenu = new QMenu(ui->menuButton);
+    buttonMenu->addAction(icon(QStyle::SP_FileIcon), tr("Create document"));
+    buttonMenu->addAction(icon(QStyle::SP_DirOpenIcon), tr("Open document"));
+    ui->menuButton->setMenu(buttonMenu);
+    auto *splitMenu = new QMenu(ui->splitToolButton);
+    splitMenu->addAction(tr("Run normally"));
+    splitMenu->addAction(tr("Run with options"));
+    ui->splitToolButton->setMenu(splitMenu);
+    ui->statusBar->showMessage(tr("Ready — QSizeGrip is enabled"));
+    connect(ui->floatDockButton, &QPushButton::clicked, ui->embeddedInspector,
+            [this] { ui->embeddedInspector->setFloating(!ui->embeddedInspector->isFloating()); });
     const QList<QStyle::StandardPixmap> navigationIcons = {
         QStyle::SP_DesktopIcon, QStyle::SP_DirIcon, QStyle::SP_FileDialogContentsView,
         QStyle::SP_MessageBoxInformation, QStyle::SP_FileDialogDetailedView};
@@ -135,6 +154,24 @@ void GalleryWindow::configureGallery()
         configureContentDialog(&dialog);
         dialog.exec();
     });
+    connect(ui->wizardButton, &QPushButton::clicked, this, [this] {
+        QWizard wizard(this);
+        wizard.setWindowTitle(tr("Application setup"));
+        auto *welcome = new QWizardPage;
+        welcome->setTitle(tr("Welcome"));
+        welcome->setSubTitle(tr("This standard QWizard is rendered entirely by the style."));
+        auto *welcomeLayout = new QVBoxLayout(welcome);
+        welcomeLayout->addWidget(new QLabel(
+            tr("The content and command areas use distinct WinUI surfaces."), welcome));
+        wizard.addPage(welcome);
+        auto *finish = new QWizardPage;
+        finish->setTitle(tr("Ready to continue"));
+        finish->setSubTitle(tr("Review the navigation buttons and resize grip."));
+        auto *finishLayout = new QVBoxLayout(finish);
+        finishLayout->addWidget(new QLabel(tr("The setup is ready."), finish));
+        wizard.addPage(finish);
+        wizard.exec();
+    });
 }
 
 void GalleryWindow::populateCollections()
@@ -144,6 +181,12 @@ void GalleryWindow::populateCollections()
     for (const QString &text : {tr("Documents"), tr("Pictures"), tr("Downloads")})
         new QListWidgetItem(folder, text, ui->listViewTab);
     new QListWidgetItem(file, tr("Readme.txt"), ui->listViewTab);
+    for (const QString &text : {tr("Disabled document"), tr("Disabled folder")})
+        new QListWidgetItem(text, ui->disabledListView);
+    auto *rtlRoot = new QTreeWidgetItem(ui->rtlTreeView, {tr("RTL collection")});
+    new QTreeWidgetItem(rtlRoot, {tr("First child")});
+    new QTreeWidgetItem(rtlRoot, {tr("Second child")});
+    rtlRoot->setExpanded(true);
     auto *root = new QTreeWidgetItem(ui->treeViewTab,
                                      {tr("Example album — Selected tracks")});
     root->setIcon(0, folder);
@@ -279,6 +322,22 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
             QCoreApplication::sendEvent(widget, &leave);
         }
         qApp->processEvents();
+        // A page change can enqueue another layout/polish pass. Capturing the
+        // first exposed frame made the first light-theme page transition look
+        // shifted even though the settled widget was correct. Give Qt one
+        // compositor frame, then force the final backing-store repaint.
+        QEventLoop frame;
+        QTimer::singleShot(20, &frame, &QEventLoop::quit);
+        frame.exec(QEventLoop::ExcludeUserInputEvents);
+        repaint();
+        for (QWidget *widget : findChildren<QWidget *>()) {
+            if (widget->isVisible()) {
+                if (widget->layout())
+                    widget->layout()->activate();
+                widget->repaint();
+            }
+        }
+        qApp->processEvents();
     };
     bool success = true;
     for (int mode : {1, 2}) {
@@ -323,6 +382,7 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
                         if (!tabs->isTabEnabled(tab)) continue;
                         tabs->setCurrentIndex(tab);
                         qApp->processEvents();
+                        settle();
                         success = grab().save(output.filePath(QStringLiteral("%1-page-%2-tab-%3.png").arg(theme).arg(page).arg(tab)), "PNG") && success;
                     }
                     tabs->setCurrentIndex(oldTab);

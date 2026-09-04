@@ -98,6 +98,8 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
         return 8;
     case QStyle::PM_DockWidgetTitleBarButtonMargin:
         return 4;
+    case QStyle::PM_SizeGripSize:
+        return 16;
     case QStyle::PM_HeaderMargin:
         return 12;
     case QStyle::PM_HeaderMarkSize:

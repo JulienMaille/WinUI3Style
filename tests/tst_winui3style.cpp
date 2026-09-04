@@ -20,6 +20,7 @@
 #include <QAccessible>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCommandLinkButton>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QEvent>
@@ -37,6 +38,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPainter>
 #include <QParallelAnimationGroup>
 #include <QPointer>
@@ -47,7 +49,9 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QSignalSpy>
+#include <QSizeGrip>
 #include <QSpinBox>
+#include <QStatusBar>
 #include <QStyleFactory>
 #include <QStyleOptionGroupBox>
 #include <QStyleOptionButton>
@@ -71,6 +75,8 @@
 #include <QTreeWidget>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
+#include <QWizard>
+#include <QWizardPage>
 #include <QtMath>
 #include <QStandardItemModel>
 
@@ -352,6 +358,7 @@ private slots:
     void coloredIconCacheReuseAndPixelContract();
     void iconPixmapCacheDprAndPalette();
     void buttonPressedPulseContract();
+    void commandLinkButtonContract();
     void disabledButtonHasNoInteractionState();
     void toolButtonIconVerticalCenter();
     void toolbarButtonCornerSymmetry();
@@ -388,6 +395,7 @@ private slots:
     void themeComboSizingContract();
     void indeterminateProgressDeterminism();
     void comboPopupContract();
+    void comboPopupSelectedItemKeepsIcon();
     void comboReleaseActivationAndMarkerMotion();
     void comboPopupAssociationLifecycle();
     void comboChevronMotion();
@@ -414,6 +422,7 @@ private slots:
     void splitterHandleContract();
     void splitterGripPixelAlignment();
     void dockWidgetContract();
+    void statusBarAndSizeGripContract();
     void sliderGeometryContract();
     void sliderStateMotion();
     void sliderDragInteraction();
@@ -432,6 +441,8 @@ private slots:
     void tableLiveEditorSuppressesDisplay();
     void richEditBoxContract();
     void contentDialogContract();
+    void messageBoxContentDialogContract();
+    void wizardSurfaceContract();
     void contentDialogScrimLifecycle();
     void readOnlyActionRestoration();
     void animatedStackEffectsAndInterruption();
@@ -1052,6 +1063,28 @@ void WinUI3StyleTest::buttonPressedStateFollowsQtState()
                      ? "standard State_Sunken frame is not visible"
                      : "subtle State_Sunken frame is not visible");
     }
+}
+
+void WinUI3StyleTest::commandLinkButtonContract()
+{
+    QCommandLinkButton command(QStringLiteral("Open advanced settings"),
+                               QStringLiteral("Configure optional features."));
+    command.resize(command.sizeHint());
+    command.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&command));
+    QVERIFY(command.sizeHint().width() >= 160);
+    QVERIFY(command.sizeHint().height() >= 64);
+    const QImage enabled = command.grab().toImage();
+    command.setEnabled(false);
+    qApp->processEvents();
+    const QImage disabled = command.grab().toImage();
+    QVERIFY(enabled != disabled);
+
+    QCommandLinkButton withoutDescription(QStringLiteral("Open advanced settings"));
+    withoutDescription.resize(command.size());
+    withoutDescription.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&withoutDescription));
+    QVERIFY(withoutDescription.grab().toImage() != enabled);
 }
 
 void WinUI3StyleTest::buttonPressedForegroundRoles()
@@ -3262,6 +3295,55 @@ void WinUI3StyleTest::comboPopupContract()
     style->setAccentColor({});
 }
 
+void WinUI3StyleTest::comboPopupSelectedItemKeepsIcon()
+{
+    QComboBox combo;
+    combo.resize(200, 32);
+
+    QPixmap iconPixmap(16, 16);
+    iconPixmap.fill(Qt::transparent);
+    {
+        QPainter iconPainter(&iconPixmap);
+        iconPainter.fillRect(QRect(3, 2, 10, 12), Qt::black);
+    }
+
+    QStyleOptionMenuItem item;
+    item.initFrom(&combo);
+    item.rect = QRect(0, 0, 200, 40);
+    item.menuItemType = QStyleOptionMenuItem::Normal;
+    item.state = QStyle::State_Enabled | QStyle::State_Selected;
+    item.checked = true;
+    item.text = QStringLiteral("Document");
+    item.icon = QIcon(iconPixmap);
+
+    const auto render = [&](bool withIcon) {
+        QStyleOptionMenuItem rendered = item;
+        if (!withIcon)
+            rendered.icon = {};
+        QImage image(rendered.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(rendered.palette.color(QPalette::Window));
+        QPainter painter(&image);
+        combo.style()->drawControl(QStyle::CE_MenuItem, &rendered, &painter,
+                                   &combo);
+        return image;
+    };
+
+    const QImage withIcon = render(true);
+    const QImage markerOnly = render(false);
+    int changedIconPixels = 0;
+    const QRect iconSlot(12, 12, 16, 16);
+    for (int y = iconSlot.top(); y <= iconSlot.bottom(); ++y) {
+        for (int x = iconSlot.left(); x <= iconSlot.right(); ++x) {
+            if (colorDistance(withIcon.pixelColor(x, y),
+                              markerOnly.pixelColor(x, y)) > 12)
+                ++changedIconPixels;
+        }
+    }
+    QVERIFY2(changedIconPixels > 30,
+             qPrintable(QStringLiteral("selected popup icon pixels=%1")
+                            .arg(changedIconPixels)));
+}
+
 void WinUI3StyleTest::comboReleaseActivationAndMarkerMotion()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
@@ -4637,6 +4719,36 @@ void WinUI3StyleTest::dockWidgetContract()
     QCOMPARE(image.size(), host.size());
 }
 
+void WinUI3StyleTest::statusBarAndSizeGripContract()
+{
+    QMainWindow window;
+    window.resize(420, 240);
+    QStatusBar *bar = window.statusBar();
+    bar->setSizeGripEnabled(true);
+    bar->showMessage(QStringLiteral("Ready"));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *grip = bar->findChild<QSizeGrip *>();
+    QVERIFY(grip);
+    QVERIFY(grip->isVisible());
+    QCOMPARE(window.style()->pixelMetric(QStyle::PM_SizeGripSize,
+                                         nullptr, grip), 16);
+    const QImage barImage = bar->grab().toImage();
+    QVERIFY(barImage.pixelColor(barImage.width() / 2, 0)
+            != barImage.pixelColor(barImage.width() / 2,
+                                   qMin(barImage.height() - 1, 6)));
+    const QImage gripImage = grip->grab().toImage();
+    const QColor gripBackground = grip->palette().color(QPalette::Window);
+    bool hasGripInk = false;
+    for (int y = 0; y < gripImage.height() && !hasGripInk; ++y)
+        for (int x = 0; x < gripImage.width(); ++x)
+            if (colorDistance(gripImage.pixelColor(x, y), gripBackground) > 24) {
+                hasGripInk = true;
+                break;
+            }
+    QVERIFY(hasGripInk);
+}
+
 void WinUI3StyleTest::sliderGeometryContract()
 {
     const auto verifyEndPoints = [](QSlider &slider) {
@@ -5072,6 +5184,38 @@ void WinUI3StyleTest::tabViewContract()
     QVERIFY(image.pixelColor(selected.rect.center().x(),
                              selected.rect.bottom() - 2) != accent);
     QVERIFY(image.pixelColor(selected.rect.center().x(), 5) != accent);
+
+    const auto renderAdjacentTab = [&](QStyleOptionTab::SelectedPosition position,
+                                       Qt::LayoutDirection direction) {
+        QStyleOptionTab adjacent;
+        adjacent.rect = QRect(0, 0, 120, 32);
+        adjacent.shape = QTabBar::RoundedNorth;
+        adjacent.palette = tabs.palette();
+        adjacent.state = QStyle::State_Enabled;
+        adjacent.selectedPosition = position;
+        adjacent.direction = direction;
+        QImage rendered(adjacent.rect.size(),
+                        QImage::Format_ARGB32_Premultiplied);
+        rendered.fill(adjacent.palette.color(QPalette::Window));
+        QPainter painter(&rendered);
+        tabs.style()->drawControl(QStyle::CE_TabBarTabShape, &adjacent,
+                                  &painter, bar);
+        return rendered;
+    };
+    const QColor tabBackground = tabs.palette().color(QPalette::Window);
+    const QImage regularLtr = renderAdjacentTab(
+        QStyleOptionTab::NotAdjacent, Qt::LeftToRight);
+    const QImage adjacentLtr = renderAdjacentTab(
+        QStyleOptionTab::NextIsSelected, Qt::LeftToRight);
+    QVERIFY(colorDistance(regularLtr.pixelColor(119, 16), tabBackground) > 4);
+    QCOMPARE(adjacentLtr.pixelColor(119, 16), tabBackground);
+
+    const QImage regularRtl = renderAdjacentTab(
+        QStyleOptionTab::NotAdjacent, Qt::RightToLeft);
+    const QImage adjacentRtl = renderAdjacentTab(
+        QStyleOptionTab::NextIsSelected, Qt::RightToLeft);
+    QVERIFY(colorDistance(regularRtl.pixelColor(0, 16), tabBackground) > 4);
+    QCOMPARE(adjacentRtl.pixelColor(0, 16), tabBackground);
 }
 
 void WinUI3StyleTest::listViewContract()
@@ -5472,10 +5616,113 @@ void WinUI3StyleTest::contentDialogContract()
     QCOMPARE(layout->spacing(), 12);
     QCOMPARE(WinUI3::Style::controlRole(buttons->button(QDialogButtonBox::Ok)),
              WinUI3::ControlRole::Accent);
+    QVERIFY(!buttons->autoFillBackground());
+    QCOMPARE(dialog.palette().color(QPalette::Window),
+             buttons->palette().color(QPalette::Window));
+    QTRY_VERIFY(dialog.findChild<QWidget *>(
+        QStringLiteral("_winui_content_dialog_footer_surface"),
+        Qt::FindDirectChildrenOnly));
+    QWidget *footer = dialog.findChild<QWidget *>(
+        QStringLiteral("_winui_content_dialog_footer_surface"),
+        Qt::FindDirectChildrenOnly);
+    QTRY_COMPARE(footer->width(), dialog.width());
+    QCOMPARE(footer->x(), 0);
+    QCOMPARE(footer->geometry().bottom(), dialog.rect().bottom());
+    QVERIFY(footer->height() > buttons->height());
+    const int buttonsTop = buttons->mapTo(&dialog, QPoint(0, 0)).y();
+    const int buttonsBottom = buttonsTop + buttons->height() - 1;
+    const int upperInset = buttonsTop - footer->geometry().top();
+    const int lowerInset = footer->geometry().bottom() - buttonsBottom;
+    QVERIFY(qAbs(upperInset - lowerInset) <= 1);
+    const QImage renderedDialog = dialog.grab().toImage();
+    const QColor contentPixel = renderedDialog.pixelColor(5, 5);
+    const QColor footerPixel = renderedDialog.pixelColor(
+        5, renderedDialog.height() - 5);
+    QVERIFY(colorDistance(contentPixel, footerPixel) > 4);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QTRY_COMPARE(dialog.palette().color(QPalette::Window),
+                 QColor(0x2C, 0x2C, 0x2C));
+    const QImage darkDialog = dialog.grab().toImage();
+    QCOMPARE(darkDialog.pixelColor(5, 5), QColor(0x2C, 0x2C, 0x2C));
+    QCOMPARE(darkDialog.pixelColor(5, darkDialog.height() - 5),
+             QColor(0x20, 0x20, 0x20));
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxInformation).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxWarning).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxCritical).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxQuestion).isNull());
+}
+
+void WinUI3StyleTest::messageBoxContentDialogContract()
+{
+    QMessageBox dialog(QMessageBox::Information,
+                       QStringLiteral("WinUI 3 Style"),
+                       QStringLiteral("This is a native Qt message box rendered by the style."),
+                       QMessageBox::Ok);
+    dialog.show();
+    QTRY_VERIFY(dialog.isVisible());
+    QTRY_VERIFY(dialog.height() >= 184);
+    QCOMPARE(dialog.layout()->contentsMargins(), QMargins(24, 24, 24, 24));
+    QCOMPARE(dialog.layout()->sizeConstraint(), QLayout::SetMinimumSize);
+
+    auto *buttons = dialog.findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    QWidget *footer = dialog.findChild<QWidget *>(
+        QStringLiteral("_winui_content_dialog_footer_surface"),
+        Qt::FindDirectChildrenOnly);
+    QVERIFY(footer);
+    QTRY_COMPARE(footer->width(), dialog.width());
+    const int buttonsTop = buttons->mapTo(&dialog, QPoint(0, 0)).y();
+    const int buttonsBottom = buttonsTop + buttons->height() - 1;
+    QCOMPARE(buttonsTop - footer->geometry().top(),
+             footer->geometry().bottom() - buttonsBottom);
+
+    auto *label = dialog.findChild<QLabel *>(QStringLiteral("qt_msgbox_label"));
+    QVERIFY(label);
+    QCOMPARE(label->focusPolicy(), Qt::NoFocus);
+    QVERIFY(dialog.button(QMessageBox::Ok)->hasFocus());
+}
+
+void WinUI3StyleTest::wizardSurfaceContract()
+{
+    QWizard wizard;
+    wizard.resize(520, 340);
+    auto *first = new QWizardPage;
+    first->setTitle(QStringLiteral("Welcome"));
+    first->setSubTitle(QStringLiteral("A standard Qt wizard page."));
+    auto *firstLayout = new QVBoxLayout(first);
+    firstLayout->addWidget(new QLabel(QStringLiteral("Wizard content")));
+    wizard.addPage(first);
+    auto *second = new QWizardPage;
+    second->setTitle(QStringLiteral("Finish"));
+    wizard.addPage(second);
+    wizard.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&wizard));
+
+    QVERIFY(wizard.autoFillBackground());
+    QVERIFY(first->autoFillBackground());
+    QVERIFY(wizard.palette().color(QPalette::Window)
+            != first->palette().color(QPalette::Window));
+    QCOMPARE(WinUI3::Style::controlRole(
+                 wizard.button(QWizard::NextButton)),
+             WinUI3::ControlRole::Accent);
+    QCOMPARE(WinUI3::Style::controlRole(
+                 wizard.button(QWizard::FinishButton)),
+             WinUI3::ControlRole::Accent);
+
+    const QImage image = wizard.grab().toImage();
+    const QColor content = first->palette().color(QPalette::Window);
+    const QColor commands = wizard.palette().color(QPalette::Window);
+    const auto containsColor = [&image](const QColor &target) {
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (colorDistance(image.pixelColor(x, y), target) <= 8)
+                    return true;
+        return false;
+    };
+    QVERIFY(containsColor(content));
+    QVERIFY(containsColor(commands));
 }
 
 void WinUI3StyleTest::contentDialogScrimLifecycle()

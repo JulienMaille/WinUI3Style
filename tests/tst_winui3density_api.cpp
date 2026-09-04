@@ -165,7 +165,7 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
 
     const QSize invariantButton = style.sizeFromContents(
         QStyle::CT_PushButton, &buttonOption, content, &button);
-    const QSize invariantSpin = style.sizeFromContents(
+    const QSize standardSpin = style.sizeFromContents(
         QStyle::CT_SpinBox, &spinOption, content, &spin);
     const QSize standardDate = style.sizeFromContents(
         QStyle::CT_SpinBox, &dateOption, content, &date);
@@ -197,9 +197,11 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
     QCOMPARE(standardDate.height(), 32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content,
                                     &date).height(), 24);
+    QCOMPARE(standardSpin.height(), 32);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content,
+                                    &spin).height(), 24);
 
     QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button), invariantButton);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin), invariantSpin);
     QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu), invariantMenu);
     QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()), invariantTable);
     QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &generic, content, table.horizontalHeader()), invariantHeader);
