@@ -1,0 +1,171 @@
+# CI gate for WinUI3Style (plan step A).
+#
+# Baseline refresh procedure (never auto-accept):
+#   1. Build Release and run the gallery capture locally:
+#      build\demo\Release\winui3style_gallery.exe --capture-dir <absolute-dir>
+#   2. Review every PNG diff pixel-by-pixel against spec/baselines/gallery
+#      (tools/compare_images.py --diff diff.png reports RMS, differing-pixel
+#      count, max delta, bounding box; RMS is a regression signal, geometry
+#      and state semantics are the acceptance criterion per spec/METHODOLOGY.md).
+#   3. Commit the new approved PNGs. A red baseline is debugged from the
+#      uploaded snapshot-report.json + capture artifacts, never by
+#      re-running until green.
+#
+# After merge: enable GitHub branch protection requiring the msvc-gate job
+# green on PRs (manual repo-settings step; not automatable from the tree).
+#
+# winui3style_native is excluded from the hosted gate: it needs an interactive
+# desktop (QT_QPA_PLATFORM=windows, real focus/compositor) and can only report
+# skipped/blocked on a headless runner. It keeps LABELS native;interactive in
+# tests/CMakeLists.txt and runs on self-hosted runners or manual dispatch.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  coverage-honesty:
+    # Fails a PR diff marking any coverage.md row Verified unless the diff
+    # also touches tests/. The semantic honesty stays reviewer-owned; this is
+    # a cheap git-diff tripwire, not a proof of live evidence (METHODOLOGY §6).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require tests alongside Verified promotions
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          promoted=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md | grep -c "^+.*| *Verified" || true)
+          touched=$(git diff --name-only "$base"...HEAD -- tests/ | wc -l)
+          echo "verified_promotions=$promoted tests_touched=$touched"
+          if [ "$promoted" -gt 0 ] && [ "$touched" -eq 0 ]; then
+            echo "::error::coverage.md promotes a row to Verified without touching tests/. Tests alone never promote to Verified (METHODOLOGY §6); add evidence + tests or keep source-audited."
+            exit 1
+          fi
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format whole tree
+        run: |
+          pip install "clang-format==18.1.8"
+          clang-format --dry-run --Werror $(git ls-files src include tests demo plugin benchmarks | grep -E '\.(cpp|h)$')
+
+  msvc-gate:
+    # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
+    # CMake's "Visual Studio 17 2022" generator can no longer find VS there.
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        # 6.8.3 = oldest supported Qt; 6.11.1 = version this tree develops
+        # against. Exact versions: stock aqt 3.3.x has no checksum entry for
+        # newer Qt 6.11 Windows archives, so the pinned action + dev snapshot
+        # below is required (not "any v4").
+        qt: ["6.8.3", "6.11.1"]
+    env:
+      QT_VERSION: ${{ matrix.qt }}
+      QT_ARCH: win64_msvc2022_64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+          cache-key-prefix: 'qt-${{ env.QT_VERSION }}-aqt-16db45a-v1'
+          # aqtinstall 3.3.x has no checksum entry for the Qt 6.11.1 Windows
+          # archives yet; use the tested checksum-enabled development snapshot.
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
+      - name: Install Python + Pillow
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Configure (Release, benchmarks off)
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test (exclude interactive native test)
+        shell: pwsh
+        run: |
+          # -V streams QtTest PASS/FAIL lines into the job log; without it a
+          # crash and an assertion look identical (empty LastTest.log output).
+          # Tee to a file because Select-Object -Last truncates the FAIL! lines
+          # we need; the next step greps the full log.
+          ctest --test-dir build -C Release --output-on-failure -V -E "^winui3style_native$" 2>&1 |
+            Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
+      - name: Rerun failed binaries with QtTest -v2
+        if: failure()
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
+          $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
+          foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
+            Write-Output "===== $t per-function ====="
+            $funcs = & "build/tests/Release/$t.exe" -functions 2>&1
+            foreach ($f in $funcs) {
+                $name = $f -replace '[()]', ''
+                if ($name -match '^(initTestCase|cleanupTestCase|init|cleanup)$') { continue }
+                & "build/tests/Release/$t.exe" -v2 $name > "$t-$name.log" 2>&1
+                $code = $LASTEXITCODE
+                Write-Output "$t::$name exit: $code"
+                Select-String -Path "$t-$name.log" -Pattern 'FAIL!|Totals|Received signal' |
+                  Select-Object -First 6
+            }
+          }
+      - name: Upload snapshot debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            build/snapshot-report.json
+            build/snapshot-captures/
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+            ./*-v2.log
+          if-no-files-found: warn
+
+  qt512-mingw:
+    # Qt 5.12 MinGW must at least build. No snapshot/DPI gate here;
+    # offscreen fidelity and Pillow matrix belong to the MSVC job above.
+    # Toolchain match: install-qt-action defaults to the runner's own
+    # C:/mingw64 (GCC 15 64-bit), which cannot link Qt 5.12's 32-bit MinGW 7.3
+    # binaries. tools_win32_mingw730 puts the period-correct g++/mingw32-make
+    # on PATH so CMake picks it (verified: GNU 7.3.0, "MinGW Makefiles").
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 5.12 (MinGW 7.3 32-bit)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "5.12.12"
+          arch: win32_mingw73
+          tools: tools_mingw,qt.tools.win32_mingw730
+          cache: true
+      - name: Install Python + Pillow
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Configure (MinGW, benchmarks off)
+        shell: cmd
+        run: >
+          cmake -S . -B build-mingw -G "MinGW Makefiles"
+          -DCMAKE_BUILD_TYPE=Release
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+          -DWINUI3STYLE_BUILD_NATIVE_TESTS=OFF
+      - name: Build
+        run: cmake --build build-mingw --config Release

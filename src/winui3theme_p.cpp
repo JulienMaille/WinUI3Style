@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3theme_p.h"
 
 #include "winui3tokens_p.h"
@@ -36,14 +37,12 @@ struct SystemAppearanceCache
 
     bool darkFresh() const
     {
-        return darkAge.isValid()
-            && darkAge.elapsed() < systemAppearanceCacheLifetimeMs;
+        return darkAge.isValid() && darkAge.elapsed() < systemAppearanceCacheLifetimeMs;
     }
 
     bool accentFresh() const
     {
-        return accentAge.isValid()
-            && accentAge.elapsed() < systemAppearanceCacheLifetimeMs;
+        return accentAge.isValid() && accentAge.elapsed() < systemAppearanceCacheLifetimeMs;
     }
 };
 
@@ -64,9 +63,11 @@ bool systemUsesDarkTheme()
     auto &cache = systemAppearanceCache();
     if (cache.darkInitialized && cache.darkFresh())
         return cache.dark;
-    QSettings settings(QStringLiteral(
-        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
-        QSettings::NativeFormat);
+    QSettings settings(
+            QStringLiteral(
+                    "HKEY_CURRENT_"
+                    "USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
+            QSettings::NativeFormat);
     cache.dark = settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
     cache.darkInitialized = true;
     cache.darkAge.start();
@@ -99,12 +100,11 @@ SystemAccentRamp systemAccentRamp()
     BYTE nativeBytes[32] = {};
     DWORD nativeSize = sizeof(nativeBytes);
     const LSTATUS paletteStatus = RegGetValueW(
-        HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
-        L"AccentPalette", RRF_RT_REG_BINARY, nullptr, nativeBytes, &nativeSize);
+            HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
+            L"AccentPalette", RRF_RT_REG_BINARY, nullptr, nativeBytes, &nativeSize);
     const QByteArray bytes = paletteStatus == ERROR_SUCCESS
-        ? QByteArray(reinterpret_cast<const char *>(nativeBytes), int(nativeSize))
-        : QByteArray{};
+            ? QByteArray(reinterpret_cast<const char *>(nativeBytes), int(nativeSize))
+            : QByteArray{};
     const auto entry = [&bytes](int index) {
         const int offset = index * 4;
         if (bytes.size() < offset + 3)
@@ -112,7 +112,7 @@ SystemAccentRamp systemAccentRamp()
         return QColor(quint8(bytes.at(offset)), quint8(bytes.at(offset + 1)),
                       quint8(bytes.at(offset + 2)));
     };
-    const SystemAccentRamp explorerRamp{entry(3), entry(2), entry(1), entry(4)};
+    const SystemAccentRamp explorerRamp{ entry(3), entry(2), entry(1), entry(4) };
     // AccentPalette is the exact SystemAccentColor role family consumed by
     // WinUI. DwmGetColorizationColor is not equivalent: Windows may apply its
     // colorization-balance transform, yielding an intermediate colour that is
@@ -125,9 +125,7 @@ SystemAccentRamp systemAccentRamp()
         BOOL opaque = FALSE;
         if (SUCCEEDED(DwmGetColorizationColor(&color, &opaque))) {
             // DwmGetColorizationColor returns 0xAARRGGBB.
-            ramp.accent = QColor::fromRgb((color >> 16) & 0xff,
-                                          (color >> 8) & 0xff,
-                                          color & 0xff);
+            ramp.accent = QColor::fromRgb((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff);
         }
     }
 #endif
@@ -152,17 +150,14 @@ QColor systemAccentColor()
     return systemAccentRamp().accent;
 }
 
-QPalette standardPalette(bool darkTheme, const QColor &accent,
-                         bool explicitAccent)
+QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAccent)
 {
-    const SystemAccentRamp systemRamp = explicitAccent
-        ? SystemAccentRamp{} : systemAccentRamp();
+    const SystemAccentRamp systemRamp = explicitAccent ? SystemAccentRamp{} : systemAccentRamp();
     // WinUI AccentFillColorDefaultBrush is theme-specific: Light uses
     // SystemAccentColorDark1, while Dark uses SystemAccentColorLight2.
-    const QColor accentFill = explicitAccent
-        ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
-                     : mix(accent, QColor(Qt::black), 0.18))
-        : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
+    const QColor accentFill = explicitAccent ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
+                                                          : mix(accent, QColor(Qt::black), 0.18))
+                                             : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
     QPalette palette;
 
     if (darkTheme) {
@@ -182,8 +177,7 @@ QPalette standardPalette(bool darkTheme, const QColor &accent,
         palette.setColor(QPalette::ToolTipText, Qt::white);
         palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(255, 255, 255, 92));
         palette.setColor(QPalette::Disabled, QPalette::Text, QColor(255, 255, 255, 92));
-        palette.setColor(QPalette::Disabled, QPalette::PlaceholderText,
-                         QColor(255, 255, 255, 93));
+        palette.setColor(QPalette::Disabled, QPalette::PlaceholderText, QColor(255, 255, 255, 93));
         palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(255, 255, 255, 92));
         palette.setColor(QPalette::Disabled, QPalette::Button, QColor(255, 255, 255, 11));
         palette.setColor(QPalette::Disabled, QPalette::Base, QColor(255, 255, 255, 8));
@@ -204,8 +198,7 @@ QPalette standardPalette(bool darkTheme, const QColor &accent,
         palette.setColor(QPalette::ToolTipText, QColor(26, 26, 26));
         palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0, 0, 0, 92));
         palette.setColor(QPalette::Disabled, QPalette::Text, QColor(0, 0, 0, 92));
-        palette.setColor(QPalette::Disabled, QPalette::PlaceholderText,
-                         QColor(0, 0, 0, 92));
+        palette.setColor(QPalette::Disabled, QPalette::PlaceholderText, QColor(0, 0, 0, 92));
         palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0, 0, 0, 92));
         palette.setColor(QPalette::Disabled, QPalette::Button, QColor(249, 249, 249, 77));
         palette.setColor(QPalette::Disabled, QPalette::Base, QColor(246, 246, 246, 128));

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
@@ -29,7 +30,8 @@ constexpr int DefaultRows = 10000;
 constexpr int DefaultIterations = 80;
 constexpr int Warmups = 5;
 
-struct Options {
+struct Options
+{
     int rows = DefaultRows;
     int iterations = DefaultIterations;
     bool icons = true;
@@ -54,9 +56,9 @@ void benchmarkTokens()
         }
         const qreal nanoseconds = qreal(timer.nsecsElapsed()) / iterations;
         qInfo().noquote() << QStringLiteral("%1 ns/call=%2 checksum=%3")
-                                 .arg(QString::fromLatin1(name))
-                                 .arg(nanoseconds, 0, 'f', 1)
-                                 .arg(checksum);
+                                     .arg(QString::fromLatin1(name))
+                                     .arg(nanoseconds, 0, 'f', 1)
+                                     .arg(checksum);
     };
     run("tokens-uncached", WinUI3::Private::buildTokens);
     run("tokens-cached", WinUI3::Private::tokens);
@@ -67,8 +69,8 @@ double percentile(std::vector<double> values, double fraction)
     if (values.empty())
         return 0.0;
     std::sort(values.begin(), values.end());
-    const int index = qBound(0, int(std::ceil(fraction * values.size())) - 1,
-                             int(values.size()) - 1);
+    const int index =
+            qBound(0, int(std::ceil(fraction * values.size())) - 1, int(values.size()) - 1);
     return values[index];
 }
 
@@ -100,17 +102,17 @@ void report(const QString &name, QWidget *widget, int iterations,
     }
 
     qInfo().noquote() << QStringLiteral("%1 p50=%2 ms p95=%3 ms samples=%4")
-                             .arg(name)
-                             .arg(percentile(samples, 0.50), 0, 'f', 3)
-                             .arg(percentile(samples, 0.95), 0, 'f', 3)
-                             .arg(samples.size());
+                                 .arg(name)
+                                 .arg(percentile(samples, 0.50), 0, 'f', 3)
+                                 .arg(percentile(samples, 0.95), 0, 'f', 3)
+                                 .arg(samples.size());
 }
 
 QIcon benchmarkIcon(int row)
 {
     using WinUI3::Icon;
-    constexpr Icon glyphs[] = {Icon::Folder, Icon::Settings, Icon::Search,
-                               Icon::Edit, Icon::More};
+    constexpr Icon glyphs[] = { Icon::Folder, Icon::Settings, Icon::Search, Icon::Edit,
+                                Icon::More };
     return WinUI3::icon(glyphs[row % (sizeof(glyphs) / sizeof(glyphs[0]))]);
 }
 
@@ -135,28 +137,26 @@ void benchmarkList(const Options &options)
     view.setModel(&model);
     view.setUniformItemSizes(true);
     prepare(&view, QSize(720, 540));
-    report(options.icons ? QStringLiteral("list-icons")
-                         : QStringLiteral("list-no-icons"),
-           &view, options.iterations, [&view](int frame) {
-        view.verticalScrollBar()->setValue(
-            (frame * 37) % qMax(1, view.verticalScrollBar()->maximum()));
-    });
+    report(options.icons ? QStringLiteral("list-icons") : QStringLiteral("list-no-icons"), &view,
+           options.iterations, [&view](int frame) {
+               view.verticalScrollBar()->setValue((frame * 37)
+                                                  % qMax(1, view.verticalScrollBar()->maximum()));
+           });
 }
 
 void benchmarkTree(const Options &options)
 {
     QStandardItemModel model;
-    model.setHorizontalHeaderLabels({QStringLiteral("Tree")});
+    model.setHorizontalHeaderLabels({ QStringLiteral("Tree") });
     const int parentCount = qMax(1, options.rows / 100);
     for (int parentRow = 0; parentRow < parentCount; ++parentRow) {
-        auto *parent = new QStandardItem(
-            QStringLiteral("Group %1").arg(parentRow));
+        auto *parent = new QStandardItem(QStringLiteral("Group %1").arg(parentRow));
         if (options.icons)
             parent->setIcon(benchmarkIcon(parentRow));
         const int children = qMin(100, options.rows - parentRow * 100);
         for (int childRow = 0; childRow < children; ++childRow) {
-            auto *child = new QStandardItem(QStringLiteral("Tree item %1.%2")
-                                                 .arg(parentRow).arg(childRow));
+            auto *child = new QStandardItem(
+                    QStringLiteral("Tree item %1.%2").arg(parentRow).arg(childRow));
             if (options.icons)
                 child->setIcon(benchmarkIcon(parentRow + childRow));
             parent->appendRow(child);
@@ -169,12 +169,11 @@ void benchmarkTree(const Options &options)
     view.setUniformRowHeights(true);
     view.expandAll();
     prepare(&view, QSize(720, 540));
-    report(options.icons ? QStringLiteral("tree-icons")
-                         : QStringLiteral("tree-no-icons"),
-           &view, options.iterations, [&view](int frame) {
-        view.verticalScrollBar()->setValue(
-            (frame * 29) % qMax(1, view.verticalScrollBar()->maximum()));
-    });
+    report(options.icons ? QStringLiteral("tree-icons") : QStringLiteral("tree-no-icons"), &view,
+           options.iterations, [&view](int frame) {
+               view.verticalScrollBar()->setValue((frame * 29)
+                                                  % qMax(1, view.verticalScrollBar()->maximum()));
+           });
 }
 
 void benchmarkTable(const Options &options)
@@ -183,28 +182,26 @@ void benchmarkTable(const Options &options)
     QStandardItemModel model(options.rows, Columns);
     for (int row = 0; row < options.rows; ++row) {
         for (int column = 0; column < Columns; ++column) {
-            auto *item = new QStandardItem(
-                QStringLiteral("Cell %1/%2").arg(row).arg(column));
+            auto *item = new QStandardItem(QStringLiteral("Cell %1/%2").arg(row).arg(column));
             if (options.icons && column == 0)
                 item->setIcon(benchmarkIcon(row));
             model.setItem(row, column, item);
         }
     }
-    model.setHorizontalHeaderLabels({QStringLiteral("Name"), QStringLiteral("A"),
-                                     QStringLiteral("B"), QStringLiteral("C"),
-                                     QStringLiteral("D"), QStringLiteral("E")});
+    model.setHorizontalHeaderLabels({ QStringLiteral("Name"), QStringLiteral("A"),
+                                      QStringLiteral("B"), QStringLiteral("C"), QStringLiteral("D"),
+                                      QStringLiteral("E") });
 
     QTableView view;
     view.setModel(&model);
     view.setAlternatingRowColors(false);
     view.horizontalHeader()->setStretchLastSection(true);
     prepare(&view, QSize(960, 540));
-    report(options.icons ? QStringLiteral("table-icons")
-                         : QStringLiteral("table-no-icons"),
-           &view, options.iterations, [&view](int frame) {
-        view.verticalScrollBar()->setValue(
-            (frame * 23) % qMax(1, view.verticalScrollBar()->maximum()));
-    });
+    report(options.icons ? QStringLiteral("table-icons") : QStringLiteral("table-no-icons"), &view,
+           options.iterations, [&view](int frame) {
+               view.verticalScrollBar()->setValue((frame * 23)
+                                                  % qMax(1, view.verticalScrollBar()->maximum()));
+           });
 }
 
 void benchmarkRichSurface(const Options &options)
@@ -237,9 +234,9 @@ void benchmarkRichSurface(const Options &options)
     report(options.icons ? QStringLiteral("rich-surface-icons")
                          : QStringLiteral("rich-surface-no-icons"),
            &surface, options.iterations, [table](int frame) {
-        table->verticalScrollBar()->setValue(
-            (frame * 17) % qMax(1, table->verticalScrollBar()->maximum()));
-    });
+               table->verticalScrollBar()->setValue(
+                       (frame * 17) % qMax(1, table->verticalScrollBar()->maximum()));
+           });
 }
 
 Options parseOptions(const QApplication &application)

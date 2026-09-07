@@ -36,26 +36,22 @@ public:
 
     bool eventFilter(QObject *object, QEvent *event) override
     {
-        QWidget *popup = combo ? combo->view()->window()
-                               : qobject_cast<QWidget *>(object);
+        QWidget *popup = combo ? combo->view()->window() : qobject_cast<QWidget *>(object);
         if (event->type() == QEvent::Show)
             visible = true;
         else if (event->type() == QEvent::Hide)
             visible = false;
-        else if (visible && event->type() == QEvent::Paint && !painted
-                 && combo && popup) {
+        else if (visible && event->type() == QEvent::Paint && !painted && combo && popup) {
             painted = true;
             firstPaintGeometry = popup->geometry();
             const QModelIndex selected = combo->model()->index(
-                combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
+                    combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
             selectedCenterAtFirstPaint = combo->view()->viewport()->mapToGlobal(
-                combo->view()->visualRect(selected).center());
+                    combo->view()->visualRect(selected).center());
             scrollAtFirstPaint = combo->view()->verticalScrollBar()->value();
-        } else if (object == popup && painted && visible
-                   && event->type() == QEvent::Move)
+        } else if (object == popup && painted && visible && event->type() == QEvent::Move)
             ++movesAfterPaint;
-        else if (object == popup && painted && visible
-                 && event->type() == QEvent::Resize)
+        else if (object == popup && painted && visible && event->type() == QEvent::Resize)
             ++resizesAfterPaint;
         return false;
     }
@@ -104,8 +100,7 @@ void WinUI3StyleNativeTest::initTestCase()
 void WinUI3StyleNativeTest::cleanup()
 {
     for (QWidget *widget : qApp->topLevelWidgets()) {
-        if (widget->windowType() == Qt::Popup
-            || widget->windowType() == Qt::ToolTip
+        if (widget->windowType() == Qt::Popup || widget->windowType() == Qt::ToolTip
             || qobject_cast<QDialog *>(widget)) {
             widget->close();
             widget->hide();
@@ -128,15 +123,16 @@ void WinUI3StyleNativeTest::tooltipSurface()
     QTest::mouseMove(button, button->rect().center());
     // Keep the test meaningful on desktop policies that disable delayed
     // tooltip tracking while still exercising the real Qt tooltip window.
-    QToolTip::showText(button->mapToGlobal(button->rect().center()),
-                       button->toolTip(), button);
-    QTRY_VERIFY_WITH_TIMEOUT([&] {
-        for (QWidget *candidate : qApp->topLevelWidgets()) {
-            if (candidate->windowType() == Qt::ToolTip && candidate->isVisible())
-                return true;
-        }
-        return false;
-    }(), 1800);
+    QToolTip::showText(button->mapToGlobal(button->rect().center()), button->toolTip(), button);
+    QTRY_VERIFY_WITH_TIMEOUT(
+            [&] {
+                for (QWidget *candidate : qApp->topLevelWidgets()) {
+                    if (candidate->windowType() == Qt::ToolTip && candidate->isVisible())
+                        return true;
+                }
+                return false;
+            }(),
+            1800);
 }
 
 void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
@@ -147,26 +143,24 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     slider.show();
     QVERIFY(QTest::qWaitForWindowExposed(&slider));
 
-    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
-                      slider.rect().center());
-    QTRY_VERIFY_WITH_TIMEOUT(
-        WinUI3::Private::framePropertyRegistry()
-            .value(&slider, "_winui_slider_tooltip_visible").toBool(), 500);
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, slider.rect().center());
+    QTRY_VERIFY_WITH_TIMEOUT(WinUI3::Private::framePropertyRegistry()
+                                     .value(&slider, "_winui_slider_tooltip_visible")
+                                     .toBool(),
+                             500);
 
     // The first tooltip display is immediate. Once visible, a burst of
     // pointer updates must use one trailing surface timer instead of moving
     // and repainting the native popup for every mouse event.
     for (int i = 0; i < 200; ++i) {
         slider.setValue(i % 100);
-        QMouseEvent move(QEvent::MouseMove,
-                         QPointF(slider.rect().center()), Qt::NoButton,
+        QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
                          Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(&slider, &move);
     }
     QCoreApplication::processEvents();
-    auto *timer = slider.findChild<QTimer *>(
-        QStringLiteral("_winui_slider_tooltip_debounce_timer"),
-        Qt::FindDirectChildrenOnly);
+    auto *timer = slider.findChild<QTimer *>(QStringLiteral("_winui_slider_tooltip_debounce_timer"),
+                                             Qt::FindDirectChildrenOnly);
     QVERIFY(timer);
     QVERIFY(timer->isSingleShot());
     QTRY_VERIFY_WITH_TIMEOUT(!timer->isActive(), 500);
@@ -174,31 +168,29 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     QSignalSpy callbacks(timer, &QTimer::timeout);
     for (int i = 0; i < 200; ++i) {
         slider.setValue((i + 37) % 100);
-        QMouseEvent move(QEvent::MouseMove,
-                         QPointF(slider.rect().center()), Qt::NoButton,
+        QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
                          Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(&slider, &move);
     }
     QCoreApplication::processEvents();
     QTRY_COMPARE_WITH_TIMEOUT(callbacks.count(), 1, 500);
 
-    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
-                        slider.rect().center());
+    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, slider.rect().center());
     QVERIFY(!timer->isActive());
     QVERIFY(!WinUI3::Private::framePropertyRegistry()
-                 .value(&slider, "_winui_slider_tooltip_visible").toBool());
+                     .value(&slider, "_winui_slider_tooltip_visible")
+                     .toBool());
 
     // Disabling during the trailing debounce must clear both the inspectable
     // state and the already-created native popup, rather than leaving the last
     // value visible until another pointer event arrives.
     slider.setEnabled(true);
-    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
-                      slider.rect().center());
-    QTRY_VERIFY_WITH_TIMEOUT(
-        WinUI3::Private::framePropertyRegistry()
-            .value(&slider, "_winui_slider_tooltip_visible").toBool(), 500);
-    QMouseEvent move(QEvent::MouseMove,
-                     QPointF(slider.rect().center()), Qt::NoButton,
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, slider.rect().center());
+    QTRY_VERIFY_WITH_TIMEOUT(WinUI3::Private::framePropertyRegistry()
+                                     .value(&slider, "_winui_slider_tooltip_visible")
+                                     .toBool(),
+                             500);
+    QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
                      Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&slider, &move);
     QCoreApplication::processEvents();
@@ -206,12 +198,13 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     slider.setEnabled(false);
     QTRY_VERIFY_WITH_TIMEOUT(!timer->isActive(), 500);
     QVERIFY(!WinUI3::Private::framePropertyRegistry()
-                 .value(&slider, "_winui_slider_tooltip_visible").toBool());
+                     .value(&slider, "_winui_slider_tooltip_visible")
+                     .toBool());
     QVERIFY(!WinUI3::Private::framePropertyRegistry()
-                 .value(&slider, "_winui_slider_tooltip_value").isValid());
-    if (auto *tip = slider.findChild<QWidget *>(
-            QStringLiteral("_winui_slider_value_tip"),
-            Qt::FindDirectChildrenOnly)) {
+                     .value(&slider, "_winui_slider_tooltip_value")
+                     .isValid());
+    if (auto *tip = slider.findChild<QWidget *>(QStringLiteral("_winui_slider_value_tip"),
+                                                Qt::FindDirectChildrenOnly)) {
         QVERIFY(!tip->isVisible());
     }
 }
@@ -246,8 +239,7 @@ void WinUI3StyleNativeTest::comboPopupSurface()
 {
     QWidget window;
     auto *combo = new QComboBox(&window);
-    combo->addItems({QStringLiteral("First"), QStringLiteral("Second"),
-                     QStringLiteral("Third")});
+    combo->addItems({ QStringLiteral("First"), QStringLiteral("Second"), QStringLiteral("Third") });
     combo->setCurrentIndex(1);
     combo->move(20, 20);
     window.resize(320, 120);
@@ -258,14 +250,12 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     QWidget *popup = combo->view()->window();
     popup->installEventFilter(&probe);
     combo->view()->viewport()->installEventFilter(&probe);
-    QSignalSpy scrollChanges(combo->view()->verticalScrollBar(),
-                             &QScrollBar::valueChanged);
+    QSignalSpy scrollChanges(combo->view()->verticalScrollBar(), &QScrollBar::valueChanged);
     combo->showPopup();
     QTRY_VERIFY(combo->view()->isVisible());
     QVERIFY(popup->isVisible());
     QCOMPARE(popup->palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(combo->view()->viewport()->palette()
-                 .color(QPalette::Base).alpha(), 255);
+    QCOMPARE(combo->view()->viewport()->palette().color(QPalette::Base).alpha(), 255);
     QVERIFY(popup->autoFillBackground());
     QVERIFY(combo->view()->viewport()->autoFillBackground());
     QVERIFY(!popup->testAttribute(Qt::WA_TranslucentBackground));
@@ -309,8 +299,7 @@ void WinUI3StyleNativeTest::dockFloatingFocusCleanup()
     QMainWindow window;
     auto *dock = new QDockWidget(QStringLiteral("Inspector"), &window);
     dock->setWidget(new QLabel(QStringLiteral("Dock content")));
-    dock->setFeatures(QDockWidget::DockWidgetClosable
-                      | QDockWidget::DockWidgetFloatable
+    dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable
                       | QDockWidget::DockWidgetMovable);
     window.addDockWidget(Qt::RightDockWidgetArea, dock);
     window.resize(640, 360);

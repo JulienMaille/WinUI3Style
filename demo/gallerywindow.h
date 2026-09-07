@@ -2,7 +2,9 @@
 
 #include <QMainWindow>
 
-namespace Ui { class GalleryWindow; }
+namespace Ui {
+class GalleryWindow;
+}
 
 class GalleryWindow final : public QMainWindow
 {

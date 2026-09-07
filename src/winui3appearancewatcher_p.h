@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QAbstractNativeEventFilter>
@@ -22,8 +23,7 @@ namespace WinUI3::Private {
 // for one Settings change. On non-Windows platforms this remains a QObject
 // that never installs a native filter and nativeEventFilter() always returns
 // false.
-class SystemAppearanceWatcher final : public QObject,
-                                      public QAbstractNativeEventFilter
+class SystemAppearanceWatcher final : public QObject, public QAbstractNativeEventFilter
 {
 public:
     using Callback = std::function<void()>;

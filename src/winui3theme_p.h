@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QColor>
@@ -22,7 +23,6 @@ QColor systemAccentColor();
 // where the appearance helpers do not maintain a native cache.
 void invalidateSystemAppearanceCache();
 
-QPalette standardPalette(bool darkTheme, const QColor &accent,
-                         bool explicitAccent);
+QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAccent);
 
 } // namespace WinUI3::Private

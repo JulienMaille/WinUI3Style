@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <winui3style/winui3global.h>
@@ -17,26 +18,13 @@ class QWidget;
 
 namespace WinUI3 {
 
-enum class ThemeMode {
-    System,
-    Light,
-    Dark
-};
+enum class ThemeMode { System, Light, Dark };
 
 // Controls the density metrics used by the style. Compact is the WinUI 3
 // compact sizing profile; it is intentionally independent from theme colors.
-enum class DensityMode {
-    Standard,
-    Compact
-};
+enum class DensityMode { Standard, Compact };
 
-enum class ControlRole {
-    Standard,
-    Accent,
-    Subtle,
-    Navigation,
-    Destructive
-};
+enum class ControlRole { Standard, Accent, Subtle, Navigation, Destructive };
 
 class StylePrivate;
 
@@ -44,7 +32,8 @@ class WINUI3STYLE_EXPORT Style final : public QProxyStyle
 {
     Q_OBJECT
     Q_PROPERTY(WinUI3::ThemeMode themeMode READ themeMode WRITE setThemeMode NOTIFY themeChanged)
-    Q_PROPERTY(WinUI3::DensityMode densityMode READ densityMode WRITE setDensityMode NOTIFY densityChanged)
+    Q_PROPERTY(WinUI3::DensityMode densityMode READ densityMode WRITE setDensityMode NOTIFY
+                       densityChanged)
     Q_PROPERTY(QColor accentColor READ accentColor WRITE setAccentColor NOTIFY accentColorChanged)
 
 public:
@@ -104,22 +93,21 @@ public:
     static void setContentDialog(QDialog *dialog, bool enabled = true);
 
     QPalette standardPalette() const override;
-    void drawPrimitive(PrimitiveElement element, const QStyleOption *option,
-                       QPainter *painter, const QWidget *widget = nullptr) const override;
-    void drawControl(ControlElement element, const QStyleOption *option,
-                     QPainter *painter, const QWidget *widget = nullptr) const override;
+    void drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter,
+                       const QWidget *widget = nullptr) const override;
+    void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
+                     const QWidget *widget = nullptr) const override;
     void drawComplexControl(ComplexControl control, const QStyleOptionComplex *option,
                             QPainter *painter, const QWidget *widget = nullptr) const override;
     int pixelMetric(PixelMetric metric, const QStyleOption *option = nullptr,
                     const QWidget *widget = nullptr) const override;
-    QSize sizeFromContents(ContentsType type, const QStyleOption *option,
-                           const QSize &contentsSize, const QWidget *widget = nullptr) const override;
+    QSize sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
+                           const QWidget *widget = nullptr) const override;
     QRect subElementRect(SubElement element, const QStyleOption *option,
                          const QWidget *widget = nullptr) const override;
     QRect subControlRect(ComplexControl control, const QStyleOptionComplex *option,
                          SubControl subControl, const QWidget *widget = nullptr) const override;
-    SubControl hitTestComplexControl(ComplexControl control,
-                                     const QStyleOptionComplex *option,
+    SubControl hitTestComplexControl(ComplexControl control, const QStyleOptionComplex *option,
                                      const QPoint &position,
                                      const QWidget *widget = nullptr) const override;
     int styleHint(StyleHint hint, const QStyleOption *option = nullptr,

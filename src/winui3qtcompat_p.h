@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 // Qt 5 / Qt 6 compatibility shims for WinUI3Style internals.
@@ -6,8 +7,7 @@
 // added static QFontDatabase accessors, qintptr in
 // QAbstractNativeEventFilter, ...). These helpers keep the style
 // implementation written against the Qt 6 surface compilable under Qt 5.15,
-// which is required to load the style plugin into Qt 5 applications such as
-// SoulseekQt.
+// which is required to load the style plugin into Qt 5 applications.
 
 #include <QtGlobal>
 
@@ -71,8 +71,8 @@ inline QScreen *widgetScreen(const QWidget *widget)
 
 // QIcon::pixmap(size, dpr, mode, state) exists from Qt 6. On Qt 5 request
 // the device-resolution pixmap and pin its DPR instead.
-inline QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal dpr,
-                          QIcon::Mode mode, QIcon::State state)
+inline QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal dpr, QIcon::Mode mode,
+                          QIcon::State state)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     return icon.pixmap(size, dpr, mode, state);

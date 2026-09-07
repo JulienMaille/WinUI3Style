@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QHash>
@@ -24,17 +25,18 @@ public:
     void track(QTableView *table, QWidget *editor);
     void untrackEditor(QWidget *editor, bool clearProperty = true);
     void untrackTable(QTableView *table, bool clearProperties = true);
-    bool overlaps(const QTableView *table, const QModelIndex &index,
-                  const QRect &itemRect);
+    bool overlaps(const QTableView *table, const QModelIndex &index, const QRect &itemRect);
 
 private:
-    struct Owner {
+    struct Owner
+    {
         QPointer<QTableView> table;
         QPersistentModelIndex index;
         QMetaObject::Connection destroyedConnection;
     };
 
-    struct TableState {
+    struct TableState
+    {
         QPointer<QAbstractItemModel> model;
         QHash<QPersistentModelIndex, QPointer<QWidget>> editors;
         QMetaObject::Connection aboutToResetConnection;
@@ -45,12 +47,10 @@ private:
 
     void ensureTable(QTableView *table);
     void clearEditors(QTableView *table, bool clearProperties);
-    void connectModel(QTableView *table, TableState &state,
-                      QAbstractItemModel *model);
+    void connectModel(QTableView *table, TableState &state, QAbstractItemModel *model);
     void reindexMarkedEditors(QTableView *table);
     void trackOnce(QTableView *table, QWidget *editor, bool allowRetry);
-    QPersistentModelIndex editorIndex(const QTableView *table,
-                                      const QWidget *editor) const;
+    QPersistentModelIndex editorIndex(const QTableView *table, const QWidget *editor) const;
 
     QObject *m_context = nullptr;
     QHash<QTableView *, TableState> m_tables;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QStyle>
@@ -15,16 +16,13 @@ class Style;
 
 namespace Private {
 
-using TableEditorOverlap = std::function<bool(const QTableView *,
-                                             const QModelIndex &,
-                                             const QRect &)>;
+using TableEditorOverlap =
+        std::function<bool(const QTableView *, const QModelIndex &, const QRect &)>;
 
 bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
-                       const QStyleOption *option, QPainter *painter,
-                       const QWidget *widget);
-bool drawViewControl(const Style *style, QStyle::ControlElement element,
-                     const QStyleOption *option, QPainter *painter,
-                     const QWidget *widget,
+                       const QStyleOption *option, QPainter *painter, const QWidget *widget);
+bool drawViewControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option,
+                     QPainter *painter, const QWidget *widget,
                      const TableEditorOverlap &tableEditorOverlap);
 
 } // namespace Private

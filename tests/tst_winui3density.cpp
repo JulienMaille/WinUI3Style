@@ -5,8 +5,8 @@
 #include <QWidget>
 #include <QtTest>
 
-using WinUI3::Private::DensityMode;
 using WinUI3::Private::densityMetrics;
+using WinUI3::Private::DensityMode;
 using WinUI3::Private::densityModeFor;
 
 class WinUI3DensityTest final : public QObject
@@ -38,6 +38,7 @@ void WinUI3DensityTest::profilesExposeDocumentedSizing()
     QCOMPARE(compact.navigationItemHeight, 32);
     QCOMPARE(standard.comboPopupItemHeight, 40);
     QCOMPARE(compact.comboPopupItemHeight, 32);
+    QCOMPARE(standard.menuItemHeight, compact.menuItemHeight);
 
     // Compact Sizing does not list these controls.  Their template slots are
     // consequently stable across the two profiles.
@@ -45,7 +46,6 @@ void WinUI3DensityTest::profilesExposeDocumentedSizing()
     QCOMPARE(standard.tabHeight, compact.tabHeight);
     QCOMPARE(standard.toggleTrackWidth, compact.toggleTrackWidth);
     QCOMPARE(standard.toggleTrackHeight, compact.toggleTrackHeight);
-    QCOMPARE(standard.menuItemHeight, compact.menuItemHeight);
     QCOMPARE(standard.menuSeparatorHeight, compact.menuSeparatorHeight);
     QCOMPARE(standard.tableItemHeight, compact.tableItemHeight);
     QCOMPARE(standard.headerHeight, compact.headerHeight);

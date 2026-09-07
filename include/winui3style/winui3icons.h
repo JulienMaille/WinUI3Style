@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <winui3style/winui3global.h>
@@ -41,10 +42,8 @@ enum class Icon {
 WINUI3STYLE_EXPORT QIcon icon(Icon glyph);
 WINUI3STYLE_EXPORT QIcon icon(Icon glyph, const QColor &color);
 WINUI3STYLE_EXPORT bool isFluentIcon(const QIcon &icon);
-WINUI3STYLE_EXPORT QPixmap iconPixmap(const QIcon &icon, const QSize &size,
-                                      qreal devicePixelRatio,
-                                      const QColor &foreground,
-                                      QIcon::Mode mode = QIcon::Normal,
+WINUI3STYLE_EXPORT QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal devicePixelRatio,
+                                      const QColor &foreground, QIcon::Mode mode = QIcon::Normal,
                                       QIcon::State state = QIcon::Off);
 
 } // namespace WinUI3

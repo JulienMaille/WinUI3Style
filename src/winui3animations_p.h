@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QByteArray>
@@ -26,16 +27,14 @@ public:
     explicit FrameAnimationDriver(QObject *context);
     ~FrameAnimationDriver();
 
-    void animate(QWidget *widget, const char *property, qreal target,
-                 int duration, bool allowed, const QEasingCurve &curve,
-                 const QVector<QPair<qreal, QVariant>> &keyValues = {},
+    void animate(QWidget *widget, const char *property, qreal target, int duration, bool allowed,
+                 const QEasingCurve &curve, const QVector<QPair<qreal, QVariant>> &keyValues = {},
                  qreal startOverride = std::numeric_limits<qreal>::quiet_NaN());
     void stop(QWidget *widget);
 
 private:
     QVariantAnimation *find(QWidget *widget, const char *property) const;
-    void forget(QWidget *widget, const QByteArray &property,
-                QVariantAnimation *expected);
+    void forget(QWidget *widget, const QByteArray &property, QVariantAnimation *expected);
     QVariantAnimation *ensure(QWidget *widget, const char *property);
 
     QObject *m_context = nullptr;

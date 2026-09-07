@@ -1,0 +1,15 @@
+# Advisory only (plan step 5): bugprone-* + readability-identifier-naming run
+# via CMAKE_CXX_CLANG_TIDY on the library, warnings not errors. Maximal check
+# sets are avoided: full readability-* on the 100KB dispatcher produces
+# unactionable noise.
+Checks: 'bugprone-*,readability-identifier-naming'
+WarningsAsErrors: ''
+CheckOptions:
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelCase
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.PrivateMemberPrefix
+    value: ''

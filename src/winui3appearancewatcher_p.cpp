@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3appearancewatcher_p.h"
 
 #include <QCoreApplication>
@@ -23,8 +24,7 @@
 
 namespace WinUI3::Private {
 
-SystemAppearanceWatcher::SystemAppearanceWatcher(QObject *context,
-                                                 Callback callback)
+SystemAppearanceWatcher::SystemAppearanceWatcher(QObject *context, Callback callback)
     : QObject(context), m_callback(std::move(callback))
 {
 #ifdef Q_OS_WIN
@@ -36,15 +36,14 @@ SystemAppearanceWatcher::SystemAppearanceWatcher(QObject *context,
     // parent. If it is null, this object still has a well-defined lifetime
     // context and the callback can run until the watcher is destroyed.
     QObject *callbackContext = context ? context : this;
-    QObject::connect(m_debounceTimer, &QTimer::timeout, callbackContext,
-                     [this] {
-                         // Keep a local copy so a callback may safely delete
-                         // the watcher (or its context) without this lambda
-                         // touching the destroyed object afterward.
-                         Callback callback = m_callback;
-                         if (callback)
-                             callback();
-                     });
+    QObject::connect(m_debounceTimer, &QTimer::timeout, callbackContext, [this] {
+        // Keep a local copy so a callback may safely delete
+        // the watcher (or its context) without this lambda
+        // touching the destroyed object afterward.
+        Callback callback = m_callback;
+        if (callback)
+            callback();
+    });
 
     setActive(true);
 #else
@@ -52,8 +51,7 @@ SystemAppearanceWatcher::SystemAppearanceWatcher(QObject *context,
 #endif
 }
 
-SystemAppearanceWatcher::SystemAppearanceWatcher(Callback callback,
-                                                 QObject *context)
+SystemAppearanceWatcher::SystemAppearanceWatcher(Callback callback, QObject *context)
     : SystemAppearanceWatcher(context, std::move(callback))
 {
 }
@@ -80,8 +78,7 @@ void SystemAppearanceWatcher::setActive(bool active)
 #endif
 }
 
-bool SystemAppearanceWatcher::nativeEventFilter(const QByteArray &eventType,
-                                                void *message,
+bool SystemAppearanceWatcher::nativeEventFilter(const QByteArray &eventType, void *message,
                                                 NativeMessageResult *result)
 {
     Q_UNUSED(eventType);

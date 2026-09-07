@@ -38,7 +38,7 @@ void configureContentDialog(QDialog *dialog)
     title->setFont(titleFont);
     layout->addWidget(title);
     auto *description = new QLabel(QObject::tr(
-        "Every control remains a native QWidget configured through Qt properties."));
+            "Every control remains a native QWidget configured through Qt properties."));
     description->setWordWrap(true);
     layout->addWidget(description);
     layout->addStretch();
@@ -63,8 +63,7 @@ void setHeadingFont(QLabel *heading)
 }
 } // namespace
 
-GalleryWindow::GalleryWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::GalleryWindow)
+GalleryWindow::GalleryWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::GalleryWindow)
 {
     ui->setupUi(this);
     configureGallery();
@@ -72,7 +71,10 @@ GalleryWindow::GalleryWindow(QWidget *parent)
     configurePaletteLab();
 }
 
-GalleryWindow::~GalleryWindow() { delete ui; }
+GalleryWindow::~GalleryWindow()
+{
+    delete ui;
+}
 
 void GalleryWindow::configureGallery()
 {
@@ -84,15 +86,14 @@ void GalleryWindow::configureGallery()
     // preserve that lifecycle while keeping its contents Designer-owned.
     ui->dockHost->setWindowFlags(Qt::Widget);
     ui->dockHost->show();
-    for (QLabel *heading : {ui->controlsHeading, ui->collectionsHeading,
-                            ui->settingsHeading, ui->dialogsHeading,
-                            ui->paletteHeading})
+    for (QLabel *heading : { ui->controlsHeading, ui->collectionsHeading, ui->settingsHeading,
+                             ui->dialogsHeading, ui->paletteHeading })
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
     auto *autoSuggestCompleter = new QCompleter(
-        {tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"),
-         tr("Settings"), tr("Controls")}, ui->autoSuggestEdit);
+            { tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"), tr("Settings"), tr("Controls") },
+            ui->autoSuggestEdit);
     autoSuggestCompleter->setCaseSensitivity(Qt::CaseInsensitive);
     autoSuggestCompleter->setFilterMode(Qt::MatchContains);
     autoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
@@ -127,19 +128,25 @@ void GalleryWindow::configureGallery()
             [this] { ui->embeddedInspector->setFloating(!ui->embeddedInspector->isFloating()); });
     const QList<QStyle::StandardPixmap> navigationIcons = {
         QStyle::SP_DesktopIcon, QStyle::SP_DirIcon, QStyle::SP_FileDialogContentsView,
-        QStyle::SP_MessageBoxInformation, QStyle::SP_FileDialogDetailedView};
+        QStyle::SP_MessageBoxInformation, QStyle::SP_FileDialogDetailedView
+    };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
 
-    connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &GalleryWindow::setTheme);
-    connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [](int index) {
-        if (qApp->style())
-            qApp->style()->setProperty("densityMode", index);
+    connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &GalleryWindow::setTheme);
+    connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [](int index) {
+                if (qApp->style())
+                    qApp->style()->setProperty("densityMode", index);
+            });
+    connect(ui->micaToggle, &QCheckBox::toggled, this, [this](bool checked) {
+        // The gallery stays a plain Qt client: toggling the "winuiBackdrop"
+        // dynamic property is the documented, dependency-free way to ask the
+        // style for a Mica surface.
+        setProperty("winuiBackdrop", checked ? QStringLiteral("mica") : QStringLiteral("none"));
     });
-    connect(ui->searchSettings, &QLineEdit::textChanged, this,
-            [this](const QString &text) {
+    connect(ui->searchSettings, &QLineEdit::textChanged, this, [this](const QString &text) {
         for (int row = 0; row < ui->navigationList->count(); ++row) {
             QListWidgetItem *item = ui->navigationList->item(row);
             item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
@@ -147,7 +154,7 @@ void GalleryWindow::configureGallery()
     });
     connect(ui->messageDialogButton, &QPushButton::clicked, this, [this] {
         QMessageBox::information(this, tr("WinUI 3 Style"),
-            tr("This is a native Qt message box rendered by the style."));
+                                 tr("This is a native Qt message box rendered by the style."));
     });
     connect(ui->contentDialogButton, &QPushButton::clicked, this, [this] {
         QDialog dialog(this);
@@ -162,7 +169,7 @@ void GalleryWindow::configureGallery()
         welcome->setSubTitle(tr("This standard QWizard is rendered entirely by the style."));
         auto *welcomeLayout = new QVBoxLayout(welcome);
         welcomeLayout->addWidget(new QLabel(
-            tr("The content and command areas use distinct WinUI surfaces."), welcome));
+                tr("The content and command areas use distinct WinUI surfaces."), welcome));
         wizard.addPage(welcome);
         auto *finish = new QWizardPage;
         finish->setTitle(tr("Ready to continue"));
@@ -178,34 +185,31 @@ void GalleryWindow::populateCollections()
 {
     const QIcon folder = style()->standardIcon(QStyle::SP_DirIcon, nullptr, this);
     const QIcon file = style()->standardIcon(QStyle::SP_FileIcon, nullptr, this);
-    for (const QString &text : {tr("Documents"), tr("Pictures"), tr("Downloads")})
+    for (const QString &text : { tr("Documents"), tr("Pictures"), tr("Downloads") })
         new QListWidgetItem(folder, text, ui->listViewTab);
     new QListWidgetItem(file, tr("Readme.txt"), ui->listViewTab);
-    for (const QString &text : {tr("Disabled document"), tr("Disabled folder")})
+    for (const QString &text : { tr("Disabled document"), tr("Disabled folder") })
         new QListWidgetItem(text, ui->disabledListView);
-    auto *rtlRoot = new QTreeWidgetItem(ui->rtlTreeView, {tr("RTL collection")});
-    new QTreeWidgetItem(rtlRoot, {tr("First child")});
-    new QTreeWidgetItem(rtlRoot, {tr("Second child")});
+    auto *rtlRoot = new QTreeWidgetItem(ui->rtlTreeView, { tr("RTL collection") });
+    new QTreeWidgetItem(rtlRoot, { tr("First child") });
+    new QTreeWidgetItem(rtlRoot, { tr("Second child") });
     rtlRoot->setExpanded(true);
-    auto *root = new QTreeWidgetItem(ui->treeViewTab,
-                                     {tr("Example album — Selected tracks")});
+    auto *root = new QTreeWidgetItem(ui->treeViewTab, { tr("Example album — Selected tracks") });
     root->setIcon(0, folder);
-    root->setFlags(root->flags() | Qt::ItemIsUserCheckable
-                   | Qt::ItemIsAutoTristate);
+    root->setFlags(root->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
     root->setCheckState(0, Qt::PartiallyChecked);
-    const QStringList tracks{tr("01 — First track"), tr("02 — Second track"),
-                             tr("03 — Third track"), tr("04 — Fourth track")};
+    const QStringList tracks{ tr("01 — First track"), tr("02 — Second track"),
+                              tr("03 — Third track"), tr("04 — Fourth track") };
     for (int index = 0; index < tracks.size(); ++index) {
-        auto *track = new QTreeWidgetItem(root, {tracks.at(index)});
+        auto *track = new QTreeWidgetItem(root, { tracks.at(index) });
         track->setFlags(track->flags() | Qt::ItemIsUserCheckable);
         track->setCheckState(0, index == 2 ? Qt::Unchecked : Qt::Checked);
     }
     root->setExpanded(true);
-    const QString rows[4][3] = {
-        {tr("Button"), tr("Ready"), tr("Complete")},
-        {tr("ComboBox"), tr("Interactive"), tr("Complete")},
-        {tr("TreeView"), tr("Expanded"), tr("Complete")},
-        {tr("TableView"), tr("Editable"), tr("Complete")}};
+    const QString rows[4][3] = { { tr("Button"), tr("Ready"), tr("Complete") },
+                                 { tr("ComboBox"), tr("Interactive"), tr("Complete") },
+                                 { tr("TreeView"), tr("Expanded"), tr("Complete") },
+                                 { tr("TableView"), tr("Editable"), tr("Complete") } };
     for (int row = 0; row < 4; ++row)
         for (int column = 0; column < 3; ++column)
             ui->tableViewTab->setItem(row, column, new QTableWidgetItem(rows[row][column]));
@@ -214,15 +218,22 @@ void GalleryWindow::populateCollections()
 
 void GalleryWindow::configurePaletteLab()
 {
-    struct RoleRow { QPalette::ColorRole role; const char *label; };
-    static const RoleRow roles[] = {
-        {QPalette::Window, QT_TR_NOOP("Window (paper)")},
-        {QPalette::WindowText, QT_TR_NOOP("WindowText/Text (ink)")},
-        {QPalette::Base, QT_TR_NOOP("Base (layer)")},
-        {QPalette::Button, QT_TR_NOOP("Button (control fill)")},
-        {QPalette::Highlight, QT_TR_NOOP("Highlight (selection)")}};
-    struct PaletteState { QPalette working; QList<QLabel *> swatches; };
-    auto *state = new PaletteState{ui->palettePreview->palette(), {}};
+    struct RoleRow
+    {
+        QPalette::ColorRole role;
+        const char *label;
+    };
+    static const RoleRow roles[] = { { QPalette::Window, QT_TR_NOOP("Window (paper)") },
+                                     { QPalette::WindowText, QT_TR_NOOP("WindowText/Text (ink)") },
+                                     { QPalette::Base, QT_TR_NOOP("Base (layer)") },
+                                     { QPalette::Button, QT_TR_NOOP("Button (control fill)") },
+                                     { QPalette::Highlight, QT_TR_NOOP("Highlight (selection)") } };
+    struct PaletteState
+    {
+        QPalette working;
+        QList<QLabel *> swatches;
+    };
+    auto *state = new PaletteState{ ui->palettePreview->palette(), {} };
     connect(ui->palettePreview, &QObject::destroyed, [state] { delete state; });
     const auto refresh = [state] {
         for (qsizetype i = 0; i < state->swatches.size(); ++i) {
@@ -237,12 +248,13 @@ void GalleryWindow::configurePaletteLab()
         swatch->setFixedSize(48, 20);
         state->swatches.append(swatch);
         auto *pick = new QPushButton(tr("Edit..."));
-        connect(pick, &QPushButton::clicked, this,
-                [this, state, role = roles[i].role, refresh] {
-            const QColor color = QColorDialog::getColor(state->working.color(role),
-                this, tr("Choose color"), QColorDialog::ShowAlphaChannel);
-            if (!color.isValid()) return;
-            for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+        connect(pick, &QPushButton::clicked, this, [this, state, role = roles[i].role, refresh] {
+            const QColor color =
+                    QColorDialog::getColor(state->working.color(role), this, tr("Choose color"),
+                                           QColorDialog::ShowAlphaChannel);
+            if (!color.isValid())
+                return;
+            for (QPalette::ColorGroup group : { QPalette::Active, QPalette::Inactive }) {
                 state->working.setColor(group, role, color);
                 if (role == QPalette::WindowText) {
                     state->working.setColor(group, QPalette::Text, color);
@@ -262,7 +274,8 @@ void GalleryWindow::configurePaletteLab()
     connect(accent, &QPushButton::clicked, this, [this] {
         const QColor current = qApp->style()->property("accentColor").value<QColor>();
         const QColor color = QColorDialog::getColor(current, this, tr("Choose accent"));
-        if (color.isValid()) qApp->style()->setProperty("accentColor", color);
+        if (color.isValid())
+            qApp->style()->setProperty("accentColor", color);
     });
     ui->paletteRolesLayout->addWidget(accent, 2, 6, 1, 2);
     refresh();
@@ -280,10 +293,12 @@ void GalleryWindow::setTheme(int index)
 bool GalleryWindow::saveSnapshots(const QString &directory)
 {
     QDir output;
-    if (!output.mkpath(directory)) return false;
+    if (!output.mkpath(directory))
+        return false;
     output.setPath(directory);
     QStyle *activeStyle = qApp->style();
-    if (!activeStyle->property("themeMode").isValid()) return false;
+    if (!activeStyle->property("themeMode").isValid())
+        return false;
     const QVariant previousTheme = activeStyle->property("themeMode");
     const QVariant previousDensity = activeStyle->property("densityMode");
     const QVariant previousAccent = activeStyle->property("accentColor");
@@ -305,8 +320,10 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         activeStyle->setProperty("densityMode", previousDensity);
         activeStyle->setProperty("accentColor", previousAccent);
         setProperty("winuiBackdrop", previousBackdrop);
-        if (animationsWereDisabled) qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
-        else qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+        if (animationsWereDisabled)
+            qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousAnimationSetting);
+        else
+            qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
         setPalette(previousPalette);
         setAutoFillBackground(previousAutoFill);
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
@@ -316,7 +333,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         QCursor::setPos(screen->availableGeometry().bottomRight());
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     const auto settle = [this] {
-        if (QWidget *focused = qApp->focusWidget()) focused->clearFocus();
+        if (QWidget *focused = qApp->focusWidget())
+            focused->clearFocus();
         for (QWidget *widget : findChildren<QWidget *>()) {
             QEvent leave(QEvent::Leave);
             QCoreApplication::sendEvent(widget, &leave);
@@ -340,50 +358,68 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         qApp->processEvents();
     };
     bool success = true;
-    for (int mode : {1, 2}) {
+    for (int mode : { 1, 2 }) {
         activeStyle->setProperty("themeMode", mode);
         const QString theme = mode == 1 ? QStringLiteral("light") : QStringLiteral("dark");
-        ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
-            ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(), ui->menuBar->height())));
+        ui->fileMenu->popup(ui->menuBar->mapToGlobal(
+                QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                       ui->menuBar->height())));
         qApp->processEvents();
         success = ui->fileMenu->grab().save(output.filePath(theme + "-menu.png"), "PNG") && success;
         if (QAction *firstAction = ui->fileMenu->actions().value(0)) {
             ui->fileMenu->setActiveAction(firstAction);
             qApp->processEvents();
-            success = ui->fileMenu->grab().save(
-                output.filePath(theme + "-state-menu-hover.png"), "PNG") && success;
+            success = ui->fileMenu->grab().save(output.filePath(theme + "-state-menu-hover.png"),
+                                                "PNG")
+                    && success;
             const QPoint local = ui->fileMenu->actionGeometry(firstAction).center();
             QMouseEvent press(QEvent::MouseButtonPress, QPointF(local),
-                              QPointF(ui->fileMenu->mapToGlobal(local)),
-                              Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                              QPointF(ui->fileMenu->mapToGlobal(local)), Qt::LeftButton,
+                              Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(ui->fileMenu, &press);
             qApp->processEvents();
-            success = ui->fileMenu->grab().save(
-                output.filePath(theme + "-state-menu-pressed.png"), "PNG") && success;
+            success = ui->fileMenu->grab().save(output.filePath(theme + "-state-menu-pressed.png"),
+                                                "PNG")
+                    && success;
         }
         ui->fileMenu->hide();
         for (int page = 0; page < ui->pages->count(); ++page) {
-            if (ui->pages->widget(page) == ui->paletteLabPage) continue;
+            if (ui->pages->widget(page) == ui->paletteLabPage)
+                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();
-            success = grab().save(output.filePath(QStringLiteral("%1-page-%2.png").arg(theme).arg(page)), "PNG") && success;
+            success = grab().save(output.filePath(
+                                          QStringLiteral("%1-page-%2.png").arg(theme).arg(page)),
+                                  "PNG")
+                    && success;
             auto *area = qobject_cast<QScrollArea *>(ui->pages->widget(page));
             if (area && area->verticalScrollBar()->maximum() > 0) {
                 area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum());
                 qApp->processEvents();
-                success = grab().save(output.filePath(QStringLiteral("%1-page-%2-scrolled.png").arg(theme).arg(page)), "PNG") && success;
+                success = grab().save(output.filePath(QStringLiteral("%1-page-%2-scrolled.png")
+                                                              .arg(theme)
+                                                              .arg(page)),
+                                      "PNG")
+                        && success;
                 area->verticalScrollBar()->setValue(0);
             }
             if (area && area->widget()) {
                 if (auto *tabs = area->widget()->findChild<QTabWidget *>()) {
                     const int oldTab = tabs->currentIndex();
                     for (int tab = 0; tab < tabs->count(); ++tab) {
-                        if (!tabs->isTabEnabled(tab)) continue;
+                        if (!tabs->isTabEnabled(tab))
+                            continue;
                         tabs->setCurrentIndex(tab);
                         qApp->processEvents();
                         settle();
-                        success = grab().save(output.filePath(QStringLiteral("%1-page-%2-tab-%3.png").arg(theme).arg(page).arg(tab)), "PNG") && success;
+                        success =
+                                grab().save(output.filePath(QStringLiteral("%1-page-%2-tab-%3.png")
+                                                                    .arg(theme)
+                                                                    .arg(page)
+                                                                    .arg(tab)),
+                                            "PNG")
+                                && success;
                     }
                     tabs->setCurrentIndex(oldTab);
                 }
@@ -394,11 +430,14 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         ui->galleryComboBox->showPopup();
         qApp->processEvents();
         if (QWidget *popup = ui->galleryComboBox->view()->window())
-            success = popup->grab().save(output.filePath(theme + "-combo-popup.png"), "PNG") && success;
+            success = popup->grab().save(output.filePath(theme + "-combo-popup.png"), "PNG")
+                    && success;
         ui->galleryComboBox->hidePopup();
         const auto saveControl = [&](QWidget *control, const QString &state) {
             qApp->processEvents();
-            return control && control->grab().save(output.filePath(theme + "-state-" + state + ".png"), "PNG");
+            return control
+                    && control->grab().save(output.filePath(theme + "-state-" + state + ".png"),
+                                            "PNG");
         };
         const auto sendPointerState = [](QWidget *control, bool hovered, bool pressed) {
             if (!control)
@@ -406,12 +445,9 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
             QEvent boundary(hovered ? QEvent::Enter : QEvent::Leave);
             QCoreApplication::sendEvent(control, &boundary);
             const QPoint local = control->rect().center();
-            QMouseEvent mouse(pressed ? QEvent::MouseButtonPress
-                                      : QEvent::MouseButtonRelease,
-                              QPointF(local), QPointF(control->mapToGlobal(local)),
-                              Qt::LeftButton,
-                              pressed ? Qt::LeftButton : Qt::NoButton,
-                              Qt::NoModifier);
+            QMouseEvent mouse(pressed ? QEvent::MouseButtonPress : QEvent::MouseButtonRelease,
+                              QPointF(local), QPointF(control->mapToGlobal(local)), Qt::LeftButton,
+                              pressed ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
             QCoreApplication::sendEvent(control, &mouse);
             qApp->processEvents();
         };
@@ -439,21 +475,23 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         sendPointerState(ui->gallerySlider, false, false);
         success = !ui->galleryRadioButtonDisabled->isEnabled() && success;
         success = !ui->galleryToggleSwitchDisabled->isEnabled()
-            && ui->galleryToggleSwitchDisabled->property("winuiToggleSwitch").toBool() && success;
+                && ui->galleryToggleSwitchDisabled->property("winuiToggleSwitch").toBool()
+                && success;
         QDialog contentDialog(this);
         configureContentDialog(&contentDialog);
         contentDialog.show();
         qApp->processEvents();
-        success = contentDialog.grab().save(output.filePath(theme + "-content-dialog.png"), "PNG") && success;
+        success = contentDialog.grab().save(output.filePath(theme + "-content-dialog.png"), "PNG")
+                && success;
         contentDialog.close();
 
         QMessageBox messageBox(QMessageBox::Information, tr("WinUI 3 Style"),
-            tr("This is a native Qt message box rendered by the style."),
-            QMessageBox::Ok, this);
+                               tr("This is a native Qt message box rendered by the style."),
+                               QMessageBox::Ok, this);
         messageBox.show();
         qApp->processEvents();
-        success = messageBox.grab().save(
-            output.filePath(theme + "-message-box.png"), "PNG") && success;
+        success = messageBox.grab().save(output.filePath(theme + "-message-box.png"), "PNG")
+                && success;
         messageBox.close();
 
         // Keep all historical Standard captures byte-comparable, then add a
@@ -461,20 +499,23 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         // Sizing resource rather than blindly doubling the whole matrix.
         activeStyle->setProperty("densityMode", 1);
         ui->densityCombo->setCurrentIndex(1);
-        for (int page : {0, 1}) {
+        for (int page : { 0, 1 }) {
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();
-            success = grab().save(output.filePath(
-                QStringLiteral("%1-density-compact-page-%2.png")
-                    .arg(theme).arg(page)), "PNG") && success;
+            success = grab().save(output.filePath(QStringLiteral("%1-density-compact-page-%2.png")
+                                                          .arg(theme)
+                                                          .arg(page)),
+                                  "PNG")
+                    && success;
         }
         ui->pages->setCurrentIndex(0);
         ui->galleryComboBox->showPopup();
         qApp->processEvents();
         if (QWidget *popup = ui->galleryComboBox->view()->window()) {
-            success = popup->grab().save(output.filePath(
-                theme + "-density-compact-combo-popup.png"), "PNG") && success;
+            success = popup->grab().save(
+                              output.filePath(theme + "-density-compact-combo-popup.png"), "PNG")
+                    && success;
         }
         ui->galleryComboBox->hidePopup();
         ui->densityCombo->setCurrentIndex(0);

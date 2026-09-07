@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 // Metrics are deliberately kept in a private, header-only contract while the
@@ -17,7 +18,8 @@ namespace WinUI3::Private {
 
 using DensityMode = WinUI3::DensityMode;
 
-struct DensityMetrics {
+struct DensityMetrics
+{
     // The controls for which WinUI's Compact Sizing resource is documented.
     int textBoxHeight;
     int comboBoxHeight;
@@ -109,8 +111,7 @@ inline constexpr DensityMetrics compactDensityMetrics{
 
 inline constexpr const DensityMetrics &densityMetrics(DensityMode mode)
 {
-    return mode == DensityMode::Compact ? compactDensityMetrics
-                                        : standardDensityMetrics;
+    return mode == DensityMode::Compact ? compactDensityMetrics : standardDensityMetrics;
 }
 
 inline bool parseDensity(const QVariant &value, DensityMode *mode)
@@ -120,8 +121,7 @@ inline bool parseDensity(const QVariant &value, DensityMode *mode)
 
     if (value.userType() == qMetaTypeId<WinUI3::DensityMode>()) {
         *mode = value.value<WinUI3::DensityMode>();
-        return *mode == DensityMode::Standard
-            || *mode == DensityMode::Compact;
+        return *mode == DensityMode::Standard || *mode == DensityMode::Compact;
     }
 
     const QString text = value.toString().trimmed().toLower();
@@ -149,8 +149,7 @@ inline bool parseDensity(const QVariant &value, DensityMode *mode)
 
 inline DensityMode densityModeFor(const QWidget *widget)
 {
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         DensityMode mode = DensityMode::Standard;
         if (parseDensity(candidate->property("winuiDensity"), &mode))
             return mode;
@@ -161,11 +160,9 @@ inline DensityMode densityModeFor(const QWidget *widget)
     // those queries silently fall back to Standard while a global Compact
     // profile is active.  Prefer the concrete API so setDensityMode() and a
     // dynamic densityMode property have exactly the same result.
-    const QStyle *style = widget ? widget->style()
-                                 : (qApp ? qApp->style() : nullptr);
+    const QStyle *style = widget ? widget->style() : (qApp ? qApp->style() : nullptr);
     if (const auto *winui = qobject_cast<const WinUI3::Style *>(style)) {
-        return widget ? winui->effectiveDensityMode(widget)
-                      : winui->densityMode();
+        return widget ? winui->effectiveDensityMode(widget) : winui->densityMode();
     }
     if (style) {
         DensityMode mode = DensityMode::Standard;
@@ -190,8 +187,7 @@ inline const DensityMetrics &densityMetricsFor(const QWidget *widget,
 {
     if (widget)
         return densityMetricsFor(widget);
-    return densityMetrics(fallbackStyle ? fallbackStyle->densityMode()
-                                        : densityModeFor(nullptr));
+    return densityMetrics(fallbackStyle ? fallbackStyle->densityMode() : densityModeFor(nullptr));
 }
 
 } // namespace WinUI3::Private

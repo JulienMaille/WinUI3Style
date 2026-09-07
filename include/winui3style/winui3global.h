@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QtCore/qglobal.h>
@@ -9,4 +10,3 @@
 #else
 #  define WINUI3STYLE_EXPORT Q_DECL_IMPORT
 #endif
-

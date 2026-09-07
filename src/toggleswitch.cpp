@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/toggleswitch.h>
 
 #include <winui3style/winui3style.h>
@@ -6,14 +7,12 @@
 
 namespace WinUI3 {
 
-ToggleSwitch::ToggleSwitch(QWidget *parent)
-    : QCheckBox(parent)
+ToggleSwitch::ToggleSwitch(QWidget *parent) : QCheckBox(parent)
 {
     Style::setToggleSwitch(this);
 }
 
-ToggleSwitch::ToggleSwitch(const QString &text, QWidget *parent)
-    : QCheckBox(text, parent)
+ToggleSwitch::ToggleSwitch(const QString &text, QWidget *parent) : QCheckBox(text, parent)
 {
     Style::setToggleSwitch(this);
 }

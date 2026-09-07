@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3style.h>
 
@@ -44,17 +45,12 @@ void rememberBackdropState(QWidget *window)
             window->setProperty(name, value);
     };
     remember(originalPaletteProperty, QVariant::fromValue(window->palette()));
-    remember(originalPaletteExplicitProperty,
-             window->testAttribute(Qt::WA_SetPalette));
-    remember(originalTranslucentProperty,
-             window->testAttribute(Qt::WA_TranslucentBackground));
-    remember(originalNoSystemBackgroundProperty,
-             window->testAttribute(Qt::WA_NoSystemBackground));
-    remember(originalOpaquePaintProperty,
-             window->testAttribute(Qt::WA_OpaquePaintEvent));
+    remember(originalPaletteExplicitProperty, window->testAttribute(Qt::WA_SetPalette));
+    remember(originalTranslucentProperty, window->testAttribute(Qt::WA_TranslucentBackground));
+    remember(originalNoSystemBackgroundProperty, window->testAttribute(Qt::WA_NoSystemBackground));
+    remember(originalOpaquePaintProperty, window->testAttribute(Qt::WA_OpaquePaintEvent));
     remember(originalAutoFillProperty, window->autoFillBackground());
-    remember(originalWindowColorProperty,
-             window->palette().color(QPalette::Window));
+    remember(originalWindowColorProperty, window->palette().color(QPalette::Window));
 }
 
 void restoreBackdropState(QWidget *window)
@@ -69,12 +65,10 @@ void restoreBackdropState(QWidget *window)
         window->setAttribute(Qt::WA_OpaquePaintEvent,
                              window->property(originalOpaquePaintProperty).toBool());
     if (window->property(originalAutoFillProperty).isValid())
-        window->setAutoFillBackground(
-            window->property(originalAutoFillProperty).toBool());
+        window->setAutoFillBackground(window->property(originalAutoFillProperty).toBool());
     if (window->property(originalPaletteProperty).isValid()) {
         if (window->property(originalPaletteExplicitProperty).toBool())
-            window->setPalette(
-                window->property(originalPaletteProperty).value<QPalette>());
+            window->setPalette(window->property(originalPaletteProperty).value<QPalette>());
         else
             window->setPalette(QPalette());
     }
@@ -135,8 +129,8 @@ void applyPopupRoundedCorners(QWidget *window)
     // older builds, which then use the region fallback below.
     constexpr DWORD cornerPreferenceAttribute = 33;
     constexpr int cornerRound = 2; // DWMWCP_ROUND
-    if (SUCCEEDED(DwmSetWindowAttribute(hwnd, cornerPreferenceAttribute,
-                                        &cornerRound, sizeof(cornerRound))))
+    if (SUCCEEDED(DwmSetWindowAttribute(hwnd, cornerPreferenceAttribute, &cornerRound,
+                                        sizeof(cornerRound))))
         return;
     applyWindowRoundedRegion(window, OverlayRadius);
 #else
@@ -153,9 +147,8 @@ void applyWindowRoundedRegion(QWidget *window, int radius)
         return;
     const HWND hwnd = reinterpret_cast<HWND>(window->winId());
     const QRect rect = window->rect();
-    const HRGN region = CreateRoundRectRgn(
-        0, 0, rect.width() + 1, rect.height() + 1,
-        radius * 2, radius * 2);
+    const HRGN region =
+            CreateRoundRectRgn(0, 0, rect.width() + 1, rect.height() + 1, radius * 2, radius * 2);
     if (region && !SetWindowRgn(hwnd, region, TRUE))
         DeleteObject(region); // ownership transfers only on success
 #else
@@ -181,11 +174,9 @@ void applyDialogCaptionTheme(QWidget *window)
     // surface and derive the foreground from that exact color.
     const QColor surface = themedWindowColor();
     const BOOL dark = qGray(surface.rgb()) < 128;
-    DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute,
-                          &dark, sizeof(dark));
+    DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute, &dark, sizeof(dark));
     const COLORREF caption = RGB(surface.red(), surface.green(), surface.blue());
-    DwmSetWindowAttribute(hwnd, captionColorAttribute,
-                          &caption, sizeof(caption));
+    DwmSetWindowAttribute(hwnd, captionColorAttribute, &caption, sizeof(caption));
     const COLORREF text = dark ? RGB(255, 255, 255) : RGB(0, 0, 0);
     DwmSetWindowAttribute(hwnd, textColorAttribute, &text, sizeof(text));
 #else
@@ -208,8 +199,7 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     if (backdrop != Backdrop::None)
         Private::prepareBackdropSurface(window, backdrop);
     window->setProperty(backdropProperty, static_cast<int>(backdrop));
-    const bool nativeSurface =
-        QGuiApplication::platformName() != QStringLiteral("offscreen");
+    const bool nativeSurface = QGuiApplication::platformName() != QStringLiteral("offscreen");
 
     if (backdrop == Backdrop::None) {
         // A popup may have been polished (and its alpha surface prepared) but
@@ -236,8 +226,8 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     QPalette materialPalette = window->palette();
     const QColor themedWindowColor = WinUI3::themedWindowColor();
     QColor windowColor = backdrop == Backdrop::None
-        ? window->property(originalWindowColorProperty).value<QColor>()
-        : themedWindowColor;
+            ? window->property(originalWindowColorProperty).value<QColor>()
+            : themedWindowColor;
     windowColor.setAlpha(backdrop == Backdrop::None ? 255 : 0);
     materialPalette.setColor(QPalette::Window, windowColor);
     window->setPalette(materialPalette);
@@ -264,18 +254,29 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
 
     int value = backdropNone;
     switch (backdrop) {
-    case Backdrop::None: value = backdropNone; break;
-    case Backdrop::Mica: value = backdropMainWindow; break;
-    case Backdrop::MicaAlt: value = backdropTabbedWindow; break;
-    case Backdrop::Acrylic: value = backdropTransientWindow; break;
-    default: value = backdropAuto; break;
+    case Backdrop::None:
+        value = backdropNone;
+        break;
+    case Backdrop::Mica:
+        value = backdropMainWindow;
+        break;
+    case Backdrop::MicaAlt:
+        value = backdropTabbedWindow;
+        break;
+    case Backdrop::Acrylic:
+        value = backdropTransientWindow;
+        break;
+    default:
+        value = backdropAuto;
+        break;
     }
 
     const HWND hwnd = reinterpret_cast<HWND>(window->winId());
     const BOOL dark = qGray(themedWindowColor.rgb()) < 128;
     DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute, &dark, sizeof(dark));
     const COLORREF caption = backdrop == Backdrop::None
-        ? RGB(windowColor.red(), windowColor.green(), windowColor.blue()) : colorNone;
+            ? RGB(windowColor.red(), windowColor.green(), windowColor.blue())
+            : colorNone;
     const COLORREF text = dark ? RGB(255, 255, 255) : RGB(0, 0, 0);
     DwmSetWindowAttribute(hwnd, borderColorAttribute, &colorNone, sizeof(colorNone));
     DwmSetWindowAttribute(hwnd, captionColorAttribute, &caption, sizeof(caption));
@@ -285,20 +286,20 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     // leaves the client surface empty. System backdrops are instead drawn by
     // DWMWA_SYSTEMBACKDROP_TYPE, so explicitly disable the host-brush path.
     const BOOL useHostBackdrop = FALSE;
-    DwmSetWindowAttribute(hwnd, useHostBackdropBrushAttribute,
-                          &useHostBackdrop, sizeof(useHostBackdrop));
+    DwmSetWindowAttribute(hwnd, useHostBackdropBrushAttribute, &useHostBackdrop,
+                          sizeof(useHostBackdrop));
     // Qt's translucent backing store is premultiplied ARGB. This attribute is
     // available on newer Windows 11 builds; older builds simply reject it,
     // while the system-backdrop result remains authoritative below.
     const BOOL useRedirectionAlpha = backdrop != Backdrop::None;
-    DwmSetWindowAttribute(hwnd, redirectionBitmapAlphaAttribute,
-                          &useRedirectionAlpha, sizeof(useRedirectionAlpha));
-    const HRESULT backdropResult = DwmSetWindowAttribute(
-        hwnd, systemBackdropAttribute, &value, sizeof(value));
+    DwmSetWindowAttribute(hwnd, redirectionBitmapAlphaAttribute, &useRedirectionAlpha,
+                          sizeof(useRedirectionAlpha));
+    const HRESULT backdropResult =
+            DwmSetWindowAttribute(hwnd, systemBackdropAttribute, &value, sizeof(value));
 
     MARGINS margins{};
     if (backdrop != Backdrop::None)
-        margins = {-1, -1, -1, -1};
+        margins = { -1, -1, -1, -1 };
     const HRESULT frameResult = DwmExtendFrameIntoClientArea(hwnd, &margins);
     const bool applied = SUCCEEDED(backdropResult) && SUCCEEDED(frameResult);
     if (backdrop == Backdrop::None) {

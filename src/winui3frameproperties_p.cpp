@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3frameproperties_p.h"
 
 #include <algorithm>
@@ -14,8 +15,7 @@ namespace {
 bool checkGuiThread(const char *operation)
 {
     const QCoreApplication *application = QCoreApplication::instance();
-    const bool onGuiThread = !application
-        || QThread::currentThread() == application->thread();
+    const bool onGuiThread = !application || QThread::currentThread() == application->thread();
     Q_ASSERT_X(onGuiThread, "FramePropertyRegistry", operation);
     return onGuiThread;
 }
@@ -31,8 +31,7 @@ FramePropertyRegistry &FramePropertyRegistry::instance()
     return *registry;
 }
 
-QVariant FramePropertyRegistry::value(const QObject *object,
-                                      const QByteArray &name) const
+QVariant FramePropertyRegistry::value(const QObject *object, const QByteArray &name) const
 {
     if (!checkGuiThread(Q_FUNC_INFO) || !object || name.isEmpty())
         return {};
@@ -45,16 +44,14 @@ QVariant FramePropertyRegistry::value(const QObject *object,
     return valueIt == objectIt->values.cend() ? QVariant{} : valueIt.value();
 }
 
-QVariant FramePropertyRegistry::value(const QObject *object,
-                                      const char *staticName) const
+QVariant FramePropertyRegistry::value(const QObject *object, const char *staticName) const
 {
     if (!staticName)
         return {};
     // Frame keys are private string literals. A non-owning QByteArray avoids
     // a heap allocation on every paint-path lookup while preserving QHash's
     // existing QByteArray hashing and equality semantics.
-    const QByteArray name = QByteArray::fromRawData(
-        staticName, qsizetype(std::strlen(staticName)));
+    const QByteArray name = QByteArray::fromRawData(staticName, qsizetype(std::strlen(staticName)));
     return value(object, name);
 }
 
@@ -72,8 +69,7 @@ qreal FramePropertyRegistry::real(const QObject *object, const QByteArray &name,
     return ok ? converted : fallback;
 }
 
-qreal FramePropertyRegistry::real(const QObject *object,
-                                  const char *staticName,
+qreal FramePropertyRegistry::real(const QObject *object, const char *staticName,
                                   qreal fallback) const
 {
     const QVariant stored = value(object, staticName);
@@ -84,8 +80,7 @@ qreal FramePropertyRegistry::real(const QObject *object,
     return ok ? converted : fallback;
 }
 
-FramePropertyRegistry::ObjectState *
-FramePropertyRegistry::ensureObject(QObject *object)
+FramePropertyRegistry::ObjectState *FramePropertyRegistry::ensureObject(QObject *object)
 {
     if (!object)
         return nullptr;
@@ -106,10 +101,10 @@ FramePropertyRegistry::ensureObject(QObject *object)
         return nullptr;
 
     ObjectState state;
-    state.destroyedConnection = QObject::connect(
-        object, &QObject::destroyed, [this](QObject *destroyedObject) {
-            removeObject(destroyedObject, false);
-        });
+    state.destroyedConnection =
+            QObject::connect(object, &QObject::destroyed, [this](QObject *destroyedObject) {
+                removeObject(destroyedObject, false);
+            });
 
     objectIt = m_objects.insert(object, std::move(state));
     m_objectInsertionOrder.push_back(object);
@@ -121,16 +116,14 @@ void FramePropertyRegistry::trimObject(ObjectState *state)
     if (!state)
         return;
 
-    while (state->values.size() > MaxPropertiesPerObject
-           && !state->insertionOrder.isEmpty()) {
+    while (state->values.size() > MaxPropertiesPerObject && !state->insertionOrder.isEmpty()) {
         const QByteArray oldest = state->insertionOrder.front();
         state->insertionOrder.pop_front();
         state->values.remove(oldest);
     }
 }
 
-void FramePropertyRegistry::set(QObject *object, const QByteArray &name,
-                                const QVariant &value)
+void FramePropertyRegistry::set(QObject *object, const QByteArray &name, const QVariant &value)
 {
     if (!checkGuiThread(Q_FUNC_INFO) || !object || name.isEmpty())
         return;
@@ -171,8 +164,7 @@ void FramePropertyRegistry::clear(QObject *object, const QByteArray &name)
         removeObject(object, true);
 }
 
-void FramePropertyRegistry::removeObject(QObject *object,
-                                          bool disconnectDestroyedSignal)
+void FramePropertyRegistry::removeObject(QObject *object, bool disconnectDestroyedSignal)
 {
     if (!object)
         return;
