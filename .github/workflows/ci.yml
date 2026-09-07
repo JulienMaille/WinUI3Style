@@ -116,12 +116,14 @@ jobs:
           foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
             Write-Output "===== $t per-function ====="
             $funcs = & "build/tests/Release/$t.exe" -functions 2>&1
-            Write-Output ($funcs -join ', ')
             foreach ($f in $funcs) {
-                if ($f -match '^(initTestCase|cleanupTestCase|init| cleanup)$') { continue }
-                & "build/tests/Release/$t.exe" $f 2>&1 | Tee-Object -FilePath "$t-$f.log" |
-                  Select-String -Pattern 'PASS|FAIL!|Totals|Received signal' | Select-Object -First 6
-                Write-Output "$t::$f exit: $LASTEXITCODE"
+                $name = $f -replace '[()]', ''
+                if ($name -match '^(initTestCase|cleanupTestCase|init|cleanup)$') { continue }
+                & "build/tests/Release/$t.exe" -v2 $name > "$t-$name.log" 2>&1
+                $code = $LASTEXITCODE
+                Write-Output "$t::$name exit: $code"
+                Select-String -Path "$t-$name.log" -Pattern 'FAIL!|Totals|Received signal' |
+                  Select-Object -First 6
             }
           }
       - name: Upload snapshot debug artifacts
