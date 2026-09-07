@@ -116,6 +116,8 @@ jobs:
           path: |
             build/snapshot-report.json
             build/snapshot-captures/
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
           if-no-files-found: warn
 
   qt512-mingw:
