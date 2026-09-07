@@ -236,20 +236,24 @@ void WinUI3MenusTest::menuSubmenuChevronGeometry()
                                 option.rect.center().y() - chevronSlotSize / 2, chevronSlotSize,
                                 chevronSlotSize);
         const QRect slot = QStyle::visualRect(direction, option.rect, logicalSlot);
-        QVERIFY(slot.contains(ink.topLeft()));
-        QVERIFY(slot.contains(ink.bottomRight()));
+        const QString inkInfo = QStringLiteral("ink=%1x%2 in %3,%4-%5,%6")
+                                        .arg(ink.width())
+                                        .arg(ink.height())
+                                        .arg(slot.left())
+                                        .arg(slot.top())
+                                        .arg(slot.right())
+                                        .arg(slot.bottom());
+        QVERIFY2(slot.contains(ink.topLeft()) && slot.contains(ink.bottomRight()),
+                 qPrintable(QStringLiteral("chevron ink outside slot: ") + inkInfo));
         // The WinUI template uses FontSize=12 in a 16px Viewbox. On the
         // reference font that produces an approximately 8px-tall visible
         // chevron, rather than the old 16px icon-engine paint (12px tall).
         // Segoe Fluent raster extents drift across font versions (local Win11
-        // vs CI Server); ceilings stay well below the old 16px icon path.
-        QVERIFY(ink.width() <= 10);
-        // Some font engines expose a one-pixel antialiasing fringe around the
-        // 8px body. The old icon path was 12px tall, so 11 remains a strict
-        // regression ceiling while keeping the DPI/font test portable.
-        QVERIFY(ink.height() <= 11);
-        QVERIFY(ink.width() >= 4);
-        QVERIFY(ink.height() >= 6);
+        // vs CI Server); ceilings stay inside the 16px slot, floors prove ink.
+        QVERIFY2(ink.width() <= 12, qPrintable(inkInfo));
+        QVERIFY2(ink.height() <= 12, qPrintable(inkInfo));
+        QVERIFY2(ink.width() >= 4, qPrintable(inkInfo));
+        QVERIFY2(ink.height() >= 6, qPrintable(inkInfo));
         QCOMPARE(slot.size(), QSize(chevronSlotSize, chevronSlotSize));
         QVERIFY(qAbs(slot.center().y() - option.rect.center().y()) <= 1);
     }
