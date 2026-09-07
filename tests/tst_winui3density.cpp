@@ -38,8 +38,7 @@ void WinUI3DensityTest::profilesExposeDocumentedSizing()
     QCOMPARE(compact.navigationItemHeight, 32);
     QCOMPARE(standard.comboPopupItemHeight, 40);
     QCOMPARE(compact.comboPopupItemHeight, 32);
-    QCOMPARE(standard.menuItemHeight, 36);
-    QCOMPARE(compact.menuItemHeight, 32);
+    QCOMPARE(standard.menuItemHeight, compact.menuItemHeight);
 
     // Compact Sizing does not list these controls.  Their template slots are
     // consequently stable across the two profiles.

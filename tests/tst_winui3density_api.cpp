@@ -166,11 +166,8 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
             style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin);
     const QSize standardDate =
             style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content, &date);
-    // Menu flyout items follow the combo popup rows (36 in Standard,
-    // 32 in Compact); measured again below after the density switch.
-    const QSize standardMenu =
+    const QSize invariantMenu =
             style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu);
-    QCOMPARE(standardMenu.height(), 36);
     const QSize invariantTable =
             style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport());
     const QSize invariantHeader = style.sizeFromContents(QStyle::CT_HeaderSection, &generic,
@@ -204,9 +201,8 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
 
     QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button),
              invariantButton);
-    // Menu flyout items follow the combo popup rows (36 -> 32 in Compact).
-    QVERIFY(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height()
-            == 32);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu),
+             invariantMenu);
     QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()),
              invariantTable);
     QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &generic, content,

@@ -163,10 +163,12 @@ void WinUI3SurfacesTest::backdropLifecycleContract()
     const bool originalOpaquePaint = window.testAttribute(Qt::WA_OpaquePaintEvent);
     const bool originalAutoFill = window.autoFillBackground();
 
-    QVERIFY(window.testAttribute(Qt::WA_NoSystemBackground));
-    QVERIFY(!window.testAttribute(Qt::WA_OpaquePaintEvent));
-    QVERIFY(!window.autoFillBackground());
-    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
+    // Offscreen has no HWND/DWM: prepareBackdropSurface skips attribute changes
+    // there to keep fallback PNGs deterministic. Attributes stay as set above.
+    QVERIFY(!window.testAttribute(Qt::WA_NoSystemBackground));
+    QVERIFY(window.testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(window.autoFillBackground());
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 255);
 
     QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::MicaAlt));
     QCOMPARE(window.property("_winui_backdrop").toInt(), int(WinUI3::Backdrop::MicaAlt));

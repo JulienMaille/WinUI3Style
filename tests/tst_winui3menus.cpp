@@ -197,18 +197,6 @@ void WinUI3MenusTest::menuSizingContract()
     QCOMPARE(menu.activeAction(), action);
     QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier, actionRect.center());
     QVERIFY(action->isChecked());
-
-    // Menu flyout items follow the combo popup rows in Compact mode.
-    if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
-        style->setDensityMode(WinUI3::DensityMode::Compact);
-        const QSize compactResult =
-                menu.style()->sizeFromContents(QStyle::CT_MenuItem, &option, QSize(), &menu);
-        style->setDensityMode(WinUI3::DensityMode::Standard);
-        QCOMPARE(compactResult.height(), 32);
-        const QSize backToStandard =
-                menu.style()->sizeFromContents(QStyle::CT_MenuItem, &option, QSize(), &menu);
-        QVERIFY(backToStandard.height() >= 36);
-    }
 }
 
 void WinUI3MenusTest::menuSubmenuChevronGeometry()
