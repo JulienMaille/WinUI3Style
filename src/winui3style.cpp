@@ -461,6 +461,8 @@ bool coveredPrimitive(QStyle::PrimitiveElement element)
     case QStyle::PE_IndicatorArrowRight:
     case QStyle::PE_IndicatorArrowUp:
     case QStyle::PE_PanelMenu:
+    case QStyle::PE_FrameMenu:
+    case QStyle::PE_Widget:
     case QStyle::PE_PanelItemViewItem:
     case QStyle::PE_IndicatorBranch:
     case QStyle::PE_IndicatorHeaderArrow:
@@ -1559,6 +1561,23 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
+
+    if (element == PE_Widget && widget
+        && widget->palette().color(QPalette::Window).alpha() == 0) {
+        // Transparentized content island over a live material (see
+        // transparentizeSurface): Qt's erase is disabled here
+        // (StyledBackground, no autofill) and nothing else repaints the
+        // backing store, so page switches and hover frames accumulate as
+        // permanent ghosts until a resize reallocates the buffer. Rebuild
+        // explicitly from transparent on every paint; DWM composites the
+        // material underneath. Gated on the transparent Window role so
+        // ordinary widgets keep Qt's default erase path untouched.
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(option->rect, Qt::transparent);
+        painter->restore();
+        return;
+    }
 
     if (element == PE_FrameFocusRect) {
         if (!keyboardFocusVisible(widget))

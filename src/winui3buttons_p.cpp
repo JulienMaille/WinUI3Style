@@ -365,15 +365,11 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             style->drawPrimitive(QStyle::PE_PanelButtonCommand, button, painter, widget);
             style->drawControl(QStyle::CE_PushButtonLabel, button, painter, widget);
             if (button->features & QStyleOptionButton::HasMenu) {
-                const QRect logical(button->rect.right() - 22, button->rect.center().y() - 7, 14,
-                                    14);
-                WinUI3::icon(Icon::ChevronDown,
-                             button->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled)
-                        .paint(painter,
-                               QStyle::visualRect(button->direction, button->rect, logical),
-                               Qt::AlignCenter,
-                               button->state & QStyle::State_Enabled ? QIcon::Normal
-                                                                     : QIcon::Disabled);
+                paintDropdownChevron(
+                        painter, WinUI3::icon(Icon::ChevronDown), button->rect, button->direction,
+                        button->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
+                        button->state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled,
+                        button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
             }
             return true;
         }
@@ -652,11 +648,15 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                 tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
             }
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
-                const QRect menuRect = style->subControlRect(QStyle::CC_ToolButton, tool,
+                // Center the shared chevron in the dropdown half (official
+                // SplitButton: centered, right padding 0), never on the
+                // divider line.
+                const QRect menuZone = style->subControlRect(QStyle::CC_ToolButton, tool,
                                                              QStyle::SC_ToolButtonMenu, widget);
-                WinUI3::icon(Icon::ChevronDown, textColor)
-                        .paint(painter, menuRect, Qt::AlignCenter,
-                               enabled ? QIcon::Normal : QIcon::Disabled);
+                paintDropdownChevron(painter, WinUI3::icon(Icon::ChevronDown), menuZone,
+                                     tool->direction, textColor,
+                                     enabled ? QIcon::Normal : QIcon::Disabled,
+                                     tool->state & QStyle::State_On ? QIcon::On : QIcon::Off, true);
             }
             return true;
         }

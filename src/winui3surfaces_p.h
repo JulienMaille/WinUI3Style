@@ -39,5 +39,14 @@ void preparePopupSurface(QWidget *widget);
 void prepareComboPopupFirstFrameImpl(QComboBox *combo);
 QComboBox *comboForPopupWidget(QWidget *widget);
 
+// Window chrome (menu bar, tool bars, status bar) reveals the live DWM
+// material instead of painting opaque panels over it. Content/layer
+// islands follow under the full-Mica contract. Both are no-ops for
+// windows without matching descendants, and restore returns every
+// touched widget to its remembered palette, attributes and autofill.
+void makeChromeSurfacesTransparent(QWidget *window);
+void restoreChromeSurfaces(QWidget *window);
+void syncContentSurfacesForBackdrop(QWidget *window);
+
 } // namespace Private
 } // namespace WinUI3

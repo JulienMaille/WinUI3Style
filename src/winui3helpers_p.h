@@ -6,6 +6,7 @@
 // copy in an anonymous namespace; the copies had started to drift, so they
 // now live here as the single definition.
 
+#include "winui3backdrop_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
 
@@ -58,12 +59,24 @@ inline bool keyboardFocusVisible(const QWidget *widget)
     return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
-// True only when the widget paints straight into an active translucent DWM
-// backdrop. An intervening content/layer surface is opaque and must never be
-// cleared, otherwise a child control would punch through that surface.
+// True only when the widget paints straight into a translucent DWM
+// backdrop or an opaque window surface. An intervening content/layer surface
+// is opaque and must never be cleared, otherwise a child control would
+// punch through that surface. Critical subtlety: an opaque window ignores
+// the backing store's alpha channel at presentation, so clearing there is
+// always safe and required for animation frames not to accumulate. On a
+// translucent window the alpha is presented, so clearing is allowed strictly
+// when the compositor owns the material (Composited): clearing over a
+// painted fallback, a failed DWM call, or pre-composited first frames
+// reveals black or stale pixels instead of wallpaper tint.
 inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
 {
-    if (!widget || !widget->window() || widget->window()->property("_winui_backdrop").toInt() == 0)
+    if (!widget || !widget->window())
+        return false;
+    if (!widget->window()->property("_winui_backdrop").isValid())
+        return false;
+    if (widget->window()->testAttribute(Qt::WA_TranslucentBackground)
+        && backdropEffectiveSurface(widget->window()) != BackdropSurface::Composited)
         return false;
     for (const QWidget *parent = widget->parentWidget(); parent && parent != widget->window();
          parent = parent->parentWidget()) {

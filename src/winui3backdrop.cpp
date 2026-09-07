@@ -3,6 +3,7 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3tokens_p.h"
+#include "winui3surfaces_p.h"
 
 #include <QApplication>
 #include <QGuiApplication>
@@ -53,8 +54,16 @@ void rememberBackdropState(QWidget *window)
     remember(originalWindowColorProperty, window->palette().color(QPalette::Window));
 }
 
+namespace BackdropState {
+inline constexpr auto effectiveBackdropProperty = "_winui_backdrop_effective";
+inline constexpr int effectiveSolid = 0;
+inline constexpr int effectivePainted = 1;
+inline constexpr int effectiveComposited = 2;
+} // namespace BackdropState
+
 void restoreBackdropState(QWidget *window)
 {
+    window->setProperty(BackdropState::effectiveBackdropProperty, {});
     if (window->property(originalTranslucentProperty).isValid())
         window->setAttribute(Qt::WA_TranslucentBackground,
                              window->property(originalTranslucentProperty).toBool());
@@ -213,6 +222,15 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         window->setAttribute(Qt::WA_NoSystemBackground, false);
         window->setAttribute(Qt::WA_OpaquePaintEvent, false);
         window->setAutoFillBackground(true);
+        // Disabling is fully native teardown: chrome returns to its
+        // remembered opaque palettes. No translucent pixel may survive.
+        Private::restoreChromeSurfaces(window);
+        // Same full-buffer rationale as the enable path: every widget must
+        // repaint from its restored opaque palette, or the last composited
+        // frame stays on screen and the toggle looks like a no-op.
+        for (QWidget *child : window->findChildren<QWidget *>())
+            child->update();
+        window->update();
     } else {
         // These paint-surface flags are needed even when the platform has no
         // DWM compositor, so the offscreen fallback retains its transparent
@@ -233,8 +251,14 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     window->setPalette(materialPalette);
 
     if (!nativeSurface) {
-        if (backdrop == Backdrop::None)
+        if (backdrop == Backdrop::None) {
             restoreBackdropState(window);
+        } else {
+            // Deterministic offscreen snapshots: opaque painted surface and
+            // an explicit Painted state; painters must never clear here.
+            window->setProperty(BackdropState::effectiveBackdropProperty,
+                                BackdropState::effectivePainted);
+        }
         return true;
     }
 
@@ -304,8 +328,26 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     const bool applied = SUCCEEDED(backdropResult) && SUCCEEDED(frameResult);
     if (backdrop == Backdrop::None) {
         restoreBackdropState(window);
-    }
-    if (!applied && backdrop != Backdrop::None) {
+    } else if (applied) {
+        // DWM owns the material: publish Composited so painters may clear.
+        window->setProperty(BackdropState::effectiveBackdropProperty,
+                            BackdropState::effectiveComposited);
+        // Window chrome (menu bar, tool bars, status bar) reveals the live
+        // material instead of painting opaque panels over it. Content islands
+        // follow under the full-Mica contract (sync is a no-op for windows
+        // without opted-in descendants).
+        Private::makeChromeSurfacesTransparent(window);
+        Private::syncContentSurfacesForBackdrop(window);
+        // Switching the presentation mode rebuilds the whole buffer: stale
+        // opaque frames would otherwise linger under the new material.
+        // update() alone does not dirty already-clean children, so force a
+        // synchronous full repaint of the window hierarchy here.
+        window->repaint();
+    } else {
+        // DWM refused the material: opaque painted fallback, explicit
+        // Painted state so clears stay off (black/stale pixels otherwise).
+        window->setProperty(BackdropState::effectiveBackdropProperty,
+                            BackdropState::effectivePainted);
         if (window->property(originalTranslucentProperty).isValid())
             window->setAttribute(Qt::WA_TranslucentBackground,
                                  window->property(originalTranslucentProperty).toBool());

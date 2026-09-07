@@ -61,13 +61,15 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             style->drawPrimitive(QStyle::PE_PanelButtonTool, tool, painter, widget);
             style->drawControl(QStyle::CE_ToolButtonLabel, tool, painter, widget);
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
+                // WinUI SplitButton divider: a 1px full-height separator at
+                // the leading edge of the secondary (dropdown) half.
                 const QRect menuRect = style->subControlRect(QStyle::CC_ToolButton, tool,
                                                              QStyle::SC_ToolButtonMenu, widget);
                 painter->save();
-                painter->setPen(t.stroke);
+                painter->setPen(QPen(t.stroke, 1));
                 const int x =
                         option->direction == Qt::RightToLeft ? menuRect.right() : menuRect.left();
-                painter->drawLine(x, menuRect.top() + 5, x, menuRect.bottom() - 5);
+                painter->drawLine(x, menuRect.top() + 4, x, menuRect.bottom() - 4);
                 painter->restore();
             }
             return true;
@@ -145,29 +147,12 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
             if (combo->subControls & QStyle::SC_ComboBoxArrow) {
-                // WinUI places a 12 px AnimatedIcon box 14 px from the trailing
-                // edge.  Its AnimatedChevronDownSmall artwork is narrower than
-                // the 12 px Segoe Fluent fallback, so render that fallback at
-                // 10 px while preserving the official box position.
-                constexpr int glyphBoxSize = 12;
-                constexpr int glyphTrailingMargin = 14;
-                constexpr int fallbackGlyphSize = 10;
-                const QRect logicalGlyphBox(
-                        combo->rect.right() - glyphTrailingMargin - glyphBoxSize + 1,
-                        combo->rect.top() + (combo->rect.height() - glyphBoxSize) / 2, glyphBoxSize,
-                        glyphBoxSize);
-                const QRect logicalChevron(
-                        logicalGlyphBox.left() + (glyphBoxSize - fallbackGlyphSize) / 2,
-                        logicalGlyphBox.top() + (glyphBoxSize - fallbackGlyphSize) / 2,
-                        fallbackGlyphSize, fallbackGlyphSize);
-                const QRect chevronRect =
-                        QStyle::visualRect(combo->direction, combo->rect, logicalChevron);
                 const qreal chevron = progress(widget, comboChevronProperty, 0.0);
                 painter->save();
                 painter->translate(0.0, 1.875 * chevron);
-                paintThemedIcon(painter, icon(Icon::ChevronDown), chevronRect, Qt::AlignCenter,
-                                enabled ? t.textPrimary : t.textDisabled,
-                                enabled ? QIcon::Normal : QIcon::Disabled);
+                paintDropdownChevron(painter, icon(Icon::ChevronDown), combo->rect, combo->direction,
+                                     enabled ? t.textPrimary : t.textDisabled,
+                                     enabled ? QIcon::Normal : QIcon::Disabled);
                 painter->restore();
             }
             if (editableFocused)
@@ -352,6 +337,15 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 const qreal opacity = opaqueLayer.alphaF();
                 opaqueLayer.setAlpha(255);
                 background = mix(background, opaqueLayer, opacity);
+            }
+            // Ghost scrollbar: a scrollbar painted straight onto a live
+            // backdrop keeps its backing-store head across frames. Rebuild
+            // from transparent first so the rest state never smears.
+            if (paintsDirectlyOnBackdrop(widget)) {
+                painter->save();
+                painter->setCompositionMode(QPainter::CompositionMode_Source);
+                painter->fillRect(option->rect, Qt::transparent);
+                painter->restore();
             }
             painter->fillRect(option->rect, background);
             const bool enabled = option->state & QStyle::State_Enabled;
