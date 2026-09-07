@@ -106,7 +106,7 @@ jobs:
           # we need; the next step greps the full log.
           ctest --test-dir build -C Release --output-on-failure -V -E "^winui3style_native$" 2>&1 |
             Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
-      - name: Rerun failed binaries with QtTest -vs
+      - name: Rerun failed binaries with QtTest -v2
         if: failure()
         shell: pwsh
         run: |
@@ -114,8 +114,8 @@ jobs:
           $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
           foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
-            Write-Output "===== $t -vs ====="
-            & "build/tests/Release/$t.exe" -vs 2>&1 | Select-Object -First 60
+            Write-Output "===== $t -v2 ====="
+            & "build/tests/Release/$t.exe" -v2 2>&1 | Select-String -Pattern 'PASS|FAIL!|Totals' | Select-Object -First 40
           }
       - name: Upload snapshot debug artifacts
         if: failure()
