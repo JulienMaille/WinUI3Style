@@ -98,14 +98,19 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
       - name: Test (exclude interactive native test)
-        run: >
-          ctest --test-dir build -C Release --output-on-failure
-          -E "^winui3style_native$"
+        shell: pwsh
+        run: |
+          # -V streams QtTest PASS/FAIL lines into the job log; without it a
+          # crash and an assertion look identical (empty LastTest.log output).
+          # Tee to a file because Select-Object -Last truncates the FAIL! lines
+          # we need; the next step greps the full log.
+          ctest --test-dir build -C Release --output-on-failure -V -E "^winui3style_native$" 2>&1 |
+            Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
       - name: Dump QtTest failure lines
         if: failure()
         shell: pwsh
         run: >
-          Select-String -Path build/Testing/Temporary/LastTest.log
+          Select-String -Path ctest-verbose.log
           -Pattern 'FAIL!|Actual|Expected|failure location' |
           Select-Object -First 40
       - name: Upload snapshot debug artifacts
