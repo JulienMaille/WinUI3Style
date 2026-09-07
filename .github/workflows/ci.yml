@@ -125,6 +125,7 @@ jobs:
           path: |
             build/snapshot-report.json
             build/snapshot-captures/
+            build/Testing/Temporary/LastTest.log
             build/Testing/Temporary/LastTestsFailed.log
             ./*-v2.log
           if-no-files-found: warn
