@@ -31,7 +31,7 @@ namespace {
 bool verticalSpinButtons(const QWidget *widget)
 {
     return qobject_cast<const QAbstractSpinBox *>(widget)
-        && widget->property(Style::VerticalSpinButtonsProperty).toBool();
+            && widget->property(Style::VerticalSpinButtonsProperty).toBool();
 }
 
 } // namespace
@@ -52,8 +52,7 @@ bool coveredComplex(QStyle::ComplexControl control)
 }
 
 bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
-                        const QStyleOptionComplex *option, QPainter *painter,
-                        const QWidget *widget)
+                        const QStyleOptionComplex *option, QPainter *painter, const QWidget *widget)
 {
     const Tokens t = tokens(option->palette);
 
@@ -63,11 +62,11 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             style->drawControl(QStyle::CE_ToolButtonLabel, tool, painter, widget);
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
                 const QRect menuRect = style->subControlRect(QStyle::CC_ToolButton, tool,
-                                                       QStyle::SC_ToolButtonMenu, widget);
+                                                             QStyle::SC_ToolButtonMenu, widget);
                 painter->save();
                 painter->setPen(t.stroke);
-                const int x = option->direction == Qt::RightToLeft
-                    ? menuRect.right() : menuRect.left();
+                const int x =
+                        option->direction == Qt::RightToLeft ? menuRect.right() : menuRect.left();
                 painter->drawLine(x, menuRect.top() + 5, x, menuRect.bottom() - 5);
                 painter->restore();
             }
@@ -83,23 +82,23 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             if (group->subControls & QStyle::SC_GroupBoxCheckBox) {
                 QStyleOptionButton indicator;
                 indicator.rect = style->subControlRect(QStyle::CC_GroupBox, group,
-                                                QStyle::SC_GroupBoxCheckBox, widget);
+                                                       QStyle::SC_GroupBoxCheckBox, widget);
                 indicator.state = group->state;
                 indicator.palette = group->palette;
                 style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &indicator, painter, widget);
             }
             if (group->subControls & QStyle::SC_GroupBoxLabel) {
                 const QRect label = style->subControlRect(QStyle::CC_GroupBox, group,
-                                                   QStyle::SC_GroupBoxLabel, widget);
+                                                          QStyle::SC_GroupBoxLabel, widget);
                 painter->save();
                 QFont titleFont = widget ? widget->font() : QApplication::font();
                 titleFont.setWeight(QFont::DemiBold);
                 painter->setFont(titleFont);
                 painter->setPen(enabled ? t.textPrimary : t.textDisabled);
-                painter->drawText(label,
-                                  QStyle::visualAlignment(group->direction,
-                                                          Qt::AlignLeft | Qt::AlignVCenter),
-                                  group->text);
+                painter->drawText(
+                        label,
+                        QStyle::visualAlignment(group->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                        group->text);
                 painter->restore();
             }
             return true;
@@ -117,7 +116,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 painter->fillRect(combo->rect, Qt::transparent);
                 painter->restore();
             } else if (widget && widget->parentWidget()
-                && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+                       && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
                                   widget->parentWidget()->palette().color(QPalette::Window));
             }
@@ -125,12 +124,12 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             const bool hovered = combo->state & QStyle::State_MouseOver;
             const bool pressed = combo->state & (QStyle::State_Sunken | QStyle::State_On);
             const bool editable = combo->editable;
-            const QLineEdit *comboEditor = editable ? widget
-                ? widget->findChild<QLineEdit *>() : nullptr : nullptr;
+            const QLineEdit *comboEditor =
+                    editable ? widget ? widget->findChild<QLineEdit *>() : nullptr : nullptr;
             const bool editableFocused = editable && enabled
-                && (combo->state & QStyle::State_HasFocus
-                    || (widget && widget->isActiveWindow()
-                        && comboEditor && comboEditor->hasFocus()));
+                    && (combo->state & QStyle::State_HasFocus
+                        || (widget && widget->isActiveWindow() && comboEditor
+                            && comboEditor->hasFocus()));
             QColor fill = enabled ? t.control : t.controlDisabled;
             // An editable ComboBox behaves like a TextBox once it owns
             // keyboard focus: flat light surface, no hover tint.
@@ -154,32 +153,25 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 constexpr int glyphTrailingMargin = 14;
                 constexpr int fallbackGlyphSize = 10;
                 const QRect logicalGlyphBox(
-                    combo->rect.right() - glyphTrailingMargin
-                        - glyphBoxSize + 1,
-                    combo->rect.top()
-                        + (combo->rect.height() - glyphBoxSize) / 2,
-                    glyphBoxSize, glyphBoxSize);
+                        combo->rect.right() - glyphTrailingMargin - glyphBoxSize + 1,
+                        combo->rect.top() + (combo->rect.height() - glyphBoxSize) / 2, glyphBoxSize,
+                        glyphBoxSize);
                 const QRect logicalChevron(
-                    logicalGlyphBox.left()
-                        + (glyphBoxSize - fallbackGlyphSize) / 2,
-                    logicalGlyphBox.top()
-                        + (glyphBoxSize - fallbackGlyphSize) / 2,
-                    fallbackGlyphSize, fallbackGlyphSize);
-                const QRect chevronRect = QStyle::visualRect(combo->direction,
-                                                             combo->rect,
-                                                             logicalChevron);
+                        logicalGlyphBox.left() + (glyphBoxSize - fallbackGlyphSize) / 2,
+                        logicalGlyphBox.top() + (glyphBoxSize - fallbackGlyphSize) / 2,
+                        fallbackGlyphSize, fallbackGlyphSize);
+                const QRect chevronRect =
+                        QStyle::visualRect(combo->direction, combo->rect, logicalChevron);
                 const qreal chevron = progress(widget, comboChevronProperty, 0.0);
                 painter->save();
                 painter->translate(0.0, 1.875 * chevron);
-                paintThemedIcon(painter, icon(Icon::ChevronDown), chevronRect,
-                                Qt::AlignCenter,
+                paintThemedIcon(painter, icon(Icon::ChevronDown), chevronRect, Qt::AlignCenter,
                                 enabled ? t.textPrimary : t.textDisabled,
                                 enabled ? QIcon::Normal : QIcon::Disabled);
                 painter->restore();
             }
             if (editableFocused)
-                drawEditorFocusUnderline(painter, combo->rect, t.accentFill,
-                                         ControlRadius);
+                drawEditorFocusUnderline(painter, combo->rect, t.accentFill, ControlRadius);
             if (keyboardFocusVisible(widget) && !editableFocused) {
                 painter->save();
                 painter->setRenderHint(QPainter::Antialiasing);
@@ -201,48 +193,48 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             const qreal hover = progress(widget, hoverProperty,
                                          spin->state & QStyle::State_MouseOver ? 1.0 : 0.0);
             QColor fill = !enabled ? t.controlDisabled
-                : focused ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
-                          : mix(t.control, t.controlHover, hover);
-            controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary,
-                           ControlRadius);
+                    : focused      ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
+                                   : mix(t.control, t.controlHover, hover);
+            controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
             if (verticalButtons) {
                 const QRect editField = style->subControlRect(QStyle::CC_SpinBox, spin,
-                                                       QStyle::SC_SpinBoxEditField,
-                                                       widget);
-                const int separatorX = spin->direction == Qt::RightToLeft
-                    ? editField.left() : editField.right();
+                                                              QStyle::SC_SpinBoxEditField, widget);
+                const int separatorX =
+                        spin->direction == Qt::RightToLeft ? editField.left() : editField.right();
                 painter->save();
                 painter->setPen(QPen(t.stroke, 1, Qt::SolidLine, Qt::FlatCap));
-                painter->drawLine(separatorX, spin->rect.top() + 1,
-                                  separatorX, spin->rect.bottom() - 1);
+                painter->drawLine(separatorX, spin->rect.top() + 1, separatorX,
+                                  spin->rect.bottom() - 1);
                 painter->restore();
             }
             if (focused)
-                drawEditorFocusUnderline(painter, spin->rect, t.accentFill,
-                                         ControlRadius);
+                drawEditorFocusUnderline(painter, spin->rect, t.accentFill, ControlRadius);
             const auto drawStep = [&](QStyle::SubControl subControl, Icon glyph) {
-                if (!(spin->subControls & subControl)) return;
-                const QRect rect = style->subControlRect(QStyle::CC_SpinBox, spin, subControl, widget);
-                const bool stepEnabled = enabled && (subControl == QStyle::SC_SpinBoxUp
-                    ? spin->stepEnabled & QAbstractSpinBox::StepUpEnabled
-                    : spin->stepEnabled & QAbstractSpinBox::StepDownEnabled);
+                if (!(spin->subControls & subControl))
+                    return;
+                const QRect rect =
+                        style->subControlRect(QStyle::CC_SpinBox, spin, subControl, widget);
+                const bool stepEnabled = enabled
+                        && (subControl == QStyle::SC_SpinBoxUp
+                                    ? spin->stepEnabled & QAbstractSpinBox::StepUpEnabled
+                                    : spin->stepEnabled & QAbstractSpinBox::StepDownEnabled);
                 const QRectF visualRect = verticalButtons
-                    ? (subControl == QStyle::SC_SpinBoxUp
-                        ? QRectF(rect).adjusted(4, 3, -4, 0)
-                        : QRectF(rect).adjusted(4, 0, -4, -3))
-                    : (subControl == QStyle::SC_SpinBoxUp
-                        ? QRectF(rect).adjusted(4, 4, 0, -4)
-                        : QRectF(rect).adjusted(0, 4, -4, -4));
+                        ? (subControl == QStyle::SC_SpinBoxUp ? QRectF(rect).adjusted(4, 3, -4, 0)
+                                                              : QRectF(rect).adjusted(4, 0, -4, -3))
+                        : (subControl == QStyle::SC_SpinBoxUp
+                                   ? QRectF(rect).adjusted(4, 4, 0, -4)
+                                   : QRectF(rect).adjusted(0, 4, -4, -4));
                 if (stepEnabled && (spin->activeSubControls & subControl)
                     && (spin->state & QStyle::State_MouseOver)) {
                     roundedRect(painter, visualRect,
-                                spin->state & QStyle::State_Sunken ? t.subtlePressed : t.subtleHover,
+                                spin->state & QStyle::State_Sunken ? t.subtlePressed
+                                                                   : t.subtleHover,
                                 Qt::transparent, ControlRadius);
                 }
                 const QPoint center = visualRect.center().toPoint();
-                icon(glyph, stepEnabled ? t.textPrimary : t.textDisabled).paint(
-                    painter, QRect(center.x() - 6, center.y() - 6, 12, 12),
-                    Qt::AlignCenter, stepEnabled ? QIcon::Normal : QIcon::Disabled);
+                icon(glyph, stepEnabled ? t.textPrimary : t.textDisabled)
+                        .paint(painter, QRect(center.x() - 6, center.y() - 6, 12, 12),
+                               Qt::AlignCenter, stepEnabled ? QIcon::Normal : QIcon::Disabled);
             };
             drawStep(QStyle::SC_SpinBoxUp, Icon::ChevronUp);
             drawStep(QStyle::SC_SpinBoxDown, Icon::ChevronDown);
@@ -253,20 +245,18 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     if (control == QStyle::CC_Slider) {
         if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
             const bool horizontal = slider->orientation == Qt::Horizontal;
-            QRect groove = style->subControlRect(QStyle::CC_Slider, slider,
-                                                  QStyle::SC_SliderGroove, widget);
+            QRect groove = style->subControlRect(QStyle::CC_Slider, slider, QStyle::SC_SliderGroove,
+                                                 widget);
             const QRect handle = style->subControlRect(QStyle::CC_Slider, slider,
-                                                QStyle::SC_SliderHandle,
-                                                widget);
+                                                       QStyle::SC_SliderHandle, widget);
             const qreal hover = progress(widget, hoverProperty,
-                option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+                                         option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
             const qreal pressed = progress(widget, pressProperty,
-                option->state & QStyle::State_Sunken ? 1.0 : 0.0);
+                                           option->state & QStyle::State_Sunken ? 1.0 : 0.0);
             const bool enabled = option->state & QStyle::State_Enabled;
             QColor track = enabled ? t.strokeStrong : t.textDisabled;
-            QColor valueColor = enabled
-                ? mix(t.accentFill, t.accentFillHover, hover)
-                : t.accentFillDisabled;
+            QColor valueColor =
+                    enabled ? mix(t.accentFill, t.accentFillHover, hover) : t.accentFillDisabled;
             valueColor = mix(valueColor, t.accentFillPressed, pressed);
             roundedRect(painter, groove, track, Qt::transparent, 2);
 
@@ -284,41 +274,33 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             }
             roundedRect(painter, value, valueColor, Qt::transparent, 2);
 
-            if (slider->tickPosition != QSlider::NoTicks
-                && slider->maximum > slider->minimum) {
+            if (slider->tickPosition != QSlider::NoTicks && slider->maximum > slider->minimum) {
                 const qint64 minimum = slider->minimum;
                 const qint64 maximum = slider->maximum;
                 const qint64 range = maximum - minimum;
                 const qint64 requested = slider->tickInterval > 0
-                    ? qint64(slider->tickInterval)
-                    : qint64(qMax(1, slider->pageStep));
-                const qint64 interval = qMax<qint64>(1, qMax(requested,
-                    (range + 99) / 100));
+                        ? qint64(slider->tickInterval)
+                        : qint64(qMax(1, slider->pageStep));
+                const qint64 interval = qMax<qint64>(1, qMax(requested, (range + 99) / 100));
                 painter->save();
                 painter->setPen(QPen(enabled ? t.strokeStrong : t.textDisabled, 1));
                 for (qint64 tick = minimum;;) {
-                    const int span = horizontal ? groove.width() - 1
-                                                 : groove.height() - 1;
+                    const int span = horizontal ? groove.width() - 1 : groove.height() - 1;
                     const int offset = QStyle::sliderPositionFromValue(
-                        slider->minimum, slider->maximum,
-                        int(qBound(minimum, tick, maximum)), span,
-                        slider->upsideDown);
+                            slider->minimum, slider->maximum, int(qBound(minimum, tick, maximum)),
+                            span, slider->upsideDown);
                     if (horizontal) {
                         const int x = groove.left() + offset;
                         if (slider->tickPosition & QSlider::TicksAbove)
-                            painter->drawLine(x, groove.top() - 8, x,
-                                              groove.top() - 5);
+                            painter->drawLine(x, groove.top() - 8, x, groove.top() - 5);
                         if (slider->tickPosition & QSlider::TicksBelow)
-                            painter->drawLine(x, groove.bottom() + 5, x,
-                                              groove.bottom() + 8);
+                            painter->drawLine(x, groove.bottom() + 5, x, groove.bottom() + 8);
                     } else {
                         const int y = groove.top() + offset;
                         if (slider->tickPosition & QSlider::TicksLeft)
-                            painter->drawLine(groove.left() - 8, y,
-                                              groove.left() - 5, y);
+                            painter->drawLine(groove.left() - 8, y, groove.left() - 5, y);
                         if (slider->tickPosition & QSlider::TicksRight)
-                            painter->drawLine(groove.right() + 5, y,
-                                              groove.right() + 8, y);
+                            painter->drawLine(groove.right() + 5, y, groove.right() + 8, y);
                     }
                     if (tick >= maximum || interval > maximum - tick)
                         break;
@@ -332,8 +314,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             if (!enabled)
                 innerDiameter = 14.0;
             QColor thumbColor = enabled ? valueColor : t.accentFillDisabled;
-            const QColor outerThumb = t.dark ? QColor(69, 69, 69)
-                                             : QColor(255, 255, 255);
+            const QColor outerThumb = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setBrush(outerThumb);
@@ -346,8 +327,8 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             if ((option->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
                 painter->setBrush(Qt::NoBrush);
                 painter->setPen(QPen(t.focusOuter, 2));
-                painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1),
-                                         ControlRadius, ControlRadius);
+                painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1), ControlRadius,
+                                         ControlRadius);
                 painter->setPen(QPen(t.focusInner, 1));
                 painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
                                          ControlRadius - 1, ControlRadius - 1);
@@ -363,8 +344,8 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             // scrollbar's backing store was cleared. WinUI's transparent rest
             // state therefore has to be composited over the widget surface here.
             QColor background = option->palette.color(QPalette::Window);
-            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr;
-                 ancestor; ancestor = ancestor->parentWidget()) {
+            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
+                 ancestor = ancestor->parentWidget()) {
                 if (!qobject_cast<const QGroupBox *>(ancestor))
                     continue;
                 QColor opaqueLayer = t.layer;
@@ -379,10 +360,9 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             if (!enabled)
                 return true;
             const QRect thumb = style->subControlRect(QStyle::CC_ScrollBar, scroll,
-                                                      QStyle::SC_ScrollBarSlider,
-                                                      widget);
+                                                      QStyle::SC_ScrollBarSlider, widget);
             const qreal expanded = progress(widget, hoverProperty,
-                option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+                                            option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
             const bool horizontal = scroll->orientation == Qt::Horizontal;
             if (expanded > 0.001) {
                 QColor track = t.layer;
@@ -397,37 +377,31 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             else
                 visualThumb.setLeft(thumb.right() + 1.0 - thickness);
             const QColor thumbColor = t.strokeStrong;
-            roundedRect(painter, visualThumb, thumbColor, Qt::transparent,
-                        thickness / 2.0);
+            roundedRect(painter, visualThumb, thumbColor, Qt::transparent, thickness / 2.0);
 
             if (expanded > 0.001) {
                 const QRect decrease = style->subControlRect(QStyle::CC_ScrollBar, scroll,
-                    QStyle::SC_ScrollBarSubLine, widget);
+                                                             QStyle::SC_ScrollBarSubLine, widget);
                 const QRect increase = style->subControlRect(QStyle::CC_ScrollBar, scroll,
-                    QStyle::SC_ScrollBarAddLine, widget);
+                                                             QStyle::SC_ScrollBarAddLine, widget);
                 const bool pressed = option->state & QStyle::State_Sunken;
-                const auto drawArrow = [&](const QRect &rect, QStyle::SubControl sub,
-                                           Icon glyph) {
+                const auto drawArrow = [&](const QRect &rect, QStyle::SubControl sub, Icon glyph) {
                     if (!(scroll->subControls & sub))
                         return;
                     const bool active = (scroll->activeSubControls & sub)
-                        && (option->state & QStyle::State_MouseOver);
+                            && (option->state & QStyle::State_MouseOver);
                     if (active) {
-                        const QColor fill = pressed ? t.subtlePressed
-                                                    : t.subtleHover;
-                        roundedRect(painter, QRectF(rect).adjusted(2, 2, -2, -2),
-                                    fill, Qt::transparent, 3);
+                        const QColor fill = pressed ? t.subtlePressed : t.subtleHover;
+                        roundedRect(painter, QRectF(rect).adjusted(2, 2, -2, -2), fill,
+                                    Qt::transparent, 3);
                     }
                     painter->save();
                     painter->setOpacity(expanded);
-                    QRect glyphRect(rect.center().x() - 4, rect.center().y() - 4,
-                                    8, 8);
+                    QRect glyphRect(rect.center().x() - 4, rect.center().y() - 4, 8, 8);
                     if (active && pressed)
-                        glyphRect = QRect(rect.center().x() - 3,
-                                          rect.center().y() - 3, 7, 7);
-                    icon(glyph, t.textPrimary).paint(painter, glyphRect,
-                                                     Qt::AlignCenter,
-                                                     QIcon::Normal);
+                        glyphRect = QRect(rect.center().x() - 3, rect.center().y() - 3, 7, 7);
+                    icon(glyph, t.textPrimary)
+                            .paint(painter, glyphRect, Qt::AlignCenter, QIcon::Normal);
                     painter->restore();
                 };
                 if (horizontal) {

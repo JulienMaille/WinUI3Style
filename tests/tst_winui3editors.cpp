@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3EditorsTest final : public QObject
@@ -140,7 +139,6 @@ void WinUI3EditorsTest::cleanup()
     qApp->processEvents();
 }
 
-
 void WinUI3EditorsTest::textBoxInteraction()
 {
     QLineEdit edit;
@@ -156,23 +154,22 @@ void WinUI3EditorsTest::textBoxInteraction()
     QStyleOptionFrame option;
     option.initFrom(&edit);
     option.rect = edit.rect();
-    const QRect ltrContents = edit.style()->subElementRect(
-        QStyle::SE_LineEditContents, &option, &edit);
+    const QRect ltrContents =
+            edit.style()->subElementRect(QStyle::SE_LineEditContents, &option, &edit);
     QCOMPARE(ltrContents, edit.rect().adjusted(10, 5, -6, -6));
     option.direction = Qt::RightToLeft;
-    const QRect rtlContents = edit.style()->subElementRect(
-        QStyle::SE_LineEditContents, &option, &edit);
+    const QRect rtlContents =
+            edit.style()->subElementRect(QStyle::SE_LineEditContents, &option, &edit);
     QCOMPARE(rtlContents, edit.rect().adjusted(6, 5, -10, -6));
     option.direction = Qt::LeftToRight;
 
-    QVERIFY(!edit.style()->standardIcon(QStyle::SP_LineEditClearButton,
-                                         nullptr, &edit).isNull());
+    QVERIFY(!edit.style()->standardIcon(QStyle::SP_LineEditClearButton, nullptr, &edit).isNull());
     QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
     const auto *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
     QStyleOptionToolButton clearOption;
     clearOption.initFrom(clearButton);
-    QCOMPARE(edit.style()->sizeFromContents(QStyle::CT_ToolButton, &clearOption,
-                                             QSize(16, 16), clearButton),
+    QCOMPARE(edit.style()->sizeFromContents(QStyle::CT_ToolButton, &clearOption, QSize(16, 16),
+                                            clearButton),
              QSize(30, 32));
 
     QFocusEvent mouseFocus(QEvent::FocusIn, Qt::MouseFocusReason);
@@ -185,16 +182,14 @@ void WinUI3EditorsTest::textBoxInteraction()
     option.state |= QStyle::State_HasFocus;
     {
         QPainter painter(&focused);
-        edit.style()->drawPrimitive(QStyle::PE_PanelLineEdit, &option,
-                                    &painter, &edit);
+        edit.style()->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, &edit);
     }
     const QColor accent = edit.palette().color(QPalette::Accent);
     const auto distance = [](const QColor &a, const QColor &b) {
-        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
-            + qAbs(a.blue() - b.blue());
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
-    QVERIFY(distance(focused.pixelColor(edit.rect().center().x(),
-                                         edit.rect().bottom() - 1), accent) < 80);
+    QVERIFY(distance(focused.pixelColor(edit.rect().center().x(), edit.rect().bottom() - 1), accent)
+            < 80);
     QVERIFY(distance(focused.pixelColor(5, edit.rect().bottom() - 1), accent) < 100);
 
     QFocusEvent tabFocus(QEvent::FocusIn, Qt::TabFocusReason);
@@ -220,8 +215,8 @@ void WinUI3EditorsTest::clearButtonStateContract()
     QTRY_VERIFY(!clearButton->underMouse());
     const QImage runtimeNormal = edit.grab().toImage();
     const QRect helperRect = clearButton->geometry().intersected(edit.rect());
-    QVERIFY2(helperRect.isValid(), qPrintable(QString::fromLatin1(
-        "private clear button has no editor intersection")));
+    QVERIFY2(helperRect.isValid(),
+             qPrintable(QString::fromLatin1("private clear button has no editor intersection")));
     QVERIFY(helperRect.height() < edit.height());
     QVERIFY(helperRect.top() > edit.rect().top());
     QRectF surfaceGeometry(helperRect);
@@ -253,8 +248,8 @@ void WinUI3EditorsTest::clearButtonStateContract()
     QVERIFY(parentRepaint.updateRequests > 0);
     QVERIFY(runtimeNormal != runtimeHover);
     const QPoint surfaceCenter(surfaceRect.center().x(), surfaceRect.center().y());
-    for (const QPoint &corner : {surfaceRect.topLeft(), surfaceRect.topRight(),
-                                 surfaceRect.bottomLeft(), surfaceRect.bottomRight()})
+    for (const QPoint &corner : { surfaceRect.topLeft(), surfaceRect.topRight(),
+                                  surfaceRect.bottomLeft(), surfaceRect.bottomRight() })
         QCOMPARE(runtimeHover.pixelColor(corner), runtimeNormal.pixelColor(corner));
     QCOMPARE(runtimeHover.pixelColor(surfaceCenter.x(), surfaceRect.top() - 1),
              runtimeNormal.pixelColor(surfaceCenter.x(), surfaceRect.top() - 1));
@@ -270,9 +265,9 @@ void WinUI3EditorsTest::clearButtonStateContract()
         for (int x = helperRect.left(); x <= helperRect.right(); ++x) {
             const QColor before = runtimeNormal.pixelColor(x, y);
             const QColor after = runtimeHover.pixelColor(x, y);
-            const int delta = std::max({qAbs(before.red() - after.red()),
-                                        qAbs(before.green() - after.green()),
-                                        qAbs(before.blue() - after.blue())});
+            const int delta = std::max({ qAbs(before.red() - after.red()),
+                                         qAbs(before.green() - after.green()),
+                                         qAbs(before.blue() - after.blue()) });
             maximumChannelDelta = qMax(maximumChannelDelta, delta);
             if (delta >= 3)
                 ++visiblyChangedPixels;
@@ -280,34 +275,31 @@ void WinUI3EditorsTest::clearButtonStateContract()
     }
     QVERIFY2(visiblyChangedPixels >= 100,
              qPrintable(QStringLiteral("changed=%1 maxDelta=%2")
-                            .arg(visiblyChangedPixels)
-                            .arg(maximumChannelDelta)));
+                                .arg(visiblyChangedPixels)
+                                .arg(maximumChannelDelta)));
     QVERIFY2(maximumChannelDelta >= 6,
-             qPrintable(QStringLiteral("maxDelta=%1")
-                            .arg(maximumChannelDelta)));
+             qPrintable(QStringLiteral("maxDelta=%1").arg(maximumChannelDelta)));
     QTest::mouseMove(&edit, QPoint(8, edit.rect().center().y()));
     QTRY_COMPARE(frameReal(clearButton, "_winui_hover_progress"), 0.0);
     setFrame(clearButton, "_winui_hover_progress", 0.0);
     setFrame(clearButton, "_winui_press_progress", 0.0);
 
     parentRepaint.updateRequests = 0;
-    QTest::mousePress(clearButton, Qt::LeftButton, Qt::NoModifier,
-                      clearButton->rect().center());
+    QTest::mousePress(clearButton, Qt::LeftButton, Qt::NoModifier, clearButton->rect().center());
     QTRY_COMPARE(frameReal(clearButton, "_winui_press_progress"), 1.0);
     QCoreApplication::processEvents();
     QVERIFY(parentRepaint.updateRequests > 0);
     const QImage runtimePressed = edit.grab().toImage();
     QVERIFY(runtimeHover != runtimePressed);
-    QTest::mouseRelease(clearButton, Qt::LeftButton, Qt::NoModifier,
-                        clearButton->rect().center());
+    QTest::mouseRelease(clearButton, Qt::LeftButton, Qt::NoModifier, clearButton->rect().center());
 
     QStyleOptionToolButton option;
     option.initFrom(clearButton);
     option.rect = QRect(QPoint(), QSize(30, 32));
     option.palette = clearButton->palette();
     option.icon = clearButton->icon().isNull()
-        ? style->standardIcon(QStyle::SP_LineEditClearButton, nullptr, &edit)
-        : clearButton->icon();
+            ? style->standardIcon(QStyle::SP_LineEditClearButton, nullptr, &edit)
+            : clearButton->icon();
     option.iconSize = QSize(16, 16);
 
     const auto render = [&](QStyle::State state, qreal hover, qreal press) {
@@ -317,18 +309,15 @@ void WinUI3EditorsTest::clearButtonStateContract()
         image.fill(edit.palette().color(QPalette::Window));
         option.state = state;
         QPainter painter(&image);
-        style->drawPrimitive(QStyle::PE_PanelButtonTool, &option,
-                             &painter, clearButton);
-        style->drawControl(QStyle::CE_ToolButtonLabel, &option,
-                           &painter, clearButton);
+        style->drawPrimitive(QStyle::PE_PanelButtonTool, &option, &painter, clearButton);
+        style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, clearButton);
         return image;
     };
 
     const QImage normal = render(QStyle::State_Enabled, 0.0, 0.0);
-    const QImage pointerOver = render(QStyle::State_Enabled | QStyle::State_MouseOver,
-                                      1.0, 0.0);
-    const QImage pressed = render(QStyle::State_Enabled | QStyle::State_MouseOver
-                                  | QStyle::State_Sunken, 1.0, 1.0);
+    const QImage pointerOver = render(QStyle::State_Enabled | QStyle::State_MouseOver, 1.0, 0.0);
+    const QImage pressed = render(
+            QStyle::State_Enabled | QStyle::State_MouseOver | QStyle::State_Sunken, 1.0, 1.0);
     // The private helper's own primitive intentionally stays transparent;
     // hover is painted once, at editor scope, so it cannot be clipped by the
     // private child button's small geometry.
@@ -342,8 +331,7 @@ void WinUI3EditorsTest::clearButtonStateContract()
         image.fill(Qt::transparent);
         option.state = state;
         QPainter painter(&image);
-        style->drawControl(QStyle::CE_ToolButtonLabel, &option,
-                           &painter, clearButton);
+        style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, clearButton);
         return image;
     };
     const QImage normalGlyph = glyphOnly(QStyle::State_Enabled);
@@ -389,8 +377,7 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
     glyph.fill(Qt::transparent);
     {
         QPainter painter(&glyph);
-        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &option,
-                                  &painter, clearButton);
+        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, clearButton);
     }
     QRect ink;
     for (int y = 0; y < glyph.height(); ++y) {
@@ -405,12 +392,16 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
     const QPointF officialCenter(13.0, 16.0);
     QVERIFY2(qAbs(ink.center().x() - officialCenter.x()) <= 2.0,
              qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
-                            .arg(ink.x()).arg(ink.y())
-                            .arg(ink.width()).arg(ink.height())));
+                                .arg(ink.x())
+                                .arg(ink.y())
+                                .arg(ink.width())
+                                .arg(ink.height())));
     QVERIFY2(qAbs(ink.center().y() - officialCenter.y()) <= 2.0,
              qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
-                            .arg(ink.x()).arg(ink.y())
-                            .arg(ink.width()).arg(ink.height())));
+                                .arg(ink.x())
+                                .arg(ink.y())
+                                .arg(ink.width())
+                                .arg(ink.height())));
 
     // Validate the real private-button geometry against the editor-scoped
     // hover surface.  A synthetic 30x32 slot previously allowed an X that was
@@ -425,8 +416,7 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
     liveGlyph.fill(Qt::transparent);
     {
         QPainter painter(&liveGlyph);
-        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &liveOption,
-                                  &painter, clearButton);
+        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &liveOption, &painter, clearButton);
     }
     QRect liveInk;
     for (int y = 0; y < liveGlyph.height(); ++y)
@@ -434,8 +424,8 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
             if (liveGlyph.pixelColor(x, y).alpha() > 24)
                 liveInk |= QRect(x, y, 1, 1);
     QVERIFY(!liveInk.isEmpty());
-    const QPointF inkCenter = QPointF(clearButton->geometry().topLeft())
-        + QPointF(liveInk.center());
+    const QPointF inkCenter =
+            QPointF(clearButton->geometry().topLeft()) + QPointF(liveInk.center());
     const qreal surfaceTop = edit.rect().top() + 3.0;
     const qreal surfaceBottom = edit.rect().bottom() - 2.0;
     const qreal surfaceSide = surfaceBottom - surfaceTop;
@@ -443,10 +433,12 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
                                 (surfaceTop + surfaceBottom) / 2.0);
     QVERIFY2(qAbs(inkCenter.x() - surfaceCenter.x()) <= 1.0,
              qPrintable(QStringLiteral("ink x=%1 surface x=%2")
-                            .arg(inkCenter.x()).arg(surfaceCenter.x())));
+                                .arg(inkCenter.x())
+                                .arg(surfaceCenter.x())));
     QVERIFY2(qAbs(inkCenter.y() - surfaceCenter.y()) <= 1.0,
              qPrintable(QStringLiteral("ink y=%1 surface y=%2")
-                            .arg(inkCenter.y()).arg(surfaceCenter.y())));
+                                .arg(inkCenter.y())
+                                .arg(surfaceCenter.y())));
 }
 
 void WinUI3EditorsTest::textBoxStateMatrix()
@@ -463,32 +455,27 @@ void WinUI3EditorsTest::textBoxStateMatrix()
         return image;
     };
 
-    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
-                                         WinUI3::ThemeMode::Dark}) {
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         WinUI3::Style style(mode);
         const QPalette palette = style.standardPalette();
         QCOMPARE(palette.color(QPalette::Highlight), style.accentColor());
-        const QColor expectedOnAccent = qGray(style.accentColor().rgb()) < 128
-            ? QColor(Qt::white) : QColor(Qt::black);
+        const QColor expectedOnAccent =
+                qGray(style.accentColor().rgb()) < 128 ? QColor(Qt::white) : QColor(Qt::black);
         QCOMPARE(palette.color(QPalette::HighlightedText), expectedOnAccent);
-        QVERIFY(palette.color(QPalette::Disabled, QPalette::Text).alpha() <
-                palette.color(QPalette::Active, QPalette::Text).alpha());
-        QVERIFY(palette.color(QPalette::Disabled, QPalette::PlaceholderText).alpha() <
-                palette.color(QPalette::Active, QPalette::PlaceholderText).alpha());
+        QVERIFY(palette.color(QPalette::Disabled, QPalette::Text).alpha()
+                < palette.color(QPalette::Active, QPalette::Text).alpha());
+        QVERIFY(palette.color(QPalette::Disabled, QPalette::PlaceholderText).alpha()
+                < palette.color(QPalette::Active, QPalette::PlaceholderText).alpha());
 
         const QImage normal = renderPanel(style, QStyle::State_Enabled);
-        const QImage focused = renderPanel(style, QStyle::State_Enabled
-                                                     | QStyle::State_HasFocus);
+        const QImage focused = renderPanel(style, QStyle::State_Enabled | QStyle::State_HasFocus);
         const QImage disabled = renderPanel(style, QStyle::State_None);
         QVERIFY(normal != focused);
         QVERIFY(normal != disabled);
-        QCOMPARE(disabled.pixelColor(disabled.rect().center().x(),
-                                     disabled.rect().bottom() - 1),
+        QCOMPARE(disabled.pixelColor(disabled.rect().center().x(), disabled.rect().bottom() - 1),
                  disabled.pixelColor(4, disabled.rect().bottom() - 1));
-        QVERIFY(focused.pixelColor(focused.rect().center().x(),
-                                   focused.rect().bottom() - 1)
-                != disabled.pixelColor(disabled.rect().center().x(),
-                                       disabled.rect().bottom() - 1));
+        QVERIFY(focused.pixelColor(focused.rect().center().x(), focused.rect().bottom() - 1)
+                != disabled.pixelColor(disabled.rect().center().x(), disabled.rect().bottom() - 1));
     }
 
     QLineEdit readOnly(QStringLiteral("Selection remains available"));
@@ -509,8 +496,7 @@ void WinUI3EditorsTest::textBoxStateMatrix()
     disabled.setEnabled(false);
     disabled.resize(240, 32);
     disabled.show();
-    QCOMPARE(disabled.palette().color(QPalette::Disabled, QPalette::Text),
-             QColor(0, 0, 0, 92));
+    QCOMPARE(disabled.palette().color(QPalette::Disabled, QPalette::Text), QColor(0, 0, 0, 92));
     QCOMPARE(disabled.palette().color(QPalette::Disabled, QPalette::PlaceholderText),
              QColor(0, 0, 0, 92));
 }
@@ -520,14 +506,13 @@ void WinUI3EditorsTest::themeComboSizingContract()
     // Keep this in lockstep with GalleryWindow's command-bar theme selector:
     // the longest item must remain available before the toolbar is shown.
     QComboBox combo;
-    combo.addItems({QStringLiteral("System theme"), QStringLiteral("Light"),
-                    QStringLiteral("Dark")});
+    combo.addItems(
+            { QStringLiteral("System theme"), QStringLiteral("Light"), QStringLiteral("Dark") });
     combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
     combo.setMinimumContentsLength(combo.itemText(0).size());
     combo.setMinimumWidth(combo.sizeHint().width());
 
-    const int textWidth = QFontMetrics(combo.font()).horizontalAdvance(
-        combo.itemText(0));
+    const int textWidth = QFontMetrics(combo.font()).horizontalAdvance(combo.itemText(0));
     QVERIFY(combo.minimumWidth() >= textWidth);
     combo.resize(combo.minimumWidth(), 32);
     combo.show();
@@ -537,30 +522,32 @@ void WinUI3EditorsTest::themeComboSizingContract()
     option.initFrom(&combo);
     option.rect = combo.rect();
     option.currentText = combo.currentText();
-    const QRect edit = combo.style()->subControlRect(
-        QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, &combo);
+    const QRect edit = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                     QStyle::SC_ComboBoxEditField, &combo);
     QVERIFY2(edit.width() >= textWidth,
              qPrintable(QStringLiteral("edit width %1 < text width %2")
-                            .arg(edit.width()).arg(textWidth)));
+                                .arg(edit.width())
+                                .arg(textWidth)));
 
     combo.setEditable(true);
     QVERIFY(combo.lineEdit());
-    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
-                                                 Qt::RightToLeft}) {
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
         combo.setLayoutDirection(direction);
         QCoreApplication::processEvents();
         option.initFrom(&combo);
         option.rect = combo.rect();
         option.direction = direction;
-        const QRect labelSlot = combo.style()->subControlRect(
-            QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, &combo);
+        const QRect labelSlot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                              QStyle::SC_ComboBoxEditField, &combo);
         QStyleOptionFrame editorOption;
         editorOption.initFrom(combo.lineEdit());
         editorOption.rect = combo.lineEdit()->rect();
         editorOption.direction = direction;
-        const QRect editorContents = combo.lineEdit()->style()->subElementRect(
-            QStyle::SE_LineEditContents, &editorOption, combo.lineEdit())
-            .translated(combo.lineEdit()->pos());
+        const QRect editorContents = combo.lineEdit()
+                                             ->style()
+                                             ->subElementRect(QStyle::SE_LineEditContents,
+                                                              &editorOption, combo.lineEdit())
+                                             .translated(combo.lineEdit()->pos());
         if (direction == Qt::LeftToRight)
             QCOMPARE(editorContents.left(), labelSlot.left());
         else
@@ -570,8 +557,8 @@ void WinUI3EditorsTest::themeComboSizingContract()
 
 void WinUI3EditorsTest::indeterminateProgressDeterminism()
 {
-    const bool animationSettingExisted = qEnvironmentVariableIsSet(
-        "WINUI3STYLE_DISABLE_ANIMATIONS");
+    const bool animationSettingExisted =
+            qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
     const QByteArray previousSetting = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
 
@@ -602,7 +589,7 @@ void WinUI3EditorsTest::comboPopupContract()
     QWidget host;
     host.resize(560, 440);
     QComboBox combo(&host);
-    combo.addItems({QStringLiteral("Blue"), QStringLiteral("Green"), QStringLiteral("Red")});
+    combo.addItems({ QStringLiteral("Blue"), QStringLiteral("Green"), QStringLiteral("Red") });
     combo.resize(200, 32);
     combo.move(120, 180);
     host.show();
@@ -616,32 +603,35 @@ void WinUI3EditorsTest::comboPopupContract()
     combo.view()->viewport()->installEventFilter(&probe);
     style->setThemeMode(WinUI3::ThemeMode::Dark);
     combo.setCurrentIndex(1);
-    QSignalSpy firstOpenScrollChanges(combo.view()->verticalScrollBar(),
-                                      &QScrollBar::valueChanged);
+    QSignalSpy firstOpenScrollChanges(combo.view()->verticalScrollBar(), &QScrollBar::valueChanged);
     combo.showPopup();
     QTRY_VERIFY(combo.view()->isVisible());
     QTRY_VERIFY(!probe.selectedCenterAtShow.isNull());
     QCOMPARE(popup->geometry(), probe.geometryAtShow);
     const QPoint comboCenterOnFirstOpen = combo.mapToGlobal(combo.rect().center());
     const QRect firstOpenSelectedRect = combo.view()->visualRect(
-        combo.model()->index(1, combo.modelColumn(), combo.rootModelIndex()));
-    const QPoint firstOpenSelectedCenter = combo.view()->viewport()->mapToGlobal(
-        firstOpenSelectedRect.center());
+            combo.model()->index(1, combo.modelColumn(), combo.rootModelIndex()));
+    const QPoint firstOpenSelectedCenter =
+            combo.view()->viewport()->mapToGlobal(firstOpenSelectedRect.center());
     QVERIFY2(qAbs(probe.selectedCenterAtShow.y() - comboCenterOnFirstOpen.y()) <= 4,
              qPrintable(QStringLiteral("selected=%1 combo=%2 popup=%3,%4,%5,%6 row=%7,%8,%9,%10")
-                            .arg(probe.selectedCenterAtShow.y())
-                            .arg(comboCenterOnFirstOpen.y())
-                            .arg(popup->x()).arg(popup->y())
-                            .arg(popup->width()).arg(popup->height())
-                            .arg(firstOpenSelectedRect.x()).arg(firstOpenSelectedRect.y())
-                            .arg(firstOpenSelectedRect.width()).arg(firstOpenSelectedRect.height())));
+                                .arg(probe.selectedCenterAtShow.y())
+                                .arg(comboCenterOnFirstOpen.y())
+                                .arg(popup->x())
+                                .arg(popup->y())
+                                .arg(popup->width())
+                                .arg(popup->height())
+                                .arg(firstOpenSelectedRect.x())
+                                .arg(firstOpenSelectedRect.y())
+                                .arg(firstOpenSelectedRect.width())
+                                .arg(firstOpenSelectedRect.height())));
     QCOMPARE(firstOpenSelectedCenter, probe.selectedCenterAtShow);
     QCOMPARE(combo.view()->verticalScrollBar()->value(), probe.scrollValueAtShow);
     QCOMPARE(firstOpenScrollChanges.count(), 0);
     QTest::qWait(60);
     QCOMPARE(popup->geometry(), probe.geometryAtShow);
     QCOMPARE(combo.view()->viewport()->mapToGlobal(
-                 combo.view()->visualRect(combo.model()->index(1, 0)).center()),
+                     combo.view()->visualRect(combo.model()->index(1, 0)).center()),
              probe.selectedCenterAtShow);
     QCOMPARE(combo.view()->verticalScrollBar()->value(), probe.scrollValueAtShow);
     // The open slide holds the popup 12 px off-anchor mid-flight on real
@@ -666,15 +656,19 @@ void WinUI3EditorsTest::comboPopupContract()
     QVERIFY(combo.view()->palette().color(QPalette::Window).lightness() > 128);
     const QPoint comboCenter = combo.mapToGlobal(combo.rect().center());
     const QRect firstRow = combo.view()->visualRect(combo.model()->index(0, 0));
-    const QPoint selectedCenter = combo.view()->viewport()->mapToGlobal(
-        firstRow.center());
+    const QPoint selectedCenter = combo.view()->viewport()->mapToGlobal(firstRow.center());
     QVERIFY2(qAbs(selectedCenter.y() - comboCenter.y()) <= 4,
              qPrintable(QStringLiteral("selected=%1 combo=%2 popup=%3,%4,%5,%6 row=%7,%8,%9,%10")
-                            .arg(selectedCenter.y()).arg(comboCenter.y())
-                            .arg(popup->x()).arg(popup->y())
-                            .arg(popup->width()).arg(popup->height())
-                            .arg(firstRow.x()).arg(firstRow.y())
-                            .arg(firstRow.width()).arg(firstRow.height())));
+                                .arg(selectedCenter.y())
+                                .arg(comboCenter.y())
+                                .arg(popup->x())
+                                .arg(popup->y())
+                                .arg(popup->width())
+                                .arg(popup->height())
+                                .arg(firstRow.x())
+                                .arg(firstRow.y())
+                                .arg(firstRow.width())
+                                .arg(firstRow.height())));
     // A direct QComboBox::showPopup() can require one synchronous correction while
     // QEvent::Show is being dispatched.  That happens before the popup is composed;
     // only geometry changes after the completed Show event can produce a visible jump.
@@ -687,8 +681,7 @@ void WinUI3EditorsTest::comboPopupContract()
         QCOMPARE(popup->geometry(), lightGeometry);
         QCOMPARE(probe.movesAfterShow, 0);
     } else {
-        QTRY_VERIFY_WITH_TIMEOUT(
-            qAbs(popup->y() - lightGeometry.y()) <= 12, 1000);
+        QTRY_VERIFY_WITH_TIMEOUT(qAbs(popup->y() - lightGeometry.y()) <= 12, 1000);
         QTest::qWait(300);
         QCOMPARE(popup->geometry().width(), lightGeometry.width());
         QCOMPARE(popup->geometry().height(), lightGeometry.height());
@@ -713,13 +706,11 @@ void WinUI3EditorsTest::comboPopupContract()
     QCOMPARE(firstRow.height(), 40);
     const QColor accent = combo.palette().color(QPalette::Highlight);
     bool accentPill = false;
-    for (int y = firstRow.center().y() - 9;
-         y <= firstRow.center().y() + 9 && !accentPill; ++y) {
+    for (int y = firstRow.center().y() - 9; y <= firstRow.center().y() + 9 && !accentPill; ++y) {
         for (int x = 4; x <= 10; ++x) {
             const QColor pixel = lightPopup.pixelColor(x, y);
             const int distance = qAbs(pixel.red() - accent.red())
-                + qAbs(pixel.green() - accent.green())
-                + qAbs(pixel.blue() - accent.blue());
+                    + qAbs(pixel.green() - accent.green()) + qAbs(pixel.blue() - accent.blue());
             if (pixel.alpha() > 100 && distance < 80) {
                 accentPill = true;
                 break;
@@ -732,11 +723,10 @@ void WinUI3EditorsTest::comboPopupContract()
     probe.reset();
     combo.showPopup();
     QTRY_VERIFY(combo.view()->isVisible());
-    const QRect reopenedRow = combo.view()->visualRect(
-        combo.model()->index(combo.currentIndex(), combo.modelColumn(),
-                             combo.rootModelIndex()));
-    const QPoint reopenedSelectedCenter = combo.view()->viewport()->mapToGlobal(
-        reopenedRow.center());
+    const QRect reopenedRow = combo.view()->visualRect(combo.model()->index(
+            combo.currentIndex(), combo.modelColumn(), combo.rootModelIndex()));
+    const QPoint reopenedSelectedCenter =
+            combo.view()->viewport()->mapToGlobal(reopenedRow.center());
     QVERIFY(qAbs(reopenedSelectedCenter.y() - comboCenter.y()) <= 4);
     const QRect reopenedGeometry = popup->geometry();
     QVERIFY(probe.movesAfterShow <= 1);
@@ -752,8 +742,7 @@ void WinUI3EditorsTest::comboPopupContract()
     QCOMPARE(combo.style()->standardIcon(QStyle::SP_ArrowDown).isNull(), false);
     const QRect second = combo.view()->visualRect(combo.model()->index(1, 0));
     QTest::mouseMove(combo.view()->viewport(), second.center());
-    QTest::mouseClick(combo.view()->viewport(), Qt::LeftButton,
-                      Qt::NoModifier, second.center());
+    QTest::mouseClick(combo.view()->viewport(), Qt::LeftButton, Qt::NoModifier, second.center());
     QCOMPARE(combo.currentIndex(), 1);
     style->setAccentColor({});
 }
@@ -786,8 +775,7 @@ void WinUI3EditorsTest::comboPopupSelectedItemKeepsIcon()
         QImage image(rendered.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(rendered.palette.color(QPalette::Window));
         QPainter painter(&image);
-        combo.style()->drawControl(QStyle::CE_MenuItem, &rendered, &painter,
-                                   &combo);
+        combo.style()->drawControl(QStyle::CE_MenuItem, &rendered, &painter, &combo);
         return image;
     };
 
@@ -797,14 +785,12 @@ void WinUI3EditorsTest::comboPopupSelectedItemKeepsIcon()
     const QRect iconSlot(12, 12, 16, 16);
     for (int y = iconSlot.top(); y <= iconSlot.bottom(); ++y) {
         for (int x = iconSlot.left(); x <= iconSlot.right(); ++x) {
-            if (colorDistance(withIcon.pixelColor(x, y),
-                              markerOnly.pixelColor(x, y)) > 12)
+            if (colorDistance(withIcon.pixelColor(x, y), markerOnly.pixelColor(x, y)) > 12)
                 ++changedIconPixels;
         }
     }
     QVERIFY2(changedIconPixels > 30,
-             qPrintable(QStringLiteral("selected popup icon pixels=%1")
-                            .arg(changedIconPixels)));
+             qPrintable(QStringLiteral("selected popup icon pixels=%1").arg(changedIconPixels)));
 }
 
 void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
@@ -815,8 +801,7 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
     QWidget host;
     host.resize(440, 320);
     QComboBox combo(&host);
-    combo.addItems({QStringLiteral("First"), QStringLiteral("Selected"),
-                    QStringLiteral("Last")});
+    combo.addItems({ QStringLiteral("First"), QStringLiteral("Selected"), QStringLiteral("Last") });
     combo.setCurrentIndex(1);
     combo.resize(220, 32);
     combo.move(100, 140);
@@ -834,8 +819,7 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
     const QPoint comboCenter = combo.rect().center();
     QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
     QVERIFY(!view->isVisible());
-    QTRY_VERIFY_WITH_TIMEOUT(frameReal(&combo, "_winui_press_progress") > 0.0,
-                             150);
+    QTRY_VERIFY_WITH_TIMEOUT(frameReal(&combo, "_winui_press_progress") > 0.0, 150);
 
     QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
     QTRY_VERIFY(view->isVisible());
@@ -844,32 +828,27 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
     // The popup's outer 4px bands must survive the view layout and be equal
     // on both sides.  Account for the frame border by measuring the viewport
     // rather than relying on the private container's child hierarchy.
-    const QRect viewportInPopup(
-        view->viewport()->mapTo(popup, QPoint(0, 0)),
-        view->viewport()->size());
+    const QRect viewportInPopup(view->viewport()->mapTo(popup, QPoint(0, 0)),
+                                view->viewport()->size());
     QVERIFY(viewportInPopup.top() >= 4);
     QVERIFY(popup->height() - viewportInPopup.bottom() - 1 >= 4);
 
-    const QModelIndex selectedIndex = combo.model()->index(
-        combo.currentIndex(), combo.modelColumn(), combo.rootModelIndex());
+    const QModelIndex selectedIndex =
+            combo.model()->index(combo.currentIndex(), combo.modelColumn(), combo.rootModelIndex());
     // Live: the open slide converges within 167 ms; the anchor check must
     // run after it lands (offscreen has no slide).
     const QRect selectedRow = view->visualRect(selectedIndex);
     QVERIFY(selectedRow.isValid());
     if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
-        const QPoint selectedCenter = view->viewport()->mapToGlobal(
-            selectedRow.center());
+        const QPoint selectedCenter = view->viewport()->mapToGlobal(selectedRow.center());
         const QPoint expectedCenter = combo.mapToGlobal(combo.rect().center());
         QVERIFY(qAbs(selectedCenter.y() - expectedCenter.y()) <= 4);
     } else {
         QTRY_VERIFY_WITH_TIMEOUT(
-            qAbs(view->viewport()
-                     ->mapToGlobal(
-                         view->visualRect(selectedIndex).center())
-                     .y()
-                 - combo.mapToGlobal(combo.rect().center()).y())
-                <= 4,
-            1000);
+                qAbs(view->viewport()->mapToGlobal(view->visualRect(selectedIndex).center()).y()
+                     - combo.mapToGlobal(combo.rect().center()).y())
+                        <= 4,
+                1000);
     }
 
     // The selected item's marker is the only ComboBox-specific animation:
@@ -892,16 +871,12 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
         QImage image(item.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(background);
         QPainter painter(&image);
-        style->drawControl(QStyle::CE_ItemViewItem, &item, &painter,
-                           view->viewport());
+        style->drawControl(QStyle::CE_ItemViewItem, &item, &painter, view->viewport());
         return image;
     };
-    const auto markerHeight = [&](const QImage &image,
-                                  Qt::LayoutDirection direction) {
-        const int left = direction == Qt::RightToLeft
-            ? image.width() - 12 : 0;
-        const int right = direction == Qt::RightToLeft
-            ? image.width() - 1 : 11;
+    const auto markerHeight = [&](const QImage &image, Qt::LayoutDirection direction) {
+        const int left = direction == Qt::RightToLeft ? image.width() - 12 : 0;
+        const int right = direction == Qt::RightToLeft ? image.width() - 1 : 11;
         int top = image.height();
         int bottom = -1;
         for (int y = 0; y < image.height(); ++y) {
@@ -921,11 +896,9 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
     const int normalHeight = markerHeight(normalMarker, Qt::LeftToRight);
     const int pressedHeight = markerHeight(pressedMarker, Qt::LeftToRight);
     QVERIFY2(normalHeight >= 14,
-             qPrintable(QStringLiteral("normal marker height=%1")
-                            .arg(normalHeight)));
+             qPrintable(QStringLiteral("normal marker height=%1").arg(normalHeight)));
     QVERIFY2(pressedHeight >= 8 && pressedHeight <= 12,
-             qPrintable(QStringLiteral("pressed marker height=%1")
-                            .arg(pressedHeight)));
+             qPrintable(QStringLiteral("pressed marker height=%1").arg(pressedHeight)));
     QVERIFY(pressedHeight < normalHeight);
 
     // Exercise the real item event path as well as the deterministic pixel
@@ -935,28 +908,22 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
     view->viewport()->repaint();
     const auto liveMarkerHeight = [&] {
         QCoreApplication::processEvents();
-        return markerHeight(view->viewport()->grab().toImage(),
-                            Qt::LeftToRight);
+        return markerHeight(view->viewport()->grab().toImage(), Qt::LeftToRight);
     };
     const int liveNormalHeight = liveMarkerHeight();
     QTest::mouseMove(view->viewport(), selectedRow.center());
-    QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier,
-                      selectedRow.center());
+    QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier, selectedRow.center());
     QVERIFY2(view->isVisible(), "Combo popup closed on item press");
     QTRY_VERIFY(frameReal(view->viewport(), "_winui_press_progress") > 0.0);
-    QTRY_VERIFY_WITH_TIMEOUT(
-        frameReal(view->viewport(), "_winui_press_progress") > 0.95, 300);
+    QTRY_VERIFY_WITH_TIMEOUT(frameReal(view->viewport(), "_winui_press_progress") > 0.95, 300);
     QTRY_VERIFY_WITH_TIMEOUT(liveMarkerHeight() <= 12, 400);
     const int livePressedHeight = liveMarkerHeight();
     QVERIFY2(liveNormalHeight >= 14,
-             qPrintable(QStringLiteral("live normal marker height=%1")
-                            .arg(liveNormalHeight)));
+             qPrintable(QStringLiteral("live normal marker height=%1").arg(liveNormalHeight)));
     QVERIFY2(livePressedHeight >= 8 && livePressedHeight <= 12,
-             qPrintable(QStringLiteral("live pressed marker height=%1")
-                            .arg(livePressedHeight)));
+             qPrintable(QStringLiteral("live pressed marker height=%1").arg(livePressedHeight)));
     QVERIFY(livePressedHeight < liveNormalHeight);
-    QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier,
-                        selectedRow.center());
+    QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier, selectedRow.center());
     QTRY_VERIFY(frameReal(view->viewport(), "_winui_press_progress") < 0.05);
     QCOMPARE(combo.currentIndex(), 1);
 
@@ -967,8 +934,7 @@ void WinUI3EditorsTest::comboReleaseActivationAndMarkerMotion()
     combo.setLayoutDirection(Qt::RightToLeft);
     QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
     QVERIFY(!view->isVisible());
-    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier,
-                        QPoint(-20, -20));
+    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier, QPoint(-20, -20));
     QTest::qWait(20);
     QVERIFY(!view->isVisible());
     QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, comboCenter);
@@ -988,8 +954,7 @@ void WinUI3EditorsTest::comboPopupAssociationLifecycle()
     QWidget host;
     host.resize(360, 240);
     auto *combo = new QComboBox(&host);
-    combo->addItems({QStringLiteral("One"), QStringLiteral("Two"),
-                     QStringLiteral("Three")});
+    combo->addItems({ QStringLiteral("One"), QStringLiteral("Two"), QStringLiteral("Three") });
     combo->setCurrentIndex(1);
     host.show();
     QTRY_VERIFY(host.isVisible());
@@ -1017,7 +982,7 @@ void WinUI3EditorsTest::comboPopupAssociationLifecycle()
 void WinUI3EditorsTest::comboChevronMotion()
 {
     QComboBox combo;
-    combo.addItems({QStringLiteral("One"), QStringLiteral("Two")});
+    combo.addItems({ QStringLiteral("One"), QStringLiteral("Two") });
     combo.resize(180, 32);
     combo.show();
     QEnterEvent enter(combo.rect().center(), combo.rect().center(),
@@ -1028,18 +993,16 @@ void WinUI3EditorsTest::comboChevronMotion()
 
     QTest::mousePress(&combo, Qt::LeftButton, Qt::NoModifier, combo.rect().center());
     QTRY_VERIFY(frameReal(&combo, "_winui_combo_chevron_progress") > 0.9);
-    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier,
-                        combo.rect().center());
+    QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier, combo.rect().center());
     QTRY_VERIFY(frameReal(&combo, "_winui_combo_chevron_progress") < -0.05);
-    QTRY_VERIFY(qAbs(frameReal(&combo, "_winui_combo_chevron_progress"))
-                < 0.01);
+    QTRY_VERIFY(qAbs(frameReal(&combo, "_winui_combo_chevron_progress")) < 0.01);
     combo.hidePopup();
 }
 
 void WinUI3EditorsTest::comboChevronGeometry()
 {
     QComboBox combo;
-    combo.addItems({QStringLiteral("One"), QStringLiteral("Two")});
+    combo.addItems({ QStringLiteral("One"), QStringLiteral("Two") });
     combo.resize(220, 32);
     combo.show();
     setFrame(&combo, "_winui_combo_chevron_progress", 0.0);
@@ -1056,17 +1019,13 @@ void WinUI3EditorsTest::comboChevronGeometry()
         image.fill(Qt::transparent);
         {
             QPainter painter(&image);
-            combo.style()->drawComplexControl(QStyle::CC_ComboBox, &option,
-                                              &painter, &combo);
+            combo.style()->drawComplexControl(QStyle::CC_ComboBox, &option, &painter, &combo);
         }
 
         const QRect logicalGlyphBox(option.rect.right() - 14 - 12 + 1,
-                                    option.rect.top()
-                                        + (option.rect.height() - 12) / 2,
-                                    12, 12);
+                                    option.rect.top() + (option.rect.height() - 12) / 2, 12, 12);
         const QRect logicalChevron(logicalGlyphBox.adjusted(1, 1, -1, -1));
-        const QRect expected = QStyle::visualRect(direction, option.rect,
-                                                  logicalChevron);
+        const QRect expected = QStyle::visualRect(direction, option.rect, logicalChevron);
         QRect ink;
         for (int y = 0; y < image.height(); ++y) {
             for (int x = 0; x < image.width(); ++x) {
@@ -1116,10 +1075,8 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
     editorPanel.fill(sentinel);
     {
         QPainter painter(&editorPanel);
-        spin.style()->drawPrimitive(QStyle::PE_PanelLineEdit, &editorOption,
-                                    &painter, editor);
-        spin.style()->drawPrimitive(QStyle::PE_FrameLineEdit, &editorOption,
-                                    &painter, editor);
+        spin.style()->drawPrimitive(QStyle::PE_PanelLineEdit, &editorOption, &painter, editor);
+        spin.style()->drawPrimitive(QStyle::PE_FrameLineEdit, &editorOption, &painter, editor);
     }
     QCOMPARE(editorPanel.pixelColor(editorOption.rect.center()), sentinel);
     QCOMPARE(editorPanel.pixelColor(editorOption.rect.topLeft()), sentinel);
@@ -1129,19 +1086,16 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
     option.rect = spin.rect();
     option.frame = true;
     option.buttonSymbols = spin.buttonSymbols();
-    option.stepEnabled = QAbstractSpinBox::StepUpEnabled
-        | QAbstractSpinBox::StepDownEnabled;
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
     option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
-        | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+            | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
 
     const QRect edit = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
-                                                     QStyle::SC_SpinBoxEditField,
-                                                     &spin);
-    const QRect up = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
-                                                   QStyle::SC_SpinBoxUp, &spin);
+                                                    QStyle::SC_SpinBoxEditField, &spin);
+    const QRect up =
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
     const QRect down = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
-                                                     QStyle::SC_SpinBoxDown,
-                                                     &spin);
+                                                    QStyle::SC_SpinBoxDown, &spin);
     QCOMPARE(up.size(), QSize(36, spin.height()));
     QCOMPARE(down.size(), QSize(36, spin.height()));
     QCOMPARE(up.top(), down.top());
@@ -1152,12 +1106,12 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
     QCOMPARE(spin.sizeHint().height(), qMax(32, lineEdit.sizeHint().height()));
 
     option.direction = Qt::RightToLeft;
-    const QRect rtlEdit = spin.style()->subControlRect(
-        QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxEditField, &spin);
-    const QRect rtlUp = spin.style()->subControlRect(
-        QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
-    const QRect rtlDown = spin.style()->subControlRect(
-        QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxDown, &spin);
+    const QRect rtlEdit = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                       QStyle::SC_SpinBoxEditField, &spin);
+    const QRect rtlUp =
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
+    const QRect rtlDown = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                       QStyle::SC_SpinBoxDown, &spin);
     QCOMPARE(rtlDown.right() + 1, rtlUp.left());
     QCOMPARE(rtlUp.right() + 1, rtlEdit.left());
     option.direction = Qt::LeftToRight;
@@ -1167,19 +1121,15 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
     option.state |= QStyle::State_HasFocus;
     {
         QPainter painter(&focused);
-        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option,
-                                         &painter, &spin);
+        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
     }
     const QColor accent = spin.palette().color(QPalette::Accent);
     const auto distance = [](const QColor &a, const QColor &b) {
-        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
-            + qAbs(a.blue() - b.blue());
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
     const int underlineY = spin.rect().bottom() - 1;
-    QVERIFY(distance(focused.pixelColor(edit.center().x(), underlineY), accent)
-            < 80);
-    QVERIFY(distance(focused.pixelColor(down.center().x(), underlineY), accent)
-            < 80);
+    QVERIFY(distance(focused.pixelColor(edit.center().x(), underlineY), accent) < 80);
+    QVERIFY(distance(focused.pixelColor(down.center().x(), underlineY), accent) < 80);
 
     QTest::mouseClick(&spin, Qt::LeftButton, Qt::NoModifier, up.center());
     QCOMPARE(spin.value(), 47);
@@ -1206,14 +1156,12 @@ void WinUI3EditorsTest::verticalNumberBoxContract()
     option.rect = spin.rect();
     option.frame = true;
     option.buttonSymbols = spin.buttonSymbols();
-    option.stepEnabled = QAbstractSpinBox::StepUpEnabled
-        | QAbstractSpinBox::StepDownEnabled;
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
     option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
-        | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+            | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
 
     const auto geometry = [&](QStyle::SubControl control) {
-        return spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
-                                            control, &spin);
+        return spin.style()->subControlRect(QStyle::CC_SpinBox, &option, control, &spin);
     };
     const QRect edit = geometry(QStyle::SC_SpinBoxEditField);
     const QRect up = geometry(QStyle::SC_SpinBoxUp);
@@ -1239,38 +1187,31 @@ void WinUI3EditorsTest::verticalNumberBoxContract()
     option.state |= QStyle::State_HasFocus;
     {
         QPainter painter(&focused);
-        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option,
-                                         &painter, &spin);
+        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
     }
     const QColor accent = spin.palette().color(QPalette::Accent);
     const auto distance = [](const QColor &a, const QColor &b) {
-        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
-            + qAbs(a.blue() - b.blue());
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
     const int underlineY = spin.rect().bottom() - 1;
-    QVERIFY(distance(focused.pixelColor(edit.center().x(), underlineY), accent)
-            < 80);
-    QVERIFY(distance(focused.pixelColor(down.center().x(), underlineY), accent)
-            < 80);
+    QVERIFY(distance(focused.pixelColor(edit.center().x(), underlineY), accent) < 80);
+    QVERIFY(distance(focused.pixelColor(down.center().x(), underlineY), accent) < 80);
 
     const int separatorX = edit.right();
     const QColor separator = focused.pixelColor(separatorX, spin.rect().center().y());
-    QVERIFY(separator != focused.pixelColor(separatorX + 1,
-                                             spin.rect().center().y()));
+    QVERIFY(separator != focused.pixelColor(separatorX + 1, spin.rect().center().y()));
 
     QImage rtlFocused(spin.size(), QImage::Format_ARGB32_Premultiplied);
     rtlFocused.fill(Qt::transparent);
     option.direction = Qt::RightToLeft;
     {
         QPainter painter(&rtlFocused);
-        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option,
-                                         &painter, &spin);
+        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
     }
     const QRect rtlEditForSeparator = geometry(QStyle::SC_SpinBoxEditField);
     const int rtlSeparatorX = rtlEditForSeparator.left();
     QVERIFY(rtlFocused.pixelColor(rtlSeparatorX, spin.rect().center().y())
-            != rtlFocused.pixelColor(rtlSeparatorX + 1,
-                                     spin.rect().center().y()));
+            != rtlFocused.pixelColor(rtlSeparatorX + 1, spin.rect().center().y()));
 
     option.state &= ~QStyle::State_HasFocus;
     QTest::mouseClick(&spin, Qt::LeftButton, Qt::NoModifier, up.center());
@@ -1291,8 +1232,7 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
     spin.show();
 
     const auto distance = [](const QColor &a, const QColor &b) {
-        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
-            + qAbs(a.blue() - b.blue());
+        return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
     const QColor accent = spin.palette().color(QPalette::Accent);
     const auto verify = [&](bool vertical, Qt::LayoutDirection direction) {
@@ -1306,36 +1246,29 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
         option.direction = direction;
         option.frame = true;
         option.buttonSymbols = spin.buttonSymbols();
-        option.stepEnabled = QAbstractSpinBox::StepUpEnabled
-            | QAbstractSpinBox::StepDownEnabled;
-        option.subControls = QStyle::SC_SpinBoxFrame
-            | QStyle::SC_SpinBoxEditField | QStyle::SC_SpinBoxUp
-            | QStyle::SC_SpinBoxDown;
+        option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+        option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
+                | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
         option.state |= QStyle::State_HasFocus;
 
         QImage image(spin.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(spin.palette().color(QPalette::Window));
         {
             QPainter painter(&image);
-            spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option,
-                                             &painter, &spin);
+            spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
         }
 
         const int underlineY = spin.rect().bottom() - 1;
-        QVERIFY2(distance(image.pixelColor(spin.rect().center().x(), underlineY),
-                          accent) < 80,
+        QVERIFY2(distance(image.pixelColor(spin.rect().center().x(), underlineY), accent) < 80,
                  vertical ? "vertical underline center missing"
                           : "horizontal underline center missing");
         // The rounded clip follows the WinUI TextBox/NumberBox outline: the
         // line is present a few pixels in from each end, but never paints the
         // two rounded bottom corners.
         QVERIFY(distance(image.pixelColor(3, underlineY), accent) < 100);
-        QVERIFY(distance(image.pixelColor(spin.width() - 4, underlineY), accent)
-                < 100);
-        QVERIFY(distance(image.pixelColor(spin.rect().left(), underlineY), accent)
-                > 80);
-        QVERIFY(distance(image.pixelColor(spin.rect().right(), underlineY), accent)
-                > 80);
+        QVERIFY(distance(image.pixelColor(spin.width() - 4, underlineY), accent) < 100);
+        QVERIFY(distance(image.pixelColor(spin.rect().left(), underlineY), accent) > 80);
+        QVERIFY(distance(image.pixelColor(spin.rect().right(), underlineY), accent) > 80);
     };
 
     verify(false, Qt::LeftToRight);

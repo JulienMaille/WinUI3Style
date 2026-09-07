@@ -27,7 +27,8 @@ class Style;
 
 namespace Private {
 
-struct ToggleDragState {
+struct ToggleDragState
+{
     QPoint pressPosition;
     bool candidate = false;
     bool dragging = false;
@@ -36,7 +37,8 @@ struct ToggleDragState {
 // The event filter is intentionally kept out of Style's rendering unit.  The
 // callbacks are the small seam to StylePrivate: interaction code owns event
 // routing, while StylePrivate continues to own animation and lifecycle state.
-struct StyleInteractionCallbacks {
+struct StyleInteractionCallbacks
+{
     std::function<void(QWidget *, const char *, qreal, int)> animate;
     std::function<void(QWidget *)> beginButtonPress;
     std::function<void(QWidget *)> releaseButtonPress;
@@ -74,8 +76,7 @@ struct StyleInteractionCallbacks {
 class StyleInteractionController final
 {
 public:
-    StyleInteractionController(Style *style,
-                               StyleInteractionCallbacks callbacks);
+    StyleInteractionController(Style *style, StyleInteractionCallbacks callbacks);
 
     bool eventFilter(QObject *watched, QEvent *event);
 

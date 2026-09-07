@@ -34,7 +34,8 @@
 
 namespace {
 
-struct OfficialCompactWidgets {
+struct OfficialCompactWidgets
+{
     QLineEdit textBox;
     QLineEdit passwordBox;
     QLineEdit autoSuggestBox;
@@ -61,10 +62,9 @@ struct OfficialCompactWidgets {
         passwordBox.setEchoMode(QLineEdit::Password);
         autoSuggestBox.setPlaceholderText(QStringLiteral("Search"));
         autoSuggestBox.setCompleter(new QCompleter(
-            QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta")},
-            &autoSuggestBox));
+                QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta") }, &autoSuggestBox));
 
-        comboBox.addItems({QStringLiteral("First item"), QStringLiteral("Second item")});
+        comboBox.addItems({ QStringLiteral("First item"), QStringLiteral("Second item") });
         datePicker.setCalendarPopup(true);
         timePicker.setTime(QTime(12, 30));
 
@@ -148,10 +148,11 @@ void WinUI3DensityWidgetsTest::allOfficialWidgetsUseCompactMetricsAfterRealLayou
     QVBoxLayout layout(&root);
     OfficialCompactWidgets widgets(&root);
 
-    const QList<QWidget *> officialWidgets = {
-        &widgets.textBox, &widgets.passwordBox, &widgets.autoSuggestBox,
-        &widgets.comboBox, &widgets.datePicker, &widgets.timePicker,
-        &widgets.listView, &widgets.treeView, &widgets.navigationView};
+    const QList<QWidget *> officialWidgets = { &widgets.textBox,        &widgets.passwordBox,
+                                               &widgets.autoSuggestBox, &widgets.comboBox,
+                                               &widgets.datePicker,     &widgets.timePicker,
+                                               &widgets.listView,       &widgets.treeView,
+                                               &widgets.navigationView };
     applyStyleToWidgets(style, officialWidgets);
     widgets.menuBar.setStyle(&style);
     widgets.navigationView.navigationList()->setStyle(&style);
@@ -177,8 +178,8 @@ void WinUI3DensityWidgetsTest::allOfficialWidgetsUseCompactMetricsAfterRealLayou
     QCOMPARE(rowHeight(widgets.treeView), 28);
     QCOMPARE(widgets.navigationView.navigationList()->sizeHintForRow(0), 40);
     const int menuBarStandard = widgets.menuBar.sizeHint().height();
-    const int menuActionStandard = widgets.menuBar.actionGeometry(
-        widgets.menuBar.actions().constFirst()).height();
+    const int menuActionStandard =
+            widgets.menuBar.actionGeometry(widgets.menuBar.actions().constFirst()).height();
     QVERIFY(menuBarStandard >= 36);
     QVERIFY(menuActionStandard >= 32);
 
@@ -190,12 +191,13 @@ void WinUI3DensityWidgetsTest::allOfficialWidgetsUseCompactMetricsAfterRealLayou
     QCoreApplication::processEvents();
 
     const QList<QPair<int, int>> editorHeights = {
-        {widgets.textBox.sizeHint().height(), textStandard},
-        {widgets.passwordBox.sizeHint().height(), passwordStandard},
-        {widgets.autoSuggestBox.sizeHint().height(), autoSuggestStandard},
-        {widgets.comboBox.sizeHint().height(), comboStandard},
-        {widgets.datePicker.sizeHint().height(), dateStandard},
-        {widgets.timePicker.sizeHint().height(), timeStandard}};
+        { widgets.textBox.sizeHint().height(), textStandard },
+        { widgets.passwordBox.sizeHint().height(), passwordStandard },
+        { widgets.autoSuggestBox.sizeHint().height(), autoSuggestStandard },
+        { widgets.comboBox.sizeHint().height(), comboStandard },
+        { widgets.datePicker.sizeHint().height(), dateStandard },
+        { widgets.timePicker.sizeHint().height(), timeStandard }
+    };
     for (const auto &[compact, standard] : editorHeights) {
         QCOMPARE(compact, 24);
         QVERIFY(compact < standard);
@@ -204,8 +206,8 @@ void WinUI3DensityWidgetsTest::allOfficialWidgetsUseCompactMetricsAfterRealLayou
     QCOMPARE(rowHeight(widgets.treeView), 24);
     QCOMPARE(widgets.navigationView.navigationList()->sizeHintForRow(0), 32);
     const int menuBarCompact = widgets.menuBar.sizeHint().height();
-    const int menuActionCompact = widgets.menuBar.actionGeometry(
-        widgets.menuBar.actions().constFirst()).height();
+    const int menuActionCompact =
+            widgets.menuBar.actionGeometry(widgets.menuBar.actions().constFirst()).height();
     QVERIFY(menuBarCompact >= 28);
     QVERIFY(menuActionCompact >= 24);
     QVERIFY(menuBarCompact < menuBarStandard);
@@ -230,8 +232,7 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     QLineEdit textBox(&panel);
     QLineEdit autoSuggestBox(&panel);
     autoSuggestBox.setCompleter(new QCompleter(
-        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta")},
-        &autoSuggestBox));
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta") }, &autoSuggestBox));
     QComboBox comboBox(&panel);
     QDateEdit datePicker(&panel);
     QTimeEdit timePicker(&panel);
@@ -241,9 +242,9 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     QStandardItemModel listModel(1, 1, &listView);
     listModel.setData(listModel.index(0, 0), QStringLiteral("Item"));
     listView.setModel(&listModel);
-    applyStyleToWidgets(style, QList<QWidget *> {
-        &panel, &textBox, &autoSuggestBox, &comboBox, &datePicker, &timePicker,
-        &checkBox, &radioButton, &listView});
+    applyStyleToWidgets(style,
+                        QList<QWidget *>{ &panel, &textBox, &autoSuggestBox, &comboBox, &datePicker,
+                                          &timePicker, &checkBox, &radioButton, &listView });
     panelLayout.addWidget(&textBox);
     panelLayout.addWidget(&autoSuggestBox);
     panelLayout.addWidget(&comboBox);
@@ -262,8 +263,8 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     const int timeCompact = timePicker.sizeHint().height();
     const int checkCompact = checkBox.sizeHint().height();
     const int radioCompact = radioButton.sizeHint().height();
-    for (int height : {textCompact, autoSuggestCompact, comboCompact,
-                       dateCompact, timeCompact, checkCompact, radioCompact})
+    for (int height : { textCompact, autoSuggestCompact, comboCompact, dateCompact, timeCompact,
+                        checkCompact, radioCompact })
         QCOMPARE(height, 24);
     QCOMPARE(rowHeight(listView), 32);
     autoSuggestBox.completer()->setCompletionPrefix(QStringLiteral("A"));
@@ -273,8 +274,7 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
     autoSuggestBox.completer()->popup()->hide();
 
     autoSuggestBox.setCompleter(new QCompleter(
-        QStringList{QStringLiteral("Alpha"), QStringLiteral("Alpine")},
-        &autoSuggestBox));
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Alpine") }, &autoSuggestBox));
     QTest::keyClick(&autoSuggestBox, Qt::Key_A);
     autoSuggestBox.completer()->setCompletionPrefix(QStringLiteral("A"));
     autoSuggestBox.completer()->complete();
@@ -303,17 +303,19 @@ void WinUI3DensityWidgetsTest::inheritedDensityWorksForRealWidgets()
 
     std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
     autoSuggestBox.setStyle(fusion.get());
-    QVERIFY(!autoSuggestBox.completer()->popup()
-                 ->property(WinUI3::Style::DensityProperty).isValid());
+    QVERIFY(!autoSuggestBox.completer()
+                     ->popup()
+                     ->property(WinUI3::Style::DensityProperty)
+                     .isValid());
     autoSuggestBox.setStyle(&style);
 }
 
 void WinUI3DensityWidgetsTest::autoSuggestMatchesCaseInsensitiveSubstrings()
 {
     QLineEdit editor;
-    auto *completer = new QCompleter(
-        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                    QStringLiteral("Settings")}, &editor);
+    auto *completer = new QCompleter(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                                                  QStringLiteral("Settings") },
+                                     &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
     completer->setCompletionMode(QCompleter::PopupCompletion);
@@ -332,9 +334,10 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
     style.setThemeMode(WinUI3::ThemeMode::Dark);
     QLineEdit editor;
-    auto *completer = new QCompleter(
-        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                    QStringLiteral("Gamma"), QStringLiteral("Delta")}, &editor);
+    auto *completer =
+            new QCompleter(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                                        QStringLiteral("Gamma"), QStringLiteral("Delta") },
+                           &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
     completer->setCompletionMode(QCompleter::PopupCompletion);
@@ -375,19 +378,19 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     image.fill(palette.color(QPalette::Base));
     {
         QPainter painter(&image);
-        popup->style()->drawControl(QStyle::CE_ItemViewItem, &selected,
-                                    &painter, popup->viewport());
+        popup->style()->drawControl(QStyle::CE_ItemViewItem, &selected, &painter,
+                                    popup->viewport());
     }
     int contrastingPixelsInLeadingGlyphZone = 0;
     const QRect glyphZone(10, selected.rect.center().y() - 5, 20, 11);
     const QColor rowBackground = image.pixelColor(7, selected.rect.center().y());
     for (int y = glyphZone.top(); y <= glyphZone.bottom(); ++y)
         for (int x = glyphZone.left(); x <= glyphZone.right(); ++x)
-            if (image.rect().contains(x, y)
-                && image.pixelColor(x, y).alpha() > 128
+            if (image.rect().contains(x, y) && image.pixelColor(x, y).alpha() > 128
                 && qAbs(image.pixelColor(x, y).red() - rowBackground.red())
-                    + qAbs(image.pixelColor(x, y).green() - rowBackground.green())
-                    + qAbs(image.pixelColor(x, y).blue() - rowBackground.blue()) > 30) {
+                                + qAbs(image.pixelColor(x, y).green() - rowBackground.green())
+                                + qAbs(image.pixelColor(x, y).blue() - rowBackground.blue())
+                        > 30) {
                 ++contrastingPixelsInLeadingGlyphZone;
             }
     QCOMPARE(contrastingPixelsInLeadingGlyphZone, 0);
@@ -407,8 +410,8 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
     QWidget root;
     root.setStyle(&style);
     QComboBox combo(&root);
-    combo.addItems({QStringLiteral("First item"), QStringLiteral("Second item"),
-                    QStringLiteral("Third item")});
+    combo.addItems({ QStringLiteral("First item"), QStringLiteral("Second item"),
+                     QStringLiteral("Third item") });
     combo.setCurrentIndex(1);
     root.resize(420, 240);
     combo.setGeometry(40, 40, 220, 36);
@@ -445,8 +448,8 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
     QCoreApplication::processEvents();
     QVERIFY(popup->isVisible());
     const bool systemDark = qGray(qApp->palette().color(QPalette::Window).rgb()) < 128;
-    const int systemPopupLightness = qGray(
-        combo.view()->viewport()->palette().color(QPalette::Base).rgb());
+    const int systemPopupLightness =
+            qGray(combo.view()->viewport()->palette().color(QPalette::Base).rgb());
     if (systemDark)
         QVERIFY(systemPopupLightness < 128);
     else
@@ -462,8 +465,8 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
     style.setThemeMode(WinUI3::ThemeMode::Dark);
     QLineEdit editor;
     auto *completer = new QCompleter(
-        QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                    QStringLiteral("Gamma")}, &editor);
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"), QStringLiteral("Gamma") },
+            &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
     completer->setCompletionMode(QCompleter::PopupCompletion);
@@ -499,8 +502,8 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
     QCoreApplication::processEvents();
     QVERIFY(popup->isVisible());
     const bool systemDark = qGray(qApp->palette().color(QPalette::Window).rgb()) < 128;
-    const int systemPopupLightness = qGray(
-        popupView->viewport()->palette().color(QPalette::Base).rgb());
+    const int systemPopupLightness =
+            qGray(popupView->viewport()->palette().color(QPalette::Base).rgb());
     if (systemDark)
         QVERIFY(systemPopupLightness < 128);
     else
@@ -527,8 +530,8 @@ void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
     QAction menuAction(QStringLiteral("Menu item"), &menu);
     menu.addAction(&menuAction);
 
-    applyStyleToWidgets(style, QList<QWidget *> {
-        &button, &spinBox, &slider, &tabs, &table, &menu});
+    applyStyleToWidgets(style,
+                        QList<QWidget *>{ &button, &spinBox, &slider, &tabs, &table, &menu });
 
     layout.addWidget(&button);
     layout.addWidget(&spinBox);
@@ -586,16 +589,14 @@ void WinUI3DensityWidgetsTest::inheritedCompactNumberBoxMatchesTextBoxHeight()
     // Reproduce that ordering so a stale QAbstractSpinBox size cache cannot
     // hide behind the simpler property-before-construction test path.
     QVERIFY(numberBox.sizeHint().height() > 24);
-    panel.setProperty(WinUI3::Style::DensityProperty,
-                      QStringLiteral("compact"));
+    panel.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
     panel.resize(400, 264);
     panel.show();
     QVERIFY(QTest::qWaitForWindowExposed(&panel, 1000) || panel.isVisible());
     layout.activate();
     QCoreApplication::processEvents();
 
-    QCOMPARE(WinUI3::Style::densityMode(&numberBox),
-             WinUI3::DensityMode::Compact);
+    QCOMPARE(WinUI3::Style::densityMode(&numberBox), WinUI3::DensityMode::Compact);
     QCOMPARE(numberBox.sizeHint().height(), textBox.sizeHint().height());
     QCOMPARE(numberBox.height(), textBox.height());
     QCOMPARE(numberBox.height(), 24);
@@ -613,13 +614,11 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
     date.resize(200, 40);
     root.show();
     QCoreApplication::processEvents();
-    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
-                                         WinUI3::ThemeMode::Dark}) {
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         if (style.themeMode() != mode)
             style.setThemeMode(mode);
         QCoreApplication::processEvents();
-        QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5,
-                                                            date.height() / 2));
+        QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5, date.height() / 2));
         QCoreApplication::processEvents();
         auto *calendar = date.calendarWidget();
         QVERIFY(calendar);
@@ -634,15 +633,15 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         }
         QVERIFY(calendar->isVisible());
         auto *view = calendar->findChild<QAbstractItemView *>(
-            QStringLiteral("qt_calendar_calendarview"));
+                QStringLiteral("qt_calendar_calendarview"));
         QVERIFY(view);
         QVERIFY(view->isVisible());
-        auto *navigation = calendar->findChild<QWidget *>(
-            QStringLiteral("qt_calendar_navigationbar"));
+        auto *navigation =
+                calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
         QVERIFY(navigation);
         QCOMPARE(navigation->backgroundRole(), QPalette::Window);
-        auto *monthButton = calendar->findChild<QWidget *>(
-            QStringLiteral("qt_calendar_monthbutton"));
+        auto *monthButton =
+                calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_monthbutton"));
         QVERIFY(monthButton);
         QTest::mouseMove(monthButton, monthButton->rect().center());
         QCoreApplication::processEvents();
@@ -654,30 +653,26 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         dayOption.index = dayIndex;
         dayOption.text = dayIndex.data(Qt::DisplayRole).toString();
         dayOption.features = QStyleOptionViewItem::HasDisplay;
-        const QRect dayTextRect = style.subElementRect(
-            QStyle::SE_ItemViewItemText, &dayOption, view->viewport());
+        const QRect dayTextRect =
+                style.subElementRect(QStyle::SE_ItemViewItemText, &dayOption, view->viewport());
         QVERIFY2(dayTextRect.width() >= dayOption.rect.width() / 2,
                  "calendar day text must not be squeezed into the menu icon gutter");
         QVERIFY2(dayTextRect.contains(dayOption.rect.center()),
                  "calendar day text must remain centered in its day cell");
         QStyleOptionViewItem selectedDay = dayOption;
         selectedDay.state |= QStyle::State_Selected;
-        QImage selectedImage(selectedDay.rect.size(),
-                             QImage::Format_ARGB32_Premultiplied);
+        QImage selectedImage(selectedDay.rect.size(), QImage::Format_ARGB32_Premultiplied);
         selectedImage.fill(Qt::transparent);
         selectedDay.rect.moveTopLeft(QPoint());
         {
             QPainter painter(&selectedImage);
-            style.drawControl(QStyle::CE_ItemViewItem, &selectedDay, &painter,
-                              view->viewport());
+            style.drawControl(QStyle::CE_ItemViewItem, &selectedDay, &painter, view->viewport());
         }
-        const QColor selectedCenter = selectedImage.pixelColor(
-            selectedImage.rect().center());
+        const QColor selectedCenter = selectedImage.pixelColor(selectedImage.rect().center());
         QVERIFY2(selectedCenter.alpha() > 0,
                  "calendar selection must render a visible WinUI item surface");
         const QColor selectedCorner = selectedImage.pixelColor(0, 0);
-        QVERIFY2(selectedCorner.alpha() > 0,
-                 "calendar cells must paint an opaque popup surface");
+        QVERIFY2(selectedCorner.alpha() > 0, "calendar cells must paint an opaque popup surface");
         QVERIFY2(selectedCorner.rgba() != selectedCenter.rgba(),
                  "calendar selection must not fill the complete Qt table cell");
         const QPalette palette = view->palette();
@@ -686,18 +681,14 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         QVERIFY(text.isValid());
         QVERIFY(background.isValid());
         if (mode == WinUI3::ThemeMode::Dark)
-            QVERIFY2(qGray(text.rgb()) > 150,
-                     "dark calendar text must use a light foreground");
+            QVERIFY2(qGray(text.rgb()) > 150, "dark calendar text must use a light foreground");
         else
-            QVERIFY2(qGray(text.rgb()) < 100,
-                     "light calendar text must use a dark foreground");
+            QVERIFY2(qGray(text.rgb()) < 100, "light calendar text must use a dark foreground");
 
-        const QImage image = view->grab().toImage().convertToFormat(
-            QImage::Format_ARGB32);
+        const QImage image = view->grab().toImage().convertToFormat(QImage::Format_ARGB32);
         const QRect headerCell = view->visualRect(view->model()->index(0, 1));
         QVERIFY(headerCell.isValid());
-        const QColor headerSurface = image.pixelColor(
-            headerCell.topLeft() + QPoint(2, 2));
+        const QColor headerSurface = image.pixelColor(headerCell.topLeft() + QPoint(2, 2));
         if (mode == WinUI3::ThemeMode::Dark)
             QVERIFY2(qGray(headerSurface.rgb()) < 100,
                      "hovering the month must not turn the dark weekday row white");
@@ -714,8 +705,7 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
                     ++readablePixels;
             }
         }
-        QVERIFY2(readablePixels > 10,
-                 "calendar day cells must contain visible date glyphs");
+        QVERIFY2(readablePixels > 10, "calendar day cells must contain visible date glyphs");
         calendar->hide();
         QCoreApplication::processEvents();
     }

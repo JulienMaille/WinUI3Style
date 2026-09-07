@@ -52,8 +52,7 @@ private slots:
 
 void WinUI3DensityApiTest::publicPropertyAndConstructors()
 {
-    WinUI3::Style style(WinUI3::ThemeMode::Light,
-                        WinUI3::DensityMode::Compact);
+    WinUI3::Style style(WinUI3::ThemeMode::Light, WinUI3::DensityMode::Compact);
     QCOMPARE(style.themeMode(), WinUI3::ThemeMode::Light);
     QCOMPARE(style.densityMode(), WinUI3::DensityMode::Compact);
 
@@ -68,8 +67,7 @@ void WinUI3DensityApiTest::publicPropertyAndConstructors()
     QSignalSpy changed(&style, &WinUI3::Style::densityChanged);
     style.setDensityMode(WinUI3::DensityMode::Standard);
     QCOMPARE(changed.count(), 1);
-    QCOMPARE(changed.at(0).at(0).value<WinUI3::DensityMode>(),
-             WinUI3::DensityMode::Standard);
+    QCOMPARE(changed.at(0).at(0).value<WinUI3::DensityMode>(), WinUI3::DensityMode::Standard);
 }
 
 void WinUI3DensityApiTest::inheritedLocalProperty()
@@ -152,69 +150,73 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
     generic.initFrom(&root);
 
     const QSize content(64, 16);
-    const QSize standardLine = style.sizeFromContents(
-        QStyle::CT_LineEdit, &frame, content, &line);
-    const QSize standardCombo = style.sizeFromContents(
-        QStyle::CT_ComboBox, &comboOption, content, &combo);
-    const QSize standardMenuBar = style.sizeFromContents(
-        QStyle::CT_MenuBarItem, &generic, content, &menuBar);
-    const QSize standardList = style.sizeFromContents(
-        QStyle::CT_ItemViewItem, &generic, content, list.viewport());
-    const QSize standardTree = style.sizeFromContents(
-        QStyle::CT_ItemViewItem, &generic, content, tree.viewport());
+    const QSize standardLine = style.sizeFromContents(QStyle::CT_LineEdit, &frame, content, &line);
+    const QSize standardCombo =
+            style.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, &combo);
+    const QSize standardMenuBar =
+            style.sizeFromContents(QStyle::CT_MenuBarItem, &generic, content, &menuBar);
+    const QSize standardList =
+            style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, list.viewport());
+    const QSize standardTree =
+            style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, tree.viewport());
 
-    const QSize invariantButton = style.sizeFromContents(
-        QStyle::CT_PushButton, &buttonOption, content, &button);
-    const QSize standardSpin = style.sizeFromContents(
-        QStyle::CT_SpinBox, &spinOption, content, &spin);
-    const QSize standardDate = style.sizeFromContents(
-        QStyle::CT_SpinBox, &dateOption, content, &date);
-     // Menu flyout items follow the combo popup rows (36 in Standard,
-     // 32 in Compact); measured again below after the density switch.
-     const QSize standardMenu = style.sizeFromContents(
-         QStyle::CT_MenuItem, &menuOption, content, &menu);
-     QCOMPARE(standardMenu.height(), 36);
-    const QSize invariantTable = style.sizeFromContents(
-        QStyle::CT_ItemViewItem, &generic, content, table.viewport());
-    const QSize invariantHeader = style.sizeFromContents(
-        QStyle::CT_HeaderSection, &generic, content, table.horizontalHeader());
-    const int invariantButtonMargin = style.pixelMetric(
-        QStyle::PM_ButtonMargin, nullptr, &button);
+    const QSize invariantButton =
+            style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button);
+    const QSize standardSpin =
+            style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin);
+    const QSize standardDate =
+            style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content, &date);
+    // Menu flyout items follow the combo popup rows (36 in Standard,
+    // 32 in Compact); measured again below after the density switch.
+    const QSize standardMenu =
+            style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu);
+    QCOMPARE(standardMenu.height(), 36);
+    const QSize invariantTable =
+            style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport());
+    const QSize invariantHeader = style.sizeFromContents(QStyle::CT_HeaderSection, &generic,
+                                                         content, table.horizontalHeader());
+    const int invariantButtonMargin = style.pixelMetric(QStyle::PM_ButtonMargin, nullptr, &button);
     const int invariantHeaderDefault = style.pixelMetric(
-        QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr,
-        table.horizontalHeader());
+            QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr, table.horizontalHeader());
 
-    root.setProperty(WinUI3::Style::DensityProperty,
-                     QStringLiteral("compact"));
+    root.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
 
     QCOMPARE(standardLine.height(), 32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &frame, content, &line).height(), 24);
     QCOMPARE(standardCombo.height(), 32);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, &combo).height(), 24);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, &combo).height(),
+             24);
     QCOMPARE(standardMenuBar.height(), 32);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuBarItem, &generic, content, &menuBar).height(), 24);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuBarItem, &generic, content, &menuBar).height(),
+             24);
     QCOMPARE(standardList.height(), 40);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, list.viewport()).height(), 32);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, list.viewport())
+                     .height(),
+             32);
     QCOMPARE(standardTree.height(), 28);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, tree.viewport()).height(), 24);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, tree.viewport())
+                     .height(),
+             24);
     QCOMPARE(standardDate.height(), 32);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content,
-                                    &date).height(), 24);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content, &date).height(), 24);
     QCOMPARE(standardSpin.height(), 32);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content,
-                                    &spin).height(), 24);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin).height(), 24);
 
-    QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button), invariantButton);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button),
+             invariantButton);
     // Menu flyout items follow the combo popup rows (36 -> 32 in Compact).
-    QVERIFY(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height() == 32);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()), invariantTable);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &generic, content, table.horizontalHeader()), invariantHeader);
+    QVERIFY(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height()
+            == 32);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()),
+             invariantTable);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &generic, content,
+                                    table.horizontalHeader()),
+             invariantHeader);
     QCOMPARE(invariantButtonMargin, 8);
-    QCOMPARE(style.pixelMetric(QStyle::PM_ButtonMargin, nullptr, &button),
-             invariantButtonMargin);
+    QCOMPARE(style.pixelMetric(QStyle::PM_ButtonMargin, nullptr, &button), invariantButtonMargin);
     QCOMPARE(invariantHeaderDefault, 36);
-    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical,
-                               nullptr, table.horizontalHeader()),
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr,
+                               table.horizontalHeader()),
              invariantHeaderDefault);
 }
 
@@ -229,8 +231,7 @@ void WinUI3DensityApiTest::navigationViewRelayoutsAtRuntime()
     QCoreApplication::processEvents();
     QCOMPARE(navigation.navigationList()->sizeHintForRow(0), 40);
 
-    navigation.setProperty(WinUI3::Style::DensityProperty,
-                           QStringLiteral("compact"));
+    navigation.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
     QCoreApplication::processEvents();
     QCOMPARE(navigation.navigationList()->sizeHintForRow(0), 32);
 }
@@ -242,10 +243,8 @@ void WinUI3DensityApiTest::pluginAliases()
         || !keys.contains(QStringLiteral("winui3compact"), Qt::CaseInsensitive)) {
         QSKIP("The optional WinUI3 style plugin is not available");
     }
-    QScopedPointer<QStyle> standard(
-        QStyleFactory::create(QStringLiteral("winui3")));
-    QScopedPointer<QStyle> compact(
-        QStyleFactory::create(QStringLiteral("winui3compact")));
+    QScopedPointer<QStyle> standard(QStyleFactory::create(QStringLiteral("winui3")));
+    QScopedPointer<QStyle> compact(QStyleFactory::create(QStringLiteral("winui3compact")));
     QVERIFY(standard);
     QVERIFY(compact);
     QCOMPARE(qobject_cast<WinUI3::Style *>(standard.data())->densityMode(),

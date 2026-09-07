@@ -38,8 +38,7 @@ const QAbstractItemView *itemView(const QWidget *widget)
 {
     if (const auto *view = qobject_cast<const QAbstractItemView *>(widget))
         return view;
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         if (const auto *view = qobject_cast<const QAbstractItemView *>(candidate))
             return view;
     }
@@ -48,8 +47,9 @@ const QAbstractItemView *itemView(const QWidget *widget)
 
 bool completerPopupView(const QAbstractItemView *view)
 {
-    return view && (view->property(completerOwnerProperty).isValid()
-                    || qobject_cast<const QCompleter *>(view->parent()));
+    return view
+            && (view->property(completerOwnerProperty).isValid()
+                || qobject_cast<const QCompleter *>(view->parent()));
 }
 
 // QCalendarWidget uses a QTableView for its day grid, but that grid is not a
@@ -63,8 +63,7 @@ bool calendarPopupView(const QWidget *widget)
         return false;
     if (qobject_cast<const QCalendarWidget *>(widget->window()))
         return true;
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         if (qobject_cast<const QCalendarWidget *>(candidate))
             return true;
     }
@@ -86,14 +85,12 @@ const QAbstractItemView *selectionMarkerView(const QWidget *widget)
         return nullptr;
     if (qobject_cast<const QTableView *>(view))
         return nullptr;
-    if (!qobject_cast<const QListView *>(view)
-        && !qobject_cast<const QTreeView *>(view))
+    if (!qobject_cast<const QListView *>(view) && !qobject_cast<const QTreeView *>(view))
         return nullptr;
     return view;
 }
 
-QRect selectionMarkerRect(const QStyleOptionViewItem &option,
-                          const QAbstractItemView *view)
+QRect selectionMarkerRect(const QStyleOptionViewItem &option, const QAbstractItemView *view)
 {
     if (!view || !view->viewport())
         return {};
@@ -104,19 +101,16 @@ QRect selectionMarkerRect(const QStyleOptionViewItem &option,
     const QRect viewport = view->viewport()->rect();
     const int y = option.rect.center().y() - 8;
     if (option.direction == Qt::RightToLeft) {
-        return QRect(viewport.right() - itemSelectionMarkerInset
-                         - itemSelectionMarkerWidth + 1,
-                     y, itemSelectionMarkerWidth, 16);
+        return QRect(viewport.right() - itemSelectionMarkerInset - itemSelectionMarkerWidth + 1, y,
+                     itemSelectionMarkerWidth, 16);
     }
-    return QRect(viewport.left() + itemSelectionMarkerInset, y,
-                 itemSelectionMarkerWidth, 16);
+    return QRect(viewport.left() + itemSelectionMarkerInset, y, itemSelectionMarkerWidth, 16);
 }
 
 } // namespace
 
 bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
-                       const QStyleOption *option, QPainter *painter,
-                       const QWidget *widget)
+                       const QStyleOption *option, QPainter *painter, const QWidget *widget)
 {
     if (element == QStyle::PE_FrameTabBarBase) {
         const Tokens t = tokens(option->palette);
@@ -127,8 +121,8 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
 
     if (element == QStyle::PE_FrameTabWidget) {
         const Tokens t = tokens(option->palette);
-        roundedRect(painter, QRectF(option->rect).adjusted(0, 0, -1, -1),
-                    t.control, t.stroke, ControlRadius);
+        roundedRect(painter, QRectF(option->rect).adjusted(0, 0, -1, -1), t.control, t.stroke,
+                    ControlRadius);
         return true;
     }
 
@@ -136,12 +130,11 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
         const QAbstractItemView *view = itemView(widget);
         const bool calendar = calendarPopupView(widget);
-        const bool popup = widget && widget->window()
-            && widget->window()->windowType() == Qt::Popup
-            && !calendar;
+        const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
+                && !calendar;
         const auto *popupCombo = popup && widget->window()->parentWidget()
-            ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
-            : nullptr;
+                ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
+                : nullptr;
         const bool comboPopup = popupCombo;
         const bool autoSuggestPopup = popup && completerPopupView(view);
         const Tokens t = tokens(option->palette);
@@ -151,27 +144,24 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const bool selected = option->state & QStyle::State_Selected;
         const bool hovered = option->state & QStyle::State_MouseOver;
         const bool pressedItem = hovered && (option->state & QStyle::State_Sunken);
-        const bool calendarHeader = calendar && viewOption
-            && viewOption->index.isValid() && viewOption->index.row() == 0;
+        const bool calendarHeader = calendar && viewOption && viewOption->index.isValid()
+                && viewOption->index.row() == 0;
         if (calendar) {
             if (calendarHeader)
                 return true;
             QColor calendarFill = Qt::transparent;
             if (selected)
-                calendarFill = enabled ? t.accentFill
-                                       : t.accentFillDisabled;
+                calendarFill = enabled ? t.accentFill : t.accentFillDisabled;
             else if (pressedItem)
                 calendarFill = t.subtlePressed;
             else if (hovered)
                 calendarFill = t.subtleHover;
             if (calendarFill.alpha() > 0) {
-                const int side = qMin(32, qMin(option->rect.width() - 4,
-                                               option->rect.height() - 4));
+                const int side =
+                        qMin(32, qMin(option->rect.width() - 4, option->rect.height() - 4));
                 const QRectF circle(option->rect.center().x() - side / 2.0,
-                                    option->rect.center().y() - side / 2.0,
-                                    side, side);
-                roundedRect(painter, circle, calendarFill, Qt::transparent,
-                            side / 2.0);
+                                    option->rect.center().y() - side / 2.0, side, side);
+                roundedRect(painter, circle, calendarFill, Qt::transparent, side / 2.0);
             }
             return true;
         }
@@ -186,80 +176,76 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         // Pointer events and animation invalidation belong to the viewport.
         // Delegates may invoke the style with either the view or its viewport,
         // so resolve the actual event surface explicitly.
-        const QWidget *popupInteractionSurface = popupCombo
-                && popupCombo->view() && popupCombo->view()->viewport()
-            ? popupCombo->view()->viewport()
-            : view && view->viewport() ? view->viewport() : widget;
+        const QWidget *popupInteractionSurface =
+                popupCombo && popupCombo->view() && popupCombo->view()->viewport()
+                ? popupCombo->view()->viewport()
+                : view && view->viewport() ? view->viewport()
+                                           : widget;
         const qreal popupPress = comboPopup
-            ? progress(popupInteractionSurface, pressProperty,
-                       pressedItem ? 1.0 : 0.0)
-            : 0.0;
+                ? progress(popupInteractionSurface, pressProperty, pressedItem ? 1.0 : 0.0)
+                : 0.0;
         // ComboBoxItem LayoutRoot carries the official Margin="5,2,5,2",
         // so the PointerOver/Selected SubtleFill sits 5px inside the row
         // on both sides. Plain MenuFlyoutItem uses Margin="4,2,4,2".
-        QRectF itemRect = comboPopup
-            ? QRectF(option->rect).adjusted(5, 2, -5, -2)
-            : popup ? QRectF(option->rect).adjusted(4, 2, -4, -2)
-            : tree ? QRectF(option->rect).adjusted(4, 2, -4, -2)
-                   : table ? QRectF(option->rect)
-                           : QRectF(option->rect).adjusted(2, 1, -2, -1);
+        QRectF itemRect = comboPopup ? QRectF(option->rect).adjusted(5, 2, -5, -2)
+                : popup              ? QRectF(option->rect).adjusted(4, 2, -4, -2)
+                : tree               ? QRectF(option->rect).adjusted(4, 2, -4, -2)
+                : table              ? QRectF(option->rect)
+                                     : QRectF(option->rect).adjusted(2, 1, -2, -1);
         if (fill.alpha() > 0) {
             // Same accumulation contract as menu items: on a translucent
             // (acrylic) popup, rebuild the row frame from transparent first.
             if (paintsDirectlyOnBackdrop(widget)) {
                 painter->save();
-                painter->setCompositionMode(
-                    QPainter::CompositionMode_Source);
+                painter->setCompositionMode(QPainter::CompositionMode_Source);
                 painter->fillRect(option->rect, Qt::transparent);
                 painter->restore();
             }
             roundedRect(painter, itemRect, fill, Qt::transparent,
-                        popup ? 3.0 : table ? 0.0 : ControlRadius);
+                        popup           ? 3.0
+                                : table ? 0.0
+                                        : ControlRadius);
         }
-        const bool firstColumn = !viewOption || !viewOption->index.isValid()
-            || viewOption->index.column() == 0;
+        const bool firstColumn =
+                !viewOption || !viewOption->index.isValid() || viewOption->index.column() == 0;
         if (selected && comboPopup && firstColumn) {
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? t.selectionAccent
-                                       : t.accentFillDisabled);
+            painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
             // WinUI's selected-item pill compresses to 62.5% while the
             // pointer is held. The interaction controller uses the same
             // 167 ms transition as the current DropdownContent template.
             const qreal indicatorWidth = 3.0;
-            const qreal indicatorHeight = 16.0
-                * (1.0 - 0.375 * popupPress);
+            const qreal indicatorHeight = 16.0 * (1.0 - 0.375 * popupPress);
             const qreal indicatorX = option->direction == Qt::RightToLeft
-                ? itemRect.right() - indicatorWidth : itemRect.left();
+                    ? itemRect.right() - indicatorWidth
+                    : itemRect.left();
             // The pill is aligned to the content slot created by the
             // ComboBoxItem's 5px/7px vertical padding.  At the normal 16px
             // height this is visually the same center as the row, while the
             // explicit slot keeps the compressed 0.625 state deterministic
             // at fractional device-pixel ratios.
-            const QRectF itemContent = itemRect.adjusted(
-                comboPopupItemPaddingLeft, comboPopupItemPaddingTop,
-                -comboPopupItemPaddingRight, -comboPopupItemPaddingBottom);
-            painter->drawRoundedRect(
-                QRectF(indicatorX,
-                       itemContent.center().y() - indicatorHeight / 2.0,
-                       indicatorWidth, indicatorHeight),
-                1.5, 1.5);
+            const QRectF itemContent =
+                    itemRect.adjusted(comboPopupItemPaddingLeft, comboPopupItemPaddingTop,
+                                      -comboPopupItemPaddingRight, -comboPopupItemPaddingBottom);
+            painter->drawRoundedRect(QRectF(indicatorX,
+                                            itemContent.center().y() - indicatorHeight / 2.0,
+                                            indicatorWidth, indicatorHeight),
+                                     1.5, 1.5);
             painter->restore();
         } else if (selected && popup && !autoSuggestPopup && firstColumn) {
-            const QRect checkRect = QStyle::visualRect(option->direction, option->rect,
-                QRect(option->rect.left() + 12,
-                      option->rect.center().y() - 8, 16, 16));
-            icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-                checkRect,
-                Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
-        } else if (selected && viewOption && selectionMarkerView(widget)
-                   && firstColumn) {
+            const QRect checkRect = QStyle::visualRect(
+                    option->direction, option->rect,
+                    QRect(option->rect.left() + 12, option->rect.center().y() - 8, 16, 16));
+            icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled)
+                    .paint(painter, checkRect, Qt::AlignCenter,
+                           enabled ? QIcon::Normal : QIcon::Disabled);
+        } else if (selected && viewOption && selectionMarkerView(widget) && firstColumn) {
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? t.selectionAccent
-                                       : t.accentFillDisabled);
+            painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
             const QRectF indicator = selectionMarkerRect(*viewOption, view);
             painter->drawRoundedRect(indicator, 1.5, 1.5);
             painter->restore();
@@ -273,26 +259,27 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         if (!(option->state & QStyle::State_Children))
             return true;
         const bool open = option->state & QStyle::State_Open;
-        const Icon glyph = open ? Icon::ChevronDown
-            : option->direction == Qt::RightToLeft ? Icon::ChevronLeft
-                                                   : Icon::ChevronRight;
+        const Icon glyph = open                        ? Icon::ChevronDown
+                : option->direction == Qt::RightToLeft ? Icon::ChevronLeft
+                                                       : Icon::ChevronRight;
         const int extent = 12;
-        icon(glyph, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-            QRect(option->rect.center().x() - extent / 2,
-                  option->rect.center().y() - extent / 2, extent, extent),
-            Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+        icon(glyph, enabled ? t.textPrimary : t.textDisabled)
+                .paint(painter,
+                       QRect(option->rect.center().x() - extent / 2,
+                             option->rect.center().y() - extent / 2, extent, extent),
+                       Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
         return true;
     }
 
     if (element == QStyle::PE_IndicatorHeaderArrow) {
         const Tokens t = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
-        const Icon glyph = option->state & QStyle::State_UpArrow
-            ? Icon::ChevronUp : Icon::ChevronDown;
-        icon(glyph, enabled ? t.textSecondary : t.textDisabled).paint(painter,
-            QRect(option->rect.center().x() - 6, option->rect.center().y() - 6,
-                  12, 12), Qt::AlignCenter,
-            enabled ? QIcon::Normal : QIcon::Disabled);
+        const Icon glyph =
+                option->state & QStyle::State_UpArrow ? Icon::ChevronUp : Icon::ChevronDown;
+        icon(glyph, enabled ? t.textSecondary : t.textDisabled)
+                .paint(painter,
+                       QRect(option->rect.center().x() - 6, option->rect.center().y() - 6, 12, 12),
+                       Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
         return true;
     }
 
@@ -307,20 +294,16 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const bool pressed = option->state & QStyle::State_Sunken;
         // The hit area is the full 22x22 indicator slot; fill it entirely,
         // like WinUI's TabViewItemCloseButton.
-        const QRect button = QStyle::visualRect(option->direction,
-            option->rect, option->rect);
+        const QRect button = QStyle::visualRect(option->direction, option->rect, option->rect);
         if (pressed && enabled) {
-            roundedRect(painter, button, t.subtlePressed, Qt::transparent,
-                        ControlRadius);
+            roundedRect(painter, button, t.subtlePressed, Qt::transparent, ControlRadius);
         } else if (hovered && enabled) {
-            roundedRect(painter, button, t.subtleHover, Qt::transparent,
-                        ControlRadius);
+            roundedRect(painter, button, t.subtleHover, Qt::transparent, ControlRadius);
         }
-        icon(Icon::Close, enabled
-                ? (hovered || pressed ? t.textPrimary : t.textSecondary)
-                : t.textDisabled)
-            .paint(painter, button.adjusted(5, 5, -5, -5), Qt::AlignCenter,
-                   enabled ? QIcon::Normal : QIcon::Disabled);
+        icon(Icon::Close,
+             enabled ? (hovered || pressed ? t.textPrimary : t.textSecondary) : t.textDisabled)
+                .paint(painter, button.adjusted(5, 5, -5, -5), Qt::AlignCenter,
+                       enabled ? QIcon::Normal : QIcon::Disabled);
         return true;
     }
 
@@ -346,9 +329,8 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     return false;
 }
 
-bool drawViewControl(const Style *style, QStyle::ControlElement element,
-                     const QStyleOption *option, QPainter *painter,
-                     const QWidget *widget,
+bool drawViewControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option,
+                     QPainter *painter, const QWidget *widget,
                      const TableEditorOverlap &tableEditorOverlap)
 {
     if (element == QStyle::CE_TabBarTab) {
@@ -365,94 +347,82 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             const bool calendar = calendarPopupView(widget);
             const QAbstractItemView *view = itemView(widget);
             const bool popup = widget && widget->window()
-                && widget->window()->windowType() == Qt::Popup && !calendar;
+                    && widget->window()->windowType() == Qt::Popup && !calendar;
             const bool comboPopup = popup && widget->window()->parentWidget()
-                && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
+                    && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
             const bool autoSuggestPopup = popup && completerPopupView(view);
             if (calendar || autoSuggestPopup) {
                 // preparePopupSurface has already resolved Base to the opaque
                 // flyout color. AutoSuggest must also rebuild every item from
                 // that base before applying translucent hover/selection fills;
                 // otherwise partial native-popup repaints accumulate ghosts.
-                painter->fillRect(source->rect,
-                                  source->palette.color(QPalette::Base));
+                painter->fillRect(source->rect, source->palette.color(QPalette::Base));
             } else if (source->backgroundBrush.style() != Qt::NoBrush) {
                 painter->fillRect(source->rect, source->backgroundBrush);
             } else if (!calendar && source->features & QStyleOptionViewItem::Alternate) {
-                painter->fillRect(source->rect,
-                                  source->palette.brush(QPalette::AlternateBase));
+                painter->fillRect(source->rect, source->palette.brush(QPalette::AlternateBase));
             }
             style->drawPrimitive(QStyle::PE_PanelItemViewItem, source, painter, widget);
             const auto *tableView = qobject_cast<const QTableView *>(view);
             const Tokens t = tokens(option->palette);
             const bool enabled = source->state & QStyle::State_Enabled;
-            const bool calendarHeader = calendar && source->index.isValid()
-                && source->index.row() == 0;
-            const bool checkedPopupSelection = popup && !comboPopup
-                && !autoSuggestPopup
-                && (source->state & QStyle::State_Selected);
+            const bool calendarHeader =
+                    calendar && source->index.isValid() && source->index.row() == 0;
+            const bool checkedPopupSelection = popup && !comboPopup && !autoSuggestPopup
+                    && (source->state & QStyle::State_Selected);
 
             if (source->features & QStyleOptionViewItem::HasCheckIndicator) {
                 QStyleOptionButton check;
-                check.rect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator,
-                                                   source, widget);
+                check.rect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, source,
+                                                   widget);
                 check.palette = source->palette;
                 check.state = source->state;
                 check.state.setFlag(QStyle::State_Selected, false);
-                check.state.setFlag(QStyle::State_On,
-                    source->checkState == Qt::Checked);
+                check.state.setFlag(QStyle::State_On, source->checkState == Qt::Checked);
                 check.state.setFlag(QStyle::State_NoChange,
-                    source->checkState == Qt::PartiallyChecked);
-                check.state.setFlag(QStyle::State_Off,
-                    source->checkState == Qt::Unchecked);
+                                    source->checkState == Qt::PartiallyChecked);
+                check.state.setFlag(QStyle::State_Off, source->checkState == Qt::Unchecked);
                 style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &check, painter, widget);
             }
 
-            if ((source->features & QStyleOptionViewItem::HasDecoration)
-                && !source->icon.isNull() && !checkedPopupSelection) {
-                const QRect decoration = style->subElementRect(
-                    QStyle::SE_ItemViewItemDecoration, source, widget);
-                paintThemedIcon(painter, source->icon, decoration,
-                    source->decorationAlignment,
-                    enabled ? t.textPrimary : t.textDisabled,
-                    enabled ? QIcon::Normal : QIcon::Disabled,
-                    source->state & QStyle::State_Selected ? QIcon::On : QIcon::Off);
+            if ((source->features & QStyleOptionViewItem::HasDecoration) && !source->icon.isNull()
+                && !checkedPopupSelection) {
+                const QRect decoration =
+                        style->subElementRect(QStyle::SE_ItemViewItemDecoration, source, widget);
+                paintThemedIcon(painter, source->icon, decoration, source->decorationAlignment,
+                                enabled ? t.textPrimary : t.textDisabled,
+                                enabled ? QIcon::Normal : QIcon::Disabled,
+                                source->state & QStyle::State_Selected ? QIcon::On : QIcon::Off);
             }
 
             const bool tableEditing = tableView
-                && ((source->state & QStyle::State_Editing)
-                    || (tableEditorOverlap
-                        && tableEditorOverlap(tableView, source->index,
-                                              source->rect)));
-            if ((source->features & QStyleOptionViewItem::HasDisplay)
-                && !tableEditing) {
+                    && ((source->state & QStyle::State_Editing)
+                        || (tableEditorOverlap
+                            && tableEditorOverlap(tableView, source->index, source->rect)));
+            if ((source->features & QStyleOptionViewItem::HasDisplay) && !tableEditing) {
                 const bool hasLeadingContent =
-                    (source->features & QStyleOptionViewItem::HasDecoration)
-                    || (source->features & QStyleOptionViewItem::HasCheckIndicator);
+                        (source->features & QStyleOptionViewItem::HasDecoration)
+                        || (source->features & QStyleOptionViewItem::HasCheckIndicator);
                 // The leading 42px reservation must follow the reading
                 // direction, otherwise RTL popup text overlaps the icon and
                 // marker zone painted on the right edge.
-                const int leading = (comboPopup || autoSuggestPopup)
-                        && !hasLeadingContent
-                    ? comboPopupItemPaddingLeft + 5 : 42;
-                const int trailing = (comboPopup || autoSuggestPopup)
-                        && !hasLeadingContent
-                    ? comboPopupItemPaddingRight + 5 : 12;
+                const int leading = (comboPopup || autoSuggestPopup) && !hasLeadingContent
+                        ? comboPopupItemPaddingLeft + 5
+                        : 42;
+                const int trailing = (comboPopup || autoSuggestPopup) && !hasLeadingContent
+                        ? comboPopupItemPaddingRight + 5
+                        : 12;
                 QRect textRect = popup
-                    ? QStyle::visualRect(source->direction, source->rect,
-                                         source->rect.adjusted(
-                                             leading, 0, -trailing, 0))
-                    : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
+                        ? QStyle::visualRect(source->direction, source->rect,
+                                             source->rect.adjusted(leading, 0, -trailing, 0))
+                        : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
                 painter->save();
                 painter->setFont(source->font);
-                QColor textColor = enabled ? t.textPrimary
-                                           : t.textDisabled;
+                QColor textColor = enabled ? t.textPrimary : t.textDisabled;
                 if (calendarHeader) {
-                    textColor = enabled ? t.textSecondary
-                                        : t.textDisabled;
+                    textColor = enabled ? t.textSecondary : t.textDisabled;
                 } else if (calendar && (source->state & QStyle::State_Selected)) {
-                    textColor = enabled ? t.textOnAccentPrimary
-                                        : t.controlOnAccentDisabled;
+                    textColor = enabled ? t.textOnAccentPrimary : t.controlOnAccentDisabled;
                 } else if (calendar && source->index.isValid()) {
                     // QCalendarWidget injects platform-specific weekday
                     // colors (notably red weekends). WinUI uses the normal
@@ -460,22 +430,22 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                     bool numberOk = false;
                     const int day = source->text.toInt(&numberOk);
                     const int row = source->index.row();
-                    const bool outsideMonth = numberOk
-                        && ((row == 1 && day > 7)
-                            || (row >= 5 && day < 15));
+                    const bool outsideMonth =
+                            numberOk && ((row == 1 && day > 7) || (row >= 5 && day < 15));
                     if (outsideMonth)
                         textColor = t.textDisabled;
                 }
                 painter->setPen(textColor);
-                Qt::Alignment alignment = Qt::Alignment(source->displayAlignment)
-                    | Qt::AlignVCenter;
+                Qt::Alignment alignment =
+                        Qt::Alignment(source->displayAlignment) | Qt::AlignVCenter;
                 alignment = QStyle::visualAlignment(source->direction, alignment);
                 const bool wraps = source->features & QStyleOptionViewItem::WrapText;
-                const int textFlags = int(alignment)
-                    | (wraps ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine));
-                const QString text = wraps ? source->text
-                    : source->fontMetrics.elidedText(source->text,
-                        source->textElideMode, textRect.width());
+                const int textFlags =
+                        int(alignment) | (wraps ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine));
+                const QString text = wraps
+                        ? source->text
+                        : source->fontMetrics.elidedText(source->text, source->textElideMode,
+                                                         textRect.width());
                 painter->drawText(textRect, textFlags, text);
                 painter->restore();
             }
@@ -483,12 +453,10 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             if ((source->state & QStyle::State_HasFocus) && keyboardFocusVisible(view)) {
                 const bool tree = qobject_cast<const QTreeView *>(view);
                 const bool table = qobject_cast<const QTableView *>(view);
-                const QRectF focusRect = tree
-                    ? QRectF(source->rect).adjusted(4, 2, -4, -2)
-                    : table ? QRectF(source->rect).adjusted(1, 1, -1, -1)
-                            : QRectF(source->rect).adjusted(2, 1, -2, -1);
-                paintFocusRing(painter, focusRect,
-                               t.focusOuter, t.focusInner, 1, 3,
+                const QRectF focusRect = tree ? QRectF(source->rect).adjusted(4, 2, -4, -2)
+                        : table               ? QRectF(source->rect).adjusted(1, 1, -1, -1)
+                                              : QRectF(source->rect).adjusted(2, 1, -2, -1);
+                paintFocusRing(painter, focusRect, t.focusOuter, t.focusInner, 1, 3,
                                table ? 0.0 : 5.0, table ? 0.0 : 3.0);
             }
             return true;
@@ -500,8 +468,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
         const Tokens t = tokens(option->palette);
         const qreal hover = progress(widget, hoverProperty,
                                      option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
-        const qreal press = progress(widget, pressProperty,
-                                     option->state & QStyle::State_Sunken ? 1.0 : 0.0);
+        const qreal press =
+                progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0);
         QColor color = mix(t.stroke, t.strokeStrong, hover);
         color = mix(color, t.accentFill, press);
         const qreal thickness = 1.0 + hover + press;
@@ -511,14 +479,12 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             const qreal length = qMin<qreal>(100.0, qMax(0, option->rect.height() - 12));
             const QRectF splitterRect(option->rect);
             handle = QRectF(splitterRect.center().x() - thickness / 2.0,
-                            splitterRect.center().y() - length / 2.0,
-                            thickness, length);
+                            splitterRect.center().y() - length / 2.0, thickness, length);
         } else {
             const qreal length = qMin<qreal>(100.0, qMax(0, option->rect.width() - 12));
             const QRectF splitterRect(option->rect);
             handle = QRectF(splitterRect.center().x() - length / 2.0,
-                            splitterRect.center().y() - thickness / 2.0,
-                            length, thickness);
+                            splitterRect.center().y() - thickness / 2.0, length, thickness);
         }
         handle = snappedSplitterGrip(handle, horizontal, painter);
         roundedRect(painter, handle, color, Qt::transparent, thickness / 2.0);
@@ -536,8 +502,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             else
                 painter->drawLine(dock->rect.bottomLeft(), dock->rect.bottomRight());
 
-            QRect titleRect = style->subElementRect(QStyle::SE_DockWidgetTitleBarText,
-                                                    dock, widget);
+            QRect titleRect =
+                    style->subElementRect(QStyle::SE_DockWidgetTitleBarText, dock, widget);
             if (dock->verticalTitleBar) {
                 const QRect transposed = dock->rect.transposed();
                 titleRect = QRect(transposed.left() + dock->rect.bottom() - titleRect.bottom(),
@@ -551,11 +517,11 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             font.setWeight(QFont::DemiBold);
             painter->setFont(font);
             painter->setPen(dock->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled);
-            painter->drawText(titleRect,
-                              QStyle::visualAlignment(dock->direction,
-                                              Qt::AlignLeft | Qt::AlignVCenter),
-                              painter->fontMetrics().elidedText(
-                                  dock->title, Qt::ElideRight, titleRect.width()));
+            painter->drawText(
+                    titleRect,
+                    QStyle::visualAlignment(dock->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                    painter->fontMetrics().elidedText(dock->title, Qt::ElideRight,
+                                                      titleRect.width()));
             painter->restore();
             return true;
         }
@@ -567,7 +533,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
         const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option);
         const bool selected = option->state & QStyle::State_Selected;
         const bool north = !tab || tab->shape == QTabBar::RoundedNorth
-            || tab->shape == QTabBar::TriangularNorth;
+                || tab->shape == QTabBar::TriangularNorth;
         if (selected && north) {
             const QColor selectedFill = t.selectedTabFill;
             const QRectF rect = QRectF(option->rect).adjusted(1, 1, -1, 0);
@@ -575,11 +541,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             QPainterPath surface;
             surface.moveTo(rect.left(), rect.bottom());
             surface.lineTo(rect.left(), rect.top() + radius);
-            surface.quadTo(rect.left(), rect.top(), rect.left() + radius,
-                           rect.top());
+            surface.quadTo(rect.left(), rect.top(), rect.left() + radius, rect.top());
             surface.lineTo(rect.right() - radius, rect.top());
-            surface.quadTo(rect.right(), rect.top(), rect.right(),
-                           rect.top() + radius);
+            surface.quadTo(rect.right(), rect.top(), rect.right(), rect.top() + radius);
             surface.lineTo(rect.right(), rect.bottom());
             surface.lineTo(rect.left(), rect.bottom());
             painter->save();
@@ -588,11 +552,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             QPainterPath border;
             border.moveTo(rect.left(), rect.bottom());
             border.lineTo(rect.left(), rect.top() + radius);
-            border.quadTo(rect.left(), rect.top(), rect.left() + radius,
-                          rect.top());
+            border.quadTo(rect.left(), rect.top(), rect.left() + radius, rect.top());
             border.lineTo(rect.right() - radius, rect.top());
-            border.quadTo(rect.right(), rect.top(), rect.right(),
-                          rect.top() + radius);
+            border.quadTo(rect.right(), rect.top(), rect.right(), rect.top() + radius);
             border.lineTo(rect.right(), rect.bottom());
             painter->setBrush(Qt::NoBrush);
             painter->setPen(QPen(t.stroke, 1));
@@ -604,22 +566,20 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 fill = t.controlPressed;
             else if (option->state & QStyle::State_MouseOver)
                 fill = t.layer;
-            roundedRect(painter, QRectF(option->rect).adjusted(2, 2, -2, -2),
-                        fill, Qt::transparent, ControlRadius);
-            const bool nextTabSelected = tab
-                && tab->selectedPosition == QStyleOptionTab::NextIsSelected;
-            if (!selected && !nextTabSelected
-                && !(option->state & QStyle::State_MouseOver)) {
+            roundedRect(painter, QRectF(option->rect).adjusted(2, 2, -2, -2), fill, Qt::transparent,
+                        ControlRadius);
+            const bool nextTabSelected =
+                    tab && tab->selectedPosition == QStyleOptionTab::NextIsSelected;
+            if (!selected && !nextTabSelected && !(option->state & QStyle::State_MouseOver)) {
                 painter->setPen(t.stroke);
-                const int separatorX = option->direction == Qt::RightToLeft
-                    ? option->rect.left() : option->rect.right();
-                painter->drawLine(separatorX, option->rect.top() + 8,
-                                  separatorX, option->rect.bottom() - 8);
+                const int separatorX = option->direction == Qt::RightToLeft ? option->rect.left()
+                                                                            : option->rect.right();
+                painter->drawLine(separatorX, option->rect.top() + 8, separatorX,
+                                  option->rect.bottom() - 8);
             }
         }
         if ((option->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
-            paintFocusRing(painter, QRectF(option->rect),
-                           t.focusOuter, t.focusInner, 3, 5,
+            paintFocusRing(painter, QRectF(option->rect), t.focusOuter, t.focusInner, 3, 5,
                            ControlRadius, ControlRadius - 1);
         }
         return true;
@@ -640,28 +600,24 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             font.setPixelSize(12);
             font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
             painter->setFont(font);
-            painter->setPen(enabled
-                ? (selected ? t.textPrimary : t.textSecondary)
-                : t.textDisabled);
+            painter->setPen(enabled ? (selected ? t.textPrimary : t.textSecondary)
+                                    : t.textDisabled);
             if (!tab->icon.isNull()) {
-                const QRect logicalIcon(textRect.left(), textRect.center().y() - 8,
-                                        16, 16);
-                const QRect iconRect = QStyle::visualRect(tab->direction, tab->rect,
-                                                  logicalIcon);
+                const QRect logicalIcon(textRect.left(), textRect.center().y() - 8, 16, 16);
+                const QRect iconRect = QStyle::visualRect(tab->direction, tab->rect, logicalIcon);
                 paintThemedIcon(painter, tab->icon, iconRect, Qt::AlignCenter,
-                    enabled ? t.textPrimary : t.textDisabled,
-                    enabled ? QIcon::Normal : QIcon::Disabled,
-                    selected ? QIcon::On : QIcon::Off);
+                                enabled ? t.textPrimary : t.textDisabled,
+                                enabled ? QIcon::Normal : QIcon::Disabled,
+                                selected ? QIcon::On : QIcon::Off);
                 if (tab->direction == Qt::RightToLeft)
                     textRect.setRight(iconRect.left() - 10);
                 else
                     textRect.setLeft(iconRect.right() + 10);
             }
-            painter->drawText(textRect,
-                              QStyle::visualAlignment(tab->direction,
-                                              Qt::AlignLeft | Qt::AlignVCenter),
-                              tab->fontMetrics.elidedText(tab->text, Qt::ElideRight,
-                                                          textRect.width()));
+            painter->drawText(
+                    textRect,
+                    QStyle::visualAlignment(tab->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                    tab->fontMetrics.elidedText(tab->text, Qt::ElideRight, textRect.width()));
             painter->restore();
             return true;
         }
@@ -679,10 +635,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
         painter->save();
         painter->setPen(QPen(t.stroke, 1));
         painter->drawLine(option->rect.bottomLeft(), option->rect.bottomRight());
-        const int separatorX = option->direction == Qt::RightToLeft
-            ? option->rect.left() : option->rect.right();
-        painter->drawLine(separatorX, option->rect.top(),
-                          separatorX, option->rect.bottom());
+        const int separatorX =
+                option->direction == Qt::RightToLeft ? option->rect.left() : option->rect.right();
+        painter->drawLine(separatorX, option->rect.top(), separatorX, option->rect.bottom());
         painter->restore();
         return true;
     }
@@ -706,7 +661,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                 arrow.palette = header->palette;
                 arrow.state = header->state;
                 arrow.state.setFlag(QStyle::State_UpArrow,
-                    header->sortIndicator == QStyleOptionHeader::SortUp);
+                                    header->sortIndicator == QStyleOptionHeader::SortUp);
                 style->drawPrimitive(QStyle::PE_IndicatorHeaderArrow, &arrow, painter, widget);
             }
             return true;
@@ -723,30 +678,28 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             font.setPixelSize(12);
             font.setWeight(QFont::DemiBold);
             painter->setFont(font);
-            painter->setPen(header->state & QStyle::State_Enabled
-                                ? t.textSecondary : t.textDisabled);
+            painter->setPen(header->state & QStyle::State_Enabled ? t.textSecondary
+                                                                  : t.textDisabled);
             if (!header->icon.isNull()) {
-                const QRect logicalIcon(content.left(), content.center().y() - 8,
-                                        16, 16);
-                const QRect iconRect = QStyle::visualRect(header->direction, header->rect,
-                                                  logicalIcon);
-                paintThemedIcon(painter, header->icon, iconRect,
-                    Qt::AlignCenter, header->state & QStyle::State_Enabled
-                        ? t.textSecondary : t.textDisabled,
-                    header->state & QStyle::State_Enabled
-                        ? QIcon::Normal : QIcon::Disabled);
+                const QRect logicalIcon(content.left(), content.center().y() - 8, 16, 16);
+                const QRect iconRect =
+                        QStyle::visualRect(header->direction, header->rect, logicalIcon);
+                paintThemedIcon(
+                        painter, header->icon, iconRect, Qt::AlignCenter,
+                        header->state & QStyle::State_Enabled ? t.textSecondary : t.textDisabled,
+                        header->state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled);
                 if (header->direction == Qt::RightToLeft)
                     content.setRight(iconRect.left() - 8);
                 else
                     content.setLeft(iconRect.right() + 8);
             }
-            const Qt::Alignment horizontal = header->textAlignment
-                & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
-            painter->drawText(content,
-                QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
-                    | Qt::TextSingleLine,
-                header->fontMetrics.elidedText(header->text, Qt::ElideRight,
-                                                content.width()));
+            const Qt::Alignment horizontal =
+                    header->textAlignment & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
+            painter->drawText(
+                    content,
+                    QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
+                            | Qt::TextSingleLine,
+                    header->fontMetrics.elidedText(header->text, Qt::ElideRight, content.width()));
             painter->restore();
             return true;
         }

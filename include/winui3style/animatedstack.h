@@ -20,12 +20,7 @@ class WINUI3STYLE_EXPORT AnimatedStack final : public QStackedWidget
     Q_PROPERTY(int duration READ duration WRITE setDuration)
 
 public:
-    enum class Transition {
-        Automatic,
-        Forward,
-        Backward,
-        Entrance
-    };
+    enum class Transition { Automatic, Forward, Backward, Entrance };
     Q_ENUM(Transition)
 
     explicit AnimatedStack(QWidget *parent = nullptr);

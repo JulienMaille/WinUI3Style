@@ -11,10 +11,10 @@
 namespace WinUI3 {
 
 NavigationView::NavigationView(QWidget *parent)
-    : QWidget(parent)
-    , m_search(new QLineEdit(this))
-    , m_list(new QListWidget(this))
-    , m_stack(new AnimatedStack(this))
+    : QWidget(parent),
+      m_search(new QLineEdit(this)),
+      m_list(new QListWidget(this)),
+      m_stack(new AnimatedStack(this))
 {
     auto *navigationLayout = new QVBoxLayout;
     navigationLayout->setContentsMargins(0, 0, 0, 0);
@@ -47,8 +47,7 @@ NavigationView::NavigationView(QWidget *parent)
     connect(m_list, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem *current) { activateItem(current); });
     connect(m_search, &QLineEdit::textChanged, this, &NavigationView::filter);
-    connect(m_stack, &AnimatedStack::currentChanged,
-            this, &NavigationView::currentIndexChanged);
+    connect(m_stack, &AnimatedStack::currentChanged, this, &NavigationView::currentIndexChanged);
 }
 
 NavigationView::~NavigationView() = default;
@@ -68,7 +67,8 @@ int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &tit
 void NavigationView::removePage(int index)
 {
     QWidget *page = m_stack->widget(index);
-    if (!page) return;
+    if (!page)
+        return;
     for (int row = 0; row < m_list->count(); ++row) {
         QListWidgetItem *item = m_list->item(row);
         const int stored = item->data(Qt::UserRole).toInt();
@@ -83,17 +83,39 @@ void NavigationView::removePage(int index)
     page->setParent(nullptr);
 }
 
-int NavigationView::count() const { return m_stack->count(); }
-int NavigationView::currentIndex() const { return m_stack->currentIndex(); }
-QWidget *NavigationView::widget(int index) const { return m_stack->widget(index); }
-bool NavigationView::isSearchVisible() const { return m_search->isVisible(); }
-void NavigationView::setSearchVisible(bool visible) { m_search->setVisible(visible); }
-QListWidget *NavigationView::navigationList() const { return m_list; }
-AnimatedStack *NavigationView::stack() const { return m_stack; }
+int NavigationView::count() const
+{
+    return m_stack->count();
+}
+int NavigationView::currentIndex() const
+{
+    return m_stack->currentIndex();
+}
+QWidget *NavigationView::widget(int index) const
+{
+    return m_stack->widget(index);
+}
+bool NavigationView::isSearchVisible() const
+{
+    return m_search->isVisible();
+}
+void NavigationView::setSearchVisible(bool visible)
+{
+    m_search->setVisible(visible);
+}
+QListWidget *NavigationView::navigationList() const
+{
+    return m_list;
+}
+AnimatedStack *NavigationView::stack() const
+{
+    return m_stack;
+}
 
 void NavigationView::setCurrentIndex(int index)
 {
-    if (index < 0 || index >= count()) return;
+    if (index < 0 || index >= count())
+        return;
     for (int row = 0; row < m_list->count(); ++row) {
         QListWidgetItem *item = m_list->item(row);
         if (item->data(Qt::UserRole).toInt() == index) {
@@ -106,13 +128,15 @@ void NavigationView::setCurrentIndex(int index)
 
 void NavigationView::activateItem(QListWidgetItem *item)
 {
-    if (item) setCurrentIndex(item->data(Qt::UserRole).toInt());
+    if (item)
+        setCurrentIndex(item->data(Qt::UserRole).toInt());
 }
 
 void NavigationView::filter(const QString &text)
 {
     for (int row = 0; row < m_list->count(); ++row)
-        m_list->item(row)->setHidden(!m_list->item(row)->text().contains(text, Qt::CaseInsensitive));
+        m_list->item(row)->setHidden(
+                !m_list->item(row)->text().contains(text, Qt::CaseInsensitive));
 }
 
 } // namespace WinUI3

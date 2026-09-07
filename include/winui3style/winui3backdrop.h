@@ -7,14 +7,8 @@ class QWidget;
 
 namespace WinUI3 {
 
-enum class Backdrop {
-    None,
-    Mica,
-    MicaAlt,
-    Acrylic
-};
+enum class Backdrop { None, Mica, MicaAlt, Acrylic };
 
 WINUI3STYLE_EXPORT bool applyBackdrop(QWidget *window, Backdrop backdrop);
 
 } // namespace WinUI3
-

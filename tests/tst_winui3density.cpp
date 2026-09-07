@@ -5,8 +5,8 @@
 #include <QWidget>
 #include <QtTest>
 
-using WinUI3::Private::DensityMode;
 using WinUI3::Private::densityMetrics;
+using WinUI3::Private::DensityMode;
 using WinUI3::Private::densityModeFor;
 
 class WinUI3DensityTest final : public QObject

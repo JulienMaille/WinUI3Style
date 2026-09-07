@@ -25,8 +25,8 @@ namespace WinUI3::NavigationPrivate {
 namespace {
 
 using namespace WinUI3::PaintPrivate;
-using WinUI3::Private::progress;
 using WinUI3::Private::keyboardFocusVisible;
+using WinUI3::Private::progress;
 
 constexpr auto navigationIndicatorProperty = "_winui_navigation_indicator_y";
 constexpr auto navigationDelegateProperty = "_winui_navigation_delegate";
@@ -43,8 +43,7 @@ const QEasingCurve &fluentCurve()
 {
     static const QEasingCurve curve = [] {
         QEasingCurve result(QEasingCurve::BezierSpline);
-        result.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0),
-                                     QPointF(1.0, 1.0));
+        result.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
         return result;
     }();
     return curve;
@@ -53,24 +52,26 @@ const QEasingCurve &fluentCurve()
 class NavigationItemDelegate final : public QStyledItemDelegate
 {
 public:
-    explicit NavigationItemDelegate(QAbstractItemView *view,
-                                    QAbstractItemDelegate *original)
+    explicit NavigationItemDelegate(QAbstractItemView *view, QAbstractItemDelegate *original)
         : QStyledItemDelegate(view), m_view(view), m_original(original), m_indicatorAnimation(this)
     {
         QObject::connect(&m_indicatorAnimation, &QVariantAnimation::valueChanged, this,
                          [this](const QVariant &value) {
-            m_indicatorY = value.toReal();
-            if (m_view) {
-                WinUI3::Private::framePropertyRegistry().set(
-                    m_view->viewport(), navigationIndicatorProperty, m_indicatorY);
-                m_view->viewport()->update();
-            }
-        });
+                             m_indicatorY = value.toReal();
+                             if (m_view) {
+                                 WinUI3::Private::framePropertyRegistry().set(
+                                         m_view->viewport(), navigationIndicatorProperty,
+                                         m_indicatorY);
+                                 m_view->viewport()->update();
+                             }
+                         });
         attachSelectionModel();
-        m_verticalConnection = QObject::connect(view->verticalScrollBar(), &QScrollBar::valueChanged,
-                                                this, [this] { syncIndicatorToViewport(); });
-        m_horizontalConnection = QObject::connect(view->horizontalScrollBar(), &QScrollBar::valueChanged,
-                                                  this, [this] { syncIndicatorToViewport(); });
+        m_verticalConnection =
+                QObject::connect(view->verticalScrollBar(), &QScrollBar::valueChanged, this,
+                                 [this] { syncIndicatorToViewport(); });
+        m_horizontalConnection =
+                QObject::connect(view->horizontalScrollBar(), &QScrollBar::valueChanged, this,
+                                 [this] { syncIndicatorToViewport(); });
     }
 
     ~NavigationItemDelegate() override { shutdown(false); }
@@ -89,8 +90,8 @@ public:
         m_verticalConnection = {};
         m_horizontalConnection = {};
         if (clearViewport && m_view && m_view->viewport()) {
-            WinUI3::Private::framePropertyRegistry().clear(
-                m_view->viewport(), navigationIndicatorProperty);
+            WinUI3::Private::framePropertyRegistry().clear(m_view->viewport(),
+                                                           navigationIndicatorProperty);
             m_view->viewport()->update();
         }
         m_selectionModel.clear();
@@ -98,7 +99,7 @@ public:
 
     QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override
     {
-        return {220, Private::densityMetricsFor(m_view).navigationItemHeight};
+        return { 220, Private::densityMetricsFor(m_view).navigationItemHeight };
     }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
@@ -130,8 +131,8 @@ public:
             fill = Private::mix(fill, t.subtleHover, 1.0 - press);
         fill = Private::mix(fill, t.subtlePressed, press);
         if (fill.alpha() > 0)
-            roundedRect(painter, QRectF(option.rect).adjusted(2, 2, -2, -2), fill,
-                        Qt::transparent, Private::ControlRadius);
+            roundedRect(painter, QRectF(option.rect).adjusted(2, 2, -2, -2), fill, Qt::transparent,
+                        Private::ControlRadius);
         const QIcon itemIcon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
         if (!itemIcon.isNull()) {
             const QRect logicalIcon(option.rect.left() + 14, option.rect.center().y() - 8, 16, 16);
@@ -144,19 +145,18 @@ public:
         painter->setPen(option.state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled);
         const QRect textRect = QStyle::visualRect(option.direction, option.rect,
                                                   option.rect.adjusted(42, 0, -12, 0));
-        painter->drawText(textRect, QStyle::visualAlignment(option.direction,
-                        Qt::AlignLeft | Qt::AlignVCenter),
-                          option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight,
-                                                        textRect.width()));
+        painter->drawText(
+                textRect,
+                QStyle::visualAlignment(option.direction, Qt::AlignLeft | Qt::AlignVCenter),
+                option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight,
+                                              textRect.width()));
         if (m_view && m_indicatorY < 0.0 && m_view->currentIndex().isValid())
             m_indicatorY = m_view->visualRect(m_view->currentIndex()).top();
         if (m_indicatorY >= 0.0) {
             const qreal indicatorX = option.direction == Qt::RightToLeft ? option.rect.right() - 5.0
-                                                                           : option.rect.left() + 2.0;
+                                                                         : option.rect.left() + 2.0;
             const int rowHeight = Private::densityMetricsFor(m_view).navigationItemHeight;
-            const QRectF indicator(indicatorX,
-                                   m_indicatorY + (rowHeight - 16.0) / 2.0,
-                                   3.0, 16.0);
+            const QRectF indicator(indicatorX, m_indicatorY + (rowHeight - 16.0) / 2.0, 3.0, 16.0);
             if (indicator.intersects(option.rect))
                 roundedRect(painter, indicator, t.selectionAccent, Qt::transparent, 1.5);
         }
@@ -179,10 +179,9 @@ private:
         m_selectionModel = m_view->selectionModel();
         if (!m_selectionModel)
             return;
-        m_selectionConnection = QObject::connect(m_selectionModel, &QItemSelectionModel::currentChanged,
-                                                 this, [this](const QModelIndex &current) {
-            setIndicatorTarget(current, true);
-        });
+        m_selectionConnection = QObject::connect(
+                m_selectionModel, &QItemSelectionModel::currentChanged, this,
+                [this](const QModelIndex &current) { setIndicatorTarget(current, true); });
         setIndicatorTarget(m_selectionModel->currentIndex(), false);
     }
 
@@ -194,8 +193,8 @@ private:
             m_indicatorAnimation.stop();
             m_indicatorY = -1.0;
             if (m_view->viewport()) {
-                WinUI3::Private::framePropertyRegistry().clear(
-                    m_view->viewport(), navigationIndicatorProperty);
+                WinUI3::Private::framePropertyRegistry().clear(m_view->viewport(),
+                                                               navigationIndicatorProperty);
                 m_view->viewport()->update();
             }
             return;
@@ -206,7 +205,7 @@ private:
             m_indicatorY = target;
             if (m_view->viewport()) {
                 WinUI3::Private::framePropertyRegistry().set(
-                    m_view->viewport(), navigationIndicatorProperty, m_indicatorY);
+                        m_view->viewport(), navigationIndicatorProperty, m_indicatorY);
                 m_view->viewport()->update();
             }
             return;
@@ -254,11 +253,9 @@ public:
     bool surfaceStateSaved = false;
 };
 
-void restoreNavigationSurface(QAbstractItemView *view,
-                              NavigationViewState *state);
+void restoreNavigationSurface(QAbstractItemView *view, NavigationViewState *state);
 
-void prepareNavigationSurface(QAbstractItemView *view,
-                              NavigationViewState *state)
+void prepareNavigationSurface(QAbstractItemView *view, NavigationViewState *state)
 {
     if (!view || !view->viewport() || !state)
         return;
@@ -268,11 +265,11 @@ void prepareNavigationSurface(QAbstractItemView *view,
     if (view->property(Style::SurfaceProperty).isValid())
         return;
     const QString backdrop = view->window()
-        ? view->window()->property(Style::BackdropProperty).toString()
-        : QString();
-    const bool translucentBackdrop = backdrop.compare(
-        QLatin1String("mica"), Qt::CaseInsensitive) == 0
-        || backdrop.compare(QLatin1String("acrylic"), Qt::CaseInsensitive) == 0;
+            ? view->window()->property(Style::BackdropProperty).toString()
+            : QString();
+    const bool translucentBackdrop =
+            backdrop.compare(QLatin1String("mica"), Qt::CaseInsensitive) == 0
+            || backdrop.compare(QLatin1String("acrylic"), Qt::CaseInsensitive) == 0;
     if (!translucentBackdrop) {
         restoreNavigationSurface(view, state);
         return;
@@ -298,19 +295,17 @@ void prepareNavigationSurface(QAbstractItemView *view,
     view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
 }
 
-void restoreNavigationSurface(QAbstractItemView *view,
-                              NavigationViewState *state)
+void restoreNavigationSurface(QAbstractItemView *view, NavigationViewState *state)
 {
     if (!view || !state || !state->surfaceStateSaved)
         return;
     view->setPalette(state->viewPaletteExplicit ? state->viewPalette : QPalette());
     view->setFrameShape(state->frameShape);
     if (view->viewport()) {
-        view->viewport()->setPalette(state->viewportPaletteExplicit
-            ? state->viewportPalette : QPalette());
+        view->viewport()->setPalette(state->viewportPaletteExplicit ? state->viewportPalette
+                                                                    : QPalette());
         view->viewport()->setAutoFillBackground(state->viewportAutoFill);
-        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent,
-                                       state->viewportOpaque);
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, state->viewportOpaque);
     }
     state->surfaceStateSaved = false;
 }
@@ -320,7 +315,7 @@ NavigationViewState *navigationState(QAbstractItemView *view, bool create)
     if (!view)
         return nullptr;
     QObject *object = view->findChild<QObject *>(QString::fromLatin1(navigationStateProperty),
-                                                  Qt::FindDirectChildrenOnly);
+                                                 Qt::FindDirectChildrenOnly);
     auto *state = dynamic_cast<NavigationViewState *>(object);
     if (!state && create)
         state = new NavigationViewState(view);
@@ -334,8 +329,8 @@ void clearNavigationProperties(QAbstractItemView *view)
     view->setProperty(navigationDelegateProperty, {});
     view->setProperty(navigationOriginalDelegateProperty, {});
     if (view->viewport())
-        WinUI3::Private::framePropertyRegistry().clear(
-            view->viewport(), navigationIndicatorProperty);
+        WinUI3::Private::framePropertyRegistry().clear(view->viewport(),
+                                                       navigationIndicatorProperty);
 }
 
 void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *state)
@@ -411,11 +406,11 @@ void restoreNavigationView(QAbstractItemView *view)
     } else
         clearNavigationProperties(view);
     if (view->viewport()->property(originalMouseTrackingProperty).isValid())
-        view->viewport()->setMouseTracking(view->viewport()->property(originalMouseTrackingProperty).toBool());
+        view->viewport()->setMouseTracking(
+                view->viewport()->property(originalMouseTrackingProperty).toBool());
     view->viewport()->setProperty(originalMouseTrackingProperty, {});
     view->viewport()->setProperty(Style::NavigationViewProperty, {});
-    WinUI3::Private::framePropertyRegistry().clear(
-        view->viewport(), navigationIndicatorProperty);
+    WinUI3::Private::framePropertyRegistry().clear(view->viewport(), navigationIndicatorProperty);
 }
 
 } // namespace WinUI3::NavigationPrivate

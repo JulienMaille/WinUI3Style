@@ -72,8 +72,8 @@ inline QScreen *widgetScreen(const QWidget *widget)
 
 // QIcon::pixmap(size, dpr, mode, state) exists from Qt 6. On Qt 5 request
 // the device-resolution pixmap and pin its DPR instead.
-inline QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal dpr,
-                          QIcon::Mode mode, QIcon::State state)
+inline QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal dpr, QIcon::Mode mode,
+                          QIcon::State state)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     return icon.pixmap(size, dpr, mode, state);

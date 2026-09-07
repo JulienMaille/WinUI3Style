@@ -19,7 +19,8 @@ constexpr int NormalDuration = 250;
 constexpr qreal ControlRadius = 4.0;
 constexpr qreal OverlayRadius = 8.0;
 
-struct Tokens {
+struct Tokens
+{
     bool dark = false;
     QColor textPrimary;
     QColor textSecondary;
@@ -77,11 +78,10 @@ struct Tokens {
 inline QColor mix(const QColor &a, const QColor &b, qreal amount)
 {
     amount = qBound<qreal>(0.0, amount, 1.0);
-    return QColor::fromRgbF(
-        a.redF() + (b.redF() - a.redF()) * amount,
-        a.greenF() + (b.greenF() - a.greenF()) * amount,
-        a.blueF() + (b.blueF() - a.blueF()) * amount,
-        a.alphaF() + (b.alphaF() - a.alphaF()) * amount);
+    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * amount,
+                            a.greenF() + (b.greenF() - a.greenF()) * amount,
+                            a.blueF() + (b.blueF() - a.blueF()) * amount,
+                            a.alphaF() + (b.alphaF() - a.alphaF()) * amount);
 }
 
 inline QColor withAlpha(QColor color, int alpha)
@@ -99,20 +99,17 @@ inline QColor popupSurfaceColor(const QPalette &palette)
 {
     const QColor window = palette.color(QPalette::Window);
     const int lift = qGray(window.rgb()) < 128 ? 12 : 9;
-    return QColor(qMin(255, window.red() + lift),
-                  qMin(255, window.green() + lift),
+    return QColor(qMin(255, window.red() + lift), qMin(255, window.green() + lift),
                   qMin(255, window.blue() + lift));
 }
 
 inline qreal relativeLuminance(const QColor &color)
 {
     const auto channel = [](qreal value) {
-        return value <= 0.04045 ? value / 12.92
-                                : std::pow((value + 0.055) / 1.055, 2.4);
+        return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
     };
-    return 0.2126 * channel(color.redF())
-         + 0.7152 * channel(color.greenF())
-         + 0.0722 * channel(color.blueF());
+    return 0.2126 * channel(color.redF()) + 0.7152 * channel(color.greenF())
+            + 0.0722 * channel(color.blueF());
 }
 
 inline QColor contrastText(const QColor &background)
@@ -120,8 +117,7 @@ inline QColor contrastText(const QColor &background)
     const qreal luminance = relativeLuminance(background);
     const qreal contrastWithBlack = (luminance + 0.05) / 0.05;
     const qreal contrastWithWhite = 1.05 / (luminance + 0.05);
-    return contrastWithBlack >= contrastWithWhite ? QColor(Qt::black)
-                                                   : QColor(Qt::white);
+    return contrastWithBlack >= contrastWithWhite ? QColor(Qt::black) : QColor(Qt::white);
 }
 
 inline Tokens buildTokens(const QPalette &palette)
@@ -147,15 +143,13 @@ inline Tokens buildTokens(const QPalette &palette)
     // Hover fills: the dark ramp overlays the ink; the light ramp sits white
     // cards on top of a darker window, so it blends the control fill with the
     // paper beneath. Pressed either fades the overlay or pushes toward ink.
-    t.controlHover = t.dark ? withAlpha(ink, 21)
-                            : withAlpha(mix(t.control, t.surface, 0.5), 128);
+    t.controlHover = t.dark ? withAlpha(ink, 21) : withAlpha(mix(t.control, t.surface, 0.5), 128);
     // Light pressed must land visibly darker than the resting fill; an
     // alpha-only change over the light window reads as no response. 26/255 of
     // the way from the control fill to ink reproduces WinUI
     // ControlFillColorTertiary (#E5E5E5) at the control opacity exactly.
-    t.controlPressed = t.dark ? withAlpha(ink, 8)
-                              : withAlpha(mix(t.control, ink, 26.0 / 255.0),
-                                          179);
+    t.controlPressed =
+            t.dark ? withAlpha(ink, 8) : withAlpha(mix(t.control, ink, 26.0 / 255.0), 179);
     t.controlDisabled = palette.color(QPalette::Disabled, QPalette::Button);
     // WinUI SubtleFill ramp. MenuFlyout maps item PointerOver/Pressed to
     // SubtleFillColorSecondary/Tertiary: Default #0FFFFFFF/#0AFFFFFF,
@@ -180,8 +174,7 @@ inline Tokens buildTokens(const QPalette &palette)
     // build instead of collapsing both roles onto Highlight. The selection
     // role is the raw accent (QPalette::Highlight); map it onto WinUI's
     // AccentFillColorDefault ramp: Dark1 in Light, Light2 in Dark.
-    t.accentFill = mix(t.selectionAccent,
-                       t.dark ? QColor(Qt::white) : QColor(Qt::black),
+    t.accentFill = mix(t.selectionAccent, t.dark ? QColor(Qt::white) : QColor(Qt::black),
                        t.dark ? 0.32 : 0.18);
 #endif
     // WinUI maps pointer-over and pressed AccentFill brushes to the same
@@ -191,18 +184,15 @@ inline Tokens buildTokens(const QPalette &palette)
     t.accentFillHover.setAlphaF(t.accentFill.alphaF() * 0.9);
     t.accentFillPressed = t.accentFill;
     t.accentFillPressed.setAlphaF(t.accentFill.alphaF() * 0.8);
-    t.accentFillDisabled = t.dark ? QColor(255, 255, 255, 40)
-                                  : QColor(0, 0, 0, 55);
+    t.accentFillDisabled = t.dark ? QColor(255, 255, 255, 40) : QColor(0, 0, 0, 55);
     // CheckBox, RadioButton and ToggleSwitch use TextOnAccentFillColorPrimary
     // for their checked glyph/knob: black in Dark, white in Light.
     t.controlOnAccentPrimary = t.dark ? QColor(Qt::black) : QColor(Qt::white);
-    t.controlOnAccentDisabled = t.dark ? QColor(255, 255, 255, 135)
-                                       : QColor(Qt::white);
+    t.controlOnAccentDisabled = t.dark ? QColor(255, 255, 255, 135) : QColor(Qt::white);
     // WinUI's TextOnAccentFillColorPrimary is a theme resource, not a
     // contrast calculation: white in Light and black in Dark.
     t.textOnAccentPrimary = t.dark ? QColor(Qt::black) : QColor(Qt::white);
-    t.textOnAccentSecondary = t.dark ? QColor(0, 0, 0, 128)
-                                     : QColor(255, 255, 255, 179);
+    t.textOnAccentSecondary = t.dark ? QColor(0, 0, 0, 128) : QColor(255, 255, 255, 179);
     t.textOnAccentDisabled = t.textOnAccentPrimary;
     t.textOnAccentDisabled.setAlpha(135);
     // Off/disabled toggle track ramp (moved out of winui3buttons_p.cpp so
@@ -229,7 +219,8 @@ inline Tokens tokens(const QPalette &palette)
     // widget-local overrides and runtime accent/theme updates. A small
     // thread-local ring avoids locks and heap allocations in paint paths
     // while bounding retained palette variants.
-    struct CacheEntry {
+    struct CacheEntry
+    {
         qint64 key = 0;
         bool valid = false;
         Tokens value;

@@ -98,9 +98,9 @@ public:
             visible = true;
             if (combo && combo->currentIndex() >= 0) {
                 const QModelIndex selected = combo->model()->index(
-                    combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
+                        combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
                 selectedCenterAtShow = combo->view()->viewport()->mapToGlobal(
-                    combo->view()->visualRect(selected).center());
+                        combo->view()->visualRect(selected).center());
                 scrollValueAtShow = combo->view()->verticalScrollBar()->value();
             }
             geometryAtShow = popup->geometry();
@@ -141,18 +141,15 @@ public:
 class ExposedSplitter final : public QSplitter
 {
 public:
-    using QSplitter::QSplitter;
     using QSplitter::moveSplitter;
+    using QSplitter::QSplitter;
 };
 
 class SolidPage final : public QWidget
 {
 public:
-    SolidPage(const QColor &color, const QString &text,
-              QWidget *parent = nullptr)
-        : QWidget(parent)
-        , m_color(color)
-        , m_text(text)
+    SolidPage(const QColor &color, const QString &text, QWidget *parent = nullptr)
+        : QWidget(parent), m_color(color), m_text(text)
     {
         setAutoFillBackground(false);
     }
@@ -177,8 +174,7 @@ class CountingHintWidget final : public QWidget
 {
 public:
     explicit CountingHintWidget(const QSize &hint, QWidget *parent = nullptr)
-        : QWidget(parent)
-        , m_hint(hint)
+        : QWidget(parent), m_hint(hint)
     {
     }
 
@@ -198,10 +194,17 @@ public:
     bool eventFilter(QObject *, QEvent *event) override
     {
         switch (event->type()) {
-        case QEvent::LayoutRequest: ++layoutRequests; break;
-        case QEvent::Resize: ++resizes; break;
-        case QEvent::Paint: ++paints; break;
-        default: break;
+        case QEvent::LayoutRequest:
+            ++layoutRequests;
+            break;
+        case QEvent::Resize:
+            ++resizes;
+            break;
+        case QEvent::Paint:
+            ++paints;
+            break;
+        default:
+            break;
         }
         return false;
     }
@@ -231,8 +234,8 @@ class DisableAnimationsGuard final
 {
 public:
     DisableAnimationsGuard()
-        : existed(qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS"))
-        , previous(qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS"))
+        : existed(qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS")),
+          previous(qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS"))
     {
         qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
     }
@@ -251,30 +254,29 @@ public:
 
 static int colorDistance(const QColor &a, const QColor &b)
 {
-    return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green())
-        + qAbs(a.blue() - b.blue()) + qAbs(a.alpha() - b.alpha());
+    return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue())
+            + qAbs(a.alpha() - b.alpha());
 }
 
 static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control,
-                             const QStyleOptionComplex *option,
-                             const QWidget *widget,
+                             const QStyleOptionComplex *option, const QWidget *widget,
                              const QRect &interactiveRect = {},
                              const QList<QRect> &additionalHitRegions = {})
 {
-    const QRect rect = interactiveRect.isValid()
-        ? interactiveRect.intersected(option->rect) : option->rect;
-    const QList<QPoint> edges = {
-        rect.topLeft(), rect.topRight(), rect.bottomLeft(), rect.bottomRight(),
-        QPoint(rect.center().x(), rect.top()),
-        QPoint(rect.center().x(), rect.bottom()),
-        QPoint(rect.left(), rect.center().y()),
-        QPoint(rect.right(), rect.center().y()), rect.center()
-    };
+    const QRect rect =
+            interactiveRect.isValid() ? interactiveRect.intersected(option->rect) : option->rect;
+    const QList<QPoint> edges = { rect.topLeft(),
+                                  rect.topRight(),
+                                  rect.bottomLeft(),
+                                  rect.bottomRight(),
+                                  QPoint(rect.center().x(), rect.top()),
+                                  QPoint(rect.center().x(), rect.bottom()),
+                                  QPoint(rect.left(), rect.center().y()),
+                                  QPoint(rect.right(), rect.center().y()),
+                                  rect.center() };
     for (const QPoint &point : edges)
-        QVERIFY2(style->hitTestComplexControl(control, option, point, widget)
-                     != QStyle::SC_None,
-                 qPrintable(QStringLiteral("hole at %1,%2")
-                                .arg(point.x()).arg(point.y())));
+        QVERIFY2(style->hitTestComplexControl(control, option, point, widget) != QStyle::SC_None,
+                 qPrintable(QStringLiteral("hole at %1,%2").arg(point.x()).arg(point.y())));
 
     // These are logical control-sized surfaces, so an exhaustive integer
     // raster catches one-pixel holes at fractional-DPR rounding boundaries.
@@ -282,40 +284,38 @@ static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control
         for (int x = rect.left(); x <= rect.right(); ++x) {
             const QPoint point(x, y);
             QVERIFY2(style->hitTestComplexControl(control, option, point, widget)
-                         != QStyle::SC_None,
-                     qPrintable(QStringLiteral("hole at %1,%2")
-                                    .arg(point.x()).arg(point.y())));
+                             != QStyle::SC_None,
+                     qPrintable(QStringLiteral("hole at %1,%2").arg(point.x()).arg(point.y())));
         }
     }
 
-    const QList<QPoint> outside = {
-        rect.topLeft() - QPoint(1, 1), rect.topRight() + QPoint(1, -1),
-        rect.bottomLeft() + QPoint(-1, 1), rect.bottomRight() + QPoint(1, 1),
-        QPoint(rect.left() - 1, rect.center().y()),
-        QPoint(rect.right() + 1, rect.center().y()),
-        QPoint(rect.center().x(), rect.top() - 1),
-        QPoint(rect.center().x(), rect.bottom() + 1)
-    };
+    const QList<QPoint> outside = { rect.topLeft() - QPoint(1, 1),
+                                    rect.topRight() + QPoint(1, -1),
+                                    rect.bottomLeft() + QPoint(-1, 1),
+                                    rect.bottomRight() + QPoint(1, 1),
+                                    QPoint(rect.left() - 1, rect.center().y()),
+                                    QPoint(rect.right() + 1, rect.center().y()),
+                                    QPoint(rect.center().x(), rect.top() - 1),
+                                    QPoint(rect.center().x(), rect.bottom() + 1) };
     for (const QPoint &point : outside) {
         bool allowed = false;
         for (const QRect &region : additionalHitRegions)
             allowed = allowed || region.contains(point);
         if (allowed)
             continue;
-        const QStyle::SubControl hit = style->hitTestComplexControl(
-            control, option, point, widget);
+        const QStyle::SubControl hit = style->hitTestComplexControl(control, option, point, widget);
         QVERIFY2(hit == QStyle::SC_None,
                  qPrintable(QStringLiteral("outside point %1,%2 hit %3")
-                                .arg(point.x()).arg(point.y()).arg(int(hit))));
+                                    .arg(point.x())
+                                    .arg(point.y())
+                                    .arg(int(hit))));
     }
 }
 
 static QImage renderComplex(const QStyle *style, QStyle::ComplexControl control,
-                            const QStyleOptionComplex *option,
-                            const QWidget *widget, qreal dpr)
+                            const QStyleOptionComplex *option, const QWidget *widget, qreal dpr)
 {
-    const QSize physical(qRound(option->rect.width() * dpr),
-                         qRound(option->rect.height() * dpr));
+    const QSize physical(qRound(option->rect.width() * dpr), qRound(option->rect.height() * dpr));
     QImage image(physical, QImage::Format_ARGB32_Premultiplied);
     image.setDevicePixelRatio(dpr);
     image.fill(widget->palette().color(QPalette::Window));
@@ -327,13 +327,9 @@ static QImage renderComplex(const QStyle *style, QStyle::ComplexControl control,
 static int inkPixels(const QImage &image, const QRect &logicalRect, qreal dpr,
                      const QColor &background)
 {
-    const QRect physical(
-        qFloor(logicalRect.left() * dpr),
-        qFloor(logicalRect.top() * dpr),
-        qCeil((logicalRect.right() + 1) * dpr)
-            - qFloor(logicalRect.left() * dpr),
-        qCeil((logicalRect.bottom() + 1) * dpr)
-            - qFloor(logicalRect.top() * dpr));
+    const QRect physical(qFloor(logicalRect.left() * dpr), qFloor(logicalRect.top() * dpr),
+                         qCeil((logicalRect.right() + 1) * dpr) - qFloor(logicalRect.left() * dpr),
+                         qCeil((logicalRect.bottom() + 1) * dpr) - qFloor(logicalRect.top() * dpr));
     int count = 0;
     for (int y = physical.top(); y <= physical.bottom(); ++y) {
         for (int x = physical.left(); x <= physical.right(); ++x) {
@@ -345,14 +341,12 @@ static int inkPixels(const QImage &image, const QRect &logicalRect, qreal dpr,
     return count;
 }
 
-static qreal frameReal(const QObject *object, const char *name,
-                       qreal fallback = 0.0)
+static qreal frameReal(const QObject *object, const char *name, qreal fallback = 0.0)
 {
     return WinUI3::Private::framePropertyRegistry().real(object, name, fallback);
 }
 
-static bool frameBool(const QObject *object, const char *name,
-                      bool fallback = false)
+static bool frameBool(const QObject *object, const char *name, bool fallback = false)
 {
     const QVariant value = WinUI3::Private::framePropertyRegistry().value(object, name);
     return value.isValid() ? value.toBool() : fallback;

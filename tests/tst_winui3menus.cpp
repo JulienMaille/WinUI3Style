@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3MenusTest final : public QObject
@@ -136,7 +135,6 @@ void WinUI3MenusTest::cleanup()
     qApp->processEvents();
 }
 
-
 void WinUI3MenusTest::menuSizingContract()
 {
     QMenu menu;
@@ -145,13 +143,15 @@ void WinUI3MenusTest::menuSizingContract()
     option.initFrom(&menu);
     option.menuItemType = QStyleOptionMenuItem::Normal;
     option.font = menu.font();
-    option.text = QStringLiteral("Open a recent project with a deliberately long name\tCtrl+Shift+O");
+    option.text =
+            QStringLiteral("Open a recent project with a deliberately long name\tCtrl+Shift+O");
     const QFontMetrics metrics(option.font);
     const int expected = 42
-        + metrics.horizontalAdvance(QStringLiteral("Open a recent project with a deliberately long name"))
-        + 16 + 20 + metrics.horizontalAdvance(QStringLiteral("Ctrl+Shift+O"));
-    const QSize result = menu.style()->sizeFromContents(QStyle::CT_MenuItem, &option,
-                                                        QSize(), &menu);
+            + metrics.horizontalAdvance(
+                    QStringLiteral("Open a recent project with a deliberately long name"))
+            + 16 + 20 + metrics.horizontalAdvance(QStringLiteral("Ctrl+Shift+O"));
+    const QSize result =
+            menu.style()->sizeFromContents(QStyle::CT_MenuItem, &option, QSize(), &menu);
     QVERIFY2(result.width() >= expected,
              qPrintable(QStringLiteral("%1 < %2").arg(result.width()).arg(expected)));
     QVERIFY(result.height() >= 36);
@@ -174,8 +174,7 @@ void WinUI3MenusTest::menuSizingContract()
         QCOMPARE(menu.geometry(), firstGeometry);
         QCOMPARE(probe.movesAfterShow, 0);
     } else {
-        QTRY_VERIFY_WITH_TIMEOUT(menu.geometry().y() >= firstGeometry.y() - 1,
-                                 1000);
+        QTRY_VERIFY_WITH_TIMEOUT(menu.geometry().y() >= firstGeometry.y() - 1, 1000);
     }
     QCOMPARE(probe.resizesAfterShow, 0);
     menu.hide();
@@ -189,27 +188,25 @@ void WinUI3MenusTest::menuSizingContract()
         QCOMPARE(menu.geometry(), firstGeometry);
         QCOMPARE(probe.movesAfterShow, 0);
     } else {
-        QTRY_VERIFY_WITH_TIMEOUT(menu.geometry().y() >= firstGeometry.y() - 1,
-                                 1000);
+        QTRY_VERIFY_WITH_TIMEOUT(menu.geometry().y() >= firstGeometry.y() - 1, 1000);
     }
     QCOMPARE(probe.resizesAfterShow, 0);
     const QRect actionRect = menu.actionGeometry(action);
     QVERIFY(actionRect.width() >= popupExpected);
     QTest::mouseMove(&menu, actionRect.center());
     QCOMPARE(menu.activeAction(), action);
-    QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier,
-                      actionRect.center());
+    QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier, actionRect.center());
     QVERIFY(action->isChecked());
 
     // Menu flyout items follow the combo popup rows in Compact mode.
     if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
         style->setDensityMode(WinUI3::DensityMode::Compact);
-        const QSize compactResult = menu.style()->sizeFromContents(
-            QStyle::CT_MenuItem, &option, QSize(), &menu);
+        const QSize compactResult =
+                menu.style()->sizeFromContents(QStyle::CT_MenuItem, &option, QSize(), &menu);
         style->setDensityMode(WinUI3::DensityMode::Standard);
         QCOMPARE(compactResult.height(), 32);
-        const QSize backToStandard = menu.style()->sizeFromContents(
-            QStyle::CT_MenuItem, &option, QSize(), &menu);
+        const QSize backToStandard =
+                menu.style()->sizeFromContents(QStyle::CT_MenuItem, &option, QSize(), &menu);
         QVERIFY(backToStandard.height() >= 36);
     }
 }
@@ -221,8 +218,7 @@ void WinUI3MenusTest::menuSubmenuChevronGeometry()
 
     constexpr int chevronSlotSize = 16;
     constexpr int chevronRightPadding = 9;
-    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
-                                                Qt::RightToLeft}) {
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
         QStyleOptionMenuItem option;
         option.rect = QRect(0, 0, 240, 36);
         option.direction = direction;
@@ -248,12 +244,10 @@ void WinUI3MenusTest::menuSubmenuChevronGeometry()
         }
         QVERIFY2(!ink.isEmpty(), "submenu chevron produced no pixels");
 
-        const QRect logicalSlot(
-            option.rect.right() - chevronRightPadding - chevronSlotSize + 1,
-            option.rect.center().y() - chevronSlotSize / 2,
-            chevronSlotSize, chevronSlotSize);
-        const QRect slot = QStyle::visualRect(direction, option.rect,
-                                              logicalSlot);
+        const QRect logicalSlot(option.rect.right() - chevronRightPadding - chevronSlotSize + 1,
+                                option.rect.center().y() - chevronSlotSize / 2, chevronSlotSize,
+                                chevronSlotSize);
+        const QRect slot = QStyle::visualRect(direction, option.rect, logicalSlot);
         QVERIFY(slot.contains(ink.topLeft()));
         QVERIFY(slot.contains(ink.bottomRight()));
         // The WinUI template uses FontSize=12 in a 16px Viewbox. On the
@@ -315,11 +309,11 @@ void WinUI3MenusTest::compactMenuBarTextFits()
     bar.show();
     QVERIFY(QTest::qWaitForWindowExposed(&bar));
     const QRect actionRect = bar.actionGeometry(action);
-    const int required = bar.fontMetrics().horizontalAdvance(action->text())
-        + 2 * 8;
-    QVERIFY2(actionRect.width() >= required,
-             qPrintable(QStringLiteral("action=%1 required=%2")
-                            .arg(actionRect.width()).arg(required)));
+    const int required = bar.fontMetrics().horizontalAdvance(action->text()) + 2 * 8;
+    QVERIFY2(
+            actionRect.width() >= required,
+            qPrintable(
+                    QStringLiteral("action=%1 required=%2").arg(actionRect.width()).arg(required)));
 
     const QImage rendered = bar.grab().toImage();
     const QColor background = bar.palette().color(QPalette::Window);
@@ -334,7 +328,8 @@ void WinUI3MenusTest::compactMenuBarTextFits()
     // right edge lands at least two pixels earlier than this compact contract.
     QVERIFY2(rightmostInk >= actionRect.right() - 8,
              qPrintable(QStringLiteral("rightmost ink=%1 action right=%2")
-                            .arg(rightmostInk).arg(actionRect.right())));
+                                .arg(rightmostInk)
+                                .arg(actionRect.right())));
 
     style->setDensityMode(previous);
 }
@@ -353,8 +348,7 @@ void WinUI3MenusTest::menuBarOnlyActiveActionIsHighlighted()
     (void)QTest::qWaitForWindowExposed(&bar);
     setFrame(&bar, "_winui_hover_progress", 1.0);
 
-    for (const Qt::LayoutDirection direction : {Qt::LeftToRight,
-                                                Qt::RightToLeft}) {
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
         bar.setLayoutDirection(direction);
         const QRect fileRect = bar.actionGeometry(file);
         const QRect viewRect = bar.actionGeometry(view);
@@ -368,12 +362,10 @@ void WinUI3MenusTest::menuBarOnlyActiveActionIsHighlighted()
         emptyArea.rect = image.rect();
         {
             QPainter painter(&image);
-            style->drawControl(QStyle::CE_MenuBarEmptyArea, &emptyArea,
-                               &painter, &bar);
+            style->drawControl(QStyle::CE_MenuBarEmptyArea, &emptyArea, &painter, &bar);
         }
         QCOMPARE(image.pixelColor(image.width() - 2, image.height() / 2), surface);
-        auto drawItem = [&](QAction *action, const QRect &rect,
-                            QStyle::State state) {
+        auto drawItem = [&](QAction *action, const QRect &rect, QStyle::State state) {
             QStyleOptionMenuItem option;
             option.initFrom(&bar);
             option.rect = rect;
@@ -383,8 +375,7 @@ void WinUI3MenusTest::menuBarOnlyActiveActionIsHighlighted()
             option.fontMetrics = QFontMetrics(option.font);
             option.menuItemType = QStyleOptionMenuItem::Normal;
             QPainter painter(&image);
-            style->drawControl(QStyle::CE_MenuBarItem, &option,
-                               &painter, &bar);
+            style->drawControl(QStyle::CE_MenuBarItem, &option, &painter, &bar);
         };
         drawItem(file, fileRect, QStyle::State_Enabled | QStyle::State_Selected);
         drawItem(view, viewRect, QStyle::State_Enabled);
@@ -399,8 +390,7 @@ void WinUI3MenusTest::menuBarOnlyActiveActionIsHighlighted()
 
     QListWidget navigation;
     navigation.setProperty(WinUI3::Style::NavigationViewProperty, true);
-    navigation.setProperty(WinUI3::Style::SurfaceProperty,
-                           QStringLiteral("layer"));
+    navigation.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("layer"));
     navigation.addItem(QStringLiteral("Controls"));
     navigation.resize(220, 120);
     navigation.show();
@@ -422,25 +412,20 @@ void WinUI3MenusTest::groupBoxContract()
     option.initFrom(&group);
     option.text = group.title();
     option.subControls = QStyle::SC_GroupBoxFrame | QStyle::SC_GroupBoxLabel
-        | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxContents;
+            | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxContents;
     const QRect indicator = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
-                                                          QStyle::SC_GroupBoxCheckBox,
-                                                          &group);
+                                                          QStyle::SC_GroupBoxCheckBox, &group);
     const QRect label = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
-                                                      QStyle::SC_GroupBoxLabel,
-                                                      &group);
+                                                      QStyle::SC_GroupBoxLabel, &group);
     const QRect contents = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
-                                                         QStyle::SC_GroupBoxContents,
-                                                         &group);
+                                                         QStyle::SC_GroupBoxContents, &group);
     QCOMPARE(indicator.size(), QSize(20, 20));
     QVERIFY(contents.top() > indicator.bottom());
 
-    const QPoint gap((indicator.right() + label.left()) / 2,
-                     indicator.center().y());
+    const QPoint gap((indicator.right() + label.left()) / 2, indicator.center().y());
     QVERIFY(!indicator.contains(gap));
     QVERIFY(!label.contains(gap));
-    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option,
-                                                   gap, &group),
+    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option, gap, &group),
              QStyle::SC_GroupBoxCheckBox);
     QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier, gap);
     QVERIFY(group.isChecked());
@@ -453,8 +438,7 @@ void WinUI3MenusTest::groupBoxContract()
     QVERIFY(midway > 0.0 && midway < 1.0);
     QTRY_VERIFY(frameReal(&group, "_winui_check_progress") > 0.99);
 
-    QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier,
-                      indicator.center());
+    QTest::mouseClick(&group, Qt::LeftButton, Qt::NoModifier, indicator.center());
     QVERIFY(!group.isChecked());
     QCOMPARE(frameReal(&group, "_winui_check_progress"), 0.0);
 
@@ -462,15 +446,13 @@ void WinUI3MenusTest::groupBoxContract()
     option.initFrom(&group);
     option.text = group.title();
     option.subControls = QStyle::SC_GroupBoxFrame | QStyle::SC_GroupBoxLabel
-        | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxContents;
-    const QRect rtlIndicator = group.style()->subControlRect(
-        QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxCheckBox, &group);
-    const QRect rtlLabel = group.style()->subControlRect(
-        QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxLabel, &group);
-    const QPoint rtlGap((rtlLabel.right() + rtlIndicator.left()) / 2,
-                        rtlIndicator.center().y());
-    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option,
-                                                   rtlGap, &group),
+            | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxContents;
+    const QRect rtlIndicator = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
+                                                             QStyle::SC_GroupBoxCheckBox, &group);
+    const QRect rtlLabel = group.style()->subControlRect(QStyle::CC_GroupBox, &option,
+                                                         QStyle::SC_GroupBoxLabel, &group);
+    const QPoint rtlGap((rtlLabel.right() + rtlIndicator.left()) / 2, rtlIndicator.center().y());
+    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option, rtlGap, &group),
              QStyle::SC_GroupBoxCheckBox);
 }
 
@@ -501,8 +483,7 @@ void WinUI3MenusTest::splitterHandleContract()
     const QPoint handleCenter = handle->rect().center();
     QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, handleCenter);
     QTest::mouseMove(handle, handleCenter + QPoint(60, 0), 20);
-    QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier,
-                        handleCenter + QPoint(60, 0));
+    QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, handleCenter + QPoint(60, 0));
     QVERIFY(splitter.sizes().at(0) > beforeDrag.at(0));
     splitter.moveSplitter(-1000, 1);
     QVERIFY(splitter.sizes().at(0) >= 0);
@@ -536,8 +517,7 @@ void WinUI3MenusTest::splitterGripPixelAlignment()
     splitter.addWidget(new QLabel(QStringLiteral("Left")));
     splitter.addWidget(new QLabel(QStringLiteral("Right")));
 
-    const auto gripCenter = [&splitter](const QRect &rect, bool horizontal,
-                                        qreal dpr) {
+    const auto gripCenter = [&splitter](const QRect &rect, bool horizontal, qreal dpr) {
         constexpr int logicalWidth = 180;
         constexpr int logicalHeight = 140;
         QImage image(qCeil(logicalWidth * dpr), qCeil(logicalHeight * dpr),
@@ -552,8 +532,8 @@ void WinUI3MenusTest::splitterGripPixelAlignment()
             option.state |= QStyle::State_Horizontal;
         {
             QPainter painter(&image);
-            splitter.style()->drawControl(QStyle::CE_Splitter, &option,
-                                          &painter, splitter.handle(1));
+            splitter.style()->drawControl(QStyle::CE_Splitter, &option, &painter,
+                                          splitter.handle(1));
         }
         qreal weighted = 0.0;
         qreal weight = 0.0;
@@ -565,34 +545,38 @@ void WinUI3MenusTest::splitterGripPixelAlignment()
             }
         }
         const qreal actual = weight > 0.0 ? weighted / weight : -1.0;
-        const qreal logicalCenter = horizontal
-            ? QRectF(rect).center().x() : QRectF(rect).center().y();
+        const qreal logicalCenter =
+                horizontal ? QRectF(rect).center().x() : QRectF(rect).center().y();
         const qreal expected = qRound(logicalCenter * dpr - 0.5) + 0.5;
         return qMakePair(actual, expected);
     };
 
-    for (const qreal dpr : {1.0, 1.25, 1.5, 2.0}) {
-        for (const bool horizontal : {true, false}) {
-            const QRect even = horizontal ? QRect(20, 20, 6, 100)
-                                          : QRect(20, 20, 100, 6);
-            const QRect odd = horizontal ? QRect(21, 21, 7, 99)
-                                         : QRect(21, 21, 99, 7);
+    for (const qreal dpr : { 1.0, 1.25, 1.5, 2.0 }) {
+        for (const bool horizontal : { true, false }) {
+            const QRect even = horizontal ? QRect(20, 20, 6, 100) : QRect(20, 20, 100, 6);
+            const QRect odd = horizontal ? QRect(21, 21, 7, 99) : QRect(21, 21, 99, 7);
             const auto evenCenter = gripCenter(even, horizontal, dpr);
             const auto oddCenter = gripCenter(odd, horizontal, dpr);
             QVERIFY2(evenCenter.first >= 0.0,
                      qPrintable(QStringLiteral("DPR %1 %2 even empty")
-                                    .arg(dpr).arg(horizontal ? "H" : "V")));
+                                        .arg(dpr)
+                                        .arg(horizontal ? "H" : "V")));
             QVERIFY2(oddCenter.first >= 0.0,
                      qPrintable(QStringLiteral("DPR %1 %2 odd empty")
-                                    .arg(dpr).arg(horizontal ? "H" : "V")));
+                                        .arg(dpr)
+                                        .arg(horizontal ? "H" : "V")));
             QVERIFY2(qAbs(evenCenter.first - evenCenter.second) < 0.75,
                      qPrintable(QStringLiteral("DPR %1 %2 even=%3 expected=%4")
-                                    .arg(dpr).arg(horizontal ? "H" : "V")
-                                    .arg(evenCenter.first).arg(evenCenter.second)));
+                                        .arg(dpr)
+                                        .arg(horizontal ? "H" : "V")
+                                        .arg(evenCenter.first)
+                                        .arg(evenCenter.second)));
             QVERIFY2(qAbs(oddCenter.first - oddCenter.second) < 0.75,
                      qPrintable(QStringLiteral("DPR %1 %2 odd=%3 expected=%4")
-                                    .arg(dpr).arg(horizontal ? "H" : "V")
-                                    .arg(oddCenter.first).arg(oddCenter.second)));
+                                        .arg(dpr)
+                                        .arg(horizontal ? "H" : "V")
+                                        .arg(oddCenter.first)
+                                        .arg(oddCenter.second)));
         }
     }
 }
@@ -606,12 +590,9 @@ void WinUI3MenusTest::dockWidgetContract()
     host.resize(520, 260);
     host.show();
 
-    QCOMPARE(host.style()->pixelMetric(QStyle::PM_DockWidgetSeparatorExtent,
-                                       nullptr, dock), 6);
-    QCOMPARE(host.style()->pixelMetric(QStyle::PM_DockWidgetFrameWidth,
-                                       nullptr, dock), 1);
-    QCOMPARE(host.style()->pixelMetric(QStyle::PM_DockWidgetTitleMargin,
-                                       nullptr, dock), 8);
+    QCOMPARE(host.style()->pixelMetric(QStyle::PM_DockWidgetSeparatorExtent, nullptr, dock), 6);
+    QCOMPARE(host.style()->pixelMetric(QStyle::PM_DockWidgetFrameWidth, nullptr, dock), 1);
+    QCOMPARE(host.style()->pixelMetric(QStyle::PM_DockWidgetTitleMargin, nullptr, dock), 8);
     const QImage image = host.grab().toImage();
     QVERIFY(!image.isNull());
     QCOMPARE(image.size(), host.size());
@@ -629,12 +610,10 @@ void WinUI3MenusTest::statusBarAndSizeGripContract()
     auto *grip = bar->findChild<QSizeGrip *>();
     QVERIFY(grip);
     QVERIFY(grip->isVisible());
-    QCOMPARE(window.style()->pixelMetric(QStyle::PM_SizeGripSize,
-                                         nullptr, grip), 16);
+    QCOMPARE(window.style()->pixelMetric(QStyle::PM_SizeGripSize, nullptr, grip), 16);
     const QImage barImage = bar->grab().toImage();
     QVERIFY(barImage.pixelColor(barImage.width() / 2, 0)
-            != barImage.pixelColor(barImage.width() / 2,
-                                   qMin(barImage.height() - 1, 6)));
+            != barImage.pixelColor(barImage.width() / 2, qMin(barImage.height() - 1, 6)));
     const QImage gripImage = grip->grab().toImage();
     const QColor gripBackground = grip->palette().color(QPalette::Window);
     bool hasGripInk = false;

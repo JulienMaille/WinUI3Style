@@ -48,8 +48,7 @@ constexpr auto contentDialogFooterName = "_winui_content_dialog_footer_surface";
 class ContentDialogFooterSurface final : public QWidget
 {
 public:
-    explicit ContentDialogFooterSurface(QDialog *dialog)
-        : QWidget(dialog), m_dialog(dialog)
+    explicit ContentDialogFooterSurface(QDialog *dialog) : QWidget(dialog), m_dialog(dialog)
     {
         setObjectName(QString::fromLatin1(contentDialogFooterName));
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -83,10 +82,8 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         if (watched == m_dialog
-            && (event->type() == QEvent::Resize
-                || event->type() == QEvent::Show
-                || event->type() == QEvent::LayoutRequest
-                || event->type() == QEvent::ChildAdded)) {
+            && (event->type() == QEvent::Resize || event->type() == QEvent::Show
+                || event->type() == QEvent::LayoutRequest || event->type() == QEvent::ChildAdded)) {
             queueGeometrySync();
         }
         return QWidget::eventFilter(watched, event);
@@ -123,11 +120,10 @@ private:
             hide();
             return;
         }
-        const int commandInset = m_dialog->layout()
-            ? qMax(0, m_dialog->layout()->contentsMargins().bottom()) : 24;
+        const int commandInset =
+                m_dialog->layout() ? qMax(0, m_dialog->layout()->contentsMargins().bottom()) : 24;
         const int buttonTop = buttons->mapTo(m_dialog, QPoint(0, 0)).y();
-        const int top = qBound(0, buttonTop - commandInset,
-                               m_dialog->height());
+        const int top = qBound(0, buttonTop - commandInset, m_dialog->height());
         setGeometry(0, top, m_dialog->width(), m_dialog->height() - top);
         lower();
         setVisible(m_dialog->isVisible());
@@ -143,9 +139,8 @@ ContentDialogFooterSurface *contentDialogFooter(QDialog *dialog, bool create)
 {
     if (!dialog)
         return nullptr;
-    auto *surface = static_cast<ContentDialogFooterSurface *>(
-        dialog->findChild<QWidget *>(QString::fromLatin1(contentDialogFooterName),
-                                     Qt::FindDirectChildrenOnly));
+    auto *surface = static_cast<ContentDialogFooterSurface *>(dialog->findChild<QWidget *>(
+            QString::fromLatin1(contentDialogFooterName), Qt::FindDirectChildrenOnly));
     if (!surface && create)
         surface = new ContentDialogFooterSurface(dialog);
     return surface;
@@ -153,8 +148,7 @@ ContentDialogFooterSurface *contentDialogFooter(QDialog *dialog, bool create)
 
 bool calendarView(const QWidget *widget)
 {
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         if (qobject_cast<const QCalendarWidget *>(candidate))
             return true;
     }
@@ -187,10 +181,8 @@ void rememberPalette(QWidget *widget)
 {
     if (!widget)
         return;
-    remember(widget, originalPaletteExplicitProperty,
-             widget->testAttribute(Qt::WA_SetPalette));
-    remember(widget, originalPaletteProperty,
-             QVariant::fromValue(widget->palette()));
+    remember(widget, originalPaletteExplicitProperty, widget->testAttribute(Qt::WA_SetPalette));
+    remember(widget, originalPaletteProperty, QVariant::fromValue(widget->palette()));
 }
 
 void restoreRememberedPalette(QWidget *widget)
@@ -215,7 +207,7 @@ void stopDialogAnimations(QDialog *dialog)
     if (!dialog)
         return;
     const auto groups = dialog->findChildren<QParallelAnimationGroup *>(
-        QStringLiteral("_winui_dialog_animation"), Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_dialog_animation"), Qt::FindDirectChildrenOnly);
     for (QParallelAnimationGroup *group : groups) {
         group->stop();
         delete group;
@@ -232,23 +224,19 @@ void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
     delete contentDialogFooter(dialog, false);
     restoreRememberedPalette(dialog);
     if (dialog->property(originalAutoFillProperty).isValid())
-        dialog->setAutoFillBackground(
-            dialog->property(originalAutoFillProperty).toBool());
+        dialog->setAutoFillBackground(dialog->property(originalAutoFillProperty).toBool());
     if (dialog->property(originalMinimumSizeProperty).isValid())
-        dialog->setMinimumSize(
-            dialog->property(originalMinimumSizeProperty).value<QSize>());
+        dialog->setMinimumSize(dialog->property(originalMinimumSizeProperty).value<QSize>());
     if (dialog->property(originalMaximumSizeProperty).isValid())
-        dialog->setMaximumSize(
-            dialog->property(originalMaximumSizeProperty).value<QSize>());
+        dialog->setMaximumSize(dialog->property(originalMaximumSizeProperty).value<QSize>());
     if (QLayout *layout = dialog->layout()) {
         if (dialog->property(originalMarginsProperty).isValid())
-            layout->setContentsMargins(
-                dialog->property(originalMarginsProperty).value<QMargins>());
+            layout->setContentsMargins(dialog->property(originalMarginsProperty).value<QMargins>());
         if (dialog->property(originalSpacingProperty).isValid())
             layout->setSpacing(dialog->property(originalSpacingProperty).toInt());
         if (dialog->property(originalLayoutConstraintProperty).isValid())
             layout->setSizeConstraint(static_cast<QLayout::SizeConstraint>(
-                dialog->property(originalLayoutConstraintProperty).toInt()));
+                    dialog->property(originalLayoutConstraintProperty).toInt()));
     }
     dialog->setProperty(ownedPaletteProperty, {});
     if (clearSavedState) {
@@ -269,23 +257,18 @@ void prepareContentDialogState(QDialog *dialog, bool dark)
         return;
     rememberPalette(dialog);
     remember(dialog, originalAutoFillProperty, dialog->autoFillBackground());
-    remember(dialog, originalMinimumSizeProperty,
-             QVariant::fromValue(dialog->minimumSize()));
-    remember(dialog, originalMaximumSizeProperty,
-             QVariant::fromValue(dialog->maximumSize()));
+    remember(dialog, originalMinimumSizeProperty, QVariant::fromValue(dialog->minimumSize()));
+    remember(dialog, originalMaximumSizeProperty, QVariant::fromValue(dialog->maximumSize()));
     if (QLayout *layout = dialog->layout()) {
-        remember(dialog, originalMarginsProperty,
-                 QVariant::fromValue(layout->contentsMargins()));
+        remember(dialog, originalMarginsProperty, QVariant::fromValue(layout->contentsMargins()));
         remember(dialog, originalSpacingProperty, layout->spacing());
-        remember(dialog, originalLayoutConstraintProperty,
-                 int(layout->sizeConstraint()));
+        remember(dialog, originalLayoutConstraintProperty, int(layout->sizeConstraint()));
         layout->setContentsMargins(24, 24, 24, 24);
         layout->setSpacing(12);
     }
     dialog->setProperty(ownedPaletteProperty, true);
     QPalette palette = dialog->palette();
-    const QColor commandFill = dark ? QColor(0x20, 0x20, 0x20)
-                                    : QColor(0xF3, 0xF3, 0xF3);
+    const QColor commandFill = dark ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF3, 0xF3);
     // ContentDialog uses LayerFillColorAlt for its content region and
     // SolidBackgroundFillColorBase for the full-width command footer.
     // Always derive the layer from the fixed base token. prepare() is called
@@ -314,8 +297,7 @@ constexpr auto contentDialogScrimProperty = "_winui_content_dialog_scrim";
 class ContentDialogScrim final : public QWidget
 {
 public:
-    explicit ContentDialogScrim(QWidget *parentWindow)
-        : QWidget(parentWindow)
+    explicit ContentDialogScrim(QWidget *parentWindow) : QWidget(parentWindow)
     {
         setObjectName(QStringLiteral("_winui_content_dialog_scrim"));
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -344,9 +326,9 @@ class SliderValueTip final : public QWidget
 {
 public:
     explicit SliderValueTip(QSlider *slider)
-        : QWidget(slider, Qt::Tool | Qt::FramelessWindowHint
-                            | Qt::WindowDoesNotAcceptFocus
-                            | Qt::WindowTransparentForInput)
+        : QWidget(slider,
+                  Qt::Tool | Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus
+                          | Qt::WindowTransparentForInput)
     {
         setObjectName(QStringLiteral("_winui_slider_value_tip"));
         setAttribute(Qt::WA_TranslucentBackground);
@@ -358,15 +340,12 @@ public:
         m_text = text;
         const QFontMetrics metrics(font());
         resize(qMax(32, metrics.horizontalAdvance(text) + 16), 32);
-        QPoint position = horizontal
-            ? QPoint(anchor.x() - width() / 2, anchor.y() - height())
-            : QPoint(anchor.x(), anchor.y() - height() / 2);
+        QPoint position = horizontal ? QPoint(anchor.x() - width() / 2, anchor.y() - height())
+                                     : QPoint(anchor.x(), anchor.y() - height() / 2);
         if (QScreen *screen = QGuiApplication::screenAt(anchor)) {
             const QRect available = screen->availableGeometry();
-            position.setX(qBound(available.left(), position.x(),
-                                 available.right() - width() + 1));
-            position.setY(qBound(available.top(), position.y(),
-                                 available.bottom() - height() + 1));
+            position.setX(qBound(available.left(), position.x(), available.right() - width() + 1));
+            position.setY(qBound(available.top(), position.y(), available.bottom() - height() + 1));
         }
         move(position);
         show();
@@ -381,19 +360,17 @@ protected:
         QColor fill = palette().color(QPalette::ToolTipBase);
         fill.setAlpha(242);
         QPainter painter(this);
-        roundedRect(&painter, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5),
-                    fill, t.strokeSecondary, Private::ControlRadius);
+        roundedRect(&painter, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), fill,
+                    t.strokeSecondary, Private::ControlRadius);
         painter.setPen(palette().color(QPalette::ToolTipText));
-        painter.drawText(rect().adjusted(8, 0, -8, 0),
-                         Qt::AlignCenter, m_text);
+        painter.drawText(rect().adjusted(8, 0, -8, 0), Qt::AlignCenter, m_text);
     }
 
 private:
     QString m_text;
 };
 
-constexpr auto sliderToolTipDebounceTimerName =
-    "_winui_slider_tooltip_debounce_timer";
+constexpr auto sliderToolTipDebounceTimerName = "_winui_slider_tooltip_debounce_timer";
 constexpr int sliderToolTipDebounceInterval = 16;
 
 SliderValueTip *sliderValueTip(QSlider *slider)
@@ -401,7 +378,7 @@ SliderValueTip *sliderValueTip(QSlider *slider)
     if (!slider)
         return nullptr;
     return static_cast<SliderValueTip *>(slider->findChild<QWidget *>(
-        QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
+            QStringLiteral("_winui_slider_value_tip"), Qt::FindDirectChildrenOnly));
 }
 
 void clearSliderValueToolTip(QSlider *slider)
@@ -410,8 +387,7 @@ void clearSliderValueToolTip(QSlider *slider)
         return;
 
     if (auto *timer = slider->findChild<QTimer *>(
-            QString::fromLatin1(sliderToolTipDebounceTimerName),
-            Qt::FindDirectChildrenOnly)) {
+                QString::fromLatin1(sliderToolTipDebounceTimerName), Qt::FindDirectChildrenOnly)) {
         timer->stop();
     }
     framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, false);
@@ -443,14 +419,13 @@ void updateSliderValueToolTipNow(QSlider *slider)
     option.singleStep = slider->singleStep();
     option.pageStep = slider->pageStep();
     option.upsideDown = slider->orientation() == Qt::Horizontal
-        ? (slider->invertedAppearance()
-           != (slider->layoutDirection() == Qt::RightToLeft))
-        : !slider->invertedAppearance();
-    const QRect handle = slider->style()->subControlRect(
-        QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
+            ? (slider->invertedAppearance() != (slider->layoutDirection() == Qt::RightToLeft))
+            : !slider->invertedAppearance();
+    const QRect handle = slider->style()->subControlRect(QStyle::CC_Slider, &option,
+                                                         QStyle::SC_SliderHandle, slider);
     const QPoint anchor = slider->orientation() == Qt::Horizontal
-        ? QPoint(handle.center().x(), handle.top() - 8)
-        : QPoint(handle.right() + 8, handle.center().y());
+            ? QPoint(handle.center().x(), handle.top() - 8)
+            : QPoint(handle.right() + 8, handle.center().y());
     const QString valueText = QString::number(slider->value());
     framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, true);
     framePropertyRegistry().set(slider, sliderToolTipValueProperty, valueText);
@@ -462,8 +437,7 @@ void updateSliderValueToolTipNow(QSlider *slider)
     auto *tip = sliderValueTip(slider);
     if (!tip)
         tip = new SliderValueTip(slider);
-    tip->showValue(valueText, slider->mapToGlobal(anchor),
-                   slider->orientation() == Qt::Horizontal);
+    tip->showValue(valueText, slider->mapToGlobal(anchor), slider->orientation() == Qt::Horizontal);
 }
 
 QTimer *sliderToolTipDebounceTimer(QSlider *slider)
@@ -471,8 +445,7 @@ QTimer *sliderToolTipDebounceTimer(QSlider *slider)
     if (!slider)
         return nullptr;
     if (auto *timer = slider->findChild<QTimer *>(
-            QString::fromLatin1(sliderToolTipDebounceTimerName),
-            Qt::FindDirectChildrenOnly)) {
+                QString::fromLatin1(sliderToolTipDebounceTimerName), Qt::FindDirectChildrenOnly)) {
         return timer;
     }
     auto *timer = new QTimer(slider);
@@ -485,18 +458,15 @@ QTimer *sliderToolTipDebounceTimer(QSlider *slider)
             return;
         // Close the current frame's leading-edge window so the next pointer
         // move can schedule a fresh refresh.
-        framePropertyRegistry().set(guarded,
-                                    sliderToolTipSurfacePendingProperty, false);
+        framePropertyRegistry().set(guarded, sliderToolTipSurfacePendingProperty, false);
         if (guarded->isEnabled()
-            && framePropertyRegistry().value(
-                   guarded, sliderToolTipVisibleProperty).toBool())
+            && framePropertyRegistry().value(guarded, sliderToolTipVisibleProperty).toBool())
             updateSliderValueToolTipNow(guarded);
     });
     return timer;
 }
 
-bool isLineEditClearButton(const QLineEdit *lineEdit,
-                           const QAbstractButton *button)
+bool isLineEditClearButton(const QLineEdit *lineEdit, const QAbstractButton *button)
 {
     if (!lineEdit || !button)
         return false;
@@ -531,12 +501,11 @@ void cacheLineEditClearButton(QLineEdit *lineEdit, QAbstractButton *button)
     cache.buttons.insert(lineEdit, QPointer<QAbstractButton>(button));
     if (!cache.cleanupConnections.contains(lineEdit)) {
         cache.cleanupConnections.insert(lineEdit,
-            QObject::connect(lineEdit, &QObject::destroyed,
-                             [lineEdit] {
-            auto &cache = lineEditClearButtonCache();
-            cache.buttons.remove(lineEdit);
-            cache.cleanupConnections.remove(lineEdit);
-        }));
+                                        QObject::connect(lineEdit, &QObject::destroyed, [lineEdit] {
+                                            auto &cache = lineEditClearButtonCache();
+                                            cache.buttons.remove(lineEdit);
+                                            cache.cleanupConnections.remove(lineEdit);
+                                        }));
     }
 }
 
@@ -551,8 +520,7 @@ const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit)
 
 namespace {
 
-constexpr auto lineEditHelperUpdatePendingProperty =
-    "_winui_line_edit_helper_update_pending";
+constexpr auto lineEditHelperUpdatePendingProperty = "_winui_line_edit_helper_update_pending";
 
 qulonglong nextLineEditHelperUpdateToken()
 {
@@ -564,9 +532,7 @@ qulonglong nextLineEditHelperUpdateToken()
 void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
 {
     if (!lineEdit
-        || framePropertyRegistry().value(lineEdit,
-                                         lineEditHelperUpdatePendingProperty)
-               .isValid())
+        || framePropertyRegistry().value(lineEdit, lineEditHelperUpdatePendingProperty).isValid())
         return;
 
     const qulonglong token = nextLineEditHelperUpdateToken();
@@ -576,9 +542,10 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
     const QPointer<Style> guardedStyle(style);
     QTimer::singleShot(0, lineEdit, [guardedLineEdit, guardedStyle, token] {
         if (!guardedLineEdit
-            || framePropertyRegistry().value(
-                   guardedLineEdit, lineEditHelperUpdatePendingProperty)
-                   .toULongLong() != token)
+            || framePropertyRegistry()
+                            .value(guardedLineEdit, lineEditHelperUpdatePendingProperty)
+                            .toULongLong()
+                    != token)
             return;
 
         // updateReadOnlyDeleteAffordance() has no style parameter for callers
@@ -589,8 +556,7 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
             helperStyle = qobject_cast<Style *>(guardedLineEdit->style());
 
         QAbstractButton *clearButton = nullptr;
-        for (QAbstractButton *button
-             : guardedLineEdit->findChildren<QAbstractButton *>()) {
+        for (QAbstractButton *button : guardedLineEdit->findChildren<QAbstractButton *>()) {
             if (helperStyle) {
                 // QLineEdit creates its private clear affordance lazily. Depending
                 // on that timing, it can miss the parent's polish pass and never
@@ -600,29 +566,26 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
                 button->installEventFilter(helperStyle);
                 if (!framePropertyRegistry().value(button, hoverProperty).isValid())
                     framePropertyRegistry().set(button, hoverProperty,
-                                                button->isEnabled()
-                                                        && button->underMouse()
-                                                    ? 1.0
-                                                    : 0.0);
+                                                button->isEnabled() && button->underMouse() ? 1.0
+                                                                                            : 0.0);
                 if (!framePropertyRegistry().value(button, pressProperty).isValid())
                     framePropertyRegistry().set(button, pressProperty, 0.0);
             }
 
             if (isLineEditClearButton(guardedLineEdit, button)) {
                 clearButton = button;
-                button->setVisible(!guardedLineEdit->isReadOnly()
-                                   && guardedLineEdit->isEnabled()
+                button->setVisible(!guardedLineEdit->isReadOnly() && guardedLineEdit->isEnabled()
                                    && guardedLineEdit->hasFocus()
                                    && guardedLineEdit->isClearButtonEnabled()
                                    && !guardedLineEdit->text().isEmpty());
             }
         }
         cacheLineEditClearButton(guardedLineEdit, clearButton);
-        if (framePropertyRegistry().value(guardedLineEdit,
-                                          lineEditHelperUpdatePendingProperty)
-                .toULongLong() == token) {
-            framePropertyRegistry().clear(guardedLineEdit,
-                                          lineEditHelperUpdatePendingProperty);
+        if (framePropertyRegistry()
+                    .value(guardedLineEdit, lineEditHelperUpdatePendingProperty)
+                    .toULongLong()
+            == token) {
+            framePropertyRegistry().clear(guardedLineEdit, lineEditHelperUpdatePendingProperty);
         }
     });
 }
@@ -669,8 +632,7 @@ void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style)
 void cancelLineEditHelperUpdate(QLineEdit *lineEdit)
 {
     if (lineEdit)
-        framePropertyRegistry().clear(lineEdit,
-                                      lineEditHelperUpdatePendingProperty);
+        framePropertyRegistry().clear(lineEdit, lineEditHelperUpdatePendingProperty);
 }
 
 void showSliderValueToolTip(QSlider *slider)
@@ -688,8 +650,7 @@ void showSliderValueToolTip(QSlider *slider)
         return;
     // A refresh is already scheduled in this frame; its timeout picks up the
     // newest value, so subsequent pointer moves within the frame are coalesced.
-    if (framePropertyRegistry().value(
-            slider, sliderToolTipSurfacePendingProperty).toBool())
+    if (framePropertyRegistry().value(slider, sliderToolTipSurfacePendingProperty).toBool())
         return;
     // Leading edge of a new frame (or the first show): refresh the popup
     // immediately so it tracks the handle with no trailing-edge lag, then arm
@@ -716,8 +677,8 @@ void preparePopupSurface(QWidget *widget)
     if (!view)
         view = popup->findChild<QAbstractItemView *>();
     const bool completerPopup = view
-        && (view->property(completerOwnerProperty).isValid()
-            || qobject_cast<QCompleter *>(view->parent()));
+            && (view->property(completerOwnerProperty).isValid()
+                || qobject_cast<QCompleter *>(view->parent()));
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
     remember(popup, originalTranslucentBackgroundProperty,
@@ -733,9 +694,8 @@ void preparePopupSurface(QWidget *widget)
     // a dark popup after the application switches to light (and vice versa).
     // It is framework-owned rather than an application override: always rebase
     // it on the current application palette.
-    QPalette popupPalette = completerPopup
-        ? QApplication::palette()
-        : effectivePopupPalette(popup, QApplication::palette());
+    QPalette popupPalette = completerPopup ? QApplication::palette()
+                                           : effectivePopupPalette(popup, QApplication::palette());
     const Private::Tokens popupTokens = Private::tokens(popupPalette);
     const QColor popupSurface = Private::popupSurfaceColor(popupPalette);
     popupPalette.setColor(QPalette::Window, popupSurface);
@@ -751,8 +711,7 @@ void preparePopupSurface(QWidget *widget)
         // breathing room above and below the first/last item. Keep this on
         // the popup window so the view's item geometry stays stable between
         // first show and subsequent popup cycles.
-        remember(popup, originalMarginsProperty,
-                 QVariant::fromValue(popup->contentsMargins()));
+        remember(popup, originalMarginsProperty, QVariant::fromValue(popup->contentsMargins()));
         popup->setContentsMargins(0, 4, 0, 4);
         // The selected-row anchor is computed in the same Show dispatch. Make
         // the new inset effective now so the first opening uses the exact same
@@ -761,20 +720,18 @@ void preparePopupSurface(QWidget *widget)
             layout->activate();
     }
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
-        remember(popup, originalMarginsProperty,
-                 QVariant::fromValue(popup->contentsMargins()));
+        remember(popup, originalMarginsProperty, QVariant::fromValue(popup->contentsMargins()));
         menu->setContentsMargins(0, 2, 0, 2);
     }
     if (view) {
         rememberPalette(view);
-        QPalette viewPalette = completerPopup
-            ? popupPalette : effectivePopupPalette(view, popupPalette);
+        QPalette viewPalette =
+                completerPopup ? popupPalette : effectivePopupPalette(view, popupPalette);
         if (calendarView(view)) {
             // QTableView paints its native rectangular selection underneath
             // the delegate. CalendarView uses its own rounded day chrome.
             viewPalette.setColor(QPalette::Highlight, Qt::transparent);
-            viewPalette.setColor(QPalette::HighlightedText,
-                                 popupTokens.textPrimary);
+            viewPalette.setColor(QPalette::HighlightedText, popupTokens.textPrimary);
         }
         view->setPalette(viewPalette);
         rememberPalette(view->viewport());
@@ -782,16 +739,15 @@ void preparePopupSurface(QWidget *widget)
                  view->viewport()->autoFillBackground());
         remember(view->viewport(), originalOpaquePaintProperty,
                  view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
-        view->viewport()->setPalette(completerPopup
-            ? viewPalette
-            : effectivePopupPalette(view->viewport(), viewPalette));
+        view->viewport()->setPalette(
+                completerPopup ? viewPalette
+                               : effectivePopupPalette(view->viewport(), viewPalette));
         view->viewport()->setAutoFillBackground(true);
         // A QCompleter's QListView is itself the native popup. Its delegate
         // paints translucent item-state layers rather than every viewport
         // pixel, so claiming an opaque paint event suppresses Qt's background
         // erase and retains old frames as dark Mica-like ghosts.
-        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent,
-                                       !completerPopup);
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, !completerPopup);
         if (auto *list = qobject_cast<QListView *>(view)) {
             remember(list, originalListSpacingProperty, list->spacing());
             list->setSpacing(0);
@@ -809,8 +765,8 @@ void prepareComboPopupFirstFrameImpl(QComboBox *combo)
         return;
 
     preparePopupSurface(view);
-    const QModelIndex current = combo->model()->index(
-        combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
+    const QModelIndex current = combo->model()->index(combo->currentIndex(), combo->modelColumn(),
+                                                      combo->rootModelIndex());
     if (!current.isValid())
         return;
 

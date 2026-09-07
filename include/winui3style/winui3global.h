@@ -10,4 +10,3 @@
 #else
 #  define WINUI3STYLE_EXPORT Q_DECL_IMPORT
 #endif
-

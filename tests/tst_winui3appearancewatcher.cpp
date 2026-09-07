@@ -30,11 +30,10 @@ void WinUI3AppearanceWatcherTest::nativeFilterAlwaysPassesTheMessageOn()
 #ifdef Q_OS_WIN
     MSG message{};
     message.message = WM_SETTINGCHANGE;
-    QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"),
-                                       &message, nullptr));
+    QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &message,
+                                       nullptr));
 #else
-    QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("non-windows"),
-                                       nullptr, nullptr));
+    QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("non-windows"), nullptr, nullptr));
 #endif
 }
 
@@ -48,15 +47,15 @@ void WinUI3AppearanceWatcherTest::inactiveWatcherIgnoresMessages()
 #ifdef Q_OS_WIN
     MSG message{};
     message.message = WM_THEMECHANGED;
-    QVERIFY(!watcher.nativeEventFilter(
-        QByteArrayLiteral("windows_generic_MSG"), &message, nullptr));
+    QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &message,
+                                       nullptr));
     QTest::qWait(SystemAppearanceWatcher::debounceIntervalMs + 25);
     QCOMPARE(callbackCount, 0);
 
     watcher.setActive(true);
     QVERIFY(watcher.isActive());
-    QVERIFY(!watcher.nativeEventFilter(
-        QByteArrayLiteral("windows_generic_MSG"), &message, nullptr));
+    QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &message,
+                                       nullptr));
     QTRY_COMPARE_WITH_TIMEOUT(callbackCount, 1, 500);
 #else
     QTest::qWait(100);
@@ -79,8 +78,8 @@ void WinUI3AppearanceWatcherTest::appearanceMessagesAreDebounced()
     };
     for (const UINT messageId : appearanceMessages) {
         message.message = messageId;
-        QVERIFY(!watcher.nativeEventFilter(
-            QByteArrayLiteral("windows_generic_MSG"), &message, nullptr));
+        QVERIFY(!watcher.nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &message,
+                                           nullptr));
     }
     QTRY_COMPARE_WITH_TIMEOUT(callbackCount, 1, 500);
 #else
@@ -93,14 +92,13 @@ void WinUI3AppearanceWatcherTest::callbackContextCancelsPendingNotification()
 {
     int callbackCount = 0;
     auto *context = new QObject;
-    auto *watcher = new SystemAppearanceWatcher(
-        context, [&callbackCount] { ++callbackCount; });
+    auto *watcher = new SystemAppearanceWatcher(context, [&callbackCount] { ++callbackCount; });
 
 #ifdef Q_OS_WIN
     MSG message{};
     message.message = WM_THEMECHANGED;
-    QVERIFY(!watcher->nativeEventFilter(
-        QByteArrayLiteral("windows_generic_MSG"), &message, nullptr));
+    QVERIFY(!watcher->nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &message,
+                                        nullptr));
 #endif
 
     delete context;

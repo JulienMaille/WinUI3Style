@@ -51,8 +51,8 @@
 #include <QToolButton>
 
 #ifdef Q_OS_WIN
-#define NOMINMAX
-#include <windows.h>
+#  define NOMINMAX
+#  include <windows.h>
 #endif
 
 namespace WinUI3::Private {
@@ -67,8 +67,8 @@ bool comboPressOpensPopup(QComboBox *combo, const QPoint &position)
         option.initFrom(combo);
         option.rect = combo->rect();
         option.direction = combo->layoutDirection();
-        const QRect arrow = combo->style()->subControlRect(
-            QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxArrow, combo);
+        const QRect arrow = combo->style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                           QStyle::SC_ComboBoxArrow, combo);
         return arrow.contains(position);
     }
     return true;
@@ -82,8 +82,7 @@ bool comboPopupItemView(const QWidget *widget)
             break;
         candidate = candidate->parentWidget();
     }
-    if (!candidate || !candidate->window()
-        || candidate->window()->windowType() != Qt::Popup)
+    if (!candidate || !candidate->window() || candidate->window()->windowType() != Qt::Popup)
         return false;
     return qobject_cast<const QComboBox *>(candidate->window()->parentWidget());
 }
@@ -95,8 +94,8 @@ void centerPendingComboPopup(QWidget *popup, QComboBox *combo)
     QAbstractItemView *view = combo->view();
     if (!view || !view->viewport())
         return;
-    const QModelIndex current = combo->model()->index(
-        combo->currentIndex(), combo->modelColumn(), combo->rootModelIndex());
+    const QModelIndex current = combo->model()->index(combo->currentIndex(), combo->modelColumn(),
+                                                      combo->rootModelIndex());
     const QRect selected = view->visualRect(current);
     if (!selected.isValid())
         return;
@@ -105,24 +104,19 @@ void centerPendingComboPopup(QWidget *popup, QComboBox *combo)
     // global origin during a reused QEvent::Show. Derive the anchor from the
     // stable popup inset and item geometry instead, otherwise later openings
     // drift by the combined 4px top/bottom margin.
-    const int selectedCenterInPopup = popup->contentsRect().top()
-        + view->frameWidth() + selected.center().y();
+    const int selectedCenterInPopup =
+            popup->contentsRect().top() + view->frameWidth() + selected.center().y();
     int targetY = comboCenter.y() - selectedCenterInPopup;
     if (QScreen *screen = widgetScreen(popup)) {
         const QRect available = screen->availableGeometry();
-        const int maximumY = qMax(available.top(),
-                                  available.bottom() - popup->height() + 1);
+        const int maximumY = qMax(available.top(), available.bottom() - popup->height() + 1);
         targetY = qBound(available.top(), targetY, maximumY);
     }
     if (targetY != popup->y())
         popup->move(popup->x(), targetY);
 }
 
-enum class InteractionMotion {
-    Hover,
-    Press,
-    Focus
-};
+enum class InteractionMotion { Hover, Press, Focus };
 
 void animateMenuPopup(QWidget *popup, const QComboBox *combo)
 {
@@ -151,8 +145,7 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
         anchor = popup->parentWidget();
     bool aboveAnchor = false;
     if (anchor) {
-        const int anchorBottom =
-            anchor->mapToGlobal(QPoint(0, anchor->height())).y();
+        const int anchorBottom = anchor->mapToGlobal(QPoint(0, anchor->height())).y();
         aboveAnchor = popup->frameGeometry().bottom() <= anchorBottom;
     }
     // Short sweep from the anchor edge; keep it subtle like the reference.
@@ -160,8 +153,7 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
     // popup (dies with it), deleted on finish.
     constexpr int slidePixels = 12;
     const QPoint finalPos = popup->pos();
-    const QPoint startPos = finalPos
-        + QPoint(0, aboveAnchor ? slidePixels : -slidePixels);
+    const QPoint startPos = finalPos + QPoint(0, aboveAnchor ? slidePixels : -slidePixels);
     auto *group = new QParallelAnimationGroup(popup);
     group->setObjectName(QStringLiteral("_winui_popup_open_animation"));
     auto *slide = new QPropertyAnimation(popup, "pos", group);
@@ -174,8 +166,7 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
     fade->setEndValue(1.0);
     fade->setDuration(FastDuration);
     fade->setEasingCurve(QEasingCurve::OutCubic);
-    QObject::connect(group, &QParallelAnimationGroup::finished, popup,
-                     [popup, group, finalPos] {
+    QObject::connect(group, &QParallelAnimationGroup::finished, popup, [popup, group, finalPos] {
         if (popup) {
             popup->move(finalPos);
             popup->setWindowOpacity(1.0);
@@ -185,15 +176,12 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
             // physical move. Re-hit-test once from the live cursor position:
             // a move where it actually is, a leave everywhere else. Both
             // are idempotent when the state is already correct.
-            QAbstractItemView *view =
-                popup->findChild<QAbstractItemView *>();
+            QAbstractItemView *view = popup->findChild<QAbstractItemView *>();
             QWidget *viewport = view ? view->viewport() : nullptr;
             QWidget *under = QApplication::widgetAt(QCursor::pos());
-            if (under && under->window() == popup
-                && (under == viewport || under == view)) {
+            if (under && under->window() == popup && (under == viewport || under == view)) {
                 const QPoint local = under->mapFromGlobal(QCursor::pos());
-                QHoverEvent move(QEvent::HoverMove, QPointF(local),
-                                 QPointF(local));
+                QHoverEvent move(QEvent::HoverMove, QPointF(local), QPointF(local));
                 QCoreApplication::sendEvent(under, &move);
             } else if (viewport) {
                 QEvent leave(QEvent::Leave);
@@ -207,8 +195,7 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
     group->start();
 }
 
-int interactionDuration(const QWidget *widget, InteractionMotion motion,
-                        bool active)
+int interactionDuration(const QWidget *widget, InteractionMotion motion, bool active)
 {
     if (comboPopupItemView(widget))
         return 167;
@@ -216,10 +203,8 @@ int interactionDuration(const QWidget *widget, InteractionMotion motion,
     // their templates define no timed transition. The TextBox helper button is
     // discrete as well. Other button-like surfaces use WinUI's faster brush
     // transition, while RadioButton's dot uses the normal duration.
-    if (qobject_cast<const QLineEdit *>(widget)
-        || qobject_cast<const QAbstractSpinBox *>(widget)
-        || qobject_cast<const QTabBar *>(widget)
-        || textBoxHelperButton(widget)) {
+    if (qobject_cast<const QLineEdit *>(widget) || qobject_cast<const QAbstractSpinBox *>(widget)
+        || qobject_cast<const QTabBar *>(widget) || textBoxHelperButton(widget)) {
         return 0;
     }
     if (qobject_cast<const QRadioButton *>(widget))
@@ -258,8 +243,8 @@ bool revealsKeyboardFocus(int key)
 
 } // namespace
 
-StyleInteractionController::StyleInteractionController(
-    Style *style, StyleInteractionCallbacks callbacks)
+StyleInteractionController::StyleInteractionController(Style *style,
+                                                       StyleInteractionCallbacks callbacks)
     : m_style(style), m_callbacks(std::move(callbacks))
 {
 }
@@ -279,23 +264,19 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         m_callbacks.clearPointerInteraction(widget);
         const bool enabled = widget->isEnabled();
         framePropertyRegistry().set(widget, hoverProperty,
-                                    enabled && widget->underMouse()
-                                        ? 1.0 : 0.0);
+                                    enabled && widget->underMouse() ? 1.0 : 0.0);
         framePropertyRegistry().set(widget, pressProperty, 0.0);
         framePropertyRegistry().set(widget, focusProperty,
                                     enabled && widget->hasFocus() ? 1.0 : 0.0);
         framePropertyRegistry().set(widget, focusVisibleProperty,
-                                    enabled && widget->hasFocus()
-                                        && *m_callbacks.keyboardInput);
+                                    enabled && widget->hasFocus() && *m_callbacks.keyboardInput);
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
             framePropertyRegistry().set(checkBox, checkProperty,
-                                        checkBox->checkState() == Qt::Unchecked
-                                            ? 0.0 : 1.0);
+                                        checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
             framePropertyRegistry().set(checkBox, togglePositionProperty,
                                         checkBox->isChecked() ? 1.0 : 0.0);
         } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
-            framePropertyRegistry().set(radio, checkProperty,
-                                        radio->isChecked() ? 1.0 : 0.0);
+            framePropertyRegistry().set(radio, checkProperty, radio->isChecked() ? 1.0 : 0.0);
         }
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             if (m_comboPressStates.remove(combo)) {
@@ -312,8 +293,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (qobject_cast<QProgressBar *>(widget))
             m_callbacks.refreshProgressTimer();
-        m_callbacks.updateReadOnlyDeleteAffordance(
-            qobject_cast<QLineEdit *>(widget));
+        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
         widget->update();
         break;
     }
@@ -337,10 +317,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             const QVariant opacity = button->property("opacity");
             if (opacity.isValid())
                 painter.setOpacity(opacity.toReal());
-            m_style->drawPrimitive(QStyle::PE_PanelButtonTool, &option,
-                                   &painter, button);
-            m_style->drawControl(QStyle::CE_ToolButtonLabel, &option,
-                                 &painter, button);
+            m_style->drawPrimitive(QStyle::PE_PanelButtonTool, &option, &painter, button);
+            m_style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, button);
             return true;
         }
         break;
@@ -348,8 +326,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // QProgressBar exposes no rangeChanged signal. Refresh only while the
         // shared clock is stopped, so ordinary timer-driven updates remain
         // O(1) in callbacks and do not rescan the registry per paint.
-        if (qobject_cast<QProgressBar *>(widget)
-            && !m_callbacks.progressTimerActive())
+        if (qobject_cast<QProgressBar *>(widget) && !m_callbacks.progressTimerActive())
             m_callbacks.refreshProgressTimer();
         break;
     case QEvent::Enter:
@@ -359,11 +336,10 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation = framePropertyRegistry()
-                .value(widget, scrollBarGenerationProperty).toInt() + 1;
+            const int generation =
+                    framePropertyRegistry().value(widget, scrollBarGenerationProperty).toInt() + 1;
             framePropertyRegistry().set(widget, scrollBarInsideProperty, true);
-            framePropertyRegistry().set(widget, scrollBarGenerationProperty,
-                                        generation);
+            framePropertyRegistry().set(widget, scrollBarGenerationProperty, generation);
             if (!Style::animationsAllowed()) {
                 m_callbacks.cancelScrollBarTimer(scrollBar);
                 m_callbacks.animate(widget, hoverProperty, 1.0, 0);
@@ -378,9 +354,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             }
         } else {
             m_callbacks.animate(widget, hoverProperty, 1.0,
-                                interactionDuration(widget,
-                                                    InteractionMotion::Hover,
-                                                    true));
+                                interactionDuration(widget, InteractionMotion::Hover, true));
         }
         break;
     case QEvent::Leave:
@@ -399,8 +373,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 if (QWidget::mouseGrabber() == combo)
                     combo->releaseMouse();
                 m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(
-                                        combo, InteractionMotion::Press, false));
+                                    interactionDuration(combo, InteractionMotion::Press, false));
                 m_callbacks.releaseComboChevron(combo);
             }
         }
@@ -410,11 +383,10 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation = framePropertyRegistry()
-                .value(widget, scrollBarGenerationProperty).toInt() + 1;
+            const int generation =
+                    framePropertyRegistry().value(widget, scrollBarGenerationProperty).toInt() + 1;
             framePropertyRegistry().set(widget, scrollBarInsideProperty, false);
-            framePropertyRegistry().set(widget, scrollBarGenerationProperty,
-                                        generation);
+            framePropertyRegistry().set(widget, scrollBarGenerationProperty, generation);
             if (!Style::animationsAllowed()) {
                 m_callbacks.cancelScrollBarTimer(scrollBar);
                 m_callbacks.animate(widget, hoverProperty, 0.0, 0);
@@ -423,17 +395,13 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             }
         } else {
             m_callbacks.animate(widget, hoverProperty, 0.0,
-                                interactionDuration(widget,
-                                                    InteractionMotion::Hover,
-                                                    false));
+                                interactionDuration(widget, InteractionMotion::Hover, false));
         }
         if (buttonPressPulse(widget))
             m_callbacks.cancelButtonPress(widget);
         else
             m_callbacks.animate(widget, pressProperty, 0.0,
-                                interactionDuration(widget,
-                                                    InteractionMotion::Press,
-                                                    false));
+                                interactionDuration(widget, InteractionMotion::Press, false));
         break;
     case QEvent::MouseButtonPress:
         *m_callbacks.keyboardInput = false;
@@ -462,8 +430,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 combo->grabMouse();
                 m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
                 m_callbacks.animate(combo, pressProperty, 1.0,
-                                    interactionDuration(
-                                        combo, InteractionMotion::Press, true));
+                                    interactionDuration(combo, InteractionMotion::Press, true));
                 return true;
             }
         }
@@ -471,8 +438,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             checkBox && toggleSwitch(checkBox)) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton) {
-                const QRect track = toggleTrackRect(checkBox->rect(),
-                                                    checkBox->layoutDirection());
+                const QRect track = toggleTrackRect(checkBox->rect(), checkBox->layoutDirection());
                 ToggleDragState state;
                 state.pressPosition = mousePositionPoint(mouse);
                 state.candidate = track.contains(state.pressPosition);
@@ -490,9 +456,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             m_callbacks.beginButtonPress(widget);
         else
             m_callbacks.animate(widget, pressProperty, 1.0,
-                                interactionDuration(widget,
-                                                    InteractionMotion::Press,
-                                                    true));
+                                interactionDuration(widget, InteractionMotion::Press, true));
         break;
     case QEvent::MouseMove:
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
@@ -507,24 +471,21 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             if (state != m_callbacks.toggleDragStates->end() && state->candidate
                 && (mouse->buttons() & Qt::LeftButton)) {
                 if (!state->dragging
-                    && (mousePositionPoint(mouse) - state->pressPosition)
-                            .manhattanLength()
-                        >= QApplication::startDragDistance()) {
+                    && (mousePositionPoint(mouse) - state->pressPosition).manhattanLength()
+                            >= QApplication::startDragDistance()) {
                     state->dragging = true;
-                    framePropertyRegistry().set(checkBox,
-                                                toggleDraggingProperty, true);
+                    framePropertyRegistry().set(checkBox, toggleDraggingProperty, true);
                 }
                 if (state->dragging) {
                     qreal position;
                     if (checkBox->layoutDirection() == Qt::RightToLeft)
-                        position = (checkBox->rect().right() - 10.0
-                                    - mousePosition(mouse).x()) / 20.0;
+                        position =
+                                (checkBox->rect().right() - 10.0 - mousePosition(mouse).x()) / 20.0;
                     else
-                        position = (mousePosition(mouse).x()
-                                    - checkBox->rect().left() - 10.0) / 20.0;
-                    framePropertyRegistry().set(
-                        checkBox, togglePositionProperty,
-                        qBound<qreal>(0.0, position, 1.0));
+                        position =
+                                (mousePosition(mouse).x() - checkBox->rect().left() - 10.0) / 20.0;
+                    framePropertyRegistry().set(checkBox, togglePositionProperty,
+                                                qBound<qreal>(0.0, position, 1.0));
                     checkBox->update();
                     return true;
                 }
@@ -535,16 +496,13 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             auto pending = m_comboPressStates.find(combo);
             if (pending != m_comboPressStates.end()
-                && static_cast<const QMouseEvent *>(event)->button()
-                       == Qt::LeftButton) {
-                const QPoint position = mousePositionPoint(
-                    static_cast<const QMouseEvent *>(event));
+                && static_cast<const QMouseEvent *>(event)->button() == Qt::LeftButton) {
+                const QPoint position = mousePositionPoint(static_cast<const QMouseEvent *>(event));
                 m_comboPressStates.erase(pending);
                 combo->releaseMouse();
                 const bool activate = combo->rect().contains(position);
                 m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(
-                                        combo, InteractionMotion::Press, false));
+                                    interactionDuration(combo, InteractionMotion::Press, false));
                 if (activate) {
                     // Prepare the first selected row immediately before the
                     // release-triggered popup is shown. This keeps Qt's
@@ -579,20 +537,17 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             checkBox && toggleSwitch(checkBox)) {
             const auto state = m_callbacks.toggleDragStates->take(checkBox);
             if (state.dragging) {
-                const bool checked = progress(checkBox, togglePositionProperty)
-                    >= 0.5;
-                framePropertyRegistry().set(checkBox,
-                                            toggleDraggingProperty, false);
+                const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
+                framePropertyRegistry().set(checkBox, toggleDraggingProperty, false);
                 checkBox->setDown(false);
                 Q_EMIT checkBox->released();
                 if (checkBox->isChecked() != checked)
                     checkBox->setChecked(checked);
                 else
-                    m_callbacks.animate(checkBox, togglePositionProperty,
-                                        checked ? 1.0 : 0.0, FasterDuration);
+                    m_callbacks.animate(checkBox, togglePositionProperty, checked ? 1.0 : 0.0,
+                                        FasterDuration);
                 Q_EMIT checkBox->clicked(checkBox->isChecked());
-                m_callbacks.animate(checkBox, pressProperty, 0.0,
-                                    FasterDuration);
+                m_callbacks.animate(checkBox, pressProperty, 0.0, FasterDuration);
                 return true;
             }
         }
@@ -600,16 +555,13 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             m_callbacks.releaseButtonPress(widget);
         else
             m_callbacks.animate(widget, pressProperty, 0.0,
-                                interactionDuration(widget,
-                                                    InteractionMotion::Press,
-                                                    false));
+                                interactionDuration(widget, InteractionMotion::Press, false));
         break;
     case QEvent::FocusIn:
         if (const auto *focus = static_cast<QFocusEvent *>(event)) {
             const bool keyboard = focus->reason() == Qt::TabFocusReason
-                || focus->reason() == Qt::BacktabFocusReason
-                || focus->reason() == Qt::ShortcutFocusReason
-                || *m_callbacks.keyboardInput;
+                    || focus->reason() == Qt::BacktabFocusReason
+                    || focus->reason() == Qt::ShortcutFocusReason || *m_callbacks.keyboardInput;
             framePropertyRegistry().set(widget, focusVisibleProperty, keyboard);
             if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
                 view && view->viewport() == widget) {
@@ -620,19 +572,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             }
         }
         m_callbacks.animate(widget, focusProperty, 1.0,
-                            interactionDuration(widget,
-                                                InteractionMotion::Focus,
-                                                true));
-        m_callbacks.updateReadOnlyDeleteAffordance(
-            qobject_cast<QLineEdit *>(widget));
+                            interactionDuration(widget, InteractionMotion::Focus, true));
+        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
         break;
     case QEvent::FocusOut:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             if (m_comboPressStates.remove(combo)) {
                 combo->releaseMouse();
                 m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(
-                                        combo, InteractionMotion::Press, false));
+                                    interactionDuration(combo, InteractionMotion::Press, false));
                 m_callbacks.releaseComboChevron(combo);
             }
         }
@@ -647,18 +595,14 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             view->update();
         }
         m_callbacks.animate(widget, focusProperty, 0.0,
-                            interactionDuration(widget,
-                                                InteractionMotion::Focus,
-                                                false));
-        m_callbacks.updateReadOnlyDeleteAffordance(
-            qobject_cast<QLineEdit *>(widget));
+                            interactionDuration(widget, InteractionMotion::Focus, false));
+        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
         break;
     case QEvent::ReadOnlyChange:
         // WinUI TextBox does not expose its delete affordance while it is
         // read-only. QLineEdit keeps the private clear button visible, so
         // suppress it after Qt has processed the property change.
-        m_callbacks.updateReadOnlyDeleteAffordance(
-            qobject_cast<QLineEdit *>(widget));
+        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
         m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
         break;
     case QEvent::ChildAdded:
@@ -674,18 +618,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
     case QEvent::KeyPress:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             const auto *key = static_cast<QKeyEvent *>(event);
-            const bool activates = key->key() == Qt::Key_Space
-                || key->key() == Qt::Key_Enter || key->key() == Qt::Key_Return
-                || key->key() == Qt::Key_F4
-                || (key->key() == Qt::Key_Down
-                    && key->modifiers().testFlag(Qt::AltModifier));
+            const bool activates = key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
+                    || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
+                    || (key->key() == Qt::Key_Down && key->modifiers().testFlag(Qt::AltModifier));
             if (activates) {
                 m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
                 m_callbacks.prepareComboPopupFirstFrame(combo);
             }
         }
-        if (const auto *key = static_cast<QKeyEvent *>(event);
-            revealsKeyboardFocus(key->key())) {
+        if (const auto *key = static_cast<QKeyEvent *>(event); revealsKeyboardFocus(key->key())) {
             *m_callbacks.keyboardInput = true;
         }
         if (*m_callbacks.keyboardInput) {
@@ -698,8 +639,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             const auto *key = static_cast<QKeyEvent *>(event);
             if (key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
                 || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
-                || (key->key() == Qt::Key_Down
-                    && key->modifiers().testFlag(Qt::AltModifier))) {
+                || (key->key() == Qt::Key_Down && key->modifiers().testFlag(Qt::AltModifier))) {
                 m_callbacks.releaseComboChevron(combo);
             }
         }
@@ -708,18 +648,16 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // A tooltip HWND keeps the opaque system backing store; the rounded
         // PE_PanelTipLabel card leaves dark corner rectangles visible. Clip
         // the window to the card's 4px rounding with a window region.
-        if (widget->isWindow() && widget->windowType() == Qt::ToolTip
-            && widget->windowHandle())
+        if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
             applyWindowRoundedRegion(widget, 5);
         // Establish popup margins before measuring or anchoring any child view.
         // Doing this after ComboBox centering shifts the reused popup by the
         // combined top/bottom inset on its second opening.
         m_callbacks.preparePopupSurface(widget);
-        m_callbacks.updateReadOnlyDeleteAffordance(
-            qobject_cast<QLineEdit *>(widget));
+        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
         if (textBoxHelperButton(widget))
             m_callbacks.updateReadOnlyDeleteAffordance(
-                qobject_cast<QLineEdit *>(widget->parentWidget()));
+                    qobject_cast<QLineEdit *>(widget->parentWidget()));
         m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
         // The view is shown before its popup window. Prepare selection and
         // scroll position here so even a programmatic first showPopup() has a
@@ -743,11 +681,10 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 animateMenuPopup(widget, nullptr);
             }
         }
-        if (auto *dialog = qobject_cast<QDialog *>(widget);
-            dialog && (qobject_cast<QMessageBox *>(dialog)
-                       || dialog->property(Style::ContentDialogProperty).toBool())) {
-            m_callbacks.prepareContentDialogState(dialog,
-                                                   m_callbacks.dark());
+        if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
+            && (qobject_cast<QMessageBox *>(dialog)
+                || dialog->property(Style::ContentDialogProperty).toBool())) {
+            m_callbacks.prepareContentDialogState(dialog, m_callbacks.dark());
             m_callbacks.stopDialogAnimations(dialog);
             showContentDialogScrim(dialog);
             applyDialogCaptionTheme(dialog);
@@ -759,12 +696,12 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 opacity->setStartValue(0.0);
                 opacity->setEndValue(1.0);
                 opacity->setDuration(FasterDuration);
-                QObject::connect(group, &QParallelAnimationGroup::finished,
-                                 dialog, [dialog, group] {
-                    dialog->setWindowOpacity(1.0);
-                    dialog->setProperty("_winui_dialog_animating", false);
-                    group->deleteLater();
-                });
+                QObject::connect(group, &QParallelAnimationGroup::finished, dialog,
+                                 [dialog, group] {
+                                     dialog->setWindowOpacity(1.0);
+                                     dialog->setProperty("_winui_dialog_animating", false);
+                                     group->deleteLater();
+                                 });
                 group->start();
             }
         }
@@ -777,10 +714,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // has created the HWND. Popups stay opaque and get their rounded
         // corners from the window corner preference instead of a translucent
         // surface, which avoids the cleared-backing artifacts of Acrylic.
-        if (widget->isWindow()
-            && widget->property("_winui_backdrop").isValid()) {
-            applyBackdrop(widget, static_cast<Backdrop>(
-                widget->property("_winui_backdrop").toInt()));
+        if (widget->isWindow() && widget->property("_winui_backdrop").isValid()) {
+            applyBackdrop(widget,
+                          static_cast<Backdrop>(widget->property("_winui_backdrop").toInt()));
         }
         if (qobject_cast<QDialog *>(widget) && widget->isWindow())
             applyDialogCaptionTheme(widget);
@@ -792,11 +728,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // fallback is not. Re-apply it after every native popup resize so a
         // combo/menu cannot retain the old rounded region and clip its new
         // edges. Avoid creating a native handle during pre-show layout.
-        if (widget->isWindow() && widget->windowType() == Qt::Popup
-            && widget->windowHandle())
+        if (widget->isWindow() && widget->windowType() == Qt::Popup && widget->windowHandle())
             applyPopupRoundedCorners(widget);
-        if (widget->isWindow() && widget->windowType() == Qt::ToolTip
-            && widget->windowHandle())
+        if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
             applyWindowRoundedRegion(widget, 5);
         break;
     case QEvent::Hide:
@@ -804,8 +738,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             if (m_comboPressStates.remove(combo)) {
                 combo->releaseMouse();
                 m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(
-                                        combo, InteractionMotion::Press, false));
+                                    interactionDuration(combo, InteractionMotion::Press, false));
                 m_callbacks.releaseComboChevron(combo);
             }
         }
@@ -830,9 +763,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             const QByteArray name = change->propertyName();
             if (name == Style::ToggleSwitchProperty) {
                 if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
-                    framePropertyRegistry().set(
-                        checkBox, togglePositionProperty,
-                        checkBox->isChecked() ? 1.0 : 0.0);
+                    framePropertyRegistry().set(checkBox, togglePositionProperty,
+                                                checkBox->isChecked() ? 1.0 : 0.0);
                 widget->updateGeometry();
                 widget->update();
             } else if (name == Style::ToggleSwitchOnTextProperty
@@ -847,7 +779,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                         frame->setFrameShape(QFrame::StyledPanel);
                     } else if (widget->property(originalFrameShapeProperty).isValid()) {
                         frame->setFrameShape(static_cast<QFrame::Shape>(
-                            widget->property(originalFrameShapeProperty).toInt()));
+                                widget->property(originalFrameShapeProperty).toInt()));
                         widget->setProperty(originalFrameShapeProperty, {});
                     }
                 }
@@ -857,8 +789,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 if (auto *dialog = qobject_cast<QDialog *>(widget);
                     dialog && !qobject_cast<QMessageBox *>(dialog)) {
                     if (dialog->property(Style::ContentDialogProperty).toBool()) {
-                        m_callbacks.prepareContentDialogState(dialog,
-                                                               m_callbacks.dark());
+                        m_callbacks.prepareContentDialogState(dialog, m_callbacks.dark());
                         m_callbacks.registerPaletteOwner(dialog);
                     } else {
                         m_callbacks.unregisterPaletteOwner(dialog);

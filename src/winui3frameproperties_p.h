@@ -32,10 +32,8 @@ public:
 
     QVariant value(const QObject *object, const QByteArray &name) const;
     QVariant value(const QObject *object, const char *staticName) const;
-    qreal real(const QObject *object, const QByteArray &name,
-               qreal fallback = 0.0) const;
-    qreal real(const QObject *object, const char *staticName,
-               qreal fallback = 0.0) const;
+    qreal real(const QObject *object, const QByteArray &name, qreal fallback = 0.0) const;
+    qreal real(const QObject *object, const char *staticName, qreal fallback = 0.0) const;
 
     void set(QObject *object, const QByteArray &name, const QVariant &value);
     void clear(QObject *object, const QByteArray &name);

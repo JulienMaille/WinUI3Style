@@ -14,35 +14,30 @@ namespace WinUI3::PaintPrivate {
 // Stateless drawing and device-pixel alignment primitives shared by the
 // style facade and private item delegates. Keeping these here avoids each
 // rendering path growing a subtly different copy of the same operation.
-void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill,
-                 const QColor &stroke, qreal radius,
-                 qreal strokeWidth = 1.0);
+void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
+                 qreal radius, qreal strokeWidth = 1.0);
 
 void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground,
-                     QIcon::Mode mode = QIcon::Normal,
-                     QIcon::State state = QIcon::Off);
+                     QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off);
 
-QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds,
-                   const QRectF &logical);
+QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds, const QRectF &logical);
 
 void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
-                    const QColor &strokeTop, const QColor &strokeBottom,
-                    qreal radius, qreal strokeWidth = 1.0);
+                    const QColor &strokeTop, const QColor &strokeBottom, qreal radius,
+                    qreal strokeWidth = 1.0);
 
 // Draw the WinUI editor focus underline: a 2 px accent line along the bottom
 // edge, clipped to the control's rounded-corner path so the ends follow the
 // chamfer instead of running edge-to-edge. Shared by TextBox and NumberBox.
-void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect,
-                              const QColor &accent, qreal radius);
+void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect, const QColor &accent,
+                              qreal radius);
 
 // WinUI keyboard focus ring: 2 px outer + 1 px inner rounded rects. The
 // per-site adjusted() insets and radii are copied into the call args, never
 // unified by judgment; visual diffs hide there.
-void paintFocusRing(QPainter *painter, const QRectF &rect,
-                    const QColor &outer, const QColor &inner,
-                    qreal outerInset, qreal innerInset,
-                    qreal outerRadius, qreal innerRadius);
+void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, const QColor &inner,
+                    qreal outerInset, qreal innerInset, qreal outerRadius, qreal innerRadius);
 
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter);
@@ -54,12 +49,10 @@ QRectF snappedRect(const QRectF &logicalRect, const QPainter *painter);
 
 QPointF animatedAcceptPoint(const QRectF &indicator, qreal x, qreal y);
 QPainterPath animatedAcceptPath(const QRectF &indicator);
-QPainterPath animatedAcceptTrimmedPath(const QRectF &indicator,
-                                        qreal progress);
+QPainterPath animatedAcceptTrimmedPath(const QRectF &indicator, qreal progress);
 
 QRect headerSortIndicatorRect(const QStyleOptionHeader &header);
 
-QRectF snappedSplitterGrip(const QRectF &grip, bool horizontal,
-                           const QPainter *painter);
+QRectF snappedSplitterGrip(const QRectF &grip, bool horizontal, const QPainter *painter);
 
 } // namespace WinUI3::PaintPrivate

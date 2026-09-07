@@ -34,10 +34,7 @@ void updateWidgetAndEditor(QWidget *widget, QLineEdit *editor)
 
 } // namespace
 
-FrameAnimationDriver::FrameAnimationDriver(QObject *context)
-    : m_context(context)
-{
-}
+FrameAnimationDriver::FrameAnimationDriver(QObject *context) : m_context(context) { }
 
 FrameAnimationDriver::~FrameAnimationDriver()
 {
@@ -46,8 +43,7 @@ FrameAnimationDriver::~FrameAnimationDriver()
         stop(widget);
 }
 
-QVariantAnimation *FrameAnimationDriver::find(QWidget *widget,
-                                               const char *property) const
+QVariantAnimation *FrameAnimationDriver::find(QWidget *widget, const char *property) const
 {
     if (!widget)
         return nullptr;
@@ -82,8 +78,7 @@ void FrameAnimationDriver::forget(QWidget *widget, const QByteArray &property,
     }
 }
 
-QVariantAnimation *FrameAnimationDriver::ensure(QWidget *widget,
-                                                const char *property)
+QVariantAnimation *FrameAnimationDriver::ensure(QWidget *widget, const char *property)
 {
     if (!widget)
         return nullptr;
@@ -99,43 +94,41 @@ QVariantAnimation *FrameAnimationDriver::ensure(QWidget *widget,
     widgetIt->insert(propertyName, QPointer<QVariantAnimation>(animation));
     if (!m_cleanupConnections.contains(widget)) {
         m_cleanupConnections.insert(widget,
-            QObject::connect(widget, &QObject::destroyed, m_context,
-                             [this, widget] { stop(widget); }));
+                                    QObject::connect(widget, &QObject::destroyed, m_context,
+                                                     [this, widget] { stop(widget); }));
     }
     const QPointer<QWidget> guardedWidget(widget);
     const QPointer<QLineEdit> guardedEditor(lineEditParent(widget));
     QObject::connect(animation, &QVariantAnimation::valueChanged, m_context,
-                     [guardedWidget, guardedEditor,
-                      propertyName](const QVariant &value) {
-        if (!guardedWidget)
-            return;
-        framePropertyRegistry().set(guardedWidget, propertyName, value);
-        guardedWidget->update();
-        if (guardedEditor)
-            guardedEditor->update();
-    });
+                     [guardedWidget, guardedEditor, propertyName](const QVariant &value) {
+                         if (!guardedWidget)
+                             return;
+                         framePropertyRegistry().set(guardedWidget, propertyName, value);
+                         guardedWidget->update();
+                         if (guardedEditor)
+                             guardedEditor->update();
+                     });
     QObject::connect(animation, &QVariantAnimation::finished, m_context,
                      [this, widget, propertyName, animation] {
-        auto widgetIt = m_animations.find(widget);
-        if (widgetIt == m_animations.end())
-            return;
-        const auto propertyIt = widgetIt->find(propertyName);
-        if (propertyIt == widgetIt->end() || propertyIt->data() != animation)
-            return;
-        widgetIt->erase(propertyIt);
-        if (widgetIt->isEmpty()) {
-            m_animations.erase(widgetIt);
-            if (const auto connection = m_cleanupConnections.take(widget))
-                QObject::disconnect(connection);
-        }
-        delete animation;
-    });
+                         auto widgetIt = m_animations.find(widget);
+                         if (widgetIt == m_animations.end())
+                             return;
+                         const auto propertyIt = widgetIt->find(propertyName);
+                         if (propertyIt == widgetIt->end() || propertyIt->data() != animation)
+                             return;
+                         widgetIt->erase(propertyIt);
+                         if (widgetIt->isEmpty()) {
+                             m_animations.erase(widgetIt);
+                             if (const auto connection = m_cleanupConnections.take(widget))
+                                 QObject::disconnect(connection);
+                         }
+                         delete animation;
+                     });
     return animation;
 }
 
-void FrameAnimationDriver::animate(QWidget *widget, const char *property,
-                                   qreal target, int duration, bool allowed,
-                                   const QEasingCurve &curve,
+void FrameAnimationDriver::animate(QWidget *widget, const char *property, qreal target,
+                                   int duration, bool allowed, const QEasingCurve &curve,
                                    const QVector<QPair<qreal, QVariant>> &keyValues,
                                    qreal startOverride)
 {
@@ -143,8 +136,8 @@ void FrameAnimationDriver::animate(QWidget *widget, const char *property,
         return;
 
     const qreal start = std::isnan(startOverride)
-        ? framePropertyRegistry().real(widget, property, 1.0 - target)
-        : startOverride;
+            ? framePropertyRegistry().real(widget, property, 1.0 - target)
+            : startOverride;
     QPointer<QVariantAnimation> previous = find(widget, property);
     if (previous)
         previous->stop();

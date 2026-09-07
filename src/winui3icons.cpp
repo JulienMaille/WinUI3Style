@@ -35,38 +35,66 @@ QString colorKey(const QColor &color)
 QChar codePoint(Icon icon)
 {
     switch (icon) {
-    case Icon::Add: return QChar(0xE710);
-    case Icon::Back: return QChar(0xE72B);
-    case Icon::Check: return QChar(0xE73E);
-    case Icon::ChevronDown: return QChar(0xE70D);
-    case Icon::ChevronLeft: return QChar(0xE76B);
-    case Icon::ChevronRight: return QChar(0xE76C);
-    case Icon::ChevronUp: return QChar(0xE70E);
-    case Icon::Clear: return QChar(0xE894);
-    case Icon::Close: return QChar(0xE711);
-    case Icon::Delete: return QChar(0xE74D);
-    case Icon::Edit: return QChar(0xE70F);
-    case Icon::Error: return QChar(0xE783);
-    case Icon::Folder: return QChar(0xE8B7);
-    case Icon::Help: return QChar(0xE897);
-    case Icon::Home: return QChar(0xE80F);
-    case Icon::Info: return QChar(0xE946);
-    case Icon::More: return QChar(0xE712);
-    case Icon::Pause: return QChar(0xE769);
-    case Icon::Play: return QChar(0xE768);
-    case Icon::Refresh: return QChar(0xE72C);
-    case Icon::Save: return QChar(0xE74E);
-    case Icon::Search: return QChar(0xE721);
-    case Icon::Settings: return QChar(0xE713);
-    case Icon::Stop: return QChar(0xE71A);
-    case Icon::Document: return QChar(0xE7C3);
-    case Icon::List: return QChar(0xE8FD);
-    case Icon::Warning: return QChar(0xE7BA);
+    case Icon::Add:
+        return QChar(0xE710);
+    case Icon::Back:
+        return QChar(0xE72B);
+    case Icon::Check:
+        return QChar(0xE73E);
+    case Icon::ChevronDown:
+        return QChar(0xE70D);
+    case Icon::ChevronLeft:
+        return QChar(0xE76B);
+    case Icon::ChevronRight:
+        return QChar(0xE76C);
+    case Icon::ChevronUp:
+        return QChar(0xE70E);
+    case Icon::Clear:
+        return QChar(0xE894);
+    case Icon::Close:
+        return QChar(0xE711);
+    case Icon::Delete:
+        return QChar(0xE74D);
+    case Icon::Edit:
+        return QChar(0xE70F);
+    case Icon::Error:
+        return QChar(0xE783);
+    case Icon::Folder:
+        return QChar(0xE8B7);
+    case Icon::Help:
+        return QChar(0xE897);
+    case Icon::Home:
+        return QChar(0xE80F);
+    case Icon::Info:
+        return QChar(0xE946);
+    case Icon::More:
+        return QChar(0xE712);
+    case Icon::Pause:
+        return QChar(0xE769);
+    case Icon::Play:
+        return QChar(0xE768);
+    case Icon::Refresh:
+        return QChar(0xE72C);
+    case Icon::Save:
+        return QChar(0xE74E);
+    case Icon::Search:
+        return QChar(0xE721);
+    case Icon::Settings:
+        return QChar(0xE713);
+    case Icon::Stop:
+        return QChar(0xE71A);
+    case Icon::Document:
+        return QChar(0xE7C3);
+    case Icon::List:
+        return QChar(0xE8FD);
+    case Icon::Warning:
+        return QChar(0xE7BA);
     }
     return {};
 }
 
-struct ParsedFluentIcon {
+struct ParsedFluentIcon
+{
     Icon glyph = Icon::Add;
     QString variant;
 };
@@ -78,8 +106,8 @@ bool parseFluentIconName(const QString &name, ParsedFluentIcon *parsed)
         return false;
 
     const int variantSeparator = name.indexOf(QLatin1Char(':'), prefix.size());
-    const int numberLength = variantSeparator >= 0
-        ? variantSeparator - prefix.size() : name.size() - prefix.size();
+    const int numberLength =
+            variantSeparator >= 0 ? variantSeparator - prefix.size() : name.size() - prefix.size();
     bool ok = false;
     const int value = name.mid(prefix.size(), numberLength).toInt(&ok);
     if (!ok || value < 0 || value >= fluentIconCount)
@@ -87,8 +115,7 @@ bool parseFluentIconName(const QString &name, ParsedFluentIcon *parsed)
 
     if (parsed) {
         parsed->glyph = static_cast<Icon>(value);
-        parsed->variant = variantSeparator >= 0
-            ? name.mid(variantSeparator + 1) : QString();
+        parsed->variant = variantSeparator >= 0 ? name.mid(variantSeparator + 1) : QString();
     }
     return true;
 }
@@ -105,8 +132,7 @@ public:
 
     void syncApplication()
     {
-        auto *application = qobject_cast<QGuiApplication *>(
-            QCoreApplication::instance());
+        auto *application = qobject_cast<QGuiApplication *>(QCoreApplication::instance());
         if (application == m_application)
             return;
 
@@ -116,9 +142,9 @@ public:
         m_fontDatabaseConnection = {};
         invalidate();
         if (application) {
-            m_fontDatabaseConnection = QObject::connect(
-                application, &QGuiApplication::fontDatabaseChanged,
-                application, [this] { invalidate(); });
+            m_fontDatabaseConnection =
+                    QObject::connect(application, &QGuiApplication::fontDatabaseChanged,
+                                     application, [this] { invalidate(); });
         }
     }
 
@@ -155,10 +181,7 @@ public:
         return *m_fonts.object(pixelSize);
     }
 
-    QPixmap *findPixmap(const QString &key)
-    {
-        return m_pixmaps.object(key);
-    }
+    QPixmap *findPixmap(const QString &key) { return m_pixmaps.object(key); }
 
     void insertPixmap(const QString &key, const QPixmap &pixmap)
     {
@@ -169,10 +192,7 @@ public:
         m_pixmaps.insert(key, new QPixmap(pixmap), cost);
     }
 
-    QIcon *findColoredIcon(const QString &key)
-    {
-        return m_coloredIcons.object(key);
-    }
+    QIcon *findColoredIcon(const QString &key) { return m_coloredIcons.object(key); }
 
     void insertColoredIcon(const QString &key, const QIcon &icon)
     {
@@ -219,55 +239,50 @@ const QString &glyphString(Icon glyph)
 
 bool canUseGuiCache()
 {
-    const auto *application = qobject_cast<const QGuiApplication *>(
-        QCoreApplication::instance());
+    const auto *application = qobject_cast<const QGuiApplication *>(QCoreApplication::instance());
     return application && QThread::currentThread() == application->thread();
 }
 
 QString pixmapKey(const ParsedFluentIcon &parsed, const QSize &logicalSize,
-                  const QSize &physicalSize, qreal devicePixelRatio,
-                  const QColor &foreground, QIcon::Mode mode,
-                  QIcon::State state)
+                  const QSize &physicalSize, qreal devicePixelRatio, const QColor &foreground,
+                  QIcon::Mode mode, QIcon::State state)
 {
     return QStringLiteral("winui3-fluent-pixmap:%1:%2:%3:%4x%5:%6x%7:%8:%9:%10:%11")
-        .arg(static_cast<int>(parsed.glyph))
-        .arg(parsed.variant)
-        .arg(QString::number(devicePixelRatio, 'g', 17))
-        .arg(logicalSize.width()).arg(logicalSize.height())
-        .arg(physicalSize.width()).arg(physicalSize.height())
-        .arg(colorKey(foreground))
-        .arg(static_cast<int>(mode)).arg(static_cast<int>(state));
+            .arg(static_cast<int>(parsed.glyph))
+            .arg(parsed.variant)
+            .arg(QString::number(devicePixelRatio, 'g', 17))
+            .arg(logicalSize.width())
+            .arg(logicalSize.height())
+            .arg(physicalSize.width())
+            .arg(physicalSize.height())
+            .arg(colorKey(foreground))
+            .arg(static_cast<int>(mode))
+            .arg(static_cast<int>(state));
 }
 
 QString coloredIconKey(Icon glyph, const QColor &color)
 {
     return QStringLiteral("winui3-fluent-colored-icon:%1:%2")
-        .arg(static_cast<int>(glyph))
-        .arg(colorKey(color));
+            .arg(static_cast<int>(glyph))
+            .arg(colorKey(color));
 }
 
 class FluentIconEngine final : public QIconEngine
 {
 public:
     explicit FluentIconEngine(Icon icon, const QColor &color = {})
-        : m_icon(icon), m_color(color) {}
+        : m_icon(icon), m_color(color) { }
 
-    QIconEngine *clone() const override
-    {
-        return new FluentIconEngine(m_icon, m_color);
-    }
+    QIconEngine *clone() const override { return new FluentIconEngine(m_icon, m_color); }
 
-    QString key() const override
-    {
-        return QStringLiteral("WinUI3FluentIconEngine");
-    }
+    QString key() const override { return QStringLiteral("WinUI3FluentIconEngine"); }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt 6's QIconEngine::iconName() is not const (Qt 5's is).
     QString iconName() override
     {
         return QString::fromLatin1(fluentIconNamePrefix)
-            + QString::number(static_cast<int>(m_icon));
+                + QString::number(static_cast<int>(m_icon));
     }
 #endif
 
@@ -280,8 +295,7 @@ public:
         return result;
     }
 
-    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode,
-               QIcon::State) override
+    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State) override
     {
         painter->save();
         painter->setRenderHint(QPainter::TextAntialiasing);
@@ -308,8 +322,7 @@ public:
         QColor color = m_color;
         if (!color.isValid()) {
             const QPalette palette = qApp ? qApp->palette() : QPalette();
-            color = palette.color(mode == QIcon::Disabled
-                                      ? QPalette::Disabled : QPalette::Active,
+            color = palette.color(mode == QIcon::Disabled ? QPalette::Disabled : QPalette::Active,
                                   QPalette::WindowText);
         }
         painter->setPen(color);
@@ -317,10 +330,7 @@ public:
         painter->restore();
     }
 
-    QSize actualSize(const QSize &size, QIcon::Mode, QIcon::State) override
-    {
-        return size;
-    }
+    QSize actualSize(const QSize &size, QIcon::Mode, QIcon::State) override { return size; }
 
 private:
     Icon m_icon;
@@ -377,20 +387,17 @@ bool isFluentIcon(const QIcon &icon)
     return parseFluentIconName(icon.name(), nullptr);
 }
 
-QPixmap iconPixmap(const QIcon &source, const QSize &size,
-                   qreal devicePixelRatio, const QColor &foreground,
-                   QIcon::Mode mode, QIcon::State state)
+QPixmap iconPixmap(const QIcon &source, const QSize &size, qreal devicePixelRatio,
+                   const QColor &foreground, QIcon::Mode mode, QIcon::State state)
 {
     if (source.isNull() || size.isEmpty())
         return {};
     ParsedFluentIcon parsed;
-    if (!parseFluentIconName(source.name(), &parsed)
-        || !foreground.isValid()) {
+    if (!parseFluentIconName(source.name(), &parsed) || !foreground.isValid()) {
         return Private::iconPixmap(source, size, devicePixelRatio, mode, state);
     }
 
-    const bool neutralSource = source.cacheKey()
-        == cachedIcon(parsed.glyph).cacheKey();
+    const bool neutralSource = source.cacheKey() == cachedIcon(parsed.glyph).cacheKey();
     // Keep the public icon name stable. A coloured QIcon has a distinct
     // cache identity, so include that identity only in the private pixmap
     // key and render its source directly to preserve its alpha. The neutral
@@ -398,16 +405,14 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size,
     // application palette identity so a palette change cannot reuse it.
     if (!neutralSource) {
         parsed.variant = QString::number(source.cacheKey(), 16);
-    } else if (auto *application = qobject_cast<QGuiApplication *>(
-                   QCoreApplication::instance())) {
+    } else if (auto *application = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
         parsed.variant = QString::number(application->palette().cacheKey(), 16);
     }
 
-    const QSize physicalSize(
-        qMax(1, qRound(size.width() * devicePixelRatio)),
-        qMax(1, qRound(size.height() * devicePixelRatio)));
-    const QString key = pixmapKey(parsed, size, physicalSize, devicePixelRatio,
-                                  foreground, mode, state);
+    const QSize physicalSize(qMax(1, qRound(size.width() * devicePixelRatio)),
+                             qMax(1, qRound(size.height() * devicePixelRatio)));
+    const QString key =
+            pixmapKey(parsed, size, physicalSize, devicePixelRatio, foreground, mode, state);
     if (!canUseGuiCache())
         return Private::iconPixmap(source, size, devicePixelRatio, mode, state);
 

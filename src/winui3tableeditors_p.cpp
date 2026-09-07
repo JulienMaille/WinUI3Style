@@ -11,23 +11,20 @@
 namespace WinUI3::Private {
 
 TableEditorTracker::TableEditorTracker(QObject *connectionContext)
-    : m_context(connectionContext)
-{
-}
+    : m_context(connectionContext) { }
 
-QPersistentModelIndex TableEditorTracker::editorIndex(
-    const QTableView *table, const QWidget *editor) const
+QPersistentModelIndex TableEditorTracker::editorIndex(const QTableView *table,
+                                                      const QWidget *editor) const
 {
     if (!table || !table->viewport() || !table->model() || !editor)
         return {};
-    const QRect geometry(editor->mapTo(table->viewport(), QPoint()),
-                         editor->size());
+    const QRect geometry(editor->mapTo(table->viewport(), QPoint()), editor->size());
     // The leading edge identifies the owning cell more reliably than the
     // centre for custom delegates whose editor deliberately spans neighbours.
     QModelIndex index = table->indexAt(geometry.topLeft() + QPoint(1, 1));
     if (!index.isValid()) {
-        const QPoint candidates[] = {geometry.center(), geometry.topLeft(), geometry.topRight(),
-                                     geometry.bottomLeft(), geometry.bottomRight()};
+        const QPoint candidates[] = { geometry.center(), geometry.topLeft(), geometry.topRight(),
+                                      geometry.bottomLeft(), geometry.bottomRight() };
         for (const QPoint &point : candidates) {
             index = table->indexAt(point);
             if (index.isValid())
@@ -44,26 +41,24 @@ void TableEditorTracker::connectModel(QTableView *table, TableState &state,
     if (!model)
         return;
     const QPointer<QTableView> guardedTable(table);
-    state.aboutToResetConnection = QObject::connect(
-        model, &QAbstractItemModel::modelAboutToBeReset, m_context,
-        [this, guardedTable] {
-            if (guardedTable)
-                clearEditors(guardedTable, false);
-        });
-    state.resetConnection = QObject::connect(
-        model, &QAbstractItemModel::modelReset, m_context,
-        [this, guardedTable] {
-            if (!guardedTable)
-                return;
-            reindexMarkedEditors(guardedTable);
-            if (guardedTable->viewport())
-                guardedTable->viewport()->update();
-        });
-    state.modelDestroyedConnection = QObject::connect(
-        model, &QObject::destroyed, m_context, [this, guardedTable] {
-            if (guardedTable)
-                clearEditors(guardedTable, true);
-        });
+    state.aboutToResetConnection = QObject::connect(model, &QAbstractItemModel::modelAboutToBeReset,
+                                                    m_context, [this, guardedTable] {
+                                                        if (guardedTable)
+                                                            clearEditors(guardedTable, false);
+                                                    });
+    state.resetConnection = QObject::connect(model, &QAbstractItemModel::modelReset, m_context,
+                                             [this, guardedTable] {
+                                                 if (!guardedTable)
+                                                     return;
+                                                 reindexMarkedEditors(guardedTable);
+                                                 if (guardedTable->viewport())
+                                                     guardedTable->viewport()->update();
+                                             });
+    state.modelDestroyedConnection =
+            QObject::connect(model, &QObject::destroyed, m_context, [this, guardedTable] {
+                if (guardedTable)
+                    clearEditors(guardedTable, true);
+            });
 }
 
 void TableEditorTracker::ensureTable(QTableView *table)
@@ -74,9 +69,9 @@ void TableEditorTracker::ensureTable(QTableView *table)
     if (it == m_tables.end()) {
         TableState state;
         const QPointer<QTableView> guardedTable(table);
-        state.tableDestroyedConnection = QObject::connect(
-            table, &QObject::destroyed, m_context,
-            [this, table] { untrackTable(table, false); });
+        state.tableDestroyedConnection =
+                QObject::connect(table, &QObject::destroyed, m_context,
+                                 [this, table] { untrackTable(table, false); });
         it = m_tables.insert(table, state);
         connectModel(table, it.value(), table->model());
         return;
@@ -99,11 +94,9 @@ void TableEditorTracker::track(QTableView *table, QWidget *editor)
     trackOnce(table, editor, true);
 }
 
-void TableEditorTracker::trackOnce(QTableView *table, QWidget *editor,
-                                   bool allowRetry)
+void TableEditorTracker::trackOnce(QTableView *table, QWidget *editor, bool allowRetry)
 {
-    if (!table || !editor || !table->viewport()
-        || editor->parentWidget() != table->viewport())
+    if (!table || !editor || !table->viewport() || editor->parentWidget() != table->viewport())
         return;
     editor->setProperty(tableEditorProperty, true);
     ensureTable(table);
@@ -121,25 +114,22 @@ void TableEditorTracker::trackOnce(QTableView *table, QWidget *editor,
         return;
 
     if (const auto owner = m_owners.constFind(editor);
-        owner != m_owners.constEnd() && owner->table == table
-        && owner->index == index) {
+        owner != m_owners.constEnd() && owner->table == table && owner->index == index) {
         return;
     }
     untrackEditor(editor, false);
     auto tableIt = m_tables.find(table);
     if (tableIt == m_tables.end())
         return;
-    if (QWidget *previous = tableIt->editors.value(index).data();
-        previous && previous != editor)
+    if (QWidget *previous = tableIt->editors.value(index).data(); previous && previous != editor)
         untrackEditor(previous, true);
     tableIt = m_tables.find(table);
     if (tableIt == m_tables.end())
         return;
     tableIt->editors.insert(index, editor);
-    Owner owner{table, index, {}};
-    owner.destroyedConnection = QObject::connect(
-        editor, &QObject::destroyed, m_context,
-        [this, editor] { untrackEditor(editor, false); });
+    Owner owner{ table, index, {} };
+    owner.destroyedConnection = QObject::connect(editor, &QObject::destroyed, m_context,
+                                                 [this, editor] { untrackEditor(editor, false); });
     m_owners.insert(editor, owner);
 }
 
@@ -154,8 +144,7 @@ void TableEditorTracker::untrackEditor(QWidget *editor, bool clearProperty)
         QObject::disconnect(owner.destroyedConnection);
         if (owner.table) {
             auto tableIt = m_tables.find(owner.table);
-            if (tableIt != m_tables.end()
-                && tableIt->editors.value(owner.index).data() == editor)
+            if (tableIt != m_tables.end() && tableIt->editors.value(owner.index).data() == editor)
                 tableIt->editors.remove(owner.index);
         }
     }
@@ -188,8 +177,8 @@ void TableEditorTracker::reindexMarkedEditors(QTableView *table)
 {
     if (!table || !table->viewport())
         return;
-    const auto children = table->viewport()->findChildren<QWidget *>(
-        QString{}, Qt::FindDirectChildrenOnly);
+    const auto children =
+            table->viewport()->findChildren<QWidget *>(QString{}, Qt::FindDirectChildrenOnly);
     for (QWidget *child : children) {
         if (child->property(tableEditorProperty).toBool())
             track(table, child);
@@ -211,8 +200,7 @@ void TableEditorTracker::untrackTable(QTableView *table, bool clearProperties)
     m_tables.erase(it);
 }
 
-bool TableEditorTracker::overlaps(const QTableView *table,
-                                  const QModelIndex &index,
+bool TableEditorTracker::overlaps(const QTableView *table, const QModelIndex &index,
                                   const QRect &itemRect)
 {
     if (!table || !table->viewport() || !index.isValid())
@@ -223,11 +211,9 @@ bool TableEditorTracker::overlaps(const QTableView *table,
     if (tableIt == m_tables.constEnd() || tableIt->editors.isEmpty())
         return false;
     QWidget *editor = tableIt->editors.value(QPersistentModelIndex(index)).data();
-    if (!editor || !editor->isVisible()
-        || !editor->property(tableEditorProperty).toBool())
+    if (!editor || !editor->isVisible() || !editor->property(tableEditorProperty).toBool())
         return false;
-    const QRect editorRect(editor->mapTo(table->viewport(), QPoint()),
-                           editor->size());
+    const QRect editorRect(editor->mapTo(table->viewport(), QPoint()), editor->size());
     return editorRect.intersects(itemRect);
 }
 

@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3ButtonsTest final : public QObject
@@ -141,7 +140,6 @@ void WinUI3ButtonsTest::cleanup()
     qApp->processEvents();
 }
 
-
 void WinUI3ButtonsTest::palettes()
 {
     WinUI3::Style light(WinUI3::ThemeMode::Light);
@@ -157,11 +155,9 @@ void WinUI3ButtonsTest::palettes()
 #endif
     QCOMPARE(light.standardPalette().color(QPalette::Button), QColor(255, 255, 255, 179));
     QCOMPARE(light.standardPalette().color(QPalette::WindowText), QColor(0, 0, 0, 228));
-    QCOMPARE(light.standardPalette().color(QPalette::PlaceholderText),
-             QColor(0, 0, 0, 158));
+    QCOMPARE(light.standardPalette().color(QPalette::PlaceholderText), QColor(0, 0, 0, 158));
     QCOMPARE(dark.standardPalette().color(QPalette::Button), QColor(255, 255, 255, 15));
-    QCOMPARE(dark.standardPalette().color(QPalette::PlaceholderText),
-             QColor(255, 255, 255, 197));
+    QCOMPARE(dark.standardPalette().color(QPalette::PlaceholderText), QColor(255, 255, 255, 197));
 }
 
 void WinUI3ButtonsTest::paletteDerivedTokensMatchWinUIConstants()
@@ -169,42 +165,27 @@ void WinUI3ButtonsTest::paletteDerivedTokensMatchWinUIConstants()
     // Guard the palette-derived token pipeline: building tokens from the
     // style's own standard palette must reproduce the WinUI theme resources
     // byte-for-byte, so the refactor is render-neutral for default palettes.
-    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
-                                         WinUI3::ThemeMode::Dark}) {
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         WinUI3::Style style(mode);
         const QPalette palette = style.standardPalette();
         const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(palette);
         const bool dark = mode == WinUI3::ThemeMode::Dark;
 
         QCOMPARE(t.dark, dark);
-        QCOMPARE(t.textPrimary, dark ? QColor(255, 255, 255)
-                                     : QColor(0, 0, 0, 228));
-        QCOMPARE(t.textSecondary, dark ? QColor(255, 255, 255, 197)
-                                       : QColor(0, 0, 0, 158));
-        QCOMPARE(t.textTertiary, dark ? QColor(255, 255, 255, 135)
-                                      : QColor(0, 0, 0, 114));
-        QCOMPARE(t.textDisabled, dark ? QColor(255, 255, 255, 93)
-                                      : QColor(0, 0, 0, 92));
-        QCOMPARE(t.layer, dark ? QColor(58, 58, 58, 76)
-                               : QColor(255, 255, 255, 128));
-        QCOMPARE(t.control, dark ? QColor(255, 255, 255, 15)
-                                 : QColor(255, 255, 255, 179));
-        QCOMPARE(t.controlHover, dark ? QColor(255, 255, 255, 21)
-                                      : QColor(249, 249, 249, 128));
-        QCOMPARE(t.controlPressed, dark ? QColor(255, 255, 255, 8)
-                                        : QColor(229, 229, 229, 179));
-        QCOMPARE(t.controlDisabled, dark ? QColor(255, 255, 255, 11)
-                                         : QColor(249, 249, 249, 77));
-        QCOMPARE(t.subtleHover, dark ? QColor(255, 255, 255, 15)
-                                     : QColor(0, 0, 0, 9));
-        QCOMPARE(t.subtlePressed, dark ? QColor(255, 255, 255, 10)
-                                       : QColor(0, 0, 0, 6));
-        QCOMPARE(t.stroke, dark ? QColor(255, 255, 255, 18)
-                                : QColor(0, 0, 0, 15));
-        QCOMPARE(t.strokeSecondary, dark ? QColor(255, 255, 255, 24)
-                                         : QColor(0, 0, 0, 41));
-        QCOMPARE(t.strokeStrong, dark ? QColor(255, 255, 255, 139)
-                                      : QColor(0, 0, 0, 114));
+        QCOMPARE(t.textPrimary, dark ? QColor(255, 255, 255) : QColor(0, 0, 0, 228));
+        QCOMPARE(t.textSecondary, dark ? QColor(255, 255, 255, 197) : QColor(0, 0, 0, 158));
+        QCOMPARE(t.textTertiary, dark ? QColor(255, 255, 255, 135) : QColor(0, 0, 0, 114));
+        QCOMPARE(t.textDisabled, dark ? QColor(255, 255, 255, 93) : QColor(0, 0, 0, 92));
+        QCOMPARE(t.layer, dark ? QColor(58, 58, 58, 76) : QColor(255, 255, 255, 128));
+        QCOMPARE(t.control, dark ? QColor(255, 255, 255, 15) : QColor(255, 255, 255, 179));
+        QCOMPARE(t.controlHover, dark ? QColor(255, 255, 255, 21) : QColor(249, 249, 249, 128));
+        QCOMPARE(t.controlPressed, dark ? QColor(255, 255, 255, 8) : QColor(229, 229, 229, 179));
+        QCOMPARE(t.controlDisabled, dark ? QColor(255, 255, 255, 11) : QColor(249, 249, 249, 77));
+        QCOMPARE(t.subtleHover, dark ? QColor(255, 255, 255, 15) : QColor(0, 0, 0, 9));
+        QCOMPARE(t.subtlePressed, dark ? QColor(255, 255, 255, 10) : QColor(0, 0, 0, 6));
+        QCOMPARE(t.stroke, dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 15));
+        QCOMPARE(t.strokeSecondary, dark ? QColor(255, 255, 255, 24) : QColor(0, 0, 0, 41));
+        QCOMPARE(t.strokeStrong, dark ? QColor(255, 255, 255, 139) : QColor(0, 0, 0, 114));
 
         const QColor popup = WinUI3::Private::popupSurfaceColor(palette);
         QCOMPARE(popup, dark ? QColor(44, 44, 44) : QColor(252, 252, 252));
@@ -234,16 +215,14 @@ void WinUI3ButtonsTest::customWidgetPaletteDrivesTokensAndPaint()
     for (int y = 0; y < image.height() && !foundRedInk; ++y) {
         for (int x = 0; x < image.width(); ++x) {
             const QColor pixel = image.pixelColor(x, y);
-            const int chroma = pixel.red() - qMax(pixel.green(),
-                                                  pixel.blue());
+            const int chroma = pixel.red() - qMax(pixel.green(), pixel.blue());
             if (chroma > 60) {
                 foundRedInk = true;
                 break;
             }
         }
     }
-    QVERIFY2(foundRedInk,
-             "button painted with a custom palette shows no custom-ink pixels");
+    QVERIFY2(foundRedInk, "button painted with a custom palette shows no custom-ink pixels");
 }
 
 void WinUI3ButtonsTest::systemAccentRampIsAtomic()
@@ -267,15 +246,14 @@ void WinUI3ButtonsTest::systemAccentRampIsAtomic()
 
     QCOMPARE(style->standardPalette().color(QPalette::Highlight), systemAccent);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
-    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
-                                         WinUI3::ThemeMode::Dark}) {
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         style->setThemeMode(mode);
         const QPalette palette = style->standardPalette();
         const QColor controlAccent = palette.color(QPalette::Accent);
         QVERIFY(controlAccent.isValid());
         QVERIFY2(sameHueFamily(systemAccent, controlAccent),
                  qPrintable(QStringLiteral("system %1, control %2")
-                                .arg(systemAccent.name(), controlAccent.name())));
+                                    .arg(systemAccent.name(), controlAccent.name())));
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
 #endif
@@ -288,15 +266,13 @@ void WinUI3ButtonsTest::systemThemeMatchesResolvedExplicitTheme()
 
     style->setThemeMode(WinUI3::ThemeMode::System);
     const QPalette systemPalette = style->standardPalette();
-    const bool systemIsDark =
-        qGray(systemPalette.color(QPalette::Window).rgb()) < 128;
+    const bool systemIsDark = qGray(systemPalette.color(QPalette::Window).rgb()) < 128;
 
     QMainWindow window;
     auto *menu = window.menuBar()->addMenu(QStringLiteral("File"));
     menu->addAction(QStringLiteral("Open"));
     auto *navigation = new QListWidget(&window);
-    navigation->addItems({QStringLiteral("Controls"),
-                          QStringLiteral("Settings")});
+    navigation->addItems({ QStringLiteral("Controls"), QStringLiteral("Settings") });
     window.setCentralWidget(navigation);
     window.resize(320, 180);
     window.show();
@@ -308,8 +284,7 @@ void WinUI3ButtonsTest::systemThemeMatchesResolvedExplicitTheme()
     const QImage systemMenu = menu->grab().toImage();
     menu->hide();
 
-    style->setThemeMode(systemIsDark ? WinUI3::ThemeMode::Dark
-                                     : WinUI3::ThemeMode::Light);
+    style->setThemeMode(systemIsDark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
     QCOMPARE(style->standardPalette(), systemPalette);
     qApp->processEvents();
     QCOMPARE(window.grab().toImage(), systemWindow);
@@ -328,10 +303,8 @@ void WinUI3ButtonsTest::buttonToolButtonAndIconContracts()
         lastGenerated = WinUI3::icon(WinUI3::Icon::Search);
     QVERIFY(WinUI3::isFluentIcon(fluent));
     QVERIFY(WinUI3::isFluentIcon(lastGenerated));
-    const QPixmap red = WinUI3::iconPixmap(
-        fluent, QSize(20, 20), 1.0, QColor(220, 20, 40));
-    const QPixmap blue = WinUI3::iconPixmap(
-        fluent, QSize(20, 20), 1.0, QColor(20, 60, 220));
+    const QPixmap red = WinUI3::iconPixmap(fluent, QSize(20, 20), 1.0, QColor(220, 20, 40));
+    const QPixmap blue = WinUI3::iconPixmap(fluent, QSize(20, 20), 1.0, QColor(20, 60, 220));
     QVERIFY(!red.isNull());
     QVERIFY(red.toImage() != blue.toImage());
 
@@ -339,8 +312,8 @@ void WinUI3ButtonsTest::buttonToolButtonAndIconContracts()
     applicationPixmap.fill(QColor(20, 200, 40));
     const QIcon applicationIcon(applicationPixmap);
     QVERIFY(!WinUI3::isFluentIcon(applicationIcon));
-    const QImage preserved = WinUI3::iconPixmap(
-        applicationIcon, QSize(16, 16), 1.0, QColor(220, 20, 40)).toImage();
+    const QImage preserved =
+            WinUI3::iconPixmap(applicationIcon, QSize(16, 16), 1.0, QColor(220, 20, 40)).toImage();
     const QColor center = preserved.pixelColor(8, 8);
     QVERIFY(center.green() > center.red());
 
@@ -382,61 +355,55 @@ void WinUI3ButtonsTest::buttonToolButtonAndIconContracts()
     menu->addAction(QStringLiteral("Choice"));
     tool->setMenu(menu);
     toolbar.addWidget(tool);
-    toolbar.setProperty(WinUI3::Style::SurfaceProperty,
-                        QStringLiteral("layer"));
+    toolbar.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("layer"));
     toolbar.show();
     QVERIFY(!toolbar.grab().isNull());
 
     QStyleOption toolbarPanel;
     toolbarPanel.initFrom(&toolbar);
     toolbarPanel.rect = QRect(0, 0, 80, 24);
-    QImage toolbarPanelImage(toolbarPanel.rect.size(),
-                             QImage::Format_ARGB32_Premultiplied);
+    QImage toolbarPanelImage(toolbarPanel.rect.size(), QImage::Format_ARGB32_Premultiplied);
     toolbarPanelImage.fill(Qt::black);
     {
         QPainter painter(&toolbarPanelImage);
-        toolbar.style()->drawControl(QStyle::CE_ToolBar, &toolbarPanel,
-                                     &painter, &toolbar);
+        toolbar.style()->drawControl(QStyle::CE_ToolBar, &toolbarPanel, &painter, &toolbar);
     }
-    QCOMPARE(toolbarPanelImage.pixelColor(70, 12),
-             toolbar.palette().color(QPalette::Window));
+    QCOMPARE(toolbarPanelImage.pixelColor(70, 12), toolbar.palette().color(QPalette::Window));
 
     QStyleOptionToolButton option;
     option.initFrom(tool);
     option.rect = tool->rect();
     option.features = QStyleOptionToolButton::MenuButtonPopup;
-    const QRect main = tool->style()->subControlRect(
-        QStyle::CC_ToolButton, &option, QStyle::SC_ToolButton, tool);
-    const QRect drop = tool->style()->subControlRect(
-        QStyle::CC_ToolButton, &option, QStyle::SC_ToolButtonMenu, tool);
+    const QRect main = tool->style()->subControlRect(QStyle::CC_ToolButton, &option,
+                                                     QStyle::SC_ToolButton, tool);
+    const QRect drop = tool->style()->subControlRect(QStyle::CC_ToolButton, &option,
+                                                     QStyle::SC_ToolButtonMenu, tool);
     QVERIFY(!main.intersects(drop));
-    QCOMPARE(tool->style()->hitTestComplexControl(
-                 QStyle::CC_ToolButton, &option, main.center(), tool),
+    QCOMPARE(tool->style()->hitTestComplexControl(QStyle::CC_ToolButton, &option, main.center(),
+                                                  tool),
              QStyle::SC_ToolButton);
-    QCOMPARE(tool->style()->hitTestComplexControl(
-                 QStyle::CC_ToolButton, &option, drop.center(), tool),
+    QCOMPARE(tool->style()->hitTestComplexControl(QStyle::CC_ToolButton, &option, drop.center(),
+                                                  tool),
              QStyle::SC_ToolButtonMenu);
 
     QStyleOption separator;
     separator.palette = toolbar.palette();
     separator.rect = QRect(0, 0, 24, 24);
     separator.state = QStyle::State_Enabled | QStyle::State_Horizontal;
-    QImage horizontalToolbarSeparator(separator.rect.size(),
-                                      QImage::Format_ARGB32_Premultiplied);
+    QImage horizontalToolbarSeparator(separator.rect.size(), QImage::Format_ARGB32_Premultiplied);
     horizontalToolbarSeparator.fill(Qt::transparent);
     {
         QPainter painter(&horizontalToolbarSeparator);
-        toolbar.style()->drawPrimitive(QStyle::PE_IndicatorToolBarSeparator,
-                                       &separator, &painter, &toolbar);
+        toolbar.style()->drawPrimitive(QStyle::PE_IndicatorToolBarSeparator, &separator, &painter,
+                                       &toolbar);
     }
     separator.state = QStyle::State_Enabled;
-    QImage verticalToolbarSeparator(separator.rect.size(),
-                                    QImage::Format_ARGB32_Premultiplied);
+    QImage verticalToolbarSeparator(separator.rect.size(), QImage::Format_ARGB32_Premultiplied);
     verticalToolbarSeparator.fill(Qt::transparent);
     {
         QPainter painter(&verticalToolbarSeparator);
-        toolbar.style()->drawPrimitive(QStyle::PE_IndicatorToolBarSeparator,
-                                       &separator, &painter, &toolbar);
+        toolbar.style()->drawPrimitive(QStyle::PE_IndicatorToolBarSeparator, &separator, &painter,
+                                       &toolbar);
     }
     QVERIFY(horizontalToolbarSeparator != verticalToolbarSeparator);
 
@@ -447,21 +414,17 @@ void WinUI3ButtonsTest::buttonToolButtonAndIconContracts()
     const QColor toolbarSurface = toolbar.palette().color(QPalette::Window);
     QImage hoverTrail(tool->size(), QImage::Format_ARGB32_Premultiplied);
     hoverTrail.fill(toolbarSurface);
-    WinUI3::Private::framePropertyRegistry().set(
-        tool, "_winui_hover_progress", 1.0);
+    WinUI3::Private::framePropertyRegistry().set(tool, "_winui_hover_progress", 1.0);
     {
         QPainter painter(&hoverTrail);
-        tool->style()->drawPrimitive(QStyle::PE_PanelButtonTool,
-                                     &hoverOption, &painter, tool);
+        tool->style()->drawPrimitive(QStyle::PE_PanelButtonTool, &hoverOption, &painter, tool);
     }
     QVERIFY(hoverTrail.pixelColor(tool->rect().center()) != toolbarSurface);
     hoverOption.state = QStyle::State_Enabled;
-    WinUI3::Private::framePropertyRegistry().set(
-        tool, "_winui_hover_progress", 0.0);
+    WinUI3::Private::framePropertyRegistry().set(tool, "_winui_hover_progress", 0.0);
     {
         QPainter painter(&hoverTrail);
-        tool->style()->drawPrimitive(QStyle::PE_PanelButtonTool,
-                                     &hoverOption, &painter, tool);
+        tool->style()->drawPrimitive(QStyle::PE_PanelButtonTool, &hoverOption, &painter, tool);
     }
     QCOMPARE(hoverTrail.pixelColor(tool->rect().center()), toolbarSurface);
 }
@@ -471,8 +434,8 @@ void WinUI3ButtonsTest::buttonPressedStateFollowsQtState()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
 
-    for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
-                                           WinUI3::ControlRole::Subtle}) {
+    for (const WinUI3::ControlRole role :
+         { WinUI3::ControlRole::Standard, WinUI3::ControlRole::Subtle }) {
         QPushButton button(QStringLiteral("Pressed"));
         WinUI3::Style::setControlRole(&button, role);
         button.resize(120, 32);
@@ -495,16 +458,16 @@ void WinUI3ButtonsTest::buttonPressedStateFollowsQtState()
         };
 
         const QImage rest = render(QStyle::State_Enabled | QStyle::State_MouseOver);
-        const QImage pressed = render(QStyle::State_Enabled | QStyle::State_MouseOver
-                                      | QStyle::State_Sunken);
+        const QImage pressed =
+                render(QStyle::State_Enabled | QStyle::State_MouseOver | QStyle::State_Sunken);
         int changed = 0;
         for (int y = 0; y < rest.height(); ++y)
             for (int x = 0; x < rest.width(); ++x)
                 changed += rest.pixelColor(x, y) != pressed.pixelColor(x, y);
         QVERIFY2(changed > 0,
                  role == WinUI3::ControlRole::Standard
-                     ? "standard State_Sunken frame is not visible"
-                     : "subtle State_Sunken frame is not visible");
+                         ? "standard State_Sunken frame is not visible"
+                         : "subtle State_Sunken frame is not visible");
     }
 }
 
@@ -513,21 +476,16 @@ void WinUI3ButtonsTest::buttonPressedForegroundRoles()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
 
-    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
-                                         WinUI3::ThemeMode::Dark}) {
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         style->setThemeMode(mode);
-        const WinUI3::Private::Tokens t =
-            WinUI3::Private::buildTokens(style->standardPalette());
+        const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(style->standardPalette());
         QCOMPARE(t.textOnAccentSecondary,
-                 mode == WinUI3::ThemeMode::Dark
-                     ? QColor(0, 0, 0, 128)
-                     : QColor(255, 255, 255, 179));
+                 mode == WinUI3::ThemeMode::Dark ? QColor(0, 0, 0, 128)
+                                                 : QColor(255, 255, 255, 179));
 
-        for (const WinUI3::ControlRole role : {
-                 WinUI3::ControlRole::Standard,
-                 WinUI3::ControlRole::Accent,
-                 WinUI3::ControlRole::Subtle,
-                 WinUI3::ControlRole::Destructive}) {
+        for (const WinUI3::ControlRole role :
+             { WinUI3::ControlRole::Standard, WinUI3::ControlRole::Accent,
+               WinUI3::ControlRole::Subtle, WinUI3::ControlRole::Destructive }) {
             QPushButton button(QStringLiteral("Hold"));
             WinUI3::Style::setControlRole(&button, role);
             button.resize(100, 32);
@@ -538,21 +496,18 @@ void WinUI3ButtonsTest::buttonPressedForegroundRoles()
             option.text = button.text();
             const auto renderLabel = [&](QStyle::State state) {
                 option.state = state;
-                QImage image(option.rect.size(),
-                             QImage::Format_ARGB32_Premultiplied);
+                QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
                 image.fill(Qt::transparent);
                 QPainter painter(&image);
-                style->drawControl(QStyle::CE_PushButtonLabel, &option,
-                                   &painter, &button);
+                style->drawControl(QStyle::CE_PushButtonLabel, &option, &painter, &button);
                 return image;
             };
             const QImage normal = renderLabel(QStyle::State_Enabled);
-            const QImage pressed = renderLabel(QStyle::State_Enabled
-                                               | QStyle::State_Sunken);
+            const QImage pressed = renderLabel(QStyle::State_Enabled | QStyle::State_Sunken);
             QVERIFY2(normal != pressed,
-                     qPrintable(QStringLiteral(
-                         "pressed foreground unchanged for mode=%1 role=%2")
-                                    .arg(int(mode)).arg(int(role))));
+                     qPrintable(QStringLiteral("pressed foreground unchanged for mode=%1 role=%2")
+                                        .arg(int(mode))
+                                        .arg(int(role))));
         }
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
@@ -568,16 +523,16 @@ void WinUI3ButtonsTest::coloredIconCacheReuseAndPixelContract()
     const qreal devicePixelRatio = 1.5;
 
     const QIcon first = WinUI3::icon(WinUI3::Icon::ChevronDown, foreground);
-    const QPixmap firstPixmap = first.pixmap(logicalSize, devicePixelRatio,
-                                             QIcon::Normal, QIcon::Off);
+    const QPixmap firstPixmap =
+            first.pixmap(logicalSize, devicePixelRatio, QIcon::Normal, QIcon::Off);
     QVERIFY(!firstPixmap.isNull());
 
     const auto paintDirect = [logicalSize](const QIcon &source) {
         QImage image(logicalSize, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         QPainter painter(&image);
-        source.paint(&painter, QRect(QPoint(), logicalSize), Qt::AlignCenter,
-                     QIcon::Normal, QIcon::Off);
+        source.paint(&painter, QRect(QPoint(), logicalSize), Qt::AlignCenter, QIcon::Normal,
+                     QIcon::Off);
         return image;
     };
     const QImage firstDirectPaint = paintDirect(first);
@@ -588,34 +543,29 @@ void WinUI3ButtonsTest::coloredIconCacheReuseAndPixelContract()
     // every raster state guards the public output at the same time.
     const QIcon second = WinUI3::icon(WinUI3::Icon::ChevronDown, foreground);
     QCOMPARE(first.cacheKey(), second.cacheKey());
-    for (const QIcon::Mode mode : {QIcon::Normal, QIcon::Disabled,
-                                   QIcon::Active, QIcon::Selected}) {
-        for (const QIcon::State state : {QIcon::Off, QIcon::On}) {
-            QCOMPARE(first.pixmap(logicalSize, devicePixelRatio, mode, state)
-                         .toImage(),
-                     second.pixmap(logicalSize, devicePixelRatio, mode, state)
-                         .toImage());
+    for (const QIcon::Mode mode :
+         { QIcon::Normal, QIcon::Disabled, QIcon::Active, QIcon::Selected }) {
+        for (const QIcon::State state : { QIcon::Off, QIcon::On }) {
+            QCOMPARE(first.pixmap(logicalSize, devicePixelRatio, mode, state).toImage(),
+                     second.pixmap(logicalSize, devicePixelRatio, mode, state).toImage());
         }
     }
 
     QCOMPARE(firstPixmap.devicePixelRatio(), devicePixelRatio);
-    QVERIFY(first.cacheKey() != WinUI3::icon(WinUI3::Icon::ChevronDown,
-                                               QColor(28, 108, 219, 231))
-                 .cacheKey());
+    QVERIFY(first.cacheKey()
+            != WinUI3::icon(WinUI3::Icon::ChevronDown, QColor(28, 108, 219, 231)).cacheKey());
 
     // Force the bounded cache past its capacity and compare a newly-created
     // engine with the original. This catches accidental changes to the
     // QIconEngine raster path while exercising the eviction policy.
     for (int index = 0; index < 300; ++index) {
-        const QColor uniqueColor((index * 53) % 256, (index * 97) % 256,
-                                 (index * 193) % 256, 200 + (index % 56));
+        const QColor uniqueColor((index * 53) % 256, (index * 97) % 256, (index * 193) % 256,
+                                 200 + (index % 56));
         (void)WinUI3::icon(WinUI3::Icon::ChevronDown, uniqueColor);
     }
     const QIcon rebuilt = WinUI3::icon(WinUI3::Icon::ChevronDown, foreground);
     QVERIFY(rebuilt.cacheKey() != first.cacheKey());
-    QCOMPARE(rebuilt.pixmap(logicalSize, devicePixelRatio, QIcon::Normal,
-                            QIcon::Off)
-                 .toImage(),
+    QCOMPARE(rebuilt.pixmap(logicalSize, devicePixelRatio, QIcon::Normal, QIcon::Off).toImage(),
              firstPixmap.toImage());
     QCOMPARE(paintDirect(rebuilt), firstDirectPaint);
 }
@@ -624,24 +574,20 @@ void WinUI3ButtonsTest::iconPixmapCacheDprAndPalette()
 {
     const QIcon fluent = WinUI3::icon(WinUI3::Icon::Search);
     const QColor foreground(30, 110, 220, 211);
-    const QPixmap first = WinUI3::iconPixmap(
-        fluent, QSize(20, 20), 1.5, foreground);
-    const QPixmap second = WinUI3::iconPixmap(
-        fluent, QSize(20, 20), 1.5, foreground);
+    const QPixmap first = WinUI3::iconPixmap(fluent, QSize(20, 20), 1.5, foreground);
+    const QPixmap second = WinUI3::iconPixmap(fluent, QSize(20, 20), 1.5, foreground);
     QVERIFY(!first.isNull());
     QCOMPARE(first.devicePixelRatioF(), 1.5);
     QCOMPARE(first.size(), QSize(30, 30));
     QCOMPARE(first.toImage(), second.toImage());
 
-    const QPixmap differentDpr = WinUI3::iconPixmap(
-        fluent, QSize(20, 20), 2.0, foreground);
+    const QPixmap differentDpr = WinUI3::iconPixmap(fluent, QSize(20, 20), 2.0, foreground);
     QVERIFY(!differentDpr.isNull());
     QCOMPARE(differentDpr.devicePixelRatioF(), 2.0);
     QCOMPARE(differentDpr.size(), QSize(40, 40));
 
-    const QPixmap disabled = WinUI3::iconPixmap(
-        fluent, QSize(20, 20), 1.5, foreground, QIcon::Disabled,
-        QIcon::On);
+    const QPixmap disabled =
+            WinUI3::iconPixmap(fluent, QSize(20, 20), 1.5, foreground, QIcon::Disabled, QIcon::On);
     QVERIFY(!disabled.isNull());
     QCOMPARE(disabled.size(), QSize(30, 30));
 
@@ -650,8 +596,7 @@ void WinUI3ButtonsTest::iconPixmapCacheDprAndPalette()
     // Tokens derive from palette roles, so probe palettes must carry a
     // matching ink alongside the surface color, exactly like the light/dark
     // standard palettes do.
-    auto renderArrow = [style](const QColor &windowColor,
-                               const QColor &inkColor) {
+    auto renderArrow = [style](const QColor &windowColor, const QColor &inkColor) {
         QStyleOption option;
         option.rect = QRect(0, 0, 24, 24);
         option.state = QStyle::State_Enabled;
@@ -661,8 +606,7 @@ void WinUI3ButtonsTest::iconPixmapCacheDprAndPalette()
         QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         QPainter painter(&image);
-        style->drawPrimitive(QStyle::PE_IndicatorArrowDown, &option,
-                             &painter);
+        style->drawPrimitive(QStyle::PE_IndicatorArrowDown, &option, &painter);
         return image;
     };
     const QImage light = renderArrow(Qt::white, QColor(0, 0, 0, 228));
@@ -675,10 +619,9 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
 
-    for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
-                                           WinUI3::ControlRole::Accent,
-                                           WinUI3::ControlRole::Subtle,
-                                           WinUI3::ControlRole::Destructive}) {
+    for (const WinUI3::ControlRole role :
+         { WinUI3::ControlRole::Standard, WinUI3::ControlRole::Accent, WinUI3::ControlRole::Subtle,
+           WinUI3::ControlRole::Destructive }) {
         QPushButton button(QStringLiteral("Rapid"));
         WinUI3::Style::setControlRole(&button, role);
         button.resize(120, 32);
@@ -688,28 +631,22 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
         const QImage rest = button.grab().toImage();
 
         for (int click = 0; click < 5; ++click) {
-            QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier,
-                              button.rect().center());
+            QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier, button.rect().center());
             qApp->processEvents();
             QCOMPARE(frameReal(&button, "_winui_press_progress"), 1.0);
             const QImage pressed = button.grab().toImage();
             QVERIFY2(pressed != rest, "a left press must produce a visible frame");
-            QTest::mouseRelease(&button, Qt::LeftButton, Qt::NoModifier,
-                                button.rect().center());
+            QTest::mouseRelease(&button, Qt::LeftButton, Qt::NoModifier, button.rect().center());
         }
         QTest::qWait(130);
         QVERIFY(frameReal(&button, "_winui_press_progress") < 0.1);
 
-        QTest::mousePress(&button, Qt::RightButton, Qt::NoModifier,
-                          button.rect().center());
+        QTest::mousePress(&button, Qt::RightButton, Qt::NoModifier, button.rect().center());
         QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
-        QTest::mouseRelease(&button, Qt::RightButton, Qt::NoModifier,
-                            button.rect().center());
-        QTest::mousePress(&button, Qt::MiddleButton, Qt::NoModifier,
-                          button.rect().center());
+        QTest::mouseRelease(&button, Qt::RightButton, Qt::NoModifier, button.rect().center());
+        QTest::mousePress(&button, Qt::MiddleButton, Qt::NoModifier, button.rect().center());
         QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
-        QTest::mouseRelease(&button, Qt::MiddleButton, Qt::NoModifier,
-                            button.rect().center());
+        QTest::mouseRelease(&button, Qt::MiddleButton, Qt::NoModifier, button.rect().center());
     }
 
     QToolButton tool;
@@ -719,13 +656,11 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
     (void)QTest::qWaitForWindowExposed(&tool);
     QTest::mouseMove(&tool, tool.rect().center());
     const QImage toolRest = tool.grab().toImage();
-    QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier,
-                      tool.rect().center());
+    QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier, tool.rect().center());
     qApp->processEvents();
     QCOMPARE(frameReal(&tool, "_winui_press_progress"), 1.0);
     QVERIFY(tool.grab().toImage() != toolRest);
-    QTest::mouseRelease(&tool, Qt::LeftButton, Qt::NoModifier,
-                        tool.rect().center());
+    QTest::mouseRelease(&tool, Qt::LeftButton, Qt::NoModifier, tool.rect().center());
     QTest::qWait(130);
     QVERIFY(frameReal(&tool, "_winui_press_progress") < 0.1);
 }
@@ -757,19 +692,17 @@ void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
 
-    for (const WinUI3::ThemeMode mode : {WinUI3::ThemeMode::Light,
-                                         WinUI3::ThemeMode::Dark}) {
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         style->setThemeMode(mode);
-        for (const WinUI3::ControlRole role : {WinUI3::ControlRole::Standard,
-                                               WinUI3::ControlRole::Subtle}) {
+        for (const WinUI3::ControlRole role :
+             { WinUI3::ControlRole::Standard, WinUI3::ControlRole::Subtle }) {
             QPushButton button(QStringLiteral("Disabled"));
             WinUI3::Style::setControlRole(&button, role);
             button.resize(140, 32);
             button.show();
             (void)QTest::qWaitForWindowExposed(&button);
             QTest::mouseMove(&button, button.rect().center());
-            QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier,
-                              button.rect().center());
+            QTest::mousePress(&button, Qt::LeftButton, Qt::NoModifier, button.rect().center());
             button.setEnabled(false);
             qApp->processEvents();
             QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
@@ -777,8 +710,7 @@ void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()
 
             QEvent enter(QEvent::Enter);
             QCoreApplication::sendEvent(&button, &enter);
-            QMouseEvent press(QEvent::MouseButtonPress,
-                              QPointF(button.rect().center()),
+            QMouseEvent press(QEvent::MouseButtonPress, QPointF(button.rect().center()),
                               Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(&button, &press);
             QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
@@ -797,8 +729,7 @@ void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()
                 QImage image(button.size(), QImage::Format_ARGB32_Premultiplied);
                 image.fill(button.palette().color(QPalette::Window));
                 QPainter painter(&image);
-                style->drawControl(QStyle::CE_PushButton, &option,
-                                   &painter, &button);
+                style->drawControl(QStyle::CE_PushButton, &option, &painter, &button);
                 return image;
             };
             QCOMPARE(render(QStyle::State_None),
@@ -811,8 +742,7 @@ void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()
         tool.show();
         (void)QTest::qWaitForWindowExposed(&tool);
         QTest::mouseMove(&tool, tool.rect().center());
-        QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier,
-                          tool.rect().center());
+        QTest::mousePress(&tool, Qt::LeftButton, Qt::NoModifier, tool.rect().center());
         tool.setEnabled(false);
         qApp->processEvents();
         QCOMPARE(frameReal(&tool, "_winui_hover_progress"), 0.0);
@@ -831,11 +761,10 @@ void WinUI3ButtonsTest::toolButtonIconVerticalCenter()
     QPixmap sourcePixmap(16, 16);
     sourcePixmap.fill(QColor(220, 30, 40));
     const QIcon sourceIcon(sourcePixmap);
-    for (const qreal dpr : {1.0, 1.25, 1.5, 2.0}) {
-        for (const QSize size : {QSize(37, 33), QSize(33, 37)}) {
+    for (const qreal dpr : { 1.0, 1.25, 1.5, 2.0 }) {
+        for (const QSize size : { QSize(37, 33), QSize(33, 37) }) {
             QToolBar toolbar;
-            toolbar.setOrientation(size.width() > size.height()
-                                       ? Qt::Horizontal : Qt::Vertical);
+            toolbar.setOrientation(size.width() > size.height() ? Qt::Horizontal : Qt::Vertical);
             QToolButton button(&toolbar);
             button.setToolButtonStyle(Qt::ToolButtonIconOnly);
             button.setIcon(sourceIcon);
@@ -848,15 +777,13 @@ void WinUI3ButtonsTest::toolButtonIconVerticalCenter()
             option.icon = sourceIcon;
             option.iconSize = QSize(16, 16);
 
-            QImage image(qRound(size.width() * dpr),
-                         qRound(size.height() * dpr),
+            QImage image(qRound(size.width() * dpr), qRound(size.height() * dpr),
                          QImage::Format_ARGB32_Premultiplied);
             image.setDevicePixelRatio(dpr);
             image.fill(Qt::transparent);
             {
                 QPainter painter(&image);
-                style->drawControl(QStyle::CE_ToolButtonLabel, &option,
-                                   &painter, &button);
+                style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, &button);
             }
 
             qreal sumX = 0.0;
@@ -865,8 +792,8 @@ void WinUI3ButtonsTest::toolButtonIconVerticalCenter()
             for (int y = 0; y < image.height(); ++y) {
                 for (int x = 0; x < image.width(); ++x) {
                     const QColor pixel = image.pixelColor(x, y);
-                    if (pixel.red() < 150 || pixel.green() > 100
-                        || pixel.blue() > 100 || pixel.alpha() == 0)
+                    if (pixel.red() < 150 || pixel.green() > 100 || pixel.blue() > 100
+                        || pixel.alpha() == 0)
                         continue;
                     const qreal alpha = pixel.alphaF();
                     sumX += (x + 0.5) / dpr * alpha;
@@ -875,8 +802,7 @@ void WinUI3ButtonsTest::toolButtonIconVerticalCenter()
                 }
             }
             QVERIFY(weight > 0.0);
-            const QRectF content = QRectF(option.rect).adjusted(4.0, 2.0,
-                                                                -4.0, -2.0);
+            const QRectF content = QRectF(option.rect).adjusted(4.0, 2.0, -4.0, -2.0);
             QVERIFY(qAbs(sumX / weight - content.center().x()) <= 0.5);
             QVERIFY(qAbs(sumY / weight - content.center().y()) <= 0.5);
         }
@@ -890,8 +816,7 @@ void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
 
     QToolBar toolbar;
     toolbar.setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    toolbar.setProperty(WinUI3::Style::SurfaceProperty,
-                        QStringLiteral("layer"));
+    toolbar.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("layer"));
     QAction *before = toolbar.addAction(QStringLiteral("Before"));
     QAction *checked = toolbar.addAction(QStringLiteral("Checked"));
     QAction *after = toolbar.addAction(QStringLiteral("After"));
@@ -931,17 +856,14 @@ void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
     const QImage hovered = button->grab().toImage();
     verifyCorners(hovered);
 
-    QTest::mousePress(button, Qt::LeftButton, Qt::NoModifier,
-                      button->rect().center());
+    QTest::mousePress(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
     qApp->processEvents();
     const QImage pressed = button->grab().toImage();
     verifyCorners(pressed);
     const QPoint fillProbe(2, button->height() / 2);
-    QVERIFY2(colorDistance(hovered.pixelColor(fillProbe),
-                           pressed.pixelColor(fillProbe)) > 2,
+    QVERIFY2(colorDistance(hovered.pixelColor(fillProbe), pressed.pixelColor(fillProbe)) > 2,
              "a checked toolbar button must retain visible press feedback");
-    QTest::mouseRelease(button, Qt::LeftButton, Qt::NoModifier,
-                        button->rect().center());
+    QTest::mouseRelease(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
 
     // Exercise the real command-bar composition path.  Grabbing the child
     // directly repaints it into a fresh pixmap and can hide clipping caused
@@ -957,13 +879,10 @@ void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
     host.resize(480, 160);
     host.show();
     (void)QTest::qWaitForWindowExposed(&host);
-    auto *micaButton = qobject_cast<QToolButton *>(
-        micaToolbar->widgetForAction(middleAction));
+    auto *micaButton = qobject_cast<QToolButton *>(micaToolbar->widgetForAction(middleAction));
     QVERIFY(micaButton);
-    const QRect leftGeometry =
-        micaToolbar->widgetForAction(leftAction)->geometry();
-    const QRect rightGeometry =
-        micaToolbar->widgetForAction(rightAction)->geometry();
+    const QRect leftGeometry = micaToolbar->widgetForAction(leftAction)->geometry();
+    const QRect rightGeometry = micaToolbar->widgetForAction(rightAction)->geometry();
     QVERIFY2(!leftGeometry.intersects(micaButton->geometry()),
              "toolbar action widgets must not overlap");
     QVERIFY2(!micaButton->geometry().intersects(rightGeometry),
@@ -974,8 +893,7 @@ void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
     setFrame(micaButton, "_winui_hover_progress", 1.0);
     micaButton->update();
     qApp->processEvents();
-    const QImage composed =
-        micaToolbar->grab(micaButton->geometry()).toImage();
+    const QImage composed = micaToolbar->grab(micaButton->geometry()).toImage();
     const QImage isolated = micaButton->grab().toImage();
     QCOMPARE(composed, isolated);
 }

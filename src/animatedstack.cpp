@@ -17,16 +17,13 @@ namespace {
 class SnapshotOverlay final : public QWidget
 {
 public:
-    SnapshotOverlay(const QPixmap &pixmap, QWidget *parent)
-        : QWidget(parent)
-        , m_pixmap(pixmap)
+    SnapshotOverlay(const QPixmap &pixmap, QWidget *parent) : QWidget(parent), m_pixmap(pixmap)
     {
         setAttribute(Qt::WA_NoSystemBackground);
         setAttribute(Qt::WA_TransparentForMouseEvents);
         setObjectName(QStringLiteral("_winui_animated_stack_overlay"));
         const QImage image = m_pixmap.toImage();
-        m_background = image.isNull() ? palette().color(QPalette::Window)
-                                      : image.pixelColor(0, 0);
+        m_background = image.isNull() ? palette().color(QPalette::Window) : image.pixelColor(0, 0);
         if (m_background.alpha() < 255)
             m_background = palette().color(QPalette::Window);
     }
@@ -44,10 +41,9 @@ protected:
         painter.fillRect(rect(), m_background);
         const QSize target(qRound(width() * devicePixelRatioF()),
                            qRound(height() * devicePixelRatioF()));
-        painter.setRenderHint(QPainter::SmoothPixmapTransform,
-                               m_pixmap.size() != target);
-        painter.drawPixmap(QRectF(rect()).translated(m_offset, 0.0),
-                           m_pixmap, QRectF(m_pixmap.rect()));
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, m_pixmap.size() != target);
+        painter.drawPixmap(QRectF(rect()).translated(m_offset, 0.0), m_pixmap,
+                           QRectF(m_pixmap.rect()));
     }
 
 private:
@@ -58,29 +54,37 @@ private:
 
 } // namespace
 
-AnimatedStack::AnimatedStack(QWidget *parent)
-    : QStackedWidget(parent)
+AnimatedStack::AnimatedStack(QWidget *parent) : QStackedWidget(parent)
 {
-    connect(this, &QStackedWidget::widgetRemoved, this,
-            &AnimatedStack::handleWidgetRemoved);
+    connect(this, &QStackedWidget::widgetRemoved, this, &AnimatedStack::handleWidgetRemoved);
 }
 
 AnimatedStack::~AnimatedStack() = default;
 
-int AnimatedStack::duration() const { return m_duration; }
-void AnimatedStack::setDuration(int duration) { m_duration = qMax(0, duration); }
-bool AnimatedStack::isAnimating() const { return m_group && m_group->state() == QAbstractAnimation::Running; }
+int AnimatedStack::duration() const
+{
+    return m_duration;
+}
+void AnimatedStack::setDuration(int duration)
+{
+    m_duration = qMax(0, duration);
+}
+bool AnimatedStack::isAnimating() const
+{
+    return m_group && m_group->state() == QAbstractAnimation::Running;
+}
 
 void AnimatedStack::setCurrentIndex(int index)
 {
-    const Transition transition = index >= QStackedWidget::currentIndex()
-        ? Transition::Forward : Transition::Backward;
+    const Transition transition =
+            index >= QStackedWidget::currentIndex() ? Transition::Forward : Transition::Backward;
     setCurrentIndex(index, transition);
 }
 
 void AnimatedStack::setCurrentIndex(int index, Transition transition)
 {
-    if (index < 0 || index >= count()) return;
+    if (index < 0 || index >= count())
+        return;
     if (index == QStackedWidget::currentIndex()) {
         // QAbstractItemView can emit both clicked and activated for the same
         // gesture. Re-selecting the page that is already entering must not
@@ -194,15 +198,13 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     geometry->setDuration(m_duration);
     geometry->setEasingCurve(QEasingCurve::OutCubic);
     m_geometryAnimation = geometry;
-    connect(geometry, &QVariantAnimation::valueChanged, this,
-            [this](const QVariant &value) {
+    connect(geometry, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
         m_transitionProgress = qBound<qreal>(0.0, value.toReal(), 1.0);
         updateOverlayGeometry(m_transitionProgress);
     });
     m_group->addAnimation(geometry);
 
-    connect(m_group, &QParallelAnimationGroup::finished,
-            this, &AnimatedStack::finishTransition);
+    connect(m_group, &QParallelAnimationGroup::finished, this, &AnimatedStack::finishTransition);
     m_group->start();
 
     if (m_deferredIndex >= 0) {

@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3TogglesTest final : public QObject
@@ -141,7 +140,6 @@ void WinUI3TogglesTest::cleanup()
     qApp->processEvents();
 }
 
-
 void WinUI3TogglesTest::toggleConvenienceWidget()
 {
     WinUI3::ToggleSwitch toggle(QStringLiteral("Notifications"));
@@ -176,12 +174,10 @@ void WinUI3TogglesTest::toggleConvenienceWidget()
     QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") < 0.01);
     toggle.setChecked(true);
     QTest::qWait(35);
-    const qreal beforeTextChange =
-        frameReal(&toggle, "_winui_toggle_position");
+    const qreal beforeTextChange = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(beforeTextChange > 0.0 && beforeTextChange < 0.99);
     toggle.setOnText(QStringLiteral("Enabled"));
-    const qreal afterTextChange =
-        frameReal(&toggle, "_winui_toggle_position");
+    const qreal afterTextChange = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(afterTextChange < 0.99);
     QVERIFY(std::abs(afterTextChange - beforeTextChange) < 0.15);
     QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.99);
@@ -191,8 +187,7 @@ void WinUI3TogglesTest::toggleInteraction()
 {
     QCheckBox toggle;
     WinUI3::Style::setToggleSwitch(&toggle);
-    WinUI3::Style::setToggleSwitchText(&toggle, QStringLiteral("On"),
-                                       QStringLiteral("Off"));
+    WinUI3::Style::setToggleSwitchText(&toggle, QStringLiteral("On"), QStringLiteral("Off"));
     toggle.resize(toggle.sizeHint());
     toggle.show();
     QVERIFY(QTest::qWaitForWindowExposed(&toggle));
@@ -231,24 +226,22 @@ void WinUI3TogglesTest::togglePressedThumbGeometry()
     QStyleOptionButton option;
     option.initFrom(&toggle);
     option.rect = toggle.rect();
-    option.state = QStyle::State_Enabled | QStyle::State_On
-        | QStyle::State_MouseOver | QStyle::State_Sunken;
+    option.state = QStyle::State_Enabled | QStyle::State_On | QStyle::State_MouseOver
+            | QStyle::State_Sunken;
     QImage image(toggle.size(), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     {
         QPainter painter(&image);
-        toggle.style()->drawControl(QStyle::CE_CheckBox, &option,
-                                    &painter, &toggle);
+        toggle.style()->drawControl(QStyle::CE_CheckBox, &option, &painter, &toggle);
     }
 
-    const QRectF track(option.rect.left(), option.rect.center().y() - 10,
-                       40, 20);
+    const QRectF track(option.rect.left(), option.rect.center().y() - 10, 40, 20);
     QRect whiteInk;
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
             const QColor pixel = image.pixelColor(x, y);
-            if (pixel.alpha() > 200 && pixel.red() > 240
-                && pixel.green() > 240 && pixel.blue() > 240)
+            if (pixel.alpha() > 200 && pixel.red() > 240 && pixel.green() > 240
+                && pixel.blue() > 240)
                 whiteInk |= QRect(x, y, 1, 1);
         }
     }
@@ -263,26 +256,23 @@ void WinUI3TogglesTest::toggleDragInteraction()
 {
     QCheckBox toggle;
     toggle.setProperty(WinUI3::Style::ToggleSwitchProperty, true);
-    toggle.setProperty(WinUI3::Style::ToggleSwitchOnTextProperty,
-                       QStringLiteral("On"));
-    toggle.setProperty(WinUI3::Style::ToggleSwitchOffTextProperty,
-                       QStringLiteral("Off"));
+    toggle.setProperty(WinUI3::Style::ToggleSwitchOnTextProperty, QStringLiteral("On"));
+    toggle.setProperty(WinUI3::Style::ToggleSwitchOffTextProperty, QStringLiteral("Off"));
     toggle.resize(toggle.sizeHint());
     toggle.show();
     QVERIFY(WinUI3::Style::isToggleSwitch(&toggle));
-    QCOMPARE(toggle.style()->pixelMetric(QStyle::PM_IndicatorWidth,
-                                         nullptr, &toggle), 40);
+    QCOMPARE(toggle.style()->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, &toggle), 40);
 
     QSignalSpy clicked(&toggle, &QAbstractButton::clicked);
     QTest::mousePress(&toggle, Qt::LeftButton, Qt::NoModifier, QPoint(10, 20));
-    QMouseEvent move(QEvent::MouseMove, QPointF(32, 20), Qt::NoButton,
-                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(32, 20), Qt::NoButton, Qt::LeftButton,
+                     Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &move);
     QVERIFY(frameBool(&toggle, "_winui_toggle_dragging"));
     QVERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.9);
 
-    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(32, 20),
-                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(32, 20), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &release);
     QVERIFY(toggle.isChecked());
     QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
@@ -294,8 +284,7 @@ void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()
     DisableAnimationsGuard animations;
     QCheckBox toggle;
     WinUI3::Style::setToggleSwitch(&toggle);
-    WinUI3::Style::setToggleSwitchText(&toggle, QStringLiteral("On"),
-                                       QStringLiteral("Off"));
+    WinUI3::Style::setToggleSwitchText(&toggle, QStringLiteral("On"), QStringLiteral("Off"));
     toggle.setLayoutDirection(Qt::RightToLeft);
     toggle.resize(140, 32);
     toggle.setChecked(true);
@@ -306,8 +295,7 @@ void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()
     // right - 39, exactly mirroring the LTR 40-pixel slot. The old right - 40
     // origin left one stale pixel outside the widget and disagreed with the
     // drag hit region.
-    const QRect expectedTrack(toggle.rect().right() - 39,
-                              toggle.rect().center().y() - 10, 40, 20);
+    const QRect expectedTrack(toggle.rect().right() - 39, toggle.rect().center().y() - 10, 40, 20);
     QStyleOptionButton option;
     option.initFrom(&toggle);
     option.rect = toggle.rect();
@@ -319,25 +307,20 @@ void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()
     image.fill(background);
     {
         QPainter painter(&image);
-        toggle.style()->drawControl(QStyle::CE_CheckBox, &option,
-                                    &painter, &toggle);
+        toggle.style()->drawControl(QStyle::CE_CheckBox, &option, &painter, &toggle);
     }
     const QColor accent = toggle.palette().color(QPalette::Accent);
-    QVERIFY(colorDistance(image.pixelColor(expectedTrack.center()), accent)
-            < 100);
-    QVERIFY(colorDistance(image.pixelColor(expectedTrack.left() - 1,
-                                           expectedTrack.center().y()),
+    QVERIFY(colorDistance(image.pixelColor(expectedTrack.center()), accent) < 100);
+    QVERIFY(colorDistance(image.pixelColor(expectedTrack.left() - 1, expectedTrack.center().y()),
                           background)
             < 2);
-    QVERIFY(colorDistance(image.pixelColor(expectedTrack.right(),
-                                           expectedTrack.center().y()),
+    QVERIFY(colorDistance(image.pixelColor(expectedTrack.right(), expectedTrack.center().y()),
                           accent)
             < 100);
 
     // A click anywhere in the visual track remains a normal checkbox click.
     toggle.setChecked(false);
-    QTest::mouseClick(&toggle, Qt::LeftButton, Qt::NoModifier,
-                      expectedTrack.center());
+    QTest::mouseClick(&toggle, Qt::LeftButton, Qt::NoModifier, expectedTrack.center());
     QVERIFY(toggle.isChecked());
 
     // In RTL, the unchecked knob is on the right and a drag toward the left
@@ -345,17 +328,15 @@ void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()
     // the renderer, including its inclusive right edge.
     toggle.setChecked(false);
     QCoreApplication::processEvents();
-    const QPoint offKnob(expectedTrack.right() - 10,
-                         expectedTrack.center().y());
-    const QPoint onKnob(expectedTrack.left() + 10,
-                        expectedTrack.center().y());
+    const QPoint offKnob(expectedTrack.right() - 10, expectedTrack.center().y());
+    const QPoint onKnob(expectedTrack.left() + 10, expectedTrack.center().y());
     QTest::mousePress(&toggle, Qt::LeftButton, Qt::NoModifier, offKnob);
-    QMouseEvent move(QEvent::MouseMove, QPointF(onKnob), Qt::NoButton,
-                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(onKnob), Qt::NoButton, Qt::LeftButton,
+                     Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &move);
     QVERIFY(frameBool(&toggle, "_winui_toggle_dragging"));
-    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(onKnob),
-                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(onKnob), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &release);
     QVERIFY(toggle.isChecked());
     QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
@@ -372,13 +353,11 @@ void WinUI3TogglesTest::checkboxAcceptAnimation()
         QStyleOptionButton option;
         option.initFrom(&check);
         option.rect = QRect(0, 0, 20, 20);
-        option.state = QStyle::State_Enabled
-            | (checked ? QStyle::State_On : QStyle::State_Off);
+        option.state = QStyle::State_Enabled | (checked ? QStyle::State_On : QStyle::State_Off);
         QImage image(20, 20, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         QPainter painter(&image);
-        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox,
-                                     &option, &painter, &check);
+        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox, &option, &painter, &check);
         return image;
     };
     const QImage checkedAtStart = renderIndicator(0.0, true);
@@ -418,8 +397,7 @@ void WinUI3TogglesTest::checkboxGlyphGeometryContract()
     image.fill(check.palette().color(QPalette::Window));
     {
         QPainter painter(&image);
-        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox,
-                                     &option, &painter, &check);
+        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox, &option, &painter, &check);
     }
 
     const QColor background = check.palette().color(QPalette::Window);
@@ -428,22 +406,18 @@ void WinUI3TogglesTest::checkboxGlyphGeometryContract()
         for (int x = 0; x < image.width(); ++x) {
             const QColor pixel = image.pixelColor(x, y);
             const int distance = qAbs(pixel.red() - background.red())
-                + qAbs(pixel.green() - background.green())
-                + qAbs(pixel.blue() - background.blue());
+                    + qAbs(pixel.green() - background.green())
+                    + qAbs(pixel.blue() - background.blue());
             if (pixel.alpha() > 0 && distance > 12)
                 bounds |= QRect(x, y, 1, 1);
         }
     }
-    QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorWidth,
-                                        nullptr, &check), 20);
-    QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorHeight,
-                                        nullptr, &check), 20);
-    const int checkTextWidth = check.fontMetrics().size(
-        Qt::TextShowMnemonic, check.text()).width();
+    QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, &check), 20);
+    QCOMPARE(check.style()->pixelMetric(QStyle::PM_IndicatorHeight, nullptr, &check), 20);
+    const int checkTextWidth = check.fontMetrics().size(Qt::TextShowMnemonic, check.text()).width();
     QVERIFY(check.sizeHint().width() >= checkTextWidth + 36);
     QRadioButton radio(QStringLiteral("Radio"));
-    const int radioTextWidth = radio.fontMetrics().size(
-        Qt::TextShowMnemonic, radio.text()).width();
+    const int radioTextWidth = radio.fontMetrics().size(Qt::TextShowMnemonic, radio.text()).width();
     QVERIFY(radio.sizeHint().width() >= radioTextWidth + 36);
     QVERIFY(bounds.width() >= 19);
     QVERIFY(bounds.height() >= 19);
@@ -460,8 +434,7 @@ void WinUI3TogglesTest::lightModeIndicatorOnAccentIsWhite()
     const auto hasWhitePixel = [&white](const QImage &image, const QRect &rect) {
         for (int y = rect.top(); y <= rect.bottom(); ++y) {
             for (int x = rect.left(); x <= rect.right(); ++x) {
-                if (image.rect().contains(x, y)
-                    && colorDistance(image.pixelColor(x, y), white) < 8)
+                if (image.rect().contains(x, y) && colorDistance(image.pixelColor(x, y), white) < 8)
                     return true;
             }
         }
@@ -480,8 +453,7 @@ void WinUI3TogglesTest::lightModeIndicatorOnAccentIsWhite()
     checkImage.fill(check.palette().color(QPalette::Window));
     {
         QPainter painter(&checkImage);
-        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox,
-                                     &checkOption, &painter, &check);
+        check.style()->drawPrimitive(QStyle::PE_IndicatorCheckBox, &checkOption, &painter, &check);
     }
     QVERIFY2(hasWhitePixel(checkImage, checkOption.rect),
              "light checked checkbox has no white WinUI checkmark");
@@ -498,8 +470,8 @@ void WinUI3TogglesTest::lightModeIndicatorOnAccentIsWhite()
     radioImage.fill(radio.palette().color(QPalette::Window));
     {
         QPainter painter(&radioImage);
-        radio.style()->drawPrimitive(QStyle::PE_IndicatorRadioButton,
-                                     &radioOption, &painter, &radio);
+        radio.style()->drawPrimitive(QStyle::PE_IndicatorRadioButton, &radioOption, &painter,
+                                     &radio);
     }
     QVERIFY2(hasWhitePixel(radioImage, radioOption.rect),
              "light checked radio has no white WinUI dot");
@@ -516,13 +488,10 @@ void WinUI3TogglesTest::lightModeIndicatorOnAccentIsWhite()
     toggleImage.fill(check.palette().color(QPalette::Window));
     {
         QPainter painter(&toggleImage);
-        check.style()->drawControl(QStyle::CE_CheckBox, &toggleOption,
-                                   &painter, &check);
+        check.style()->drawControl(QStyle::CE_CheckBox, &toggleOption, &painter, &check);
     }
-    const QRect toggleTrack(check.rect().left(), check.rect().center().y() - 10,
-                            40, 20);
-    const QRect toggleKnob(toggleTrack.right() - 16,
-                           toggleTrack.center().y() - 8, 16, 16);
+    const QRect toggleTrack(check.rect().left(), check.rect().center().y() - 10, 40, 20);
+    const QRect toggleKnob(toggleTrack.right() - 16, toggleTrack.center().y() - 8, 16, 16);
     QVERIFY2(hasWhitePixel(toggleImage, toggleKnob),
              "light checked toggle has no white WinUI on-knob");
 }
@@ -546,8 +515,7 @@ void WinUI3TogglesTest::darkModeIndicatorOnAccentIsBlack()
         }
         return false;
     };
-    const auto renderIndicator = [&](QStyle::PrimitiveElement element,
-                                     QAbstractButton &button) {
+    const auto renderIndicator = [&](QStyle::PrimitiveElement element, QAbstractButton &button) {
         button.resize(32, 32);
         setFrame(&button, "_winui_check_progress", 1.0);
         QStyleOptionButton option;
@@ -587,11 +555,9 @@ void WinUI3TogglesTest::darkModeIndicatorOnAccentIsBlack()
         QPainter painter(&image);
         style->drawControl(QStyle::CE_CheckBox, &option, &painter, &toggle);
     }
-    const QRect track(toggle.rect().left(), toggle.rect().center().y() - 10,
-                      40, 20);
+    const QRect track(toggle.rect().left(), toggle.rect().center().y() - 10, 40, 20);
     const QRect knob(track.right() - 16, track.center().y() - 8, 16, 16);
-    QVERIFY2(hasBlackPixel(image, knob),
-             "dark checked toggle has no black WinUI on-knob");
+    QVERIFY2(hasBlackPixel(image, knob), "dark checked toggle has no black WinUI on-knob");
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 
@@ -619,15 +585,14 @@ void WinUI3TogglesTest::checkboxGapHitTest()
 
     QStyleOptionButton option;
     option.initFrom(&check);
-    const QRect indicator = check.style()->subElementRect(
-        QStyle::SE_CheckBoxIndicator, &option, &check);
-    const QRect contents = check.style()->subElementRect(
-        QStyle::SE_CheckBoxContents, &option, &check);
-    const QRect clickRect = check.style()->subElementRect(
-        QStyle::SE_CheckBoxClickRect, &option, &check);
+    const QRect indicator =
+            check.style()->subElementRect(QStyle::SE_CheckBoxIndicator, &option, &check);
+    const QRect contents =
+            check.style()->subElementRect(QStyle::SE_CheckBoxContents, &option, &check);
+    const QRect clickRect =
+            check.style()->subElementRect(QStyle::SE_CheckBoxClickRect, &option, &check);
     QVERIFY(indicator.right() + 1 < contents.left());
-    const QPoint gap((indicator.right() + contents.left()) / 2,
-                     indicator.center().y());
+    const QPoint gap((indicator.right() + contents.left()) / 2, indicator.center().y());
     QVERIFY(check.rect().contains(gap));
     QVERIFY(clickRect.contains(gap));
 
@@ -643,8 +608,7 @@ void WinUI3TogglesTest::checkboxDisabledStopsAnimation()
     check.resize(180, 32);
     check.show();
     check.setChecked(true);
-    QTRY_VERIFY_WITH_TIMEOUT(
-        frameReal(&check, "_winui_check_progress") > 0.0, 150);
+    QTRY_VERIFY_WITH_TIMEOUT(frameReal(&check, "_winui_check_progress") > 0.0, 150);
     QVERIFY(frameReal(&check, "_winui_check_progress") < 1.0);
 
     check.setEnabled(false);
@@ -685,13 +649,11 @@ void WinUI3TogglesTest::radioRapidClickResponsiveness()
     QSignalSpy twoClicked(two, &QAbstractButton::clicked);
     for (int click = 0; click < 8; ++click) {
         QRadioButton *target = (click % 2 == 0) ? two : one;
-        QTest::mousePress(target, Qt::LeftButton, Qt::NoModifier,
-                          target->rect().center());
+        QTest::mousePress(target, Qt::LeftButton, Qt::NoModifier, target->rect().center());
         qApp->processEvents();
         QCOMPARE(frameReal(target, "_winui_press_progress"), 1.0);
         QVERIFY(target->isDown());
-        QTest::mouseRelease(target, Qt::LeftButton, Qt::NoModifier,
-                            target->rect().center());
+        QTest::mouseRelease(target, Qt::LeftButton, Qt::NoModifier, target->rect().center());
         QVERIFY(target->isChecked());
     }
 
@@ -727,11 +689,9 @@ void WinUI3TogglesTest::radioDotDpiGeometry()
         image.setDevicePixelRatio(dpr);
         image.fill(radio.palette().color(QPalette::Window));
         QPainter painter(&image);
-        radio.style()->drawPrimitive(QStyle::PE_IndicatorRadioButton,
-                                     &option, &painter, &radio);
+        radio.style()->drawPrimitive(QStyle::PE_IndicatorRadioButton, &option, &painter, &radio);
 
-        const QColor dot = image.pixelColor(image.width() / 2,
-                                            image.height() / 2);
+        const QColor dot = image.pixelColor(image.width() / 2, image.height() / 2);
         QRect bounds;
         for (int y = 0; y < image.height(); ++y) {
             for (int x = 0; x < image.width(); ++x) {

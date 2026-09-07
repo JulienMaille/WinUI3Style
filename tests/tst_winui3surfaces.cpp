@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3SurfacesTest final : public QObject
@@ -135,7 +134,6 @@ void WinUI3SurfacesTest::cleanup()
     qApp->processEvents();
 }
 
-
 void WinUI3SurfacesTest::backdropLifecycleContract()
 {
 #ifndef Q_OS_WIN
@@ -160,34 +158,22 @@ void WinUI3SurfacesTest::backdropLifecycleContract()
     window.setPalette(custom);
 
     const QPalette originalPalette = window.palette();
-    const bool originalTranslucent =
-        window.testAttribute(Qt::WA_TranslucentBackground);
-    const bool originalNoSystemBackground =
-        window.testAttribute(Qt::WA_NoSystemBackground);
+    const bool originalTranslucent = window.testAttribute(Qt::WA_TranslucentBackground);
+    const bool originalNoSystemBackground = window.testAttribute(Qt::WA_NoSystemBackground);
     const bool originalOpaquePaint = window.testAttribute(Qt::WA_OpaquePaintEvent);
     const bool originalAutoFill = window.autoFillBackground();
 
-    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica));
-    QCOMPARE(window.property("_winui_backdrop").toInt(),
-             int(WinUI3::Backdrop::Mica));
-    // Offscreen has no compositor: the surface stays opaque and the Painted
-    // state is published. The window is not translucent, so per-frame clears
-    // remain safe (alpha is ignored at presentation) and still allowed.
-    QCOMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
-             WinUI3::Private::BackdropSurface::Painted);
-    QVERIFY(!window.testAttribute(Qt::WA_TranslucentBackground));
-    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 255);
-    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&window));
+    QVERIFY(window.testAttribute(Qt::WA_NoSystemBackground));
+    QVERIFY(!window.testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(!window.autoFillBackground());
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
 
     QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::MicaAlt));
-    QCOMPARE(window.property("_winui_backdrop").toInt(),
-             int(WinUI3::Backdrop::MicaAlt));
+    QCOMPARE(window.property("_winui_backdrop").toInt(), int(WinUI3::Backdrop::MicaAlt));
     QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None));
     QVERIFY(!window.property("_winui_backdrop").isValid());
-    QCOMPARE(window.testAttribute(Qt::WA_TranslucentBackground),
-             originalTranslucent);
-    QCOMPARE(window.testAttribute(Qt::WA_NoSystemBackground),
-             originalNoSystemBackground);
+    QCOMPARE(window.testAttribute(Qt::WA_TranslucentBackground), originalTranslucent);
+    QCOMPARE(window.testAttribute(Qt::WA_NoSystemBackground), originalNoSystemBackground);
     QCOMPARE(window.testAttribute(Qt::WA_OpaquePaintEvent), originalOpaquePaint);
     QCOMPARE(window.autoFillBackground(), originalAutoFill);
     QCOMPARE(window.palette(), originalPalette);
@@ -215,8 +201,7 @@ void WinUI3SurfacesTest::backdropButtonRepaintDoesNotAccumulate()
     const auto paintFrame = [&](QImage &image, QStyle::State state) {
         option.state = state;
         QPainter painter(&image);
-        style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option,
-                             &painter, &button);
+        style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
     };
     QImage normal(button.size(), QImage::Format_ARGB32_Premultiplied);
     normal.fill(Qt::transparent);
@@ -225,15 +210,13 @@ void WinUI3SurfacesTest::backdropButtonRepaintDoesNotAccumulate()
     QImage hoverThenNormal(button.size(), QImage::Format_ARGB32_Premultiplied);
     hoverThenNormal.fill(Qt::transparent);
     setFrame(&button, "_winui_hover_progress", 1.0);
-    paintFrame(hoverThenNormal,
-               QStyle::State_Enabled | QStyle::State_MouseOver);
+    paintFrame(hoverThenNormal, QStyle::State_Enabled | QStyle::State_MouseOver);
     setFrame(&button, "_winui_hover_progress", 0.0);
     paintFrame(hoverThenNormal, QStyle::State_Enabled);
     QCOMPARE(hoverThenNormal, normal);
 
     QWidget opaqueLayer(&window);
-    opaqueLayer.setProperty(WinUI3::Style::SurfaceProperty,
-                            QStringLiteral("content"));
+    opaqueLayer.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
     QPushButton layeredButton(QStringLiteral("Layered"), &opaqueLayer);
     QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&layeredButton));
 }
@@ -265,8 +248,7 @@ void WinUI3SurfacesTest::backdropComboRepaintDoesNotAccumulate()
     QImage hoverThenNormal(combo.size(), QImage::Format_ARGB32_Premultiplied);
     hoverThenNormal.fill(Qt::transparent);
     setFrame(&combo, "_winui_hover_progress", 1.0);
-    paintFrame(hoverThenNormal,
-               QStyle::State_Enabled | QStyle::State_MouseOver);
+    paintFrame(hoverThenNormal, QStyle::State_Enabled | QStyle::State_MouseOver);
     setFrame(&combo, "_winui_hover_progress", 0.0);
     paintFrame(hoverThenNormal, QStyle::State_Enabled);
     QCOMPARE(hoverThenNormal, normal);
@@ -278,8 +260,7 @@ void WinUI3SurfacesTest::contentDialogContract()
     WinUI3::Style::setContentDialog(&dialog);
     auto *layout = new QVBoxLayout(&dialog);
     layout->addWidget(new QLabel(QStringLiteral("Dialog content")));
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok
-                                        | QDialogButtonBox::Cancel);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     layout->addWidget(buttons);
     if (auto *primary = buttons->button(QDialogButtonBox::Ok))
         primary->setDefault(true);
@@ -292,14 +273,11 @@ void WinUI3SurfacesTest::contentDialogContract()
     QCOMPARE(WinUI3::Style::controlRole(buttons->button(QDialogButtonBox::Ok)),
              WinUI3::ControlRole::Accent);
     QVERIFY(!buttons->autoFillBackground());
-    QCOMPARE(dialog.palette().color(QPalette::Window),
-             buttons->palette().color(QPalette::Window));
-    QTRY_VERIFY(dialog.findChild<QWidget *>(
-        QStringLiteral("_winui_content_dialog_footer_surface"),
-        Qt::FindDirectChildrenOnly));
+    QCOMPARE(dialog.palette().color(QPalette::Window), buttons->palette().color(QPalette::Window));
+    QTRY_VERIFY(dialog.findChild<QWidget *>(QStringLiteral("_winui_content_dialog_footer_surface"),
+                                            Qt::FindDirectChildrenOnly));
     QWidget *footer = dialog.findChild<QWidget *>(
-        QStringLiteral("_winui_content_dialog_footer_surface"),
-        Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
     QTRY_COMPARE(footer->width(), dialog.width());
     QCOMPARE(footer->x(), 0);
     QCOMPARE(footer->geometry().bottom(), dialog.rect().bottom());
@@ -311,18 +289,15 @@ void WinUI3SurfacesTest::contentDialogContract()
     QVERIFY(qAbs(upperInset - lowerInset) <= 1);
     const QImage renderedDialog = dialog.grab().toImage();
     const QColor contentPixel = renderedDialog.pixelColor(5, 5);
-    const QColor footerPixel = renderedDialog.pixelColor(
-        5, renderedDialog.height() - 5);
+    const QColor footerPixel = renderedDialog.pixelColor(5, renderedDialog.height() - 5);
     QVERIFY(colorDistance(contentPixel, footerPixel) > 4);
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
     style->setThemeMode(WinUI3::ThemeMode::Dark);
-    QTRY_COMPARE(dialog.palette().color(QPalette::Window),
-                 QColor(0x2C, 0x2C, 0x2C));
+    QTRY_COMPARE(dialog.palette().color(QPalette::Window), QColor(0x2C, 0x2C, 0x2C));
     const QImage darkDialog = dialog.grab().toImage();
     QCOMPARE(darkDialog.pixelColor(5, 5), QColor(0x2C, 0x2C, 0x2C));
-    QCOMPARE(darkDialog.pixelColor(5, darkDialog.height() - 5),
-             QColor(0x20, 0x20, 0x20));
+    QCOMPARE(darkDialog.pixelColor(5, darkDialog.height() - 5), QColor(0x20, 0x20, 0x20));
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxInformation).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxWarning).isNull());
     QVERIFY(!dialog.style()->standardIcon(QStyle::SP_MessageBoxCritical).isNull());
@@ -331,8 +306,7 @@ void WinUI3SurfacesTest::contentDialogContract()
 
 void WinUI3SurfacesTest::messageBoxContentDialogContract()
 {
-    QMessageBox dialog(QMessageBox::Information,
-                       QStringLiteral("WinUI 3 Style"),
+    QMessageBox dialog(QMessageBox::Information, QStringLiteral("WinUI 3 Style"),
                        QStringLiteral("This is a native Qt message box rendered by the style."),
                        QMessageBox::Ok);
     dialog.show();
@@ -344,14 +318,12 @@ void WinUI3SurfacesTest::messageBoxContentDialogContract()
     auto *buttons = dialog.findChild<QDialogButtonBox *>();
     QVERIFY(buttons);
     QWidget *footer = dialog.findChild<QWidget *>(
-        QStringLiteral("_winui_content_dialog_footer_surface"),
-        Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
     QVERIFY(footer);
     QTRY_COMPARE(footer->width(), dialog.width());
     const int buttonsTop = buttons->mapTo(&dialog, QPoint(0, 0)).y();
     const int buttonsBottom = buttonsTop + buttons->height() - 1;
-    QCOMPARE(buttonsTop - footer->geometry().top(),
-             footer->geometry().bottom() - buttonsBottom);
+    QCOMPARE(buttonsTop - footer->geometry().top(), footer->geometry().bottom() - buttonsBottom);
 
     auto *label = dialog.findChild<QLabel *>(QStringLiteral("qt_msgbox_label"));
     QVERIFY(label);
@@ -377,13 +349,10 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
 
     QVERIFY(wizard.autoFillBackground());
     QVERIFY(first->autoFillBackground());
-    QVERIFY(wizard.palette().color(QPalette::Window)
-            != first->palette().color(QPalette::Window));
-    QCOMPARE(WinUI3::Style::controlRole(
-                 wizard.button(QWizard::NextButton)),
+    QVERIFY(wizard.palette().color(QPalette::Window) != first->palette().color(QPalette::Window));
+    QCOMPARE(WinUI3::Style::controlRole(wizard.button(QWizard::NextButton)),
              WinUI3::ControlRole::Accent);
-    QCOMPARE(WinUI3::Style::controlRole(
-                 wizard.button(QWizard::FinishButton)),
+    QCOMPARE(WinUI3::Style::controlRole(wizard.button(QWizard::FinishButton)),
              WinUI3::ControlRole::Accent);
 
     const QImage image = wizard.grab().toImage();
@@ -409,8 +378,8 @@ void WinUI3SurfacesTest::contentDialogScrimLifecycle()
     parent.show();
     dialog.show();
     QTRY_VERIFY(dialog.isVisible());
-    const auto scrims = parent.findChildren<QWidget *>(
-        QStringLiteral("_winui_content_dialog_scrim"));
+    const auto scrims =
+            parent.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"));
     QCOMPARE(scrims.size(), 1);
     QVERIFY(scrims.first()->isVisible());
     QCOMPARE(scrims.first()->geometry(), parent.rect());
@@ -420,8 +389,8 @@ void WinUI3SurfacesTest::contentDialogScrimLifecycle()
     dialog.hide();
     qApp->processEvents();
     qApp->sendPostedEvents(nullptr, QEvent::DeferredDelete);
-    QVERIFY(parent.findChildren<QWidget *>(
-        QStringLiteral("_winui_content_dialog_scrim")).isEmpty());
+    QVERIFY(parent.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"))
+                    .isEmpty());
 }
 
 void WinUI3SurfacesTest::progressAnimationAndOrientations()
@@ -543,8 +512,8 @@ void WinUI3SurfacesTest::progressTimerScalingAndLifecycle()
     host.show();
     QCoreApplication::processEvents();
 
-    const auto timers = style->findChildren<QTimer *>(
-        QStringLiteral("_winui_progress_timer"), Qt::FindDirectChildrenOnly);
+    const auto timers = style->findChildren<QTimer *>(QStringLiteral("_winui_progress_timer"),
+                                                      Qt::FindDirectChildrenOnly);
     QCOMPARE(timers.size(), 1);
     auto *timer = timers.constFirst();
     QVERIFY(timer->isActive());

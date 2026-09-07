@@ -21,16 +21,16 @@
 namespace WinUI3 {
 
 SettingsCard::SettingsCard(QWidget *parent)
-    : QFrame(parent)
-    , m_headerLayout(new QGridLayout)
-    , m_rootLayout(new QVBoxLayout(this))
-    , m_headerHost(new QWidget(this))
-    , m_iconLabel(new QLabel(this))
-    , m_titleLabel(new QLabel(this))
-    , m_descriptionLabel(new QLabel(this))
-    , m_chevronLabel(new QLabel(this))
-    , m_expandableHost(new QWidget(this))
-    , m_expansionAnimation(new QVariantAnimation(this))
+    : QFrame(parent),
+      m_headerLayout(new QGridLayout),
+      m_rootLayout(new QVBoxLayout(this)),
+      m_headerHost(new QWidget(this)),
+      m_iconLabel(new QLabel(this)),
+      m_titleLabel(new QLabel(this)),
+      m_descriptionLabel(new QLabel(this)),
+      m_chevronLabel(new QLabel(this)),
+      m_expandableHost(new QWidget(this)),
+      m_expansionAnimation(new QVariantAnimation(this))
 {
     Style::setSettingsCard(this);
     setFocusPolicy(Qt::StrongFocus);
@@ -47,8 +47,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_rootLayout->setContentsMargins(16, 0, 16, 0);
     m_rootLayout->setSpacing(0);
     m_headerHost->setObjectName(QStringLiteral("_winui_settings_card_headerHost"));
-    m_expandableHost->setObjectName(
-        QStringLiteral("_winui_settings_card_expandableHost"));
+    m_expandableHost->setObjectName(QStringLiteral("_winui_settings_card_expandableHost"));
     m_headerHost->setMouseTracking(true);
     m_headerHost->installEventFilter(this);
     m_headerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -81,8 +80,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_headerLayout->addWidget(m_iconLabel, 0, 0, 2, 1);
     m_headerLayout->addWidget(m_titleLabel, 0, 1);
     m_headerLayout->addWidget(m_descriptionLabel, 1, 1);
-    m_headerLayout->addWidget(m_chevronLabel, 0, 2, 2, 1,
-                              Qt::AlignVCenter);
+    m_headerLayout->addWidget(m_chevronLabel, 0, 2, 2, 1, Qt::AlignVCenter);
     m_headerLayout->setColumnMinimumWidth(2, 20);
     m_headerLayout->setColumnStretch(1, 1);
     m_headerHost->setLayout(m_headerLayout);
@@ -99,8 +97,7 @@ SettingsCard::SettingsCard(QWidget *parent)
 
     connect(m_expansionAnimation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) { setExpansionProgress(value.toReal()); });
-    m_expansionAnimation->setObjectName(
-        QStringLiteral("_winui_settings_card_expansion_animation"));
+    m_expansionAnimation->setObjectName(QStringLiteral("_winui_settings_card_expansion_animation"));
     refreshChevronPixmap();
     refreshHeaderGeometry();
 }
@@ -113,20 +110,28 @@ SettingsCard::~SettingsCard()
         m_expandableWidget->removeEventFilter(this);
 }
 
-QString SettingsCard::title() const { return m_titleLabel->text(); }
+QString SettingsCard::title() const
+{
+    return m_titleLabel->text();
+}
 void SettingsCard::setTitle(const QString &title)
 {
-    if (this->title() == title) return;
+    if (this->title() == title)
+        return;
     m_titleLabel->setText(title);
     m_headerWidth = -1;
     refreshHeaderGeometry();
     emit titleChanged(title);
 }
 
-QString SettingsCard::description() const { return m_descriptionLabel->text(); }
+QString SettingsCard::description() const
+{
+    return m_descriptionLabel->text();
+}
 void SettingsCard::setDescription(const QString &description)
 {
-    if (this->description() == description) return;
+    if (this->description() == description)
+        return;
     m_descriptionLabel->setText(description);
     m_descriptionLabel->setVisible(!description.isEmpty());
     m_headerWidth = -1;
@@ -134,10 +139,14 @@ void SettingsCard::setDescription(const QString &description)
     emit descriptionChanged(description);
 }
 
-QIcon SettingsCard::icon() const { return m_icon; }
+QIcon SettingsCard::icon() const
+{
+    return m_icon;
+}
 void SettingsCard::setIcon(const QIcon &icon)
 {
-    if (m_icon.cacheKey() == icon.cacheKey()) return;
+    if (m_icon.cacheKey() == icon.cacheKey())
+        return;
     m_icon = icon;
     refreshIconPixmap();
     refreshChevronPixmap();
@@ -147,7 +156,10 @@ void SettingsCard::setIcon(const QIcon &icon)
     emit iconChanged(icon);
 }
 
-QString SettingsCard::iconName() const { return m_iconName; }
+QString SettingsCard::iconName() const
+{
+    return m_iconName;
+}
 void SettingsCard::setIconName(const QString &name)
 {
     if (m_iconName == name)
@@ -155,23 +167,40 @@ void SettingsCard::setIconName(const QString &name)
     m_iconName = name;
 
     const QString key = name.trimmed().toLower();
-    if (key == QLatin1String("add")) setIcon(WinUI3::icon(Icon::Add));
-    else if (key == QLatin1String("back")) setIcon(WinUI3::icon(Icon::Back));
-    else if (key == QLatin1String("check")) setIcon(WinUI3::icon(Icon::Check));
-    else if (key == QLatin1String("delete")) setIcon(WinUI3::icon(Icon::Delete));
-    else if (key == QLatin1String("edit")) setIcon(WinUI3::icon(Icon::Edit));
-    else if (key == QLatin1String("folder")) setIcon(WinUI3::icon(Icon::Folder));
-    else if (key == QLatin1String("home")) setIcon(WinUI3::icon(Icon::Home));
-    else if (key == QLatin1String("info")) setIcon(WinUI3::icon(Icon::Info));
-    else if (key == QLatin1String("more")) setIcon(WinUI3::icon(Icon::More));
-    else if (key == QLatin1String("refresh")) setIcon(WinUI3::icon(Icon::Refresh));
-    else if (key == QLatin1String("save")) setIcon(WinUI3::icon(Icon::Save));
-    else if (key == QLatin1String("settings")) setIcon(WinUI3::icon(Icon::Settings));
-    else if (key == QLatin1String("warning")) setIcon(WinUI3::icon(Icon::Warning));
-    else setIcon(QIcon());
+    if (key == QLatin1String("add"))
+        setIcon(WinUI3::icon(Icon::Add));
+    else if (key == QLatin1String("back"))
+        setIcon(WinUI3::icon(Icon::Back));
+    else if (key == QLatin1String("check"))
+        setIcon(WinUI3::icon(Icon::Check));
+    else if (key == QLatin1String("delete"))
+        setIcon(WinUI3::icon(Icon::Delete));
+    else if (key == QLatin1String("edit"))
+        setIcon(WinUI3::icon(Icon::Edit));
+    else if (key == QLatin1String("folder"))
+        setIcon(WinUI3::icon(Icon::Folder));
+    else if (key == QLatin1String("home"))
+        setIcon(WinUI3::icon(Icon::Home));
+    else if (key == QLatin1String("info"))
+        setIcon(WinUI3::icon(Icon::Info));
+    else if (key == QLatin1String("more"))
+        setIcon(WinUI3::icon(Icon::More));
+    else if (key == QLatin1String("refresh"))
+        setIcon(WinUI3::icon(Icon::Refresh));
+    else if (key == QLatin1String("save"))
+        setIcon(WinUI3::icon(Icon::Save));
+    else if (key == QLatin1String("settings"))
+        setIcon(WinUI3::icon(Icon::Settings));
+    else if (key == QLatin1String("warning"))
+        setIcon(WinUI3::icon(Icon::Warning));
+    else
+        setIcon(QIcon());
 }
 
-QString SettingsCard::trailingWidgetName() const { return m_trailingWidgetName; }
+QString SettingsCard::trailingWidgetName() const
+{
+    return m_trailingWidgetName;
+}
 void SettingsCard::setTrailingWidgetName(const QString &name)
 {
     m_trailingWidgetName = name;
@@ -185,17 +214,23 @@ void SettingsCard::setTrailingWidgetName(const QString &name)
         // uic applies custom-widget properties before constructing nested
         // children. Resolve once the generated setupUi() has finished.
         m_trailingBindingPending = true;
-        QMetaObject::invokeMethod(this, [this] {
-            m_trailingBindingPending = false;
-            if (!m_trailingWidgetName.isEmpty()) {
-                if (QWidget *widget = findChild<QWidget *>(m_trailingWidgetName))
-                    setTrailingWidget(widget);
-            }
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+                this,
+                [this] {
+                    m_trailingBindingPending = false;
+                    if (!m_trailingWidgetName.isEmpty()) {
+                        if (QWidget *widget = findChild<QWidget *>(m_trailingWidgetName))
+                            setTrailingWidget(widget);
+                    }
+                },
+                Qt::QueuedConnection);
     }
 }
 
-QString SettingsCard::expandableWidgetName() const { return m_expandableWidgetName; }
+QString SettingsCard::expandableWidgetName() const
+{
+    return m_expandableWidgetName;
+}
 void SettingsCard::setExpandableWidgetName(const QString &name)
 {
     m_expandableWidgetName = name;
@@ -207,13 +242,16 @@ void SettingsCard::setExpandableWidgetName(const QString &name)
         setExpandableWidget(widget);
     } else if (!m_expandableBindingPending) {
         m_expandableBindingPending = true;
-        QMetaObject::invokeMethod(this, [this] {
-            m_expandableBindingPending = false;
-            if (!m_expandableWidgetName.isEmpty()) {
-                if (QWidget *widget = findChild<QWidget *>(m_expandableWidgetName))
-                    setExpandableWidget(widget);
-            }
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+                this,
+                [this] {
+                    m_expandableBindingPending = false;
+                    if (!m_expandableWidgetName.isEmpty()) {
+                        if (QWidget *widget = findChild<QWidget *>(m_expandableWidgetName))
+                            setExpandableWidget(widget);
+                    }
+                },
+                Qt::QueuedConnection);
     }
 }
 
@@ -221,9 +259,9 @@ void SettingsCard::refreshIconPixmap()
 {
     if (!m_icon.isNull()) {
         const Private::Tokens t = Private::tokens(palette());
-        m_iconLabel->setPixmap(iconPixmap(m_icon, QSize(20, 20),
-            devicePixelRatioF(), isEnabled() ? t.textPrimary : t.textDisabled,
-            isEnabled() ? QIcon::Normal : QIcon::Disabled));
+        m_iconLabel->setPixmap(iconPixmap(m_icon, QSize(20, 20), devicePixelRatioF(),
+                                          isEnabled() ? t.textPrimary : t.textDisabled,
+                                          isEnabled() ? QIcon::Normal : QIcon::Disabled));
     }
 }
 
@@ -231,27 +269,30 @@ void SettingsCard::refreshChevronPixmap()
 {
     if (!m_chevronLabel)
         return;
-    const Icon glyph = m_expanded ? Icon::ChevronDown
-        : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
-                                                : Icon::ChevronRight;
+    const Icon glyph = m_expanded                  ? Icon::ChevronDown
+            : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
+                                                   : Icon::ChevronRight;
     const Private::Tokens t = Private::tokens(palette());
     const bool enabled = isEnabled();
     const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
     // The glyph is transient while the coloured Fluent icon is cached by
     // glyph and colour. Rendering that stable source directly prevents a
     // stale neutral-mask pixmap from surviving a Right/Down state change.
-    m_chevronLabel->setPixmap(Private::iconPixmap(
-        WinUI3::icon(glyph, foreground), QSize(20, 20), devicePixelRatioF(),
-        enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off));
-    m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph",
-                               static_cast<int>(glyph));
+    m_chevronLabel->setPixmap(
+            Private::iconPixmap(WinUI3::icon(glyph, foreground), QSize(20, 20), devicePixelRatioF(),
+                                enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off));
+    m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", static_cast<int>(glyph));
     m_chevronLabel->setVisible(m_expandableWidget != nullptr);
 }
 
-QWidget *SettingsCard::trailingWidget() const { return m_trailingWidget; }
+QWidget *SettingsCard::trailingWidget() const
+{
+    return m_trailingWidget;
+}
 void SettingsCard::setTrailingWidget(QWidget *widget)
 {
-    if (widget == m_trailingWidget) return;
+    if (widget == m_trailingWidget)
+        return;
     if (m_trailingWidget) {
         m_headerLayout->removeWidget(m_trailingWidget);
         m_trailingWidget->setParent(nullptr);
@@ -265,10 +306,14 @@ void SettingsCard::setTrailingWidget(QWidget *widget)
     refreshHeaderGeometry();
 }
 
-QWidget *SettingsCard::expandableWidget() const { return m_expandableWidget; }
+QWidget *SettingsCard::expandableWidget() const
+{
+    return m_expandableWidget;
+}
 void SettingsCard::setExpandableWidget(QWidget *widget)
 {
-    if (widget == m_expandableWidget) return;
+    if (widget == m_expandableWidget)
+        return;
 
     const bool wasExpanded = m_expanded;
     resetExpansionState(false);
@@ -287,15 +332,15 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
         layout->addWidget(widget);
         widget->installEventFilter(this);
         const QPointer<QWidget> guarded = widget;
-        m_expandableDestroyedConnection = connect(widget, &QObject::destroyed,
-            this, [this, guarded] {
-            if (m_expandableWidget == guarded) {
-                m_expandableWidget = nullptr;
-                resetExpansionState(true);
-                refreshChevronPixmap();
-                updateGeometry();
-            }
-        });
+        m_expandableDestroyedConnection =
+                connect(widget, &QObject::destroyed, this, [this, guarded] {
+                    if (m_expandableWidget == guarded) {
+                        m_expandableWidget = nullptr;
+                        resetExpansionState(true);
+                        refreshChevronPixmap();
+                        updateGeometry();
+                    }
+                });
         widget->show();
     }
     invalidateExpandableHeight();
@@ -307,11 +352,16 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
         emit expandedChanged(false);
 }
 
-bool SettingsCard::isExpanded() const { return m_expanded; }
+bool SettingsCard::isExpanded() const
+{
+    return m_expanded;
+}
 void SettingsCard::setExpanded(bool expanded)
 {
-    if (!m_expandableWidget) expanded = false;
-    if (m_expanded == expanded) return;
+    if (!m_expandableWidget)
+        expanded = false;
+    if (m_expanded == expanded)
+        return;
     m_expanded = expanded;
     refreshChevronPixmap();
     m_expandableHost->setVisible(true);
@@ -327,7 +377,10 @@ void SettingsCard::setExpanded(bool expanded)
     emit expandedChanged(expanded);
 }
 
-qreal SettingsCard::expansionProgress() const { return m_expansionProgress; }
+qreal SettingsCard::expansionProgress() const
+{
+    return m_expansionProgress;
+}
 void SettingsCard::setExpansionProgress(qreal progress)
 {
     m_expansionProgress = qBound<qreal>(0.0, progress, 1.0);
@@ -362,9 +415,8 @@ void SettingsCard::refreshHeaderGeometry()
     // Keep the normal card rhythm at one title line plus two description
     // lines; heightForWidth below still grows it when the text truly wraps
     // beyond that rhythm.
-    const int standardHeaderHeight = headerMargins.top()
-        + headerMargins.bottom() + m_headerLayout->verticalSpacing()
-        + textLineHeight * 3;
+    const int standardHeaderHeight = headerMargins.top() + headerMargins.bottom()
+            + m_headerLayout->verticalSpacing() + textLineHeight * 3;
 
     // The host gets a provisional default geometry before its parent lays out
     // the card.  Measuring word-wrapped labels there would freeze that
@@ -385,8 +437,8 @@ void SettingsCard::refreshHeaderGeometry()
     m_headerLayout->activate();
     m_headerLayout->setGeometry(m_headerHost->rect());
     const int measuredHeight = m_headerLayout->hasHeightForWidth()
-        ? m_headerLayout->heightForWidth(width)
-        : m_headerLayout->sizeHint().height();
+            ? m_headerLayout->heightForWidth(width)
+            : m_headerLayout->sizeHint().height();
     const int preferredHeight = qMax(standardHeaderHeight, measuredHeight);
     if (preferredHeight <= 0)
         return;
@@ -411,11 +463,14 @@ void SettingsCard::scheduleExpandableHeightRefresh()
         return;
     }
     m_expandableHeightRefreshPending = true;
-    QMetaObject::invokeMethod(this, [this] {
-        m_expandableHeightRefreshPending = false;
-        if (m_expandableWidget && m_expanded)
-            setExpansionProgress(m_expansionProgress);
-    }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+            this,
+            [this] {
+                m_expandableHeightRefreshPending = false;
+                if (m_expandableWidget && m_expanded)
+                    setExpansionProgress(m_expansionProgress);
+            },
+            Qt::QueuedConnection);
 }
 
 int SettingsCard::expandableContentHeight()
@@ -453,19 +508,15 @@ bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
         if (event->type() == QEvent::MouseButtonPress
             || event->type() == QEvent::MouseButtonRelease) {
             auto *mouse = static_cast<QMouseEvent *>(event);
-            const QPointF cardPosition = m_headerHost->mapTo(
-                this, Private::mousePositionPoint(mouse));
+            const QPointF cardPosition =
+                    m_headerHost->mapTo(this, Private::mousePositionPoint(mouse));
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-            QMouseEvent forwarded(event->type(), cardPosition,
-                                  Private::mouseGlobalPosition(mouse),
-                                  mouse->button(),
-                                  mouse->buttons(), mouse->modifiers(),
+            QMouseEvent forwarded(event->type(), cardPosition, Private::mouseGlobalPosition(mouse),
+                                  mouse->button(), mouse->buttons(), mouse->modifiers(),
                                   mouse->pointingDevice());
 #else
-            QMouseEvent forwarded(event->type(), cardPosition,
-                                  Private::mouseGlobalPosition(mouse),
-                                  mouse->button(),
-                                  mouse->buttons(), mouse->modifiers());
+            QMouseEvent forwarded(event->type(), cardPosition, Private::mouseGlobalPosition(mouse),
+                                  mouse->button(), mouse->buttons(), mouse->modifiers());
 #endif
             QCoreApplication::sendEvent(this, &forwarded);
             event->accept();
@@ -477,8 +528,7 @@ bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
         }
     }
     if ((watched == m_expandableWidget || watched == m_expandableHost)
-        && (event->type() == QEvent::LayoutRequest
-            || event->type() == QEvent::Resize)) {
+        && (event->type() == QEvent::LayoutRequest || event->type() == QEvent::Resize)) {
         invalidateExpandableHeight();
         scheduleExpandableHeightRefresh();
     }
@@ -493,20 +543,17 @@ bool SettingsCard::headerContains(const QPoint &position) const
 void SettingsCard::changeEvent(QEvent *event)
 {
     const bool refreshHeader = event->type() == QEvent::ApplicationPaletteChange
-        || event->type() == QEvent::PaletteChange
-        || event->type() == QEvent::StyleChange
+            || event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        || event->type() == QEvent::DevicePixelRatioChange
+            || event->type() == QEvent::DevicePixelRatioChange
 #endif
-        || event->type() == QEvent::EnabledChange
-        || event->type() == QEvent::LayoutDirectionChange;
+            || event->type() == QEvent::EnabledChange
+            || event->type() == QEvent::LayoutDirectionChange;
     if (refreshHeader) {
         refreshIconPixmap();
-        if (event->type() == QEvent::LayoutDirectionChange
-            && m_expandableHost->layout()) {
+        if (event->type() == QEvent::LayoutDirectionChange && m_expandableHost->layout()) {
             const bool rtl = layoutDirection() == Qt::RightToLeft;
-            m_expandableHost->layout()->setContentsMargins(
-                rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
+            m_expandableHost->layout()->setContentsMargins(rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
         }
     }
     QFrame::changeEvent(event);
@@ -561,12 +608,13 @@ void SettingsCard::mousePressEvent(QMouseEvent *event)
 void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
 {
     const bool activate = m_pressed && event->button() == Qt::LeftButton
-                          && headerContains(Private::mousePositionPoint(event));
+            && headerContains(Private::mousePositionPoint(event));
     m_pressed = false;
     update();
     if (activate) {
         emit activated();
-        if (m_expandableWidget) setExpanded(!m_expanded);
+        if (m_expandableWidget)
+            setExpanded(!m_expanded);
         event->accept();
         return;
     }
@@ -578,7 +626,8 @@ void SettingsCard::keyPressEvent(QKeyEvent *event)
     if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
         && !event->isAutoRepeat()) {
         emit activated();
-        if (m_expandableWidget) setExpanded(!m_expanded);
+        if (m_expandableWidget)
+            setExpanded(!m_expanded);
         event->accept();
         return;
     }

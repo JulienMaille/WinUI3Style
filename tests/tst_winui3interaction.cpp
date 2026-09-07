@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3InteractionTest final : public QObject
@@ -152,15 +151,12 @@ void WinUI3InteractionTest::styleMutationRestoration()
     QCommonStyle replacementStyle;
     QLineEdit pendingHelperUpdate;
     style->polish(&pendingHelperUpdate);
-    QVERIFY(frameValue(&pendingHelperUpdate,
-                       "_winui_line_edit_helper_update_pending").isValid());
+    QVERIFY(frameValue(&pendingHelperUpdate, "_winui_line_edit_helper_update_pending").isValid());
     style->unpolish(&pendingHelperUpdate);
-    QVERIFY(!frameValue(&pendingHelperUpdate,
-                        "_winui_line_edit_helper_update_pending").isValid());
+    QVERIFY(!frameValue(&pendingHelperUpdate, "_winui_line_edit_helper_update_pending").isValid());
     pendingHelperUpdate.setStyle(&replacementStyle);
     QCoreApplication::processEvents();
-    QVERIFY(!frameValue(&pendingHelperUpdate,
-                        "_winui_line_edit_helper_update_pending").isValid());
+    QVERIFY(!frameValue(&pendingHelperUpdate, "_winui_line_edit_helper_update_pending").isValid());
 
     QWidget widget;
     const QPalette originalPalette = widget.palette();
@@ -187,8 +183,7 @@ void WinUI3InteractionTest::styleMutationRestoration()
     QVERIFY(!inheritedPaletteButton.testAttribute(Qt::WA_SetPalette));
     parentPalette.setColor(QPalette::ButtonText, QColor(147, 42, 73));
     paletteParent.setPalette(parentPalette);
-    QCOMPARE(inheritedPaletteButton.palette().color(QPalette::ButtonText),
-             QColor(147, 42, 73));
+    QCOMPARE(inheritedPaletteButton.palette().color(QPalette::ButtonText), QColor(147, 42, 73));
 
     QPushButton explicitPaletteButton;
     QPalette explicitPalette = explicitPaletteButton.palette();
@@ -283,8 +278,7 @@ void WinUI3InteractionTest::accessibilityOwnershipContracts()
     editor.setAccessibleName(QStringLiteral("Project name"));
     editor.setAccessibleDescription(QStringLiteral("Name of the current project"));
     QCOMPARE(editor.accessibleName(), QStringLiteral("Project name"));
-    QCOMPARE(editor.accessibleDescription(),
-             QStringLiteral("Name of the current project"));
+    QCOMPARE(editor.accessibleDescription(), QStringLiteral("Name of the current project"));
     if (QAccessibleInterface *accessible = QAccessible::queryAccessibleInterface(&editor))
         QCOMPARE(accessible->role(), QAccessible::EditableText);
 
@@ -307,20 +301,16 @@ void WinUI3InteractionTest::baseStyleContract()
     QCOMPARE(style.styleHint(QStyle::SH_MenuBar_MouseTracking), 1);
     QCOMPARE(style.styleHint(QStyle::SH_ComboBox_ListMouseTracking), 1);
     QCOMPARE(style.styleHint(QStyle::SH_ComboBox_Popup), 1);
-    QCOMPARE(style.styleHint(QStyle::SH_ComboBox_PopupFrameStyle),
-             int(QFrame::NoFrame));
-    QCOMPARE(style.styleHint(QStyle::SH_Slider_AbsoluteSetButtons),
-             int(Qt::LeftButton));
-    QCOMPARE(style.styleHint(QStyle::SH_ToolButtonStyle),
-             int(Qt::ToolButtonFollowStyle));
+    QCOMPARE(style.styleHint(QStyle::SH_ComboBox_PopupFrameStyle), int(QFrame::NoFrame));
+    QCOMPARE(style.styleHint(QStyle::SH_Slider_AbsoluteSetButtons), int(Qt::LeftButton));
+    QCOMPARE(style.styleHint(QStyle::SH_ToolButtonStyle), int(Qt::ToolButtonFollowStyle));
 
     QStyleOptionMenuItem item;
     item.font = qApp->font();
     item.fontMetrics = QFontMetrics(item.font);
     const QSize contents(item.fontMetrics.horizontalAdvance(QStringLiteral("File")),
                          item.fontMetrics.height());
-    const QSize result = style.sizeFromContents(QStyle::CT_MenuBarItem, &item,
-                                                contents);
+    const QSize result = style.sizeFromContents(QStyle::CT_MenuBarItem, &item, contents);
     QVERIFY(result.width() >= contents.width() + 24);
     QVERIFY(result.height() >= 32);
 
@@ -354,8 +344,7 @@ void WinUI3InteractionTest::settingsCardExpansion()
     QTest::mousePress(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
     QTest::qWait(35);
     const qreal pressed = frameReal(&card, "_winui_press_progress");
-    QVERIFY2(pressed > 0.0 && pressed < 1.0,
-             qPrintable(QString::number(pressed)));
+    QVERIFY2(pressed > 0.0 && pressed < 1.0, qPrintable(QString::number(pressed)));
     QTest::mouseRelease(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
     QVERIFY(card.isExpanded());
     QCOMPARE(spy.count(), 1);
@@ -389,11 +378,9 @@ void WinUI3InteractionTest::settingsCardDesignerPropertyBindings()
     QTRY_COMPARE(card->expandableWidget(), static_cast<QWidget *>(details));
     QVERIFY(!card->icon().isNull());
 
-    auto *header = card->findChild<QWidget *>(
-        QStringLiteral("_winui_settings_card_headerHost"));
+    auto *header = card->findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
     QVERIFY(header);
-    QTest::mouseClick(header, Qt::LeftButton, Qt::NoModifier,
-                      header->rect().center());
+    QTest::mouseClick(header, Qt::LeftButton, Qt::NoModifier, header->rect().center());
     QTRY_VERIFY(card->isExpanded());
     QVERIFY(details->isVisible());
 }
@@ -414,8 +401,7 @@ void WinUI3InteractionTest::settingsCardTrailingWidgetsReceiveClicks()
     auto *comboCard = new WinUI3::SettingsCard;
     comboCard->setTitle(QStringLiteral("Updates"));
     auto *combo = new QComboBox;
-    combo->addItems({QStringLiteral("Automatic"),
-                     QStringLiteral("Manual")});
+    combo->addItems({ QStringLiteral("Automatic"), QStringLiteral("Manual") });
     comboCard->setTrailingWidget(combo);
     layout->addWidget(comboCard);
 
@@ -429,37 +415,32 @@ void WinUI3InteractionTest::settingsCardTrailingWidgetsReceiveClicks()
     QCoreApplication::processEvents();
 
     const auto targetAt = [](QWidget *widget) {
-        return QApplication::widgetAt(
-            widget->mapToGlobal(widget->rect().center()));
+        return QApplication::widgetAt(widget->mapToGlobal(widget->rect().center()));
     };
 
     QWidget *toggleTarget = targetAt(toggle);
     QVERIFY2(toggleTarget == toggle || toggle->isAncestorOf(toggleTarget),
              "SettingsCard swallowed the trailing toggle hit area");
-    const QPoint togglePoint = toggleTarget->mapFromGlobal(
-        toggle->mapToGlobal(toggle->rect().center()));
-    QTest::mouseClick(toggleTarget, Qt::LeftButton, Qt::NoModifier,
-                      togglePoint);
+    const QPoint togglePoint =
+            toggleTarget->mapFromGlobal(toggle->mapToGlobal(toggle->rect().center()));
+    QTest::mouseClick(toggleTarget, Qt::LeftButton, Qt::NoModifier, togglePoint);
     QCOMPARE(toggle->isChecked(), false);
 
     QWidget *comboTarget = targetAt(combo);
     QVERIFY2(comboTarget == combo || combo->isAncestorOf(comboTarget),
              "SettingsCard swallowed the trailing combo-box hit area");
-    const QPoint comboPoint = comboTarget->mapFromGlobal(
-        combo->mapToGlobal(combo->rect().center()));
-    QTest::mouseClick(comboTarget, Qt::LeftButton, Qt::NoModifier,
-                      comboPoint);
+    const QPoint comboPoint =
+            comboTarget->mapFromGlobal(combo->mapToGlobal(combo->rect().center()));
+    QTest::mouseClick(comboTarget, Qt::LeftButton, Qt::NoModifier, comboPoint);
     QTRY_VERIFY(combo->view()->isVisible());
     combo->hidePopup();
 
-    auto *title = expandableCard->findChild<QLabel *>(
-        QStringLiteral("_winui_settings_card_title"));
+    auto *title = expandableCard->findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
     QVERIFY(title);
     QWidget *headerTarget = targetAt(title);
     QVERIFY(headerTarget);
     QTest::mouseClick(headerTarget, Qt::LeftButton, Qt::NoModifier,
-                      headerTarget->mapFromGlobal(
-                          title->mapToGlobal(title->rect().center())));
+                      headerTarget->mapFromGlobal(title->mapToGlobal(title->rect().center())));
     QCOMPARE(expandableCard->isExpanded(), true);
 }
 
@@ -482,8 +463,8 @@ void WinUI3InteractionTest::settingsCardTrailingWidgetsHaveUniformHeight()
     comboCard->setTitle(QStringLiteral("Updates"));
     comboCard->setDescription(QStringLiteral("Choose how updates are installed"));
     auto *combo = new QComboBox;
-    combo->addItems({QStringLiteral("Automatic"), QStringLiteral("Notify me"),
-                     QStringLiteral("Manual")});
+    combo->addItems(
+            { QStringLiteral("Automatic"), QStringLiteral("Notify me"), QStringLiteral("Manual") });
     comboCard->setTrailingWidget(combo);
     layout->addWidget(comboCard);
 
@@ -500,7 +481,8 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
 {
     WinUI3::SettingsCard card;
     card.setTitle(QStringLiteral("Advanced settings"));
-    card.setDescription(QStringLiteral("A description that remains in the same header while content expands."));
+    card.setDescription(
+            QStringLiteral("A description that remains in the same header while content expands."));
     auto *trailing = new QLabel(QStringLiteral("On"));
     card.setTrailingWidget(trailing);
     card.setExpandableWidget(new QLabel(QStringLiteral("Details")));
@@ -508,20 +490,16 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
     card.show();
     QTRY_VERIFY(card.isVisible());
 
-    auto *headerHost = card.findChild<QWidget *>(
-        QStringLiteral("_winui_settings_card_headerHost"));
-    auto *title = card.findChild<QLabel *>(
-        QStringLiteral("_winui_settings_card_title"));
-    auto *chevron = card.findChild<QLabel *>(
-        QStringLiteral("_winui_settings_card_chevron"));
+    auto *headerHost = card.findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
+    auto *title = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
+    auto *chevron = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_chevron"));
     QVERIFY(headerHost);
     QVERIFY(title);
     QVERIFY(chevron);
     QVERIFY(chevron->isVisible());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronRight));
-    const QRect chevronInCard(chevron->mapTo(&card, chevron->rect().topLeft()),
-                              chevron->size());
+    const QRect chevronInCard(chevron->mapTo(&card, chevron->rect().topLeft()), chevron->size());
     const QRect trailingInCard(trailing->mapTo(&card, trailing->rect().topLeft()),
                                trailing->size());
     QVERIFY(!chevronInCard.intersects(trailingInCard));
@@ -543,7 +521,7 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
 
 void WinUI3InteractionTest::settingsCardExpansionLoad()
 {
-    const QList<int> cardCounts = {1, 10, 50};
+    const QList<int> cardCounts = { 1, 10, 50 };
     int previousLayouts = 0;
     int previousResizes = 0;
     for (const int count : cardCounts) {
@@ -562,9 +540,9 @@ void WinUI3InteractionTest::settingsCardExpansionLoad()
         for (int i = 0; i < count; ++i) {
             auto *card = new WinUI3::SettingsCard;
             card->setTitle(QStringLiteral("Card %1").arg(i));
-            card->setDescription(QStringLiteral(
-                "A long description which exercises the stable header width "
-                "while the expandable content is resized."));
+            card->setDescription(
+                    QStringLiteral("A long description which exercises the stable header width "
+                                   "while the expandable content is resized."));
             auto *content = new CountingHintWidget(QSize(320, 42 + (i % 4) * 7));
             auto *probe = new LayoutLifecycleProbe;
             card->installEventFilter(probe);
@@ -583,7 +561,7 @@ void WinUI3InteractionTest::settingsCardExpansionLoad()
         QCoreApplication::processEvents();
         for (WinUI3::SettingsCard *card : cards) {
             auto *animation = card->findChild<QVariantAnimation *>(
-                QStringLiteral("_winui_settings_card_expansion_animation"));
+                    QStringLiteral("_winui_settings_card_expansion_animation"));
             QVERIFY(animation);
             animation->setCurrentTime(animation->duration());
         }
@@ -595,7 +573,7 @@ void WinUI3InteractionTest::settingsCardExpansionLoad()
         QCoreApplication::processEvents();
         QVERIFY(contents.first()->sizeHintCalls > sizeHintsBeforeContentChange);
         auto *expandedHost = cards.first()->findChild<QWidget *>(
-            QStringLiteral("_winui_settings_card_expandableHost"));
+                QStringLiteral("_winui_settings_card_expandableHost"));
         QVERIFY(expandedHost);
         QCOMPARE(expandedHost->maximumHeight(), 112);
 
@@ -614,7 +592,7 @@ void WinUI3InteractionTest::settingsCardExpansionLoad()
         cards.first()->setExpanded(false);
         cards.first()->setExpanded(true);
         auto *reversal = cards.first()->findChild<QVariantAnimation *>(
-            QStringLiteral("_winui_settings_card_expansion_animation"));
+                QStringLiteral("_winui_settings_card_expansion_animation"));
         QVERIFY(reversal);
         reversal->setCurrentTime(reversal->duration());
         QVERIFY(cards.first()->isExpanded());
@@ -624,13 +602,13 @@ void WinUI3InteractionTest::settingsCardExpansionLoad()
         QCOMPARE(cards.first()->isExpanded(), false);
         QCOMPARE(cards.first()->property("expansionProgress").toReal(), 0.0);
         auto *expandableHost = cards.first()->findChild<QWidget *>(
-            QStringLiteral("_winui_settings_card_expandableHost"));
+                QStringLiteral("_winui_settings_card_expandableHost"));
         QVERIFY(expandableHost);
         QCOMPARE(expandableHost->maximumHeight(), 0);
         QVERIFY(!expandableHost->isVisible());
         cards.first()->setExpanded(true);
         auto *replacementAnimation = cards.first()->findChild<QVariantAnimation *>(
-            QStringLiteral("_winui_settings_card_expansion_animation"));
+                QStringLiteral("_winui_settings_card_expansion_animation"));
         QVERIFY(replacementAnimation);
         replacementAnimation->setCurrentTime(replacementAnimation->duration());
         QVERIFY(replacement->sizeHintCalls > 0);
@@ -645,10 +623,12 @@ void WinUI3InteractionTest::settingsCardExpansionLoad()
         if (count > 1) {
             QVERIFY2(layouts <= previousLayouts * 6 + count * 4,
                      qPrintable(QStringLiteral("layout requests grew superlinearly: %1 -> %2")
-                                    .arg(previousLayouts).arg(layouts)));
+                                        .arg(previousLayouts)
+                                        .arg(layouts)));
             QVERIFY2(resizes <= previousResizes * 6 + count * 4,
                      qPrintable(QStringLiteral("resizes grew superlinearly: %1 -> %2")
-                                    .arg(previousResizes).arg(resizes)));
+                                        .arg(previousResizes)
+                                        .arg(resizes)));
         }
         previousLayouts = layouts;
         previousResizes = resizes;
@@ -662,24 +642,20 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
 {
     WinUI3::SettingsCard card;
     card.setTitle(QStringLiteral("Display").toUpper());
-    card.setDescription(QStringLiteral(
-        "The header must keep its geometry while the details are revealed."));
-    card.setExpandableWidget(new SolidPage(QColor(40, 120, 200),
-                                           QStringLiteral("Details")));
+    card.setDescription(
+            QStringLiteral("The header must keep its geometry while the details are revealed."));
+    card.setExpandableWidget(new SolidPage(QColor(40, 120, 200), QStringLiteral("Details")));
     card.resize(480, 240);
     card.show();
     QCoreApplication::processEvents();
 
-    auto *header = card.findChild<QWidget *>(
-        QStringLiteral("_winui_settings_card_headerHost"));
-    auto *title = card.findChild<QLabel *>(
-        QStringLiteral("_winui_settings_card_title"));
-    auto *description = card.findChild<QLabel *>(
-        QStringLiteral("_winui_settings_card_description"));
-    auto *chevron = card.findChild<QLabel *>(
-        QStringLiteral("_winui_settings_card_chevron"));
+    auto *header = card.findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
+    auto *title = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
+    auto *description =
+            card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_description"));
+    auto *chevron = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_chevron"));
     auto *animation = card.findChild<QVariantAnimation *>(
-        QStringLiteral("_winui_settings_card_expansion_animation"));
+            QStringLiteral("_winui_settings_card_expansion_animation"));
     QVERIFY(header);
     QVERIFY(title);
     QVERIFY(description);
@@ -696,14 +672,12 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     const QImage collapsed = card.grab().toImage();
     const QPixmap collapsedChevron = chevron->pixmap(Qt::ReturnByValue);
 
-    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier,
-                      header->geometry().center());
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, header->geometry().center());
     QCOMPARE(card.isExpanded(), true);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     const QImage first = card.grab().toImage();
-    QTRY_VERIFY(chevron->pixmap(Qt::ReturnByValue).toImage() !=
-                collapsedChevron.toImage());
+    QTRY_VERIFY(chevron->pixmap(Qt::ReturnByValue).toImage() != collapsedChevron.toImage());
     QCOMPARE(header->geometry(), headerGeometry);
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
@@ -783,8 +757,8 @@ void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
     updates->setTitle(QStringLiteral("Updates"));
     updates->setDescription(QStringLiteral("Choose how updates are installed"));
     auto *combo = new QComboBox;
-    combo->addItems({QStringLiteral("Automatic"), QStringLiteral("Notify me"),
-                     QStringLiteral("Manual")});
+    combo->addItems(
+            { QStringLiteral("Automatic"), QStringLiteral("Notify me"), QStringLiteral("Manual") });
     updates->setTrailingWidget(combo);
     cardsLayout->addWidget(updates);
 
@@ -807,12 +781,12 @@ void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
     QCoreApplication::processEvents();
     QVERIFY(!area->verticalScrollBar()->isVisible());
 
-    const QList<WinUI3::SettingsCard *> cards{notifications, updates, advanced};
+    const QList<WinUI3::SettingsCard *> cards{ notifications, updates, advanced };
     QVector<QRect> cardGeometries;
     QVector<QRect> headerGeometries;
     for (WinUI3::SettingsCard *card : cards) {
-        auto *header = card->findChild<QWidget *>(
-            QStringLiteral("_winui_settings_card_headerHost"));
+        auto *header =
+                card->findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
         QVERIFY(header);
         QCOMPARE(card->height(), card->sizeHint().height());
         cardGeometries.append(card->geometry());
@@ -822,7 +796,7 @@ void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
     const int advancedHeight = advanced->height();
     advanced->setExpanded(true);
     auto *animation = advanced->findChild<QVariantAnimation *>(
-        QStringLiteral("_winui_settings_card_expansion_animation"));
+            QStringLiteral("_winui_settings_card_expansion_animation"));
     QVERIFY(animation);
     animation->setCurrentTime(animation->duration() / 2);
     QCoreApplication::processEvents();
@@ -831,7 +805,7 @@ void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
     QVERIFY(area->verticalScrollBar()->isVisible());
     for (int i = 0; i < cards.size(); ++i) {
         auto *header = cards.at(i)->findChild<QWidget *>(
-            QStringLiteral("_winui_settings_card_headerHost"));
+                QStringLiteral("_winui_settings_card_headerHost"));
         QVERIFY(header);
         if (i < 2) {
             QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
@@ -847,7 +821,7 @@ void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
     QVERIFY(advanced->height() > advancedHeight);
     for (int i = 0; i < 2; ++i) {
         auto *header = cards.at(i)->findChild<QWidget *>(
-            QStringLiteral("_winui_settings_card_headerHost"));
+                QStringLiteral("_winui_settings_card_headerHost"));
         QVERIFY(header);
         QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
         QCOMPARE(header->geometry().top(), headerGeometries.at(i).top());
@@ -861,8 +835,8 @@ void WinUI3InteractionTest::inputModalityFocus()
     QPushButton button(QStringLiteral("Focus"));
     button.resize(button.sizeHint());
     button.show();
-    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(4, 4),
-                           Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(4, 4), Qt::LeftButton, Qt::LeftButton,
+                           Qt::NoModifier);
     QCoreApplication::sendEvent(&button, &mousePress);
     QFocusEvent mouseFocus(QEvent::FocusIn, Qt::MouseFocusReason);
     QCoreApplication::sendEvent(&button, &mouseFocus);
@@ -894,8 +868,7 @@ void WinUI3InteractionTest::hoverAnimationProgresses()
     // The first animation-driver tick can be delayed when the full suite has
     // several native timers pending. Wait for that tick instead of assuming
     // it has happened after a fixed wall-clock sleep.
-    QTRY_VERIFY_WITH_TIMEOUT(
-        frameReal(&button, "_winui_hover_progress") > 0.0, 150);
+    QTRY_VERIFY_WITH_TIMEOUT(frameReal(&button, "_winui_hover_progress") > 0.0, 150);
     const qreal midway = frameReal(&button, "_winui_hover_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
     QTRY_VERIFY(frameReal(&button, "_winui_hover_progress") > 0.99);
@@ -920,7 +893,7 @@ void WinUI3InteractionTest::readOnlyActionRestoration()
     QAbstractButton *clearButton = nullptr;
     for (QAbstractButton *button : edit.findChildren<QAbstractButton *>()) {
         const bool custom = leading.associatedObjects().contains(button)
-            || trailing.associatedObjects().contains(button);
+                || trailing.associatedObjects().contains(button);
         if (!custom) {
             clearButton = button;
             break;
@@ -1013,25 +986,26 @@ void WinUI3InteractionTest::animatedStackLifecycleStress()
 
     auto settle = [&stack] {
         if (auto *group = stack.findChild<QParallelAnimationGroup *>(
-                QStringLiteral("_winui_animated_stack_group"),
-                Qt::FindDirectChildrenOnly)) {
+                    QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly)) {
             group->setCurrentTime(group->duration());
             QCoreApplication::processEvents();
         }
         QCOMPARE(stack.findChildren<QParallelAnimationGroup *>(
-                     QStringLiteral("_winui_animated_stack_group"),
-                     Qt::FindDirectChildrenOnly).size(), 0);
-        QCOMPARE(stack.findChildren<QWidget *>(
-                     QStringLiteral("_winui_animated_stack_overlay"),
-                     Qt::FindDirectChildrenOnly).size(), 0);
+                              QStringLiteral("_winui_animated_stack_group"),
+                              Qt::FindDirectChildrenOnly)
+                         .size(),
+                 0);
+        QCOMPARE(stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                               Qt::FindDirectChildrenOnly)
+                         .size(),
+                 0);
     };
 
     stack.setCurrentIndex(1);
     QVERIFY(stack.isAnimating());
     stack.resize(480, 160);
-    auto overlays = stack.findChildren<QWidget *>(
-        QStringLiteral("_winui_animated_stack_overlay"),
-        Qt::FindDirectChildrenOnly);
+    auto overlays = stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                                  Qt::FindDirectChildrenOnly);
     QCOMPARE(overlays.size(), 1);
     QCOMPARE(overlays.constFirst()->geometry(), stack.rect());
 
@@ -1068,19 +1042,21 @@ void WinUI3InteractionTest::animatedStackLifecycleStress()
     for (int i = 0; i < 100; ++i) {
         const int target = i % stack.count();
         stack.setCurrentIndex(target,
-                             i % 3 == 0 ? WinUI3::AnimatedStack::Transition::Backward
+                              i % 3 == 0 ? WinUI3::AnimatedStack::Transition::Backward
                                          : WinUI3::AnimatedStack::Transition::Forward);
         QVERIFY(stack.findChildren<QParallelAnimationGroup *>(
-                     QStringLiteral("_winui_animated_stack_group"),
-                     Qt::FindDirectChildrenOnly).size() <= 1);
-        QVERIFY(stack.findChildren<QWidget *>(
-                    QStringLiteral("_winui_animated_stack_overlay"),
-                    Qt::FindDirectChildrenOnly).size() <= 1);
+                             QStringLiteral("_winui_animated_stack_group"),
+                             Qt::FindDirectChildrenOnly)
+                        .size()
+                <= 1);
+        QVERIFY(stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                              Qt::FindDirectChildrenOnly)
+                        .size()
+                <= 1);
         if (i % 10 == 0) {
             stack.resize(320 + i, 120 + (i % 4) * 10);
             overlays = stack.findChildren<QWidget *>(
-                QStringLiteral("_winui_animated_stack_overlay"),
-                Qt::FindDirectChildrenOnly);
+                    QStringLiteral("_winui_animated_stack_overlay"), Qt::FindDirectChildrenOnly);
             if (!overlays.isEmpty())
                 QCOMPARE(overlays.constFirst()->geometry(), stack.rect());
         }
@@ -1092,7 +1068,7 @@ void WinUI3InteractionTest::animatedStackLifecycleStress()
 void WinUI3InteractionTest::rtlGeometryAndHitTesting()
 {
     QComboBox combo;
-    combo.addItems({QStringLiteral("One"), QStringLiteral("Two")});
+    combo.addItems({ QStringLiteral("One"), QStringLiteral("Two") });
     combo.setLayoutDirection(Qt::RightToLeft);
     combo.resize(220, 32);
     combo.show();
@@ -1100,16 +1076,16 @@ void WinUI3InteractionTest::rtlGeometryAndHitTesting()
     comboOption.initFrom(&combo);
     comboOption.rect = combo.rect();
     comboOption.direction = Qt::RightToLeft;
-    const QRect arrow = combo.style()->subControlRect(
-        QStyle::CC_ComboBox, &comboOption, QStyle::SC_ComboBoxArrow, &combo);
-    const QRect edit = combo.style()->subControlRect(
-        QStyle::CC_ComboBox, &comboOption, QStyle::SC_ComboBoxEditField, &combo);
+    const QRect arrow = combo.style()->subControlRect(QStyle::CC_ComboBox, &comboOption,
+                                                      QStyle::SC_ComboBoxArrow, &combo);
+    const QRect edit = combo.style()->subControlRect(QStyle::CC_ComboBox, &comboOption,
+                                                     QStyle::SC_ComboBoxEditField, &combo);
     QVERIFY(arrow.left() == combo.rect().left());
     QVERIFY(edit.right() < combo.rect().right());
     QVERIFY(edit.left() == arrow.right() + 1);
     QVERIFY(!arrow.intersects(edit));
-    QCOMPARE(combo.style()->hitTestComplexControl(
-                 QStyle::CC_ComboBox, &comboOption, arrow.center(), &combo),
+    QCOMPARE(combo.style()->hitTestComplexControl(QStyle::CC_ComboBox, &comboOption, arrow.center(),
+                                                  &combo),
              QStyle::SC_ComboBoxArrow);
 
     QGroupBox group(QStringLiteral("RTL group"));
@@ -1120,13 +1096,13 @@ void WinUI3InteractionTest::rtlGeometryAndHitTesting()
     groupOption.initFrom(&group);
     groupOption.rect = group.rect();
     groupOption.direction = Qt::RightToLeft;
-    groupOption.subControls = QStyle::SC_GroupBoxFrame
-        | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxLabel;
-    const QRect check = group.style()->subControlRect(
-        QStyle::CC_GroupBox, &groupOption, QStyle::SC_GroupBoxCheckBox, &group);
+    groupOption.subControls =
+            QStyle::SC_GroupBoxFrame | QStyle::SC_GroupBoxCheckBox | QStyle::SC_GroupBoxLabel;
+    const QRect check = group.style()->subControlRect(QStyle::CC_GroupBox, &groupOption,
+                                                      QStyle::SC_GroupBoxCheckBox, &group);
     QVERIFY(check.left() > group.rect().center().x());
-    QCOMPARE(group.style()->hitTestComplexControl(
-                 QStyle::CC_GroupBox, &groupOption, check.center(), &group),
+    QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &groupOption, check.center(),
+                                                  &group),
              QStyle::SC_GroupBoxCheckBox);
 
     QStyleOptionMenuItem submenu;
@@ -1211,10 +1187,10 @@ void WinUI3InteractionTest::rtlGeometryAndHitTesting()
     sliderOption.maximum = slider.maximum();
     sliderOption.sliderPosition = slider.sliderPosition();
     sliderOption.upsideDown = true;
-    const QRect sliderHandle = slider.style()->subControlRect(
-        QStyle::CC_Slider, &sliderOption, QStyle::SC_SliderHandle, &slider);
-    QCOMPARE(slider.style()->hitTestComplexControl(
-                 QStyle::CC_Slider, &sliderOption, sliderHandle.center(), &slider),
+    const QRect sliderHandle = slider.style()->subControlRect(QStyle::CC_Slider, &sliderOption,
+                                                              QStyle::SC_SliderHandle, &slider);
+    QCOMPARE(slider.style()->hitTestComplexControl(QStyle::CC_Slider, &sliderOption,
+                                                   sliderHandle.center(), &slider),
              QStyle::SC_SliderHandle);
     const int before = slider.value();
     QTest::mouseClick(&slider, Qt::RightButton, Qt::NoModifier,
@@ -1239,8 +1215,8 @@ void WinUI3InteractionTest::runtimeAppearanceAndDialogLifecycle()
     style->setAccentColor(accent);
     QTRY_COMPARE(qApp->palette().color(QPalette::Highlight), accent);
     QVERIFY(qApp->palette().color(QPalette::Accent) != accent);
-    auto *watchdog = style->findChild<QTimer *>(
-        QStringLiteral("_winui_system_appearance_watchdog"));
+    auto *watchdog =
+            style->findChild<QTimer *>(QStringLiteral("_winui_system_appearance_watchdog"));
     QVERIFY(watchdog);
     QVERIFY(!watchdog->isActive());
 
@@ -1258,7 +1234,7 @@ void WinUI3InteractionTest::runtimeAppearanceAndDialogLifecycle()
     QTRY_VERIFY(!dialog.property("_winui_dialog_animating").toBool());
     QCOMPARE(dialog.windowOpacity(), 1.0);
     QTRY_VERIFY(!dialog.findChild<QParallelAnimationGroup *>(
-        QStringLiteral("_winui_dialog_animation")));
+            QStringLiteral("_winui_dialog_animation")));
     dialog.show();
     QTRY_VERIFY(dialog.isVisible());
     QTRY_VERIFY(!dialog.property("_winui_dialog_animating").toBool());
@@ -1269,14 +1245,15 @@ void WinUI3InteractionTest::runtimeAppearanceAndDialogLifecycle()
     dialog.hide();
     dialog.show();
     QVERIFY(dialog.findChildren<QParallelAnimationGroup *>(
-                QStringLiteral("_winui_dialog_animation"),
-                Qt::FindDirectChildrenOnly).size() <= 1);
+                          QStringLiteral("_winui_dialog_animation"), Qt::FindDirectChildrenOnly)
+                    .size()
+            <= 1);
     dialog.hide();
     QVERIFY(!dialog.property("_winui_dialog_animating").toBool());
     QCOMPARE(dialog.windowOpacity(), 1.0);
     QVERIFY(dialog.findChildren<QParallelAnimationGroup *>(
-                QStringLiteral("_winui_dialog_animation"),
-                Qt::FindDirectChildrenOnly).isEmpty());
+                          QStringLiteral("_winui_dialog_animation"), Qt::FindDirectChildrenOnly)
+                    .isEmpty());
 
     style->setAccentColor({});
     style->setThemeMode(WinUI3::ThemeMode::Light);
@@ -1293,17 +1270,14 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
         slider.setRange(0, 100);
         slider.resize(320, 40);
         slider.show();
-        QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier,
-                          slider.rect().center());
-        auto *timer = slider.findChild<QTimer *>(
-            QStringLiteral("_winui_slider_tooltip_timer"),
-            Qt::FindDirectChildrenOnly);
+        QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, slider.rect().center());
+        auto *timer = slider.findChild<QTimer *>(QStringLiteral("_winui_slider_tooltip_timer"),
+                                                 Qt::FindDirectChildrenOnly);
         QVERIFY(timer);
         QSignalSpy callbacks(timer, &QTimer::timeout);
         for (int i = 0; i < 1000; ++i) {
             slider.setValue(i % 100);
-            QMouseEvent move(QEvent::MouseMove,
-                             QPointF(slider.rect().center()), Qt::NoButton,
+            QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
                              Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(&slider, &move);
         }
@@ -1313,8 +1287,7 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
         QCOMPARE(callbacks.count(), 1);
         QCOMPARE(frameValue(&slider, "_winui_slider_tooltip_value").toString(),
                  QStringLiteral("77"));
-        QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
-                            slider.rect().center());
+        QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, slider.rect().center());
         QVERIFY(!timer->isActive());
     }
 
@@ -1326,9 +1299,8 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
         QEvent enter(QEvent::Enter);
         QEvent leave(QEvent::Leave);
         QCoreApplication::sendEvent(&scrollBar, &enter);
-        auto *timer = scrollBar.findChild<QTimer *>(
-            QStringLiteral("_winui_scrollbar_timer"),
-            Qt::FindDirectChildrenOnly);
+        auto *timer = scrollBar.findChild<QTimer *>(QStringLiteral("_winui_scrollbar_timer"),
+                                                    Qt::FindDirectChildrenOnly);
         QVERIFY(timer);
         QSignalSpy callbacks(timer, &QTimer::timeout);
         for (int i = 0; i < 100; ++i) {
@@ -1336,9 +1308,11 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
             QCoreApplication::sendEvent(&scrollBar, &enter);
         }
         QCoreApplication::sendEvent(&scrollBar, &leave);
-        QCOMPARE(scrollBar.findChildren<QTimer *>(
-                     QStringLiteral("_winui_scrollbar_timer"),
-                     Qt::FindDirectChildrenOnly).size(), 1);
+        QCOMPARE(scrollBar
+                         .findChildren<QTimer *>(QStringLiteral("_winui_scrollbar_timer"),
+                                                 Qt::FindDirectChildrenOnly)
+                         .size(),
+                 1);
         QVERIFY(timer->isActive());
         QTest::qWait(550);
         QCOMPARE(callbacks.count(), 1);

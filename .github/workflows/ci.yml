@@ -51,15 +51,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: clang-format dry run
+      - name: clang-format whole tree
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
-          clang-format --dry-run --Werror $(find src include tests demo plugin benchmarks -name '*.cpp' -o -name '*.h' | sort)
+          pip install "clang-format==18.1.8"
+          clang-format --dry-run --Werror $(git ls-files src include tests demo plugin benchmarks | grep -E '\.(cpp|h)$')
 
   msvc-gate:
-    runs-on: windows-latest
+    # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
+    # CMake's "Visual Studio 17 2022" generator can no longer find VS there.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt 6.8 (MSVC 2022 64-bit)
         uses: jurplel/install-qt-action@v4
         with:
@@ -95,7 +98,11 @@ jobs:
     # SoulseekQt compat claim (docs/showcase-post.md): Qt 5.12 MinGW must at
     # least build. No snapshot/DPI gate here; offscreen fidelity and Pillow
     # matrix belong to the MSVC job above.
-    runs-on: windows-latest
+    # Toolchain match: install-qt-action defaults to the runner's own
+    # C:/mingw64 (GCC 15 64-bit), which cannot link Qt 5.12's 32-bit MinGW 7.3
+    # binaries. tools_win32_mingw730 puts the period-correct g++/mingw32-make
+    # on PATH so CMake picks it (verified: GNU 7.3.0, "MinGW Makefiles").
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt 5.12 (MinGW 7.3 32-bit)
@@ -103,6 +110,7 @@ jobs:
         with:
           version: "5.12.12"
           arch: win32_mingw73
+          tools: tools_win32_mingw730
           cache: true
       - name: Install Python + Pillow
         uses: actions/setup-python@v5

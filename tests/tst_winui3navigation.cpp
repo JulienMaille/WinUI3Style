@@ -86,7 +86,6 @@
 #include <cmath>
 #include <limits>
 
-
 #include "winui3testhelpers.h"
 
 class WinUI3NavigationTest final : public QObject
@@ -131,7 +130,6 @@ void WinUI3NavigationTest::cleanup()
     qApp->processEvents();
 }
 
-
 void WinUI3NavigationTest::navigationTransition()
 {
     WinUI3::NavigationView view;
@@ -140,24 +138,21 @@ void WinUI3NavigationTest::navigationTransition()
     view.addPage(new QLabel(QStringLiteral("Two")), QIcon(), QStringLiteral("Two"));
     view.stack()->setDuration(20);
     view.show();
-    QVERIFY(view.navigationList()->property(
-        WinUI3::Style::NavigationViewProperty).toBool());
-    QVERIFY(view.navigationList()->property(
-        "_winui_navigation_delegate").value<QObject *>()
+    QVERIFY(view.navigationList()->property(WinUI3::Style::NavigationViewProperty).toBool());
+    QVERIFY(view.navigationList()->property("_winui_navigation_delegate").value<QObject *>()
             == view.navigationList()->itemDelegate());
-    const QRect second = view.navigationList()->visualItemRect(
-        view.navigationList()->item(1));
+    const QRect second = view.navigationList()->visualItemRect(view.navigationList()->item(1));
     QTest::mouseMove(view.navigationList()->viewport(), second.center());
-    QTest::mouseClick(view.navigationList()->viewport(), Qt::LeftButton,
-                      Qt::NoModifier, second.center());
+    QTest::mouseClick(view.navigationList()->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      second.center());
     QTRY_COMPARE(view.currentIndex(), 1);
     QTest::qWait(90);
-    const qreal indicator = frameReal(view.navigationList()->viewport(),
-                                      "_winui_navigation_indicator_y");
+    const qreal indicator =
+            frameReal(view.navigationList()->viewport(), "_winui_navigation_indicator_y");
     QVERIFY(indicator > 0.0 && indicator < second.top());
-    QTRY_VERIFY(qAbs(frameReal(view.navigationList()->viewport(),
-                              "_winui_navigation_indicator_y")
-                     - second.top()) < 0.5);
+    QTRY_VERIFY(qAbs(frameReal(view.navigationList()->viewport(), "_winui_navigation_indicator_y")
+                     - second.top())
+                < 0.5);
 }
 
 void WinUI3NavigationTest::navigationInteractiveFrames()
@@ -182,10 +177,9 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
     QCOMPARE(two->geometry(), pageRect);
     QCOMPARE(three->geometry(), pageRect);
 
-    const QRect secondItem = view.navigationList()->visualItemRect(
-        view.navigationList()->item(1));
-    QTest::mouseClick(view.navigationList()->viewport(), Qt::LeftButton,
-                      Qt::NoModifier, secondItem.center());
+    const QRect secondItem = view.navigationList()->visualItemRect(view.navigationList()->item(1));
+    QTest::mouseClick(view.navigationList()->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      secondItem.center());
     QCoreApplication::processEvents();
     QVERIFY(stack->isAnimating());
     QCOMPARE(stack->currentWidget(), two);
@@ -195,9 +189,8 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
     QCOMPARE(one->geometry(), pageRect);
     QCOMPARE(two->geometry(), pageRect);
     QCOMPARE(three->geometry(), pageRect);
-    auto overlays = stack->findChildren<QWidget *>(
-        QStringLiteral("_winui_animated_stack_overlay"),
-        Qt::FindDirectChildrenOnly);
+    auto overlays = stack->findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                                   Qt::FindDirectChildrenOnly);
     QCOMPARE(overlays.size(), 1);
     QCOMPARE(overlays.constFirst()->isVisible(), true);
     QVERIFY(overlays.constFirst()->graphicsEffect() == nullptr);
@@ -220,8 +213,7 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
              "The first transition frame still contains outgoing-page pixels");
 
     auto *group = stack->findChild<QParallelAnimationGroup *>(
-        QStringLiteral("_winui_animated_stack_group"),
-        Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly);
     QVERIFY(group);
     group->setCurrentTime(group->duration() / 2);
     QCoreApplication::processEvents();
@@ -244,9 +236,8 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
     QCoreApplication::processEvents();
     QCOMPARE(stack->currentWidget(), one);
     QCOMPARE(stack->isAnimating(), true);
-    overlays = stack->findChildren<QWidget *>(
-        QStringLiteral("_winui_animated_stack_overlay"),
-        Qt::FindDirectChildrenOnly);
+    overlays = stack->findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                              Qt::FindDirectChildrenOnly);
     QCOMPARE(overlays.size(), 1);
     QCOMPARE(one->isVisible(), false);
     QCOMPARE(two->isVisible(), false);
@@ -256,8 +247,7 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
     QCOMPARE(three->geometry(), stack->rect());
 
     group = stack->findChild<QParallelAnimationGroup *>(
-        QStringLiteral("_winui_animated_stack_group"),
-        Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly);
     QVERIFY(group);
     group->setCurrentTime(group->duration());
     QCoreApplication::processEvents();
@@ -282,8 +272,7 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
     reentrant.resize(320, 160);
     reentrant.show();
     bool redirected = false;
-    connect(&reentrant, &QStackedWidget::currentChanged,
-            [&reentrant, &redirected](int index) {
+    connect(&reentrant, &QStackedWidget::currentChanged, [&reentrant, &redirected](int index) {
         if (index == 1 && !redirected) {
             redirected = true;
             reentrant.setCurrentIndex(2);
@@ -292,17 +281,18 @@ void WinUI3NavigationTest::navigationInteractiveFrames()
     reentrant.setCurrentIndex(1);
     QCoreApplication::processEvents();
     auto *reentrantGroup = reentrant.findChild<QParallelAnimationGroup *>(
-        QStringLiteral("_winui_animated_stack_group"),
-        Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly);
     QVERIFY(reentrantGroup);
     reentrantGroup->setCurrentTime(reentrantGroup->duration());
     QCoreApplication::processEvents();
     QVERIFY(redirected);
     QCOMPARE(reentrant.currentIndex(), 2);
     QVERIFY(!reentrant.isAnimating());
-    QCOMPARE(reentrant.findChildren<QWidget *>(
-                 QStringLiteral("_winui_animated_stack_overlay"),
-                 Qt::FindDirectChildrenOnly).size(), 0);
+    QCOMPARE(reentrant
+                     .findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                              Qt::FindDirectChildrenOnly)
+                     .size(),
+             0);
 }
 
 void WinUI3NavigationTest::renderCommonStates()
@@ -353,8 +343,7 @@ void WinUI3NavigationTest::navigationModelReconnectAndScroll()
     view.show();
     QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
     view.scrollTo(first.index(10, 0), QAbstractItemView::PositionAtCenter);
-    const qreal before = frameReal(view.viewport(),
-                                   "_winui_navigation_indicator_y");
+    const qreal before = frameReal(view.viewport(), "_winui_navigation_indicator_y");
 
     QStandardItemModel second(40, 1);
     for (int row = 0; row < second.rowCount(); ++row)
@@ -365,16 +354,14 @@ void WinUI3NavigationTest::navigationModelReconnectAndScroll()
     view.setCurrentIndex(second.index(20, 0));
     view.scrollTo(second.index(20, 0), QAbstractItemView::PositionAtCenter);
     QCoreApplication::processEvents();
-    const qreal after = frameReal(view.viewport(),
-                                  "_winui_navigation_indicator_y");
+    const qreal after = frameReal(view.viewport(), "_winui_navigation_indicator_y");
     QVERIFY(std::isfinite(after));
     QVERIFY(before != after || view.currentIndex().row() == 20);
 
     second.clear();
     QCoreApplication::processEvents();
     QVERIFY(!view.currentIndex().isValid());
-    QVERIFY(!frameValue(view.viewport(),
-                        "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(), "_winui_navigation_indicator_y").isValid());
 }
 
 void WinUI3NavigationTest::navigationDelegateLifecycle()
@@ -391,8 +378,7 @@ void WinUI3NavigationTest::navigationDelegateLifecycle()
     const QPalette originalViewportPalette = view.viewport()->palette();
     const QFrame::Shape originalFrameShape = view.frameShape();
     const bool originalViewportAutoFill = view.viewport()->autoFillBackground();
-    const bool originalViewportOpaque =
-        view.viewport()->testAttribute(Qt::WA_OpaquePaintEvent);
+    const bool originalViewportOpaque = view.viewport()->testAttribute(Qt::WA_OpaquePaintEvent);
     WinUI3::Style::setNavigationView(&view);
     view.show();
     QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
@@ -417,8 +403,7 @@ void WinUI3NavigationTest::navigationDelegateLifecycle()
     WinUI3::Style::setNavigationView(&view, false);
     QCoreApplication::processEvents();
     QCOMPARE(view.itemDelegate(), external);
-    QVERIFY(!frameValue(view.viewport(),
-                        "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(), "_winui_navigation_indicator_y").isValid());
 
     // The original delegate can disappear before restoration. The style must
     // install a valid owned fallback instead of restoring a dangling pointer.
@@ -431,56 +416,45 @@ void WinUI3NavigationTest::navigationDelegateLifecycle()
     QCoreApplication::processEvents();
     QVERIFY(view.itemDelegate());
     QVERIFY(!view.property("_winui_navigation_delegate").isValid());
-    QVERIFY(!frameValue(view.viewport(),
-                        "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(), "_winui_navigation_indicator_y").isValid());
 
     // A model reset while the indicator is moving must leave no stale target.
     WinUI3::Style::setNavigationView(&view, true);
     view.setCurrentIndex(model.index(20, 0));
     model.clear();
     QCoreApplication::processEvents();
-    QVERIFY(!frameValue(view.viewport(),
-                        "_winui_navigation_indicator_y").isValid());
+    QVERIFY(!frameValue(view.viewport(), "_winui_navigation_indicator_y").isValid());
 
     WinUI3::Style::setNavigationView(&view, false);
     QCOMPARE(view.palette(), originalViewPalette);
     QCOMPARE(view.viewport()->palette(), originalViewportPalette);
     QCOMPARE(view.frameShape(), originalFrameShape);
     QCOMPARE(view.viewport()->autoFillBackground(), originalViewportAutoFill);
-    QCOMPARE(view.viewport()->testAttribute(Qt::WA_OpaquePaintEvent),
-             originalViewportOpaque);
+    QCOMPARE(view.viewport()->testAttribute(Qt::WA_OpaquePaintEvent), originalViewportOpaque);
 
     QListView opaqueView;
     const QPalette opaquePalette = opaqueView.palette();
     WinUI3::Style::setNavigationView(&opaqueView);
     opaqueView.show();
     QCoreApplication::processEvents();
-    QCOMPARE(opaqueView.palette().color(QPalette::Base),
-             opaquePalette.color(QPalette::Base));
-    opaqueView.setProperty(WinUI3::Style::BackdropProperty,
-                           QStringLiteral("mica"));
+    QCOMPARE(opaqueView.palette().color(QPalette::Base), opaquePalette.color(QPalette::Base));
+    opaqueView.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
     QTRY_VERIFY(opaqueView.palette().color(QPalette::Base).alpha() == 0);
-    opaqueView.setProperty(WinUI3::Style::BackdropProperty,
-                           QStringLiteral("none"));
-    QTRY_COMPARE(opaqueView.palette().color(QPalette::Base),
-                 opaquePalette.color(QPalette::Base));
+    opaqueView.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+    QTRY_COMPARE(opaqueView.palette().color(QPalette::Base), opaquePalette.color(QPalette::Base));
 
     QWidget backdropHost;
     QListView inheritedView(&backdropHost);
     WinUI3::Style::setNavigationView(&inheritedView);
     backdropHost.show();
     QCoreApplication::processEvents();
-    const bool inheritedViewPaletteExplicit =
-        inheritedView.testAttribute(Qt::WA_SetPalette);
+    const bool inheritedViewPaletteExplicit = inheritedView.testAttribute(Qt::WA_SetPalette);
     const bool inheritedViewportPaletteExplicit =
-        inheritedView.viewport()->testAttribute(Qt::WA_SetPalette);
-    backdropHost.setProperty(WinUI3::Style::BackdropProperty,
-                             QStringLiteral("mica"));
+            inheritedView.viewport()->testAttribute(Qt::WA_SetPalette);
+    backdropHost.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
     QTRY_VERIFY(inheritedView.palette().color(QPalette::Base).alpha() == 0);
-    backdropHost.setProperty(WinUI3::Style::BackdropProperty,
-                             QStringLiteral("none"));
-    QTRY_COMPARE(inheritedView.testAttribute(Qt::WA_SetPalette),
-                 inheritedViewPaletteExplicit);
+    backdropHost.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+    QTRY_COMPARE(inheritedView.testAttribute(Qt::WA_SetPalette), inheritedViewPaletteExplicit);
     QTRY_COMPARE(inheritedView.viewport()->testAttribute(Qt::WA_SetPalette),
                  inheritedViewportPaletteExplicit);
 }

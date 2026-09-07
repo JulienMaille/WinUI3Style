@@ -111,8 +111,7 @@ const QAbstractItemView *itemView(const QWidget *widget)
 {
     if (const auto *view = qobject_cast<const QAbstractItemView *>(widget))
         return view;
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         if (const auto *view = qobject_cast<const QAbstractItemView *>(candidate))
             return view;
     }
@@ -121,8 +120,7 @@ const QAbstractItemView *itemView(const QWidget *widget)
 
 const QWidget *richTextEditor(const QWidget *widget)
 {
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         if (qobject_cast<const QTextEdit *>(candidate)
             || qobject_cast<const QPlainTextEdit *>(candidate)) {
             return candidate;
@@ -135,8 +133,7 @@ const QEasingCurve &fluentCurve()
 {
     static const QEasingCurve curve = [] {
         QEasingCurve result(QEasingCurve::BezierSpline);
-        result.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0),
-                                      QPointF(1.0, 1.0));
+        result.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
         return result;
     }();
     return curve;
@@ -154,8 +151,7 @@ bool densityModeFromProperty(const QVariant &value, WinUI3::DensityMode *mode)
 
 constexpr auto completerLastPopupProperty = "_winui_completer_last_popup";
 constexpr auto completerOriginalDensityProperty = "_winui_completer_original_density";
-constexpr auto completerOriginalDensityValidProperty =
-    "_winui_completer_original_density_valid";
+constexpr auto completerOriginalDensityValidProperty = "_winui_completer_original_density_valid";
 
 void syncCompleterPopupDensity(QLineEdit *editor)
 {
@@ -164,29 +160,25 @@ void syncCompleterPopupDensity(QLineEdit *editor)
     QWidget *popup = editor->completer()->popup();
     const quintptr owner = reinterpret_cast<quintptr>(editor->style());
     auto restorePopup = [owner](QWidget *candidate) {
-        if (!candidate || candidate->property(completerOwnerProperty).value<quintptr>()
-                != owner)
+        if (!candidate || candidate->property(completerOwnerProperty).value<quintptr>() != owner)
             return;
         if (candidate->property(completerOriginalDensityValidProperty).toBool())
             candidate->setProperty(Style::DensityProperty,
-                candidate->property(completerOriginalDensityProperty));
+                                   candidate->property(completerOriginalDensityProperty));
         else
             candidate->setProperty(Style::DensityProperty, {});
-        for (const char *property : {completerOwnerProperty,
-                 completerOriginalDensityProperty, completerOriginalDensityValidProperty})
+        for (const char *property : { completerOwnerProperty, completerOriginalDensityProperty,
+                                      completerOriginalDensityValidProperty })
             candidate->setProperty(property, {});
     };
     auto *previous = qobject_cast<QWidget *>(
-        editor->property(completerLastPopupProperty).value<QObject *>());
+            editor->property(completerLastPopupProperty).value<QObject *>());
     if (previous && previous != popup)
         restorePopup(previous);
     if (previous != popup) {
-        editor->setProperty(completerLastPopupProperty,
-                            QVariant::fromValue<QObject *>(popup));
-        QObject::connect(popup, &QObject::destroyed, editor,
-                         [editor](QObject *destroyed) {
-            if (editor->property(completerLastPopupProperty).value<QObject *>()
-                == destroyed)
+        editor->setProperty(completerLastPopupProperty, QVariant::fromValue<QObject *>(popup));
+        QObject::connect(popup, &QObject::destroyed, editor, [editor](QObject *destroyed) {
+            if (editor->property(completerLastPopupProperty).value<QObject *>() == destroyed)
                 editor->setProperty(completerLastPopupProperty, {});
         });
     }
@@ -220,7 +212,7 @@ void restoreCompleterPopup(QLineEdit *editor, Style *style)
     if (!editor)
         return;
     auto *popup = qobject_cast<QWidget *>(
-        editor->property(completerLastPopupProperty).value<QObject *>());
+            editor->property(completerLastPopupProperty).value<QObject *>());
     if (!popup) {
         editor->setProperty(completerLastPopupProperty, {});
         return;
@@ -233,8 +225,8 @@ void restoreCompleterPopup(QLineEdit *editor, Style *style)
                            popup->property(completerOriginalDensityProperty));
     else
         popup->setProperty(Style::DensityProperty, {});
-    for (const char *property : {completerOwnerProperty,
-             completerOriginalDensityProperty, completerOriginalDensityValidProperty})
+    for (const char *property : { completerOwnerProperty, completerOriginalDensityProperty,
+                                  completerOriginalDensityValidProperty })
         popup->setProperty(property, {});
     editor->setProperty(completerLastPopupProperty, {});
 }
@@ -279,11 +271,16 @@ void invalidateDensityTree(QWidget *root)
 Icon arrowIcon(QStyle::PrimitiveElement element)
 {
     switch (element) {
-    case QStyle::PE_IndicatorArrowDown: return Icon::ChevronDown;
-    case QStyle::PE_IndicatorArrowLeft: return Icon::ChevronLeft;
-    case QStyle::PE_IndicatorArrowRight: return Icon::ChevronRight;
-    case QStyle::PE_IndicatorArrowUp: return Icon::ChevronUp;
-    default: return Icon::ChevronRight;
+    case QStyle::PE_IndicatorArrowDown:
+        return Icon::ChevronDown;
+    case QStyle::PE_IndicatorArrowLeft:
+        return Icon::ChevronLeft;
+    case QStyle::PE_IndicatorArrowRight:
+        return Icon::ChevronRight;
+    case QStyle::PE_IndicatorArrowUp:
+        return Icon::ChevronUp;
+    default:
+        return Icon::ChevronRight;
     }
 }
 
@@ -360,28 +357,20 @@ class StylePrivate
 public:
     using ToggleDragState = Private::ToggleDragState;
 
-    explicit StylePrivate(Style *owner, ThemeMode initialMode,
-                         WinUI3::DensityMode initialDensity)
-        : q(owner), mode(initialMode), density(initialDensity), animationDriver(owner),
+    explicit StylePrivate(Style *owner, ThemeMode initialMode, WinUI3::DensityMode initialDensity)
+        : q(owner),
+          mode(initialMode),
+          density(initialDensity),
+          animationDriver(owner),
           tableEditorTracker(owner)
     {
         Private::StyleInteractionCallbacks callbacks;
-        callbacks.animate = [this](QWidget *widget, const char *property,
-                                    qreal target, int duration) {
-            animate(widget, property, target, duration);
-        };
-        callbacks.beginButtonPress = [this](QWidget *widget) {
-            beginButtonPress(widget);
-        };
-        callbacks.releaseButtonPress = [this](QWidget *widget) {
-            releaseButtonPress(widget);
-        };
-        callbacks.cancelButtonPress = [this](QWidget *widget) {
-            cancelButtonPress(widget);
-        };
-        callbacks.stopAnimations = [this](QWidget *widget) {
-            stopAnimations(widget);
-        };
+        callbacks.animate = [this](QWidget *widget, const char *property, qreal target,
+                                   int duration) { animate(widget, property, target, duration); };
+        callbacks.beginButtonPress = [this](QWidget *widget) { beginButtonPress(widget); };
+        callbacks.releaseButtonPress = [this](QWidget *widget) { releaseButtonPress(widget); };
+        callbacks.cancelButtonPress = [this](QWidget *widget) { cancelButtonPress(widget); };
+        callbacks.stopAnimations = [this](QWidget *widget) { stopAnimations(widget); };
         callbacks.clearPointerInteraction = [this](QWidget *widget) {
             clearPointerInteraction(widget);
         };
@@ -394,27 +383,17 @@ public:
         callbacks.scheduleSliderToolTip = [this](QSlider *slider) {
             scheduleSliderToolTip(slider);
         };
-        callbacks.cancelSliderToolTip = [this](QSlider *slider) {
-            cancelSliderToolTip(slider);
-        };
-        callbacks.refreshProgressTimer = [this] {
-            refreshProgressTimer();
-        };
+        callbacks.cancelSliderToolTip = [this](QSlider *slider) { cancelSliderToolTip(slider); };
+        callbacks.refreshProgressTimer = [this] { refreshProgressTimer(); };
         callbacks.progressTimerActive = [this] {
             return progressTimer && progressTimer->isActive();
         };
         callbacks.prepareComboPopupFirstFrame = [this](QComboBox *combo) {
             prepareComboPopupFirstFrame(combo);
         };
-        callbacks.releaseComboChevron = [this](QWidget *widget) {
-            releaseComboChevron(widget);
-        };
-        callbacks.finishComboPopupCycle = [this](QWidget *popup) {
-            finishComboPopupCycle(popup);
-        };
-        callbacks.comboForPopupWidget = [](QWidget *widget) {
-            return comboForPopupWidget(widget);
-        };
+        callbacks.releaseComboChevron = [this](QWidget *widget) { releaseComboChevron(widget); };
+        callbacks.finishComboPopupCycle = [this](QWidget *popup) { finishComboPopupCycle(popup); };
+        callbacks.comboForPopupWidget = [](QWidget *widget) { return comboForPopupWidget(widget); };
         callbacks.updateReadOnlyDeleteAffordance = [](QLineEdit *lineEdit) {
             updateReadOnlyDeleteAffordance(lineEdit);
         };
@@ -424,26 +403,19 @@ public:
         callbacks.prepareContentDialogState = [](QDialog *dialog, bool dark) {
             prepareContentDialogState(dialog, dark);
         };
-        callbacks.stopDialogAnimations = [](QDialog *dialog) {
-            stopDialogAnimations(dialog);
-        };
-        callbacks.preparePopupSurface = [](QWidget *widget) {
-            preparePopupSurface(widget);
-        };
+        callbacks.stopDialogAnimations = [](QDialog *dialog) { stopDialogAnimations(dialog); };
+        callbacks.preparePopupSurface = [](QWidget *widget) { preparePopupSurface(widget); };
         callbacks.registerPopupPaletteOwners = [this](QWidget *widget) {
             registerPopupPaletteOwners(widget);
         };
-        callbacks.registerPaletteOwner = [this](QDialog *dialog) {
-            registerPaletteOwner(dialog);
-        };
+        callbacks.registerPaletteOwner = [this](QDialog *dialog) { registerPaletteOwner(dialog); };
         callbacks.unregisterPaletteOwner = [this](QDialog *dialog) {
             unregisterPaletteOwner(dialog);
         };
         callbacks.restoreContentDialogState = [](QDialog *dialog, bool visible) {
             restoreContentDialogState(dialog, visible);
         };
-        callbacks.remember = [](QWidget *widget, const char *property,
-                                const QVariant &value) {
+        callbacks.remember = [](QWidget *widget, const char *property, const QVariant &value) {
             remember(widget, property, value);
         };
         callbacks.prepareNavigationView = [](QAbstractItemView *view) {
@@ -452,13 +424,11 @@ public:
         callbacks.restoreNavigationView = [](QAbstractItemView *view) {
             NavigationPrivate::restoreNavigationView(view);
         };
-        callbacks.dark = [this] {
-            return dark();
-        };
+        callbacks.dark = [this] { return dark(); };
         callbacks.keyboardInput = &keyboardInput;
         callbacks.toggleDragStates = &toggleDragStates;
-        interactionController = std::make_unique<Private::StyleInteractionController>(
-            owner, std::move(callbacks));
+        interactionController =
+                std::make_unique<Private::StyleInteractionController>(owner, std::move(callbacks));
     }
 
     bool needsSystemAppearancePolling() const
@@ -511,11 +481,10 @@ public:
                 return;
         }
         paletteOwners.append(QPointer<QWidget>(widget));
-        paletteOwnerConnections.insert(widget,
-            QObject::connect(widget, &QObject::destroyed, q,
-                             [this, widget] {
-            unregisterPaletteOwner(widget);
-        }));
+        paletteOwnerConnections.insert(
+                widget, QObject::connect(widget, &QObject::destroyed, q, [this, widget] {
+                    unregisterPaletteOwner(widget);
+                }));
     }
 
     void unregisterPaletteOwner(QWidget *widget)
@@ -570,7 +539,7 @@ public:
     bool progressBarNeedsAnimation(const QProgressBar *progressBar) const
     {
         return progressBar && progressBar->minimum() == progressBar->maximum()
-            && progressBar->isVisible() && Style::animationsAllowed();
+                && progressBar->isVisible() && Style::animationsAllowed();
     }
 
     void refreshProgressTimer()
@@ -598,9 +567,8 @@ public:
     void advanceProgressBars()
     {
         const bool allowed = Style::animationsAllowed();
-        const qreal phase = allowed
-            ? qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0
-            : 0.35;
+        const qreal phase =
+                allowed ? qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0 : 0.35;
         bool active = false;
         for (auto it = progressBars.begin(); it != progressBars.end();) {
             const QPointer<QProgressBar> guarded = *it;
@@ -631,15 +599,12 @@ public:
         // QProgressBar has no rangeChanged signal. valueChanged covers the
         // normal range-reset path, while UpdateRequest below closes the case
         // where a range changes without changing the current value.
-        progressBarStateConnections.insert(progressBar,
-            QObject::connect(progressBar, &QProgressBar::valueChanged, q,
-                             [this](int) {
-                refreshProgressTimer();
-            }));
+        progressBarStateConnections.insert(
+                progressBar,
+                QObject::connect(progressBar, &QProgressBar::valueChanged, q,
+                                 [this](int) { refreshProgressTimer(); }));
         QObject::connect(progressBar, &QObject::destroyed, q,
-                         [this, progressBar] {
-            unregisterProgressBar(progressBar);
-        });
+                         [this, progressBar] { unregisterProgressBar(progressBar); });
         refreshProgressTimer();
     }
 
@@ -662,8 +627,7 @@ public:
     {
         if (!scrollBar)
             return nullptr;
-        if (auto it = scrollBarTimers.find(scrollBar);
-            it != scrollBarTimers.end() && it->data()) {
+        if (auto it = scrollBarTimers.find(scrollBar); it != scrollBarTimers.end() && it->data()) {
             return it->data();
         }
         auto *timer = new QTimer(scrollBar);
@@ -672,12 +636,10 @@ public:
         const QPointer<QScrollBar> guarded(scrollBar);
         QObject::connect(timer, &QTimer::timeout, q, [this, guarded] {
             if (!guarded || !guarded->isVisible() || !guarded->isEnabled()
-                || !framePropertyRegistry().value(guarded, scrollBarInsideProperty)
-                       .isValid()) {
+                || !framePropertyRegistry().value(guarded, scrollBarInsideProperty).isValid()) {
                 return;
             }
-            if (framePropertyRegistry().value(guarded, scrollBarInsideProperty)
-                    .toBool()) {
+            if (framePropertyRegistry().value(guarded, scrollBarInsideProperty).toBool()) {
                 animate(guarded, hoverProperty, 1.0, Private::FastDuration);
             } else {
                 animate(guarded, hoverProperty, 0.0, Private::FastDuration);
@@ -685,9 +647,7 @@ public:
         });
         scrollBarTimers.insert(scrollBar, QPointer<QTimer>(timer));
         QObject::connect(scrollBar, &QObject::destroyed, q,
-                         [this, scrollBar] {
-            unregisterScrollBar(scrollBar);
-        });
+                         [this, scrollBar] { unregisterScrollBar(scrollBar); });
         return timer;
     }
 
@@ -701,8 +661,7 @@ public:
     {
         if (!scrollBar)
             return;
-        if (auto it = scrollBarTimers.find(scrollBar);
-            it != scrollBarTimers.end() && it->data()) {
+        if (auto it = scrollBarTimers.find(scrollBar); it != scrollBarTimers.end() && it->data()) {
             it->data()->stop();
         }
     }
@@ -711,8 +670,7 @@ public:
     {
         if (!scrollBar)
             return;
-        if (auto it = scrollBarTimers.find(scrollBar);
-            it != scrollBarTimers.end()) {
+        if (auto it = scrollBarTimers.find(scrollBar); it != scrollBarTimers.end()) {
             QTimer *timer = it->data();
             if (timer)
                 timer->stop();
@@ -739,9 +697,7 @@ public:
         });
         sliderToolTipTimers.insert(slider, QPointer<QTimer>(timer));
         QObject::connect(slider, &QObject::destroyed, q,
-                         [this, slider] {
-            unregisterSlider(slider);
-        });
+                         [this, slider] { unregisterSlider(slider); });
         return timer;
     }
 
@@ -767,8 +723,7 @@ public:
     {
         if (!slider)
             return;
-        if (auto it = sliderToolTipTimers.find(slider);
-            it != sliderToolTipTimers.end()) {
+        if (auto it = sliderToolTipTimers.find(slider); it != sliderToolTipTimers.end()) {
             QTimer *timer = it->data();
             if (timer)
                 timer->stop();
@@ -779,25 +734,22 @@ public:
 
     void animate(QWidget *widget, const char *property, qreal target, int duration)
     {
-        animationDriver.animate(widget, property, target, duration,
-                                animationsAllowed(), fluentCurve());
+        animationDriver.animate(widget, property, target, duration, animationsAllowed(),
+                                fluentCurve());
     }
 
-    void stopAnimations(QWidget *widget)
-    {
-        animationDriver.stop(widget);
-    }
+    void stopAnimations(QWidget *widget) { animationDriver.stop(widget); }
 
     void beginButtonPress(QWidget *widget)
     {
         if (!widget)
             return;
-        const qulonglong generation = framePropertyRegistry()
-            .value(widget, buttonPressGenerationProperty).toULongLong() + 1;
+        const qulonglong generation =
+                framePropertyRegistry().value(widget, buttonPressGenerationProperty).toULongLong()
+                + 1;
         framePropertyRegistry().set(widget, buttonPressGenerationProperty,
                                     QVariant::fromValue(generation));
-        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
-                                    false);
+        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty, false);
         // A synchronous pressed frame is intentional. It makes a very fast
         // click observable and also cancels a release animation already in
         // flight before the next press starts.
@@ -808,31 +760,28 @@ public:
     {
         if (!widget)
             return;
-        const qulonglong generation = framePropertyRegistry()
-            .value(widget, buttonPressGenerationProperty).toULongLong() + 1;
+        const qulonglong generation =
+                framePropertyRegistry().value(widget, buttonPressGenerationProperty).toULongLong()
+                + 1;
         framePropertyRegistry().set(widget, buttonPressGenerationProperty,
                                     QVariant::fromValue(generation));
-        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
-                                    true);
+        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty, true);
         const QPointer<QWidget> guardedWidget(widget);
         QTimer::singleShot(16, q, [this, guardedWidget, generation] {
             if (!guardedWidget
                 || framePropertyRegistry()
-                           .value(guardedWidget, buttonPressGenerationProperty)
-                           .toULongLong() != generation
+                                .value(guardedWidget, buttonPressGenerationProperty)
+                                .toULongLong()
+                        != generation
                 || !framePropertyRegistry()
-                           .value(guardedWidget,
-                                  buttonPressReleasePendingProperty)
-                           .toBool()) {
+                            .value(guardedWidget, buttonPressReleasePendingProperty)
+                            .toBool()) {
                 return;
             }
-            framePropertyRegistry().set(guardedWidget,
-                                        buttonPressReleasePendingProperty,
-                                        false);
+            framePropertyRegistry().set(guardedWidget, buttonPressReleasePendingProperty, false);
             animate(guardedWidget, pressProperty, 0.0,
-                    qobject_cast<QRadioButton *>(guardedWidget.data())
-                        ? Private::NormalDuration
-                        : Private::FasterDuration);
+                    qobject_cast<QRadioButton *>(guardedWidget.data()) ? Private::NormalDuration
+                                                                       : Private::FasterDuration);
         });
     }
 
@@ -840,16 +789,15 @@ public:
     {
         if (!widget)
             return;
-        const qulonglong generation = framePropertyRegistry()
-            .value(widget, buttonPressGenerationProperty).toULongLong() + 1;
+        const qulonglong generation =
+                framePropertyRegistry().value(widget, buttonPressGenerationProperty).toULongLong()
+                + 1;
         framePropertyRegistry().set(widget, buttonPressGenerationProperty,
                                     QVariant::fromValue(generation));
-        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty,
-                                    false);
+        framePropertyRegistry().set(widget, buttonPressReleasePendingProperty, false);
         animate(widget, pressProperty, 0.0,
-                qobject_cast<QRadioButton *>(widget)
-                    ? Private::NormalDuration
-                    : Private::FasterDuration);
+                qobject_cast<QRadioButton *>(widget) ? Private::NormalDuration
+                                                     : Private::FasterDuration);
     }
 
     void clearPointerInteraction(QWidget *widget)
@@ -877,9 +825,8 @@ public:
         // AnimatedChevronDownSmallVisualSource: PressedToNormal moves from
         // y=31.5 to y=21 then y=24 on a 48 px canvas. At the 12 px ComboBox
         // glyph this is +1.875 px, -0.75 px, then rest over about 300 ms.
-        animationDriver.animate(widget, comboChevronProperty, 0.0, 300,
-                                true, fluentCurve(),
-                                {{0.28, QVariant(-0.4)}}, start);
+        animationDriver.animate(widget, comboChevronProperty, 0.0, 300, true, fluentCurve(),
+                                { { 0.28, QVariant(-0.4) } }, start);
     }
 
     void unregisterComboPopup(QWidget *popup)
@@ -929,12 +876,14 @@ public:
         }
         comboPopupAssociations.insert(popup, QPointer<QComboBox>(combo));
         comboPopupByCombo.insert(combo, popup);
-        comboPopupPopupConnections.insert(popup,
-            QObject::connect(popup, &QObject::destroyed, q,
-                             [this, popup] { unregisterComboPopup(popup); }));
-        comboPopupComboConnections.insert(combo,
-            QObject::connect(combo, &QObject::destroyed, q,
-                             [this, combo] { unregisterComboPopup(combo); }));
+        comboPopupPopupConnections.insert(
+                popup, QObject::connect(popup, &QObject::destroyed, q, [this, popup] {
+                    unregisterComboPopup(popup);
+                }));
+        comboPopupComboConnections.insert(
+                combo, QObject::connect(combo, &QObject::destroyed, q, [this, combo] {
+                    unregisterComboPopup(combo);
+                }));
     }
 
     void prepareComboPopupFirstFrame(QComboBox *combo)
@@ -984,8 +933,7 @@ public:
         tableEditorTracker.untrackTable(table, clearProperties);
     }
 
-    bool tableEditorOverlaps(const QTableView *table,
-                             const QModelIndex &index,
+    bool tableEditorOverlaps(const QTableView *table, const QModelIndex &index,
                              const QRect &itemRect)
     {
         return tableEditorTracker.overlaps(table, index, itemRect);
@@ -994,7 +942,7 @@ public:
     bool dark() const
     {
         return mode == ThemeMode::Dark
-            || (mode == ThemeMode::System && Private::systemUsesDarkTheme());
+                || (mode == ThemeMode::System && Private::systemUsesDarkTheme());
     }
 
     Style *q = nullptr;
@@ -1030,34 +978,24 @@ public:
     std::unique_ptr<Private::StyleInteractionController> interactionController;
 };
 
-Style::Style(ThemeMode mode)
-    : Style(mode, WinUI3::DensityMode::Standard)
-{
-}
+Style::Style(ThemeMode mode) : Style(mode, WinUI3::DensityMode::Standard) { }
 
-Style::Style(WinUI3::DensityMode density)
-    : Style(ThemeMode::System, density)
-{
-}
+Style::Style(WinUI3::DensityMode density) : Style(ThemeMode::System, density) { }
 
 Style::Style(ThemeMode mode, WinUI3::DensityMode density)
-    : QProxyStyle(new QCommonStyle),
-      d(std::make_unique<StylePrivate>(this, mode, density))
+    : QProxyStyle(new QCommonStyle), d(std::make_unique<StylePrivate>(this, mode, density))
 {
     setObjectName(QStringLiteral("winui3"));
     d->progressTimer = new QTimer(this);
     d->progressTimer->setObjectName(QStringLiteral("_winui_progress_timer"));
     d->progressTimer->setInterval(16);
-    connect(d->progressTimer, &QTimer::timeout, this,
-            [this] { d->advanceProgressBars(); });
+    connect(d->progressTimer, &QTimer::timeout, this, [this] { d->advanceProgressBars(); });
     d->systemAppearanceWatchdog = new QTimer(this);
-    d->systemAppearanceWatchdog->setObjectName(
-        QStringLiteral("_winui_system_appearance_watchdog"));
+    d->systemAppearanceWatchdog->setObjectName(QStringLiteral("_winui_system_appearance_watchdog"));
     d->systemAppearanceWatchdog->setInterval(15000);
-    connect(d->systemAppearanceWatchdog, &QTimer::timeout,
-            this, &Style::checkSystemAppearance);
-    d->systemAppearanceWatcher = new SystemAppearanceWatcher(
-        this, [this] { checkSystemAppearance(); });
+    connect(d->systemAppearanceWatchdog, &QTimer::timeout, this, &Style::checkSystemAppearance);
+    d->systemAppearanceWatcher =
+            new SystemAppearanceWatcher(this, [this] { checkSystemAppearance(); });
     d->systemAppearanceWatcher->setActive(false);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QStyleHints *hints = QGuiApplication::styleHints()) {
@@ -1081,8 +1019,7 @@ WinUI3::DensityMode Style::densityMode() const
 
 WinUI3::DensityMode Style::effectiveDensityMode(const QWidget *widget) const
 {
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         WinUI3::DensityMode local = WinUI3::DensityMode::Standard;
         if (densityModeFromProperty(candidate->property(DensityProperty), &local))
             return local;
@@ -1171,32 +1108,27 @@ void Style::refreshApplicationAppearance()
             continue;
         } else {
             QPalette palette = applicationPalette;
-            if (qobject_cast<QStatusBar *>(widget)
-                || qobject_cast<QWizard *>(widget)) {
-                palette.setColor(QPalette::Window,
-                                 Private::popupSurfaceColor(applicationPalette));
+            if (qobject_cast<QStatusBar *>(widget) || qobject_cast<QWizard *>(widget)) {
+                palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             } else if (qobject_cast<QWizardPage *>(widget)) {
-                palette.setColor(QPalette::Window,
-                                 applicationPalette.color(QPalette::Window));
-            } else if (widget->property(SurfaceProperty).toString().compare(
-                    QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+                palette.setColor(QPalette::Window, applicationPalette.color(QPalette::Window));
+            } else if (widget->property(SurfaceProperty)
+                               .toString()
+                               .compare(QLatin1String("layer"), Qt::CaseInsensitive)
+                       == 0) {
                 const QColor layer = Private::popupSurfaceColor(applicationPalette);
                 palette.setColor(QPalette::Window, layer);
                 if (qobject_cast<QAbstractItemView *>(widget))
                     palette.setColor(QPalette::Base, layer);
             } else if (qobject_cast<QTableView *>(widget)) {
-                palette.setColor(QPalette::Highlight,
-                                 applicationTokens.subtleHover);
-                palette.setColor(QPalette::HighlightedText,
-                                 applicationTokens.textPrimary);
+                palette.setColor(QPalette::Highlight, applicationTokens.subtleHover);
+                palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
             } else if (auto *editor = qobject_cast<QLineEdit *>(widget);
                        editor && itemView(editor)) {
                 palette.setColor(QPalette::Highlight, applicationAccent);
-                palette.setColor(QPalette::HighlightedText,
-                                 applicationTokens.textOnAccentPrimary);
+                palette.setColor(QPalette::HighlightedText, applicationTokens.textOnAccentPrimary);
             } else if (qobject_cast<QDialog *>(widget)) {
-                palette.setColor(QPalette::Window,
-                                 Private::popupSurfaceColor(applicationPalette));
+                palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             }
             widget->setPalette(palette);
             if (auto *dialog = qobject_cast<QDialog *>(widget))
@@ -1278,8 +1210,7 @@ void Style::setControlRole(QWidget *widget, ControlRole role)
     if (!widget)
         return;
     if (!widget->property(originalRoleWasValidProperty).isValid()) {
-        widget->setProperty(originalRoleWasValidProperty,
-                            widget->property(roleProperty).isValid());
+        widget->setProperty(originalRoleWasValidProperty, widget->property(roleProperty).isValid());
         widget->setProperty(originalRoleProperty, widget->property(roleProperty));
     }
     widget->setProperty(roleProperty, static_cast<int>(role));
@@ -1298,14 +1229,13 @@ WinUI3::DensityMode Style::densityMode(const QWidget *widget)
 {
     if (!widget)
         return qApp && qobject_cast<const Style *>(qApp->style())
-            ? qobject_cast<const Style *>(qApp->style())->densityMode()
-            : WinUI3::DensityMode::Standard;
+                ? qobject_cast<const Style *>(qApp->style())->densityMode()
+                : WinUI3::DensityMode::Standard;
 
     if (const auto *style = qobject_cast<const Style *>(widget->style()))
         return style->effectiveDensityMode(widget);
 
-    for (const QWidget *candidate = widget; candidate;
-         candidate = candidate->parentWidget()) {
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
         WinUI3::DensityMode local = WinUI3::DensityMode::Standard;
         if (densityModeFromProperty(candidate->property(DensityProperty), &local))
             return local;
@@ -1374,8 +1304,7 @@ bool Style::isToggleSwitch(const QCheckBox *checkBox)
     return checkBox && checkBox->property(ToggleSwitchProperty).toBool();
 }
 
-void Style::setToggleSwitchText(QCheckBox *checkBox, const QString &onText,
-                                const QString &offText)
+void Style::setToggleSwitchText(QCheckBox *checkBox, const QString &onText, const QString &offText)
 {
     if (!checkBox)
         return;
@@ -1397,7 +1326,7 @@ void Style::setSettingsCard(QFrame *frame, bool enabled)
         frame->setProperty(SettingsCardProperty, false);
         if (frame->property(originalFrameShapeProperty).isValid()) {
             frame->setFrameShape(static_cast<QFrame::Shape>(
-                frame->property(originalFrameShapeProperty).toInt()));
+                    frame->property(originalFrameShapeProperty).toInt()));
             frame->setProperty(originalFrameShapeProperty, {});
         }
     }
@@ -1448,8 +1377,8 @@ QPalette Style::standardPalette() const
     return Private::standardPalette(darkTheme, accent, d->accent.isValid());
 }
 
-void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
-                          QPainter *painter, const QWidget *widget) const
+void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter,
+                          const QWidget *widget) const
 {
     if (Private::drawMenuPrimitive(this, element, option, painter, widget))
         return;
@@ -1465,8 +1394,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     if (element == PE_FrameFocusRect) {
         if (!keyboardFocusVisible(widget))
             return;
-        const qreal focus = progress(widget, focusProperty,
-                                     option->state & State_HasFocus ? 1.0 : 0.0);
+        const qreal focus =
+                progress(widget, focusProperty, option->state & State_HasFocus ? 1.0 : 0.0);
         if (focus <= 0.01)
             return;
         painter->save();
@@ -1477,11 +1406,11 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         inner.setAlphaF(inner.alphaF() * focus);
         painter->setBrush(Qt::NoBrush);
         painter->setPen(QPen(outer, 2));
-        painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1),
-                                 ControlRadius + 2, ControlRadius + 2);
+        painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1), ControlRadius + 2,
+                                 ControlRadius + 2);
         painter->setPen(QPen(inner, 1));
-        painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
-                                 ControlRadius, ControlRadius);
+        painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3), ControlRadius,
+                                 ControlRadius);
         painter->restore();
         return;
     }
@@ -1489,14 +1418,12 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     if (element == PE_PanelTipLabel) {
         const QColor fill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
         const QColor stroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
-        roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1),
-                    fill, stroke, 4);
+        roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1), fill, stroke, 4);
         return;
     }
 
     if (element == PE_PanelStatusBar) {
-        painter->fillRect(option->rect,
-                          option->palette.color(QPalette::Window));
+        painter->fillRect(option->rect, option->palette.color(QPalette::Window));
         painter->setPen(QPen(t.stroke, 1));
         painter->drawLine(option->rect.topLeft(), option->rect.topRight());
         return;
@@ -1505,11 +1432,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     if (element == PE_IndicatorArrowDown || element == PE_IndicatorArrowLeft
         || element == PE_IndicatorArrowRight || element == PE_IndicatorArrowUp) {
         WinUI3::icon(arrowIcon(element), enabled ? t.textPrimary : t.textDisabled)
-            .paint(painter, option->rect, Qt::AlignCenter,
-                   enabled ? QIcon::Normal : QIcon::Disabled);
+                .paint(painter, option->rect, Qt::AlignCenter,
+                       enabled ? QIcon::Normal : QIcon::Disabled);
         return;
     }
-
 
     if (element == PE_Frame && widget && widget->window()
         && widget->window()->windowType() == Qt::Popup) {
@@ -1518,14 +1444,13 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         const QColor popupSurface = option->palette.color(QPalette::Window);
         controlSurface(painter, option->rect, popupSurface,
                        t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
-                       t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
-                       OverlayRadius);
+                       t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15), OverlayRadius);
         return;
     }
 
     if (element == PE_Frame && qobject_cast<const QAbstractItemView *>(widget)) {
-        roundedRect(painter, QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5),
-                    Qt::transparent, t.stroke, ControlRadius);
+        roundedRect(painter, QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5), Qt::transparent,
+                    t.stroke, ControlRadius);
         return;
     }
 
@@ -1534,15 +1459,12 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
             const bool focused = editor->hasFocus();
             const bool editorEnabled = option->state & State_Enabled;
             const QColor fill = !editorEnabled ? t.controlDisabled
-                : focused ? (t.dark ? QColor(30, 30, 30, 179)
-                                  : QColor(255, 255, 255))
-                          : (option->state & State_MouseOver ? t.controlHover
-                                                            : t.control);
-            controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary,
-                           ControlRadius);
+                    : focused ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
+                              : (option->state & State_MouseOver ? t.controlHover : t.control);
+            controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
             if (focused)
-                drawEditorFocusUnderline(painter, QRectF(option->rect),
-                                         t.accentFill, ControlRadius);
+                drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill,
+                                         ControlRadius);
             return;
         }
     }
@@ -1552,12 +1474,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
         painter->setPen(QPen(t.stroke, 1));
         if (option->state & State_Horizontal) {
             const int x = option->rect.center().x();
-            painter->drawLine(x, option->rect.top() + 8,
-                              x, option->rect.bottom() - 8);
+            painter->drawLine(x, option->rect.top() + 8, x, option->rect.bottom() - 8);
         } else {
             const int y = option->rect.center().y();
-            painter->drawLine(option->rect.left() + 8, y,
-                              option->rect.right() - 8, y);
+            painter->drawLine(option->rect.left() + 8, y, option->rect.right() - 8, y);
         }
         painter->restore();
         return;
@@ -1568,8 +1488,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option,
     QProxyStyle::drawPrimitive(element, option, painter, widget);
 }
 
-void Style::drawControl(ControlElement element, const QStyleOption *option,
-                        QPainter *painter, const QWidget *widget) const
+void Style::drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
+                        const QWidget *widget) const
 {
     if (Private::drawMenuControl(this, element, option, painter, widget))
         return;
@@ -1588,35 +1508,30 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         }
     }
 
-    if (Private::drawViewControl(this, element, option, painter, widget,
-                                 [this](const QTableView *table,
-                                        const QModelIndex &index,
-                                        const QRect &rect) {
-        return d->tableEditorOverlaps(table, index, rect);
-    })) {
+    if (Private::drawViewControl(
+                this, element, option, painter, widget,
+                [this](const QTableView *table, const QModelIndex &index, const QRect &rect) {
+                    return d->tableEditorOverlaps(table, index, rect);
+                })) {
         return;
     }
 
-    if (element == CE_ShapedFrame
-        && widget && widget->property(SettingsCardProperty).toBool()) {
-        const qreal hover = progress(widget, hoverProperty,
-                                     option->state & State_MouseOver ? 1.0 : 0.0);
-        const qreal press = progress(widget, pressProperty,
-                                     option->state & State_Sunken ? 1.0 : 0.0);
+    if (element == CE_ShapedFrame && widget && widget->property(SettingsCardProperty).toBool()) {
+        const qreal hover =
+                progress(widget, hoverProperty, option->state & State_MouseOver ? 1.0 : 0.0);
+        const qreal press =
+                progress(widget, pressProperty, option->state & State_Sunken ? 1.0 : 0.0);
         QColor fill = mix(t.control, t.controlHover, hover * (1.0 - press));
         fill = mix(fill, t.controlPressed, press);
-        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary,
-                       OverlayRadius);
+        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
         if (keyboardFocusVisible(widget)) {
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setBrush(Qt::NoBrush);
             painter->setPen(QPen(t.focusOuter, 2.0));
-            painter->drawRoundedRect(QRectF(option->rect).adjusted(2, 2, -3, -3),
-                                     6, 6);
+            painter->drawRoundedRect(QRectF(option->rect).adjusted(2, 2, -3, -3), 6, 6);
             painter->setPen(QPen(t.focusInner, 1.0));
-            painter->drawRoundedRect(QRectF(option->rect).adjusted(4, 4, -5, -5),
-                                     5, 5);
+            painter->drawRoundedRect(QRectF(option->rect).adjusted(4, 4, -5, -5), 5, 5);
             painter->restore();
         }
         return;
@@ -1626,19 +1541,16 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
             if (combo->editable)
                 return;
-            QRect content = subControlRect(CC_ComboBox, combo,
-                                            SC_ComboBoxEditField, widget);
+            QRect content = subControlRect(CC_ComboBox, combo, SC_ComboBoxEditField, widget);
             if (!combo->currentIcon.isNull()) {
                 const QSize iconSize = combo->iconSize.isValid() ? combo->iconSize : QSize(16, 16);
                 const QRect logicalIcon(content.left(),
                                         content.center().y() - iconSize.height() / 2,
                                         iconSize.width(), iconSize.height());
-                const QRect iconRect = visualRect(option->direction, content,
-                                                  logicalIcon);
-                paintThemedIcon(painter, combo->currentIcon, iconRect,
-                    Qt::AlignCenter,
-                    option->state & State_Enabled ? t.textPrimary : t.textDisabled,
-                    option->state & State_Enabled ? QIcon::Normal : QIcon::Disabled);
+                const QRect iconRect = visualRect(option->direction, content, logicalIcon);
+                paintThemedIcon(painter, combo->currentIcon, iconRect, Qt::AlignCenter,
+                                option->state & State_Enabled ? t.textPrimary : t.textDisabled,
+                                option->state & State_Enabled ? QIcon::Normal : QIcon::Disabled);
                 if (option->direction == Qt::RightToLeft)
                     content.setRight(iconRect.left() - 8);
                 else
@@ -1646,32 +1558,28 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             }
             painter->setPen(option->state & State_Enabled ? t.textPrimary : t.textDisabled);
             painter->drawText(content,
-                              visualAlignment(option->direction,
-                                              Qt::AlignLeft | Qt::AlignVCenter),
-                              option->fontMetrics.elidedText(combo->currentText,
-                                                              Qt::ElideRight, content.width()));
+                              visualAlignment(option->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                              option->fontMetrics.elidedText(combo->currentText, Qt::ElideRight,
+                                                             content.width()));
             return;
         }
     }
 
-
     if (element == CE_ProgressBarGroove) {
         const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
         const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
-        const bool horizontal = !progressBar
-            || progressBar->orientation() == Qt::Horizontal;
-        const bool textAboveLine = horizontal && bar && bar->textVisible
-            && !bar->text.isEmpty();
+        const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
+        const bool textAboveLine = horizontal && bar && bar->textVisible && !bar->text.isEmpty();
         const QRect groove = horizontal
-            ? (textAboveLine
-               // The label owns the bar's body; the track becomes a thin
-               // underline so the text never overlaps the fill.
-               ? QRect(option->rect.left(), option->rect.bottom() - 2,
-                       option->rect.width(), 3)
-               : QRect(option->rect.left(), option->rect.center().y() - 2,
-                       option->rect.width(), 4))
-            : QRect(option->rect.center().x() - 2, option->rect.top(),
-                    4, option->rect.height());
+                ? (textAboveLine
+                           // The label owns the bar's body; the track becomes a thin
+                           // underline so the text never overlaps the fill.
+                           ? QRect(option->rect.left(), option->rect.bottom() - 2,
+                                   option->rect.width(), 3)
+                           : QRect(option->rect.left(), option->rect.center().y() - 2,
+                                   option->rect.width(), 4))
+                : QRect(option->rect.center().x() - 2, option->rect.top(), 4,
+                        option->rect.height());
         roundedRect(painter, groove, t.stroke, Qt::transparent, 2);
         return;
     }
@@ -1679,37 +1587,32 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
     if (element == CE_ProgressBarContents) {
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
             const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
-            const bool horizontal = !progressBar
-                || progressBar->orientation() == Qt::Horizontal;
-            const bool inverted = progressBar ? progressBar->invertedAppearance()
-                                               : bar->invertedAppearance;
-            const bool textAboveLine = horizontal && bar->textVisible
-                && !bar->text.isEmpty();
+            const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
+            const bool inverted =
+                    progressBar ? progressBar->invertedAppearance() : bar->invertedAppearance;
+            const bool textAboveLine = horizontal && bar->textVisible && !bar->text.isEmpty();
             const QRect track = horizontal
-                ? (textAboveLine
-                   ? QRect(option->rect.left(), option->rect.bottom() - 2,
-                           option->rect.width(), 3)
-                   : QRect(option->rect.left(), option->rect.center().y() - 2,
-                           option->rect.width(), 4))
-                : QRect(option->rect.center().x() - 2, option->rect.top(),
-                        4, option->rect.height());
-            const QColor indicatorColor = bar->state & State_Enabled
-                ? t.accentFill : t.accentFillDisabled;
+                    ? (textAboveLine ? QRect(option->rect.left(), option->rect.bottom() - 2,
+                                             option->rect.width(), 3)
+                                     : QRect(option->rect.left(), option->rect.center().y() - 2,
+                                             option->rect.width(), 4))
+                    : QRect(option->rect.center().x() - 2, option->rect.top(), 4,
+                            option->rect.height());
+            const QColor indicatorColor =
+                    bar->state & State_Enabled ? t.accentFill : t.accentFillDisabled;
             if (bar->minimum == 0 && bar->maximum == 0) {
                 // ProgressRing-style indeterminate progress uses two
                 // independently moving indicators.  The phase is advanced
                 // by a widget-owned timer, so every repaint is intentional
                 // and capture mode can freeze it at a stable value.
                 const qreal phase = animationsAllowed()
-                    ? qBound<qreal>(0.0, progress(widget, progressPhaseProperty, 0.0), 1.0)
-                    : 0.35;
+                        ? qBound<qreal>(0.0, progress(widget, progressPhaseProperty, 0.0), 1.0)
+                        : 0.35;
                 const int axis = horizontal ? track.width() : track.height();
                 const int firstLength = qMax(12, axis / 4);
                 const int secondLength = qMax(10, axis / 6);
-                const bool reverse = horizontal
-                    ? (inverted
-                       != (bar->direction == Qt::RightToLeft))
-                    : !bar->invertedAppearance;
+                const bool reverse = horizontal ? (inverted != (bar->direction == Qt::RightToLeft))
+                                                : !bar->invertedAppearance;
                 const auto drawIndicator = [&](int length, qreal offset) {
                     const qreal travel = axis + length;
                     const int distance = qRound(travel * std::fmod(phase + offset, 1.0));
@@ -1725,8 +1628,7 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                     }
                     indicator = indicator.intersected(track);
                     if (!indicator.isEmpty())
-                        roundedRect(painter, indicator, indicatorColor,
-                                    Qt::transparent, 2);
+                        roundedRect(painter, indicator, indicatorColor, Qt::transparent, 2);
                 };
                 drawIndicator(firstLength, 0.0);
                 drawIndicator(secondLength, 0.5);
@@ -1734,14 +1636,11 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             }
             const qint64 range = qint64(bar->maximum) - qint64(bar->minimum);
             const qint64 value = qint64(bar->progress) - qint64(bar->minimum);
-            const qreal ratio = range > 0
-                ? qBound<qreal>(0, qreal(value) / qreal(range), 1)
-                : 0;
+            const qreal ratio = range > 0 ? qBound<qreal>(0, qreal(value) / qreal(range), 1) : 0;
             QRect fill = track;
             if (horizontal) {
                 const int length = qRound(track.width() * ratio);
-                if (inverted
-                    != (bar->direction == Qt::RightToLeft))
+                if (inverted != (bar->direction == Qt::RightToLeft))
                     fill.setLeft(track.right() - length + 1);
                 else
                     fill.setWidth(length);
@@ -1771,23 +1670,21 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
                 painter->save();
                 const QPalette &pal = option->palette;
                 const QPalette::ColorGroup group = !(bar->state & State_Enabled)
-                    ? QPalette::Disabled
-                    : (bar->state & State_Active
-                       ? QPalette::Active : QPalette::Inactive);
+                        ? QPalette::Disabled
+                        : (bar->state & State_Active ? QPalette::Active : QPalette::Inactive);
                 const QColor fg = pal.color(group, QPalette::WindowText);
                 painter->setPen(QPen(fg));
                 const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
-                const bool horizontal = !progressBar
-                    || progressBar->orientation() == Qt::Horizontal;
+                const bool horizontal =
+                        !progressBar || progressBar->orientation() == Qt::Horizontal;
                 if (horizontal) {
                     // The thin track sits at the bottom of the rect; the label
                     // owns the area above it.  Elide so long transfer strings
                     // (e.g. "2,513,696 (22.0%)") never bleed past the bar.
                     const QRect labelRect = bar->rect.adjusted(0, 0, 0, -6);
                     painter->drawText(labelRect, Qt::AlignCenter,
-                                      option->fontMetrics.elidedText(
-                                          bar->text, Qt::ElideRight,
-                                          labelRect.width()));
+                                      option->fontMetrics.elidedText(bar->text, Qt::ElideRight,
+                                                                     labelRect.width()));
                 } else {
                     painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
                 }
@@ -1799,18 +1696,15 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
 
     if (element == CE_ToolBar) {
         if (widget && widget->property(SurfaceProperty).isValid())
-            painter->fillRect(option->rect,
-                              widget->palette().color(QPalette::Window));
+            painter->fillRect(option->rect, widget->palette().color(QPalette::Window));
         return;
     }
 
     if (element == CE_SizeGrip) {
         const auto *grip = qstyleoption_cast<const QStyleOptionSizeGrip *>(option);
         const Qt::Corner corner = grip ? grip->corner : Qt::BottomRightCorner;
-        const bool right = corner == Qt::TopRightCorner
-            || corner == Qt::BottomRightCorner;
-        const bool bottom = corner == Qt::BottomLeftCorner
-            || corner == Qt::BottomRightCorner;
+        const bool right = corner == Qt::TopRightCorner || corner == Qt::BottomRightCorner;
+        const bool bottom = corner == Qt::BottomLeftCorner || corner == Qt::BottomRightCorner;
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setPen(Qt::NoPen);
@@ -1819,18 +1713,14 @@ void Style::drawControl(ControlElement element, const QStyleOption *option,
             for (int column = 0; column <= row; ++column) {
                 const int dx = 3 + column * 4;
                 const int dy = 3 + row * 4;
-                const qreal x = right ? option->rect.right() - dx
-                                      : option->rect.left() + dx;
-                const qreal y = bottom ? option->rect.bottom() - dy
-                                       : option->rect.top() + dy;
+                const qreal x = right ? option->rect.right() - dx : option->rect.left() + dx;
+                const qreal y = bottom ? option->rect.bottom() - dy : option->rect.top() + dy;
                 painter->drawEllipse(QPointF(x, y), 1.0, 1.0);
             }
         }
         painter->restore();
         return;
     }
-
-
 
     Q_ASSERT_X(!coveredControl(element), "WinUI3::Style::drawControl",
                "a covered control reached QCommonStyle");
@@ -1848,9 +1738,7 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
     QProxyStyle::drawComplexControl(control, option, painter, widget);
 }
 
-
-int Style::pixelMetric(PixelMetric metric, const QStyleOption *option,
-                       const QWidget *widget) const
+int Style::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const
 {
     return Private::pixelMetric(this, metric, option, widget);
 }
@@ -1866,30 +1754,27 @@ QRect Style::subElementRect(SubElement element, const QStyleOption *option,
     return Private::subElementRect(this, element, option, widget);
 }
 
-QRect Style::subControlRect(ComplexControl control,
-                            const QStyleOptionComplex *option,
+QRect Style::subControlRect(ComplexControl control, const QStyleOptionComplex *option,
                             SubControl subControl, const QWidget *widget) const
 {
     return Private::subControlRect(this, control, option, subControl, widget);
 }
-QStyle::SubControl Style::hitTestComplexControl(
-    ComplexControl control, const QStyleOptionComplex *option,
-    const QPoint &position, const QWidget *widget) const
+QStyle::SubControl Style::hitTestComplexControl(ComplexControl control,
+                                                const QStyleOptionComplex *option,
+                                                const QPoint &position, const QWidget *widget) const
 {
-    if (const auto result = Private::complexControlHitTest(
-            control, option, position, widget))
+    if (const auto result = Private::complexControlHitTest(control, option, position, widget))
         return *result;
-    return QProxyStyle::hitTestComplexControl(
-        control, option, position, widget);
+    return QProxyStyle::hitTestComplexControl(control, option, position, widget);
 }
-int Style::styleHint(StyleHint hint, const QStyleOption *option,
-                     const QWidget *widget, QStyleHintReturn *returnData) const
+int Style::styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget,
+                     QStyleHintReturn *returnData) const
 {
     return Private::styleHint(this, hint, option, widget, returnData);
 }
 
 QIcon Style::standardIcon(StandardPixmap standard, const QStyleOption *option,
-                           const QWidget *widget) const
+                          const QWidget *widget) const
 {
     return Private::standardIcon(this, standard, option, widget);
 }
@@ -1906,18 +1791,16 @@ void Style::polish(QApplication *application)
     QByteArray overrideFamily = qgetenv("WINUI3STYLE_APP_FONT");
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt 6 renders the Windows 11 variable font natively.
-    QString preferred = overrideFamily.isEmpty()
-        ? QStringLiteral("Segoe UI Variable Text")
-        : QString::fromLocal8Bit(overrideFamily);
+    QString preferred = overrideFamily.isEmpty() ? QStringLiteral("Segoe UI Variable Text")
+                                                 : QString::fromLocal8Bit(overrideFamily);
     if (!QFontDatabase::families().contains(preferred))
         preferred = QStringLiteral("Segoe UI");
 #else
     // Qt 5.x's DirectWrite path can rasterize the variable-font outlines
     // with touching/overlapping glyphs ("o"+"a" looking glued).  Use the
     // static family unless the app opts in via WINUI3STYLE_APP_FONT.
-    QString preferred = overrideFamily.isEmpty()
-        ? QStringLiteral("Segoe UI")
-        : QString::fromLocal8Bit(overrideFamily);
+    QString preferred = overrideFamily.isEmpty() ? QStringLiteral("Segoe UI")
+                                                 : QString::fromLocal8Bit(overrideFamily);
     // QFontDatabase::families() is static from Qt 6 onward; instantiate on
     // Qt 5.
     const QFontDatabase fontDatabase;
@@ -1940,18 +1823,14 @@ void Style::polish(QWidget *widget)
         return;
     rememberPalette(widget);
     remember(widget, originalAutoFillProperty, widget->autoFillBackground());
-    remember(widget, originalHoverAttributeProperty,
-             widget->testAttribute(Qt::WA_Hover));
+    remember(widget, originalHoverAttributeProperty, widget->testAttribute(Qt::WA_Hover));
     remember(widget, originalRoleProperty, widget->property(roleProperty));
     widget->setAttribute(Qt::WA_Hover, true);
     widget->installEventFilter(this);
     const QVariant surface = widget->property(SurfaceProperty);
     const QString surfaceName = surface.toString();
-    if (surface.toBool()
-        || surfaceName.compare(QLatin1String("content"),
-                               Qt::CaseInsensitive) == 0
-        || surfaceName.compare(QLatin1String("layer"),
-                               Qt::CaseInsensitive) == 0) {
+    if (surface.toBool() || surfaceName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+        || surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
         // A native backdrop makes the top-level Window role transparent.
         // Standard stacked/page widgets otherwise retain stale backing-store
         // pixels while scrolling or switching pages. An explicit content
@@ -1961,8 +1840,7 @@ void Style::polish(QWidget *widget)
         remember(widget, originalOpaquePaintProperty,
                  widget->testAttribute(Qt::WA_OpaquePaintEvent));
         QPalette palette = standardPalette();
-        if (surfaceName.compare(QLatin1String("layer"),
-                                Qt::CaseInsensitive) == 0) {
+        if (surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
             const QColor layer = Private::popupSurfaceColor(palette);
             palette.setColor(QPalette::Window, layer);
             if (qobject_cast<QAbstractItemView *>(widget))
@@ -1976,26 +1854,21 @@ void Style::polish(QWidget *widget)
     // Filling its own inset geometry creates a rectangular footer inside a
     // ContentDialog. It must inherit the dialog surface instead.
     const bool automaticCommandSurface =
-        qobject_cast<QStatusBar *>(widget)
-        || qobject_cast<QWizard *>(widget);
+            qobject_cast<QStatusBar *>(widget) || qobject_cast<QWizard *>(widget);
     const bool automaticDialogContent = qobject_cast<QWizardPage *>(widget);
-    if (!surface.isValid()
-        && (automaticCommandSurface || automaticDialogContent)) {
+    if (!surface.isValid() && (automaticCommandSurface || automaticDialogContent)) {
         widget->setProperty(ownedPaletteProperty, true);
         d->registerPaletteOwner(widget);
         QPalette palette = standardPalette();
         if (automaticCommandSurface)
-            palette.setColor(QPalette::Window,
-                             Private::popupSurfaceColor(palette));
+            palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
         widget->setPalette(palette);
         widget->setAutoFillBackground(true);
     }
     if (auto *wizard = qobject_cast<QWizard *>(widget)) {
-        for (QWizard::WizardButton button : {QWizard::NextButton,
-                                             QWizard::FinishButton}) {
+        for (QWizard::WizardButton button : { QWizard::NextButton, QWizard::FinishButton }) {
             if (QAbstractButton *primary = wizard->button(button))
-                primary->setProperty(ControlRoleProperty,
-                                     QStringLiteral("accent"));
+                primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));
         }
     }
     if (widget->isWindow()) {
@@ -2009,11 +1882,9 @@ void Style::polish(QWidget *widget)
         }
     }
     framePropertyRegistry().set(widget, hoverProperty,
-                                widget->isEnabled() && widget->underMouse()
-                                    ? 1.0 : 0.0);
+                                widget->isEnabled() && widget->underMouse() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, pressProperty, 0.0);
-    framePropertyRegistry().set(widget, focusProperty,
-                                widget->hasFocus() ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, focusProperty, widget->hasFocus() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, focusVisibleProperty,
                                 widget->hasFocus() && d->keyboardInput);
     if (widget->property(DensityProperty).isValid())
@@ -2047,59 +1918,51 @@ void Style::polish(QWidget *widget)
         }
     }
     if (qobject_cast<QScrollBar *>(widget)) {
-        framePropertyRegistry().set(widget, scrollBarInsideProperty,
-                                    widget->underMouse());
+        framePropertyRegistry().set(widget, scrollBarInsideProperty, widget->underMouse());
         framePropertyRegistry().set(widget, scrollBarGenerationProperty, 0);
     }
     if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
         if (const auto previous = d->toggleConnections.take(widget))
             disconnect(previous);
         framePropertyRegistry().set(widget, checkProperty,
-                                    checkBox->checkState() == Qt::Unchecked
-                                        ? 0.0 : 1.0);
+                                    checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
         framePropertyRegistry().set(widget, togglePositionProperty,
                                     checkBox->isChecked() ? 1.0 : 0.0);
-        d->toggleConnections.insert(widget,
-            connect(checkBox, &QCheckBox::stateChanged, this,
-                    [this, checkBox](int state) {
-                const bool on = state != Qt::Unchecked;
-                // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
-                // removes the stroke immediately. Only the acceptance path
-                // is animated; an on-transition remains interruptible by
-                // starting from its current progress.
-                d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
-                           on ? (toggleSwitch(checkBox)
-                                     ? Private::FastDuration
-                                     : Private::CheckBoxDuration)
-                              : 0);
-                if (toggleSwitch(checkBox))
-                    d->animate(checkBox, togglePositionProperty,
-                               on ? 1.0 : 0.0,
-                               Private::FasterDuration);
-            }));
+        d->toggleConnections.insert(
+                widget,
+                connect(checkBox, &QCheckBox::stateChanged, this, [this, checkBox](int state) {
+                    const bool on = state != Qt::Unchecked;
+                    // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
+                    // removes the stroke immediately. Only the acceptance path
+                    // is animated; an on-transition remains interruptible by
+                    // starting from its current progress.
+                    d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
+                               on ? (toggleSwitch(checkBox) ? Private::FastDuration
+                                                            : Private::CheckBoxDuration)
+                                  : 0);
+                    if (toggleSwitch(checkBox))
+                        d->animate(checkBox, togglePositionProperty, on ? 1.0 : 0.0,
+                                   Private::FasterDuration);
+                }));
     } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
         if (const auto previous = d->radioConnections.take(radio))
             disconnect(previous);
-        framePropertyRegistry().set(widget, checkProperty,
-                                    radio->isChecked() ? 1.0 : 0.0);
-        d->radioConnections.insert(radio,
-            connect(radio, &QAbstractButton::toggled, this,
-                    [this, radio](bool checked) {
-                d->animate(radio, checkProperty, checked ? 1.0 : 0.0,
-                           Private::FastDuration);
-            }));
+        framePropertyRegistry().set(widget, checkProperty, radio->isChecked() ? 1.0 : 0.0);
+        d->radioConnections.insert(
+                radio, connect(radio, &QAbstractButton::toggled, this, [this, radio](bool checked) {
+                    d->animate(radio, checkProperty, checked ? 1.0 : 0.0, Private::FastDuration);
+                }));
     } else if (auto *groupBox = qobject_cast<QGroupBox *>(widget);
                groupBox && groupBox->isCheckable()) {
         if (const auto previous = d->toggleConnections.take(widget))
             disconnect(previous);
-        framePropertyRegistry().set(widget, checkProperty,
-                                    groupBox->isChecked() ? 1.0 : 0.0);
-        d->toggleConnections.insert(widget,
-            connect(groupBox, &QGroupBox::toggled, this,
-                    [this, groupBox](bool checked) {
-                d->animate(groupBox, checkProperty, checked ? 1.0 : 0.0,
-                           checked ? Private::CheckBoxDuration : 0);
-                    }));
+        framePropertyRegistry().set(widget, checkProperty, groupBox->isChecked() ? 1.0 : 0.0);
+        d->toggleConnections.insert(
+                widget,
+                connect(groupBox, &QGroupBox::toggled, this, [this, groupBox](bool checked) {
+                    d->animate(groupBox, checkProperty, checked ? 1.0 : 0.0,
+                               checked ? Private::CheckBoxDuration : 0);
+                }));
     }
 
     if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
@@ -2124,11 +1987,10 @@ void Style::polish(QWidget *widget)
             table->setPalette(palette);
         };
         applyTableSelectionPalette();
-        d->tableConnections.insert(table,
-            connect(this, &Style::themeChanged, table,
-                    [applyTableSelectionPalette](ThemeMode) {
-                applyTableSelectionPalette();
-            }));
+        d->tableConnections.insert(
+                table,
+                connect(this, &Style::themeChanged, table,
+                        [applyTableSelectionPalette](ThemeMode) { applyTableSelectionPalette(); }));
     } else if (auto *editor = qobject_cast<QLineEdit *>(widget);
                editor && qobject_cast<const QTableView *>(itemView(editor))) {
         widget->setProperty(ownedPaletteProperty, true);
@@ -2140,9 +2002,8 @@ void Style::polish(QWidget *widget)
         editor->setPalette(palette);
     }
 
-    if (auto *view = qobject_cast<QTableView *>(
-            const_cast<QAbstractItemView *>(itemView(widget))); view
-        && widget->parentWidget() == view->viewport()) {
+    if (auto *view = qobject_cast<QTableView *>(const_cast<QAbstractItemView *>(itemView(widget)));
+        view && widget->parentWidget() == view->viewport()) {
         // Editors are children of the viewport and are polished after the
         // delegate creates them. Track that lifecycle in the style so item
         // painting can suppress display text even when Qt omits
@@ -2155,7 +2016,7 @@ void Style::polish(QWidget *widget)
             || qobject_cast<QTabBar *>(toolButton->parentWidget())
             || (toolButton->parentWidget()
                 && toolButton->parentWidget()->objectName()
-                    == QStringLiteral("qt_calendar_navigationbar")))
+                        == QStringLiteral("qt_calendar_navigationbar")))
             setControlRole(toolButton, ControlRole::Subtle);
     }
 
@@ -2175,18 +2036,16 @@ void Style::polish(QWidget *widget)
     // QMenu computes its first popup geometry after polish but before Show.
     // Install the layout inset here; the opaque palette is refreshed on Show.
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
-        remember(menu, originalMarginsProperty,
-                 QVariant::fromValue(menu->contentsMargins()));
+        remember(menu, originalMarginsProperty, QVariant::fromValue(menu->contentsMargins()));
         menu->setContentsMargins(0, 2, 0, 2);
     }
 
-    if (auto *dialog = qobject_cast<QDialog *>(widget);
-        dialog && (qobject_cast<QMessageBox *>(dialog)
-                   || dialog->property(ContentDialogProperty).toBool())) {
+    if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
+        && (qobject_cast<QMessageBox *>(dialog)
+            || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
     }
-
 }
 
 void Style::polish(QPalette &palette)
@@ -2234,26 +2093,21 @@ void Style::unpolish(QWidget *widget)
             applyBackdrop(widget, Backdrop::None);
         restoreRememberedPalette(widget);
         if (widget->property(originalAutoFillProperty).isValid())
-            widget->setAutoFillBackground(
-                widget->property(originalAutoFillProperty).toBool());
+            widget->setAutoFillBackground(widget->property(originalAutoFillProperty).toBool());
         if (widget->property(originalHoverAttributeProperty).isValid())
             widget->setAttribute(Qt::WA_Hover,
-                widget->property(originalHoverAttributeProperty).toBool());
+                                 widget->property(originalHoverAttributeProperty).toBool());
         if (widget->property(originalOpaquePaintProperty).isValid())
             widget->setAttribute(Qt::WA_OpaquePaintEvent,
-                widget->property(originalOpaquePaintProperty).toBool());
+                                 widget->property(originalOpaquePaintProperty).toBool());
         if (widget->property(originalTranslucentBackgroundProperty).isValid())
-            widget->setAttribute(
-                Qt::WA_TranslucentBackground,
-                widget->property(originalTranslucentBackgroundProperty).toBool());
+            widget->setAttribute(Qt::WA_TranslucentBackground,
+                                 widget->property(originalTranslucentBackgroundProperty).toBool());
         if (widget->property(originalNoSystemBackgroundProperty).isValid())
-            widget->setAttribute(
-                Qt::WA_NoSystemBackground,
-                widget->property(originalNoSystemBackgroundProperty).toBool());
-        if (widget->property(originalMarginsProperty).isValid()
-            && !qobject_cast<QDialog *>(widget))
-            widget->setContentsMargins(
-                widget->property(originalMarginsProperty).value<QMargins>());
+            widget->setAttribute(Qt::WA_NoSystemBackground,
+                                 widget->property(originalNoSystemBackgroundProperty).toBool());
+        if (widget->property(originalMarginsProperty).isValid() && !qobject_cast<QDialog *>(widget))
+            widget->setContentsMargins(widget->property(originalMarginsProperty).value<QMargins>());
         if (auto *list = qobject_cast<QListView *>(widget))
             if (widget->property(originalListSpacingProperty).isValid())
                 list->setSpacing(widget->property(originalListSpacingProperty).toInt());
@@ -2263,11 +2117,10 @@ void Style::unpolish(QWidget *widget)
         if (auto *frame = qobject_cast<QFrame *>(widget))
             if (widget->property(originalFrameShapeProperty).isValid())
                 frame->setFrameShape(static_cast<QFrame::Shape>(
-                    widget->property(originalFrameShapeProperty).toInt()));
+                        widget->property(originalFrameShapeProperty).toInt()));
         if (widget->property(originalRoleWasValidProperty).isValid()) {
             if (widget->property(originalRoleWasValidProperty).toBool())
-                widget->setProperty(roleProperty,
-                                    widget->property(originalRoleProperty));
+                widget->setProperty(roleProperty, widget->property(originalRoleProperty));
             else
                 widget->setProperty(roleProperty, {});
         }
@@ -2320,10 +2173,9 @@ void Style::unpolish(QWidget *widget)
 
 bool Style::eventFilter(QObject *watched, QEvent *event)
 {
-    if (auto *editor = qobject_cast<QLineEdit *>(watched);
-        editor && (event->type() == QEvent::FocusIn
-                   || event->type() == QEvent::KeyPress
-                   || event->type() == QEvent::MouseButtonPress)) {
+    if (auto *editor = qobject_cast<QLineEdit *>(watched); editor
+        && (event->type() == QEvent::FocusIn || event->type() == QEvent::KeyPress
+            || event->type() == QEvent::MouseButtonPress)) {
         // setCompleter() has no change signal. User interaction is the point
         // at which a replacement popup can first become visible.
         syncCompleterPopupDensity(editor);
@@ -2341,18 +2193,15 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 const QVariant surface = widget->property(SurfaceProperty);
                 const QString surfaceName = surface.toString();
                 const bool enabled = surface.toBool()
-                    || surfaceName.compare(QLatin1String("content"),
-                                           Qt::CaseInsensitive) == 0
-                    || surfaceName.compare(QLatin1String("layer"),
-                                           Qt::CaseInsensitive) == 0;
+                        || surfaceName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                        || surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
                 if (enabled) {
                     widget->setProperty(ownedPaletteProperty, true);
                     d->registerPaletteOwner(widget);
                     remember(widget, originalOpaquePaintProperty,
                              widget->testAttribute(Qt::WA_OpaquePaintEvent));
                     QPalette palette = standardPalette();
-                    if (surfaceName.compare(QLatin1String("layer"),
-                                            Qt::CaseInsensitive) == 0) {
+                    if (surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
                         const QColor layer = Private::popupSurfaceColor(palette);
                         palette.setColor(QPalette::Window, layer);
                         if (qobject_cast<QAbstractItemView *>(widget))
@@ -2363,10 +2212,8 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                     widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
                 }
                 widget->update();
-            } else if (change->propertyName() == BackdropProperty
-                       && widget->isWindow()) {
-                applyBackdrop(widget, backdropFromProperty(
-                    widget->property(BackdropProperty)));
+            } else if (change->propertyName() == BackdropProperty && widget->isWindow()) {
+                applyBackdrop(widget, backdropFromProperty(widget->property(BackdropProperty)));
                 // Navigation surfaces are transparent only while a real
                 // backdrop is active. Refresh just the opted-in views when a
                 // window changes backdrop so offscreen/opaque windows never
