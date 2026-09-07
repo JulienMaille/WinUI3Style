@@ -23,6 +23,7 @@
 #include <QGuiApplication>
 #include <QHash>
 #include <QLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMetaObject>
 #include <QListView>
@@ -102,7 +103,8 @@ private:
     {
         if (!m_dialog)
             return;
-        if (qobject_cast<QMessageBox *>(m_dialog.data())) {
+        auto *messageBox = qobject_cast<QMessageBox *>(m_dialog.data());
+        if (messageBox) {
             // QMessageBox recalculates and fixes its size in showEvent after
             // the style's polish pass. Reassert the ContentDialog minimum on
             // the queued, post-show layout pass so the body is not crushed
@@ -127,6 +129,25 @@ private:
         setGeometry(0, top, m_dialog->width(), m_dialog->height() - top);
         lower();
         setVisible(m_dialog->isVisible());
+
+        if (messageBox) {
+            auto *label = messageBox->findChild<QLabel *>(QStringLiteral("qt_msgbox_label"),
+                                                          Qt::FindDirectChildrenOnly);
+            auto *icon = messageBox->findChild<QLabel *>(QStringLiteral("qt_msgboxex_icon_label"),
+                                                         Qt::FindDirectChildrenOnly);
+            if (label && label->isVisible()) {
+                // QMessageBox keeps the message widgets top-aligned when its
+                // height is enlarged to the ContentDialog minimum. Centre the
+                // actual content in the region above the command footer, then
+                // align the icon with the message instead of the layout row.
+                const int contentCenter = QRect(0, 0, messageBox->width(), top).center().y();
+                label->move(label->x(),
+                            label->y() + contentCenter - label->geometry().center().y());
+                if (icon && icon->isVisible()) {
+                    icon->move(icon->x(), contentCenter - icon->rect().center().y());
+                }
+            }
+        }
     }
 
     QPointer<QDialog> m_dialog;

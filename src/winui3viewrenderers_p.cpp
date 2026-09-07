@@ -73,6 +73,7 @@ bool calendarPopupView(const QWidget *widget)
 constexpr int itemSelectionGutter = 12;
 constexpr int itemSelectionMarkerWidth = 3;
 constexpr int itemSelectionMarkerInset = 2;
+constexpr int treeBranchMarkerClearance = 4;
 constexpr int comboPopupItemPaddingLeft = 11;
 constexpr int comboPopupItemPaddingTop = 5;
 constexpr int comboPopupItemPaddingRight = 11;
@@ -263,10 +264,17 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                 : option->direction == Qt::RightToLeft ? Icon::ChevronLeft
                                                        : Icon::ChevronRight;
         const int extent = 12;
+        // Keep the disclosure glyph in the branch slot, but leave a small
+        // clear separation from the selection pill painted at the viewport's
+        // leading edge.  The shift mirrors for RTL and does not alter the
+        // tree's hierarchy indentation.
+        const int branchCenter = option->rect.center().x()
+                + (option->direction == Qt::RightToLeft ? -treeBranchMarkerClearance
+                                                        : treeBranchMarkerClearance);
         icon(glyph, enabled ? t.textPrimary : t.textDisabled)
                 .paint(painter,
-                       QRect(option->rect.center().x() - extent / 2,
-                             option->rect.center().y() - extent / 2, extent, extent),
+                       QRect(branchCenter - extent / 2, option->rect.center().y() - extent / 2,
+                             extent, extent),
                        Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
         return true;
     }

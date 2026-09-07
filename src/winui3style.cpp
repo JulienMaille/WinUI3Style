@@ -107,6 +107,165 @@ Backdrop backdropFromProperty(const QVariant &value)
     return Backdrop::None;
 }
 
+constexpr auto wizardFooterName = "_winui_wizard_footer_surface";
+
+class WizardFooterSurface final : public QWidget
+{
+public:
+    explicit WizardFooterSurface(QWizard *wizard) : QWidget(wizard), m_wizard(wizard)
+    {
+        setObjectName(QString::fromLatin1(wizardFooterName));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAutoFillBackground(false);
+        wizard->installEventFilter(this);
+        queueGeometrySync();
+    }
+
+    void setColors(const QColor &fill, const QColor &stroke)
+    {
+        if (m_fill == fill && m_stroke == stroke)
+            return;
+        m_fill = fill;
+        m_stroke = stroke;
+        update();
+    }
+
+    void queueGeometrySync()
+    {
+        if (m_syncQueued)
+            return;
+        m_syncQueued = true;
+        QTimer::singleShot(0, this, [this] {
+            m_syncQueued = false;
+            syncGeometry();
+        });
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_wizard
+            && (event->type() == QEvent::Resize || event->type() == QEvent::Show
+                || event->type() == QEvent::LayoutRequest || event->type() == QEvent::ChildAdded)) {
+            queueGeometrySync();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), m_fill);
+        painter.setPen(QPen(m_stroke, 1));
+        painter.drawLine(rect().topLeft(), rect().topRight());
+    }
+
+private:
+    void syncGeometry()
+    {
+        if (!m_wizard)
+            return;
+
+        int buttonTop = m_wizard->height();
+        bool hasButton = false;
+        const QWizard::WizardButton buttons[] = { QWizard::BackButton,    QWizard::NextButton,
+                                                  QWizard::CommitButton,  QWizard::FinishButton,
+                                                  QWizard::CancelButton,  QWizard::HelpButton,
+                                                  QWizard::CustomButton1, QWizard::CustomButton2,
+                                                  QWizard::CustomButton3 };
+        for (QWizard::WizardButton role : buttons) {
+            if (QAbstractButton *button = m_wizard->button(role); button && button->isVisible()) {
+                buttonTop = qMin(buttonTop, button->mapTo(m_wizard, QPoint()).y());
+                hasButton = true;
+            }
+        }
+        if (!hasButton) {
+            hide();
+            return;
+        }
+
+        // QWizard's native button row has a 12 px breathing room above and
+        // below the controls. Paint the command surface behind that complete
+        // row, including the native separator's former backing pixels.
+        const int top = qBound(0, buttonTop - 12, m_wizard->height());
+        setGeometry(0, top, m_wizard->width(), m_wizard->height() - top);
+        lower();
+        setVisible(m_wizard->isVisible());
+    }
+
+    QPointer<QWizard> m_wizard;
+    QColor m_fill;
+    QColor m_stroke;
+    bool m_syncQueued = false;
+};
+
+WizardFooterSurface *wizardFooterSurface(QWizard *wizard, bool create)
+{
+    if (!wizard)
+        return nullptr;
+    auto *surface = static_cast<WizardFooterSurface *>(wizard->findChild<QWidget *>(
+            QString::fromLatin1(wizardFooterName), Qt::FindDirectChildrenOnly));
+    if (!surface && create)
+        surface = new WizardFooterSurface(wizard);
+    return surface;
+}
+
+// QWizard creates its page stack and banner widgets with explicit palettes
+// chosen by the platform style. Those palettes are not updated when the
+// application palette changes, and on Windows they can default to a light
+// surface even while the rest of the application is dark. Keep every
+// framework-owned content child on the raised content layer and every button
+// on the command palette. The footer widget supplies the full-width command
+// surface behind the native button row.
+void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
+{
+    if (!wizard)
+        return;
+
+    QPalette contentPalette = applicationPalette;
+    contentPalette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
+    QPalette commandPalette = applicationPalette;
+    const auto isWizardButton = [wizard](QWidget *candidate) {
+        for (QWizard::WizardButton role :
+             { QWizard::BackButton, QWizard::NextButton, QWizard::CommitButton,
+               QWizard::FinishButton, QWizard::CancelButton, QWizard::HelpButton,
+               QWizard::CustomButton1, QWizard::CustomButton2, QWizard::CustomButton3 }) {
+            if (wizard->button(role) == candidate)
+                return true;
+        }
+        return false;
+    };
+    const auto descendants = wizard->findChildren<QWidget *>();
+    for (QWidget *child : descendants) {
+        if (!child)
+            continue;
+        const bool wizardButton = isWizardButton(child);
+        const bool internalButton = qobject_cast<QAbstractButton *>(child)
+                && (!child->property(originalPaletteExplicitProperty).toBool() || wizardButton);
+        const bool hasUserPalette = child->property(originalPaletteExplicitProperty).toBool()
+                && !child->property(ownedPaletteProperty).toBool() && !wizardButton;
+        if (hasUserPalette)
+            continue;
+
+        child->setPalette(internalButton ? commandPalette : contentPalette);
+        if (!internalButton
+            && (qobject_cast<QWizardPage *>(child) || qobject_cast<QFrame *>(child)
+                || child->parentWidget() == wizard))
+            child->setAutoFillBackground(true);
+    }
+
+    // The top-level wizard is the content backing layer. The footer is a
+    // separate child so the command region remains full-width and opaque.
+    wizard->setPalette(contentPalette);
+    wizard->setAutoFillBackground(true);
+    if (WizardFooterSurface *footer = wizardFooterSurface(wizard, true)) {
+        const QColor commandFill = applicationPalette.color(QPalette::Window);
+        footer->setColors(commandFill, tokens(commandPalette).stroke);
+        footer->queueGeometrySync();
+    }
+}
+
 const QAbstractItemView *itemView(const QWidget *widget)
 {
     if (const auto *view = qobject_cast<const QAbstractItemView *>(widget))
@@ -1085,6 +1244,14 @@ void Style::refreshApplicationAppearance()
             QTimer::singleShot(0, window, [window, backdrop] {
                 applyBackdrop(window, static_cast<Backdrop>(backdrop.toInt()));
             });
+        } else if (auto *wizard = qobject_cast<QWizard *>(window)) {
+            refreshWizardSurface(wizard, applicationPalette);
+            const QPointer<QWizard> guardedWizard(wizard);
+            const QPointer<Style> guardedStyle(this);
+            QTimer::singleShot(0, wizard, [guardedWizard, guardedStyle] {
+                if (guardedWizard && guardedStyle)
+                    refreshWizardSurface(guardedWizard, guardedStyle->standardPalette());
+            });
         } else if (qobject_cast<QDialog *>(window)) {
             applyDialogCaptionTheme(window);
         }
@@ -1100,6 +1267,8 @@ void Style::refreshApplicationAppearance()
             continue;
         if (widget->window() && widget->window()->windowType() == Qt::Popup) {
             preparePopupSurface(widget);
+        } else if (auto *wizard = qobject_cast<QWizard *>(widget)) {
+            refreshWizardSurface(wizard, applicationPalette);
         } else if (widget->property(originalPaletteExplicitProperty).toBool()) {
             // The widget carried an explicit palette before the style touched
             // it. A style-wide theme refresh must not clobber user-set
@@ -1111,7 +1280,7 @@ void Style::refreshApplicationAppearance()
             if (qobject_cast<QStatusBar *>(widget) || qobject_cast<QWizard *>(widget)) {
                 palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             } else if (qobject_cast<QWizardPage *>(widget)) {
-                palette.setColor(QPalette::Window, applicationPalette.color(QPalette::Window));
+                palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             } else if (widget->property(SurfaceProperty)
                                .toString()
                                .compare(QLatin1String("layer"), Qt::CaseInsensitive)
@@ -1852,9 +2021,9 @@ void Style::polish(QWidget *widget)
     }
     // QDialogButtonBox is a layout container, not a command-surface panel.
     // Filling its own inset geometry creates a rectangular footer inside a
-    // ContentDialog. It must inherit the dialog surface instead.
-    const bool automaticCommandSurface =
-            qobject_cast<QStatusBar *>(widget) || qobject_cast<QWizard *>(widget);
+    // ContentDialog. It must inherit the dialog surface instead. QWizard has
+    // a separate full-width footer surface installed by refreshWizardSurface.
+    const bool automaticCommandSurface = qobject_cast<QStatusBar *>(widget);
     const bool automaticDialogContent = qobject_cast<QWizardPage *>(widget);
     if (!surface.isValid() && (automaticCommandSurface || automaticDialogContent)) {
         widget->setProperty(ownedPaletteProperty, true);
@@ -1862,14 +2031,21 @@ void Style::polish(QWidget *widget)
         QPalette palette = standardPalette();
         if (automaticCommandSurface)
             palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
+        else if (automaticDialogContent)
+            palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
         widget->setPalette(palette);
         widget->setAutoFillBackground(true);
     }
     if (auto *wizard = qobject_cast<QWizard *>(widget)) {
+        // Keep the wizard in the style-owned palette registry so a later
+        // theme change refreshes its internal page and command surfaces too.
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
         for (QWizard::WizardButton button : { QWizard::NextButton, QWizard::FinishButton }) {
             if (QAbstractButton *primary = wizard->button(button))
                 primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));
         }
+        refreshWizardSurface(wizard, standardPalette());
     }
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);
@@ -2111,6 +2287,8 @@ void Style::unpolish(QWidget *widget)
         if (auto *list = qobject_cast<QListView *>(widget))
             if (widget->property(originalListSpacingProperty).isValid())
                 list->setSpacing(widget->property(originalListSpacingProperty).toInt());
+        if (auto *wizard = qobject_cast<QWizard *>(widget))
+            delete wizardFooterSurface(wizard, false);
         if (auto *dialog = qobject_cast<QDialog *>(widget)) {
             restoreContentDialogState(dialog, false);
         }
@@ -2173,6 +2351,15 @@ void Style::unpolish(QWidget *widget)
 
 bool Style::eventFilter(QObject *watched, QEvent *event)
 {
+    if (auto *wizard = qobject_cast<QWizard *>(watched);
+        wizard && (event->type() == QEvent::Show || event->type() == QEvent::ChildAdded)) {
+        const QPointer<QWizard> guardedWizard(wizard);
+        const QPointer<Style> guardedStyle(this);
+        QTimer::singleShot(0, wizard, [guardedWizard, guardedStyle] {
+            if (guardedWizard && guardedStyle)
+                refreshWizardSurface(guardedWizard, guardedStyle->standardPalette());
+        });
+    }
     if (auto *editor = qobject_cast<QLineEdit *>(watched); editor
         && (event->type() == QEvent::FocusIn || event->type() == QEvent::KeyPress
             || event->type() == QEvent::MouseButtonPress)) {
