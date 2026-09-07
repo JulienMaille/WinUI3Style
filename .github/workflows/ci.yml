@@ -122,6 +122,7 @@ jobs:
       - name: Upload snapshot debug artifacts
         if: failure()
         uses: actions/upload-artifact@v4
+        with:
           path: |
             build/snapshot-report.json
             build/snapshot-captures/
