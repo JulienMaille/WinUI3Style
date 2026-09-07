@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QColor>
@@ -54,6 +55,22 @@ struct Tokens {
     QColor textOnAccentPrimary;
     QColor textOnAccentSecondary;
     QColor textOnAccentDisabled;
+    // ToggleSwitch off-track ramp + editor focused fills live here so paint
+    // paths cannot fork their own numeric literals (source-contract gate).
+    QColor toggleOff;
+    QColor toggleOffHover;
+    QColor toggleOffPressed;
+    QColor editorFocusedFill;
+    // Flyout/popup hairline stroke and selected-tab surface.
+    QColor flyoutStroke;
+    QColor selectedTabFill;
+    // Slider thumb outer ring.
+    QColor sliderThumbOuter;
+    // Tooltip surface.
+    QColor tooltipFill;
+    // ContentDialog command-footer base and smoke scrim.
+    QColor dialogCommandFill;
+    QColor dialogScrim;
     QColor danger;
 };
 
@@ -140,8 +157,11 @@ inline Tokens buildTokens(const QPalette &palette)
                               : withAlpha(mix(t.control, ink, 26.0 / 255.0),
                                           179);
     t.controlDisabled = palette.color(QPalette::Disabled, QPalette::Button);
-    t.subtleHover = withAlpha(ink, 15);
-    t.subtlePressed = withAlpha(ink, t.dark ? 10 : 22);
+    // WinUI SubtleFill ramp. MenuFlyout maps item PointerOver/Pressed to
+    // SubtleFillColorSecondary/Tertiary: Default #0FFFFFFF/#0AFFFFFF,
+    // Light #09000000/#06000000.
+    t.subtleHover = withAlpha(ink, t.dark ? 15 : 9);
+    t.subtlePressed = withAlpha(ink, t.dark ? 10 : 6);
     t.stroke = palette.color(QPalette::Mid);
     t.strokeSecondary = palette.color(QPalette::Midlight);
     t.strokeStrong = withAlpha(ink, t.dark ? 139 : 114);
@@ -185,6 +205,20 @@ inline Tokens buildTokens(const QPalette &palette)
                                      : QColor(255, 255, 255, 179);
     t.textOnAccentDisabled = t.textOnAccentPrimary;
     t.textOnAccentDisabled.setAlpha(135);
+    // Off/disabled toggle track ramp (moved out of winui3buttons_p.cpp so
+    // numeric literals live in exactly one home).
+    t.toggleOff = t.dark ? QColor(0, 0, 0, 25) : QColor(0, 0, 0, 6);
+    t.toggleOffHover = t.dark ? QColor(255, 255, 255, 11) : QColor(0, 0, 0, 15);
+    t.toggleOffPressed = t.dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 24);
+    t.editorFocusedFill = t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255);
+    t.flyoutStroke = t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15);
+    t.selectedTabFill = t.dark ? QColor(44, 44, 44) : QColor(251, 251, 251);
+    t.sliderThumbOuter = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
+    t.tooltipFill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
+    // ContentDialog command-footer base (LayerFill derivation input) and
+    // smoke-layer scrim; fixed WinUI values, not palette derivations.
+    t.dialogCommandFill = t.dark ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF3, 0xF3);
+    t.dialogScrim = QColor(0, 0, 0, 0x4D);
     t.danger = QColor(196, 43, 28);
     return t;
 }

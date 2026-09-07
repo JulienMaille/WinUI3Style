@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3menus_p.h"
 
 #include "winui3density_p.h"

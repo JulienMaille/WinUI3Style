@@ -1,0 +1,120 @@
+# CI gate for WinUI3Style (plan step A).
+#
+# Baseline refresh procedure (never auto-accept):
+#   1. Build Release and run the gallery capture locally:
+#      build\demo\Release\winui3style_gallery.exe --capture-dir <absolute-dir>
+#   2. Review every PNG diff pixel-by-pixel against spec/baselines/gallery
+#      (tools/compare_images.py --diff diff.png reports RMS, differing-pixel
+#      count, max delta, bounding box; RMS is a regression signal, geometry
+#      and state semantics are the acceptance criterion per spec/METHODOLOGY.md).
+#   3. Commit the new approved PNGs. A red baseline is debugged from the
+#      uploaded snapshot-report.json + capture artifacts, never by
+#      re-running until green.
+#
+# After merge: enable GitHub branch protection requiring the msvc-gate job
+# green on PRs (manual repo-settings step; not automatable from the tree).
+#
+# winui3style_native is excluded from the hosted gate: it needs an interactive
+# desktop (QT_QPA_PLATFORM=windows, real focus/compositor) and can only report
+# skipped/blocked on a headless runner. It keeps LABELS native;interactive in
+# tests/CMakeLists.txt and runs on self-hosted runners or manual dispatch.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  coverage-honesty:
+    # Fails a PR diff marking any coverage.md row Verified unless the diff
+    # also touches tests/. The semantic honesty stays reviewer-owned; this is
+    # a cheap git-diff tripwire, not a proof of live evidence (METHODOLOGY §6).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require tests alongside Verified promotions
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          promoted=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md | grep -c "^+.*| *Verified" || true)
+          touched=$(git diff --name-only "$base"...HEAD -- tests/ | wc -l)
+          echo "verified_promotions=$promoted tests_touched=$touched"
+          if [ "$promoted" -gt 0 ] && [ "$touched" -eq 0 ]; then
+            echo "::error::coverage.md promotes a row to Verified without touching tests/. Tests alone never promote to Verified (METHODOLOGY §6); add evidence + tests or keep source-audited."
+            exit 1
+          fi
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format dry run
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
+          clang-format --dry-run --Werror $(find src include tests demo plugin benchmarks -name '*.cpp' -o -name '*.h' | sort)
+
+  msvc-gate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.8 (MSVC 2022 64-bit)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Install Python + Pillow
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Configure (Release, benchmarks off)
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test (exclude interactive native test)
+        run: >
+          ctest --test-dir build -C Release --output-on-failure
+          -E "^winui3style_native$"
+      - name: Upload snapshot debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-matrix-debug
+          path: |
+            build/snapshot-report.json
+            build/snapshot-captures/
+          if-no-files-found: warn
+
+  qt512-mingw:
+    # SoulseekQt compat claim (docs/showcase-post.md): Qt 5.12 MinGW must at
+    # least build. No snapshot/DPI gate here; offscreen fidelity and Pillow
+    # matrix belong to the MSVC job above.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 5.12 (MinGW 7.3 32-bit)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "5.12.12"
+          arch: win32_mingw73
+          cache: true
+      - name: Install Python + Pillow
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Configure (MinGW, benchmarks off)
+        shell: cmd
+        run: >
+          cmake -S . -B build-mingw -G "MinGW Makefiles"
+          -DCMAKE_BUILD_TYPE=Release
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+          -DWINUI3STYLE_BUILD_NATIVE_TESTS=OFF
+      - name: Build
+        run: cmake --build build-mingw --config Release

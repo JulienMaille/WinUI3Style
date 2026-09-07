@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3geometry_p.h"
 
 #include <winui3style/winui3style.h>
@@ -38,6 +39,27 @@ QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction,
 QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction)
 {
     return toggleTrackRect(bounds, direction, DensityMode::Standard);
+}
+
+QRectF toggleKnobRect(const QRectF &track, qreal position, qreal hover,
+                      qreal press, Qt::LayoutDirection direction)
+{
+    // Copied verbatim from the toggle paint path: hover grows 12 px to
+    // 14 px, press stretches to 17 x 14, and the XAML template interpolates
+    // the thumb centre between the normal and pressed anchors.
+    const qreal hoverSize = 12.0 + 2.0 * hover;
+    const qreal knobWidth = hoverSize + (17.0 - hoverSize) * press;
+    const qreal knobHeight = hoverSize + (14.0 - hoverSize) * press;
+    qreal visualPosition = position;
+    if (direction == Qt::RightToLeft)
+        visualPosition = 1.0 - visualPosition;
+    const qreal normalCenter = 9.5 + 20.0 * visualPosition;
+    const qreal pressedCenter = 11.5 + 17.0 * visualPosition;
+    const qreal knobCenter = track.left()
+        + normalCenter + (pressedCenter - normalCenter) * press;
+    return QRectF(knobCenter - knobWidth / 2.0,
+                  track.center().y() - knobHeight / 2.0,
+                  knobWidth, knobHeight);
 }
 
 std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,

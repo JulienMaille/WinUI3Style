@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QRect>
+#include <QRectF>
 #include <QStyle>
 #include "winui3density_p.h"
 #include <optional>
@@ -22,6 +24,10 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric,
 QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction);
 QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction,
                       DensityMode mode);
+// Toggle thumb center/size math beside toggleTrackRect so the paint path and
+// any future hit-test consumer share one definition.
+QRectF toggleKnobRect(const QRectF &track, qreal position, qreal hover,
+                      qreal press, Qt::LayoutDirection direction);
 
 std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                                         const QStyleOptionComplex *option,

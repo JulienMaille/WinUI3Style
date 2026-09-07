@@ -77,6 +77,10 @@ def main() -> int:
     parser.add_argument("--gallery", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--report", type=Path)
+    # Optional directory receiving copies of both capture runs. Used by CI to
+    # upload debuggable artifacts on failure; absent locally, captures stay in
+    # a temp dir. Not part of the pixel comparison itself.
+    parser.add_argument("--keep-captures", type=Path, default=None)
     arguments = parser.parse_args()
 
     if not arguments.gallery.is_file():
@@ -107,44 +111,53 @@ def main() -> int:
         run_capture(arguments.gallery, first, environment)
         run_capture(arguments.gallery, second, environment)
 
-        first_files = files(first)
-        second_files = files(second)
-        if first_files != second_files:
-            print(f"ERROR: snapshot manifest differs: only_first={sorted(first_files - second_files)} "
-                  f"only_second={sorted(second_files - first_files)}")
-            return 1
-        first_manifest = png_manifest(first)
-        second_manifest = png_manifest(second)
-        if not first_manifest:
-            print("ERROR: gallery produced no captures")
-            return 1
-        for relative in sorted(first_files):
-            compare_images(first / relative, second / relative, relative)
+        try:
+            first_files = files(first)
+            second_files = files(second)
+            if first_files != second_files:
+                raise AssertionError(
+                    f"snapshot manifest differs: only_first={sorted(first_files - second_files)} "
+                    f"only_second={sorted(second_files - first_files)}")
+            first_manifest = png_manifest(first)
+            if not first_manifest:
+                raise AssertionError("gallery produced no captures")
+            for relative in sorted(first_files):
+                compare_images(first / relative, second / relative, relative)
 
-        if not arguments.baseline.is_dir():
-            print(f"ERROR: approved baseline directory is missing: {arguments.baseline}")
-            return 1
-        baseline_manifest = png_manifest(arguments.baseline)
-        if baseline_manifest.keys() != first_manifest.keys():
-            print(
-                "ERROR: approved baseline manifest differs: "
-                f"only_baseline={sorted(baseline_manifest.keys() - first_manifest.keys())} "
-                f"only_candidate={sorted(first_manifest.keys() - baseline_manifest.keys())}"
-            )
-            return 1
-        for relative in sorted(first_files):
-            compare_images(first / relative, arguments.baseline / relative, relative)
-        print(f"approved baseline: {arguments.baseline}")
+            if not arguments.baseline.is_dir():
+                raise AssertionError(
+                    f"approved baseline directory is missing: {arguments.baseline}")
+            baseline_manifest = png_manifest(arguments.baseline)
+            if baseline_manifest.keys() != first_manifest.keys():
+                raise AssertionError(
+                    "approved baseline manifest differs: "
+                    f"only_baseline={sorted(baseline_manifest.keys() - first_manifest.keys())} "
+                    f"only_candidate={sorted(first_manifest.keys() - baseline_manifest.keys())}")
+            for relative in sorted(first_files):
+                compare_images(first / relative, arguments.baseline / relative, relative)
+            print(f"approved baseline: {arguments.baseline}")
 
-        report = {
-            "files": first_manifest,
-            "deterministic": True,
-            "baseline_checked": True,
-        }
-        if arguments.report:
-            arguments.report.parent.mkdir(parents=True, exist_ok=True)
-            arguments.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        print(f"deterministic snapshot matrix: {len(first_files)} files, pixel-exact")
+            report = {
+                "files": first_manifest,
+                "deterministic": True,
+                "baseline_checked": True,
+            }
+            if arguments.report:
+                arguments.report.parent.mkdir(parents=True, exist_ok=True)
+                arguments.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+            print(f"deterministic snapshot matrix: {len(first_files)} files, pixel-exact")
+        finally:
+            # Copies run even on pixel/manifest failure so a red baseline is
+            # debuggable from artifacts without rerunning locally.
+            if arguments.keep_captures is not None:
+                import shutil
+                keep = arguments.keep_captures
+                keep.mkdir(parents=True, exist_ok=True)
+                for label, source in (("first", first), ("second", second)):
+                    destination = keep / label
+                    shutil.rmtree(destination, ignore_errors=True)
+                    if source.is_dir():
+                        shutil.copytree(source, destination)
     return 0
 
 

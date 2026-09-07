@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 // Qt 5 / Qt 6 compatibility shims for WinUI3Style internals.

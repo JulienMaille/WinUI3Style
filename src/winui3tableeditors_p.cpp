@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3tableeditors_p.h"
 
 #include "winui3style_properties_p.h"

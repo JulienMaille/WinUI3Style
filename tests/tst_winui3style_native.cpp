@@ -1,5 +1,8 @@
+#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3style.h>
 
+#include "../src/winui3backdrop_p.h"
+#include "../src/winui3helpers_p.h"
 #include "winui3frameproperties_p.h"
 
 #include <QComboBox>
@@ -91,6 +94,7 @@ private slots:
     void menuSurface();
     void comboPopupSurface();
     void dialogThemeUpdate();
+    void micaEffectiveSurfaceLifecycle();
     void dockFloatingFocusCleanup();
     void scrollBarNativeInputDiagnostic();
     void sliderToolTipDebounceSurface();
@@ -230,10 +234,23 @@ void WinUI3StyleNativeTest::menuSurface()
     submenu->addAction(QStringLiteral("Child"));
     menu.popup(window.mapToGlobal(QPoint(20, 20)));
     QTRY_VERIFY(menu.isVisible());
-    QCOMPARE(menu.palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(menu.palette().color(QPalette::Base).alpha(), 255);
-    QVERIFY(menu.autoFillBackground());
-    QVERIFY(!menu.testAttribute(Qt::WA_TranslucentBackground));
+    // WinUI Desktop Acrylic on a live compositor, opaque SolidBackgroundFill
+    // fallback everywhere else (offscreen, older builds, failed DWM calls).
+    const auto menuEffective =
+        WinUI3::Private::backdropEffectiveSurface(&menu);
+    QVERIFY(menuEffective == WinUI3::Private::BackdropSurface::Composited
+            || menuEffective == WinUI3::Private::BackdropSurface::Painted
+            || menuEffective == WinUI3::Private::BackdropSurface::Solid);
+    if (menuEffective == WinUI3::Private::BackdropSurface::Composited) {
+        QVERIFY(menu.testAttribute(Qt::WA_TranslucentBackground));
+        QVERIFY(menu.palette().color(QPalette::Window).alpha() < 255);
+        QVERIFY(!menu.autoFillBackground());
+    } else {
+        QCOMPARE(menu.palette().color(QPalette::Window).alpha(), 255);
+        QCOMPARE(menu.palette().color(QPalette::Base).alpha(), 255);
+        QVERIFY(menu.autoFillBackground());
+        QVERIFY(!menu.testAttribute(Qt::WA_TranslucentBackground));
+    }
     const QRect actionRect = menu.actionGeometry(action);
     QTest::mouseMove(&menu, actionRect.center());
     QVERIFY(actionRect.isValid());
@@ -263,12 +280,24 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     combo->showPopup();
     QTRY_VERIFY(combo->view()->isVisible());
     QVERIFY(popup->isVisible());
-    QCOMPARE(popup->palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(combo->view()->viewport()->palette()
-                 .color(QPalette::Base).alpha(), 255);
-    QVERIFY(popup->autoFillBackground());
-    QVERIFY(combo->view()->viewport()->autoFillBackground());
-    QVERIFY(!popup->testAttribute(Qt::WA_TranslucentBackground));
+    const auto popupEffective =
+        WinUI3::Private::backdropEffectiveSurface(popup);
+    QVERIFY(popupEffective == WinUI3::Private::BackdropSurface::Composited
+            || popupEffective == WinUI3::Private::BackdropSurface::Painted
+            || popupEffective == WinUI3::Private::BackdropSurface::Solid);
+    if (popupEffective == WinUI3::Private::BackdropSurface::Composited) {
+        QVERIFY(popup->testAttribute(Qt::WA_TranslucentBackground));
+        QVERIFY(popup->palette().color(QPalette::Window).alpha() < 255);
+        QVERIFY(!popup->autoFillBackground());
+        QVERIFY(!combo->view()->viewport()->autoFillBackground());
+    } else {
+        QCOMPARE(popup->palette().color(QPalette::Window).alpha(), 255);
+        QCOMPARE(combo->view()->viewport()->palette()
+                     .color(QPalette::Base).alpha(), 255);
+        QVERIFY(popup->autoFillBackground());
+        QVERIFY(combo->view()->viewport()->autoFillBackground());
+        QVERIFY(!popup->testAttribute(Qt::WA_TranslucentBackground));
+    }
     QTRY_VERIFY(probe.painted);
     const QModelIndex selected = combo->model()->index(1, 0);
     QVERIFY(combo->view()->visualRect(selected).isValid());
@@ -302,6 +331,47 @@ void WinUI3StyleNativeTest::dialogThemeUpdate()
     QCOMPARE(style->standardPalette().color(QPalette::Highlight), QColor(220, 40, 80));
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_VERIFY(dialog.palette().color(QPalette::Window).lightness() > 128);
+}
+
+void WinUI3StyleNativeTest::micaEffectiveSurfaceLifecycle()
+{
+    QWidget window;
+    window.resize(320, 200);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // No request: solid, and a child must never claim a direct backdrop.
+    QCOMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
+             WinUI3::Private::BackdropSurface::Solid);
+    QPushButton probe(QStringLiteral("Probe"), &window);
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&probe));
+
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::Mica));
+    QCOMPARE(window.property("_winui_backdrop").toInt(),
+             int(WinUI3::Backdrop::Mica));
+    const auto effective =
+        WinUI3::Private::backdropEffectiveSurface(&window);
+    QVERIFY(effective == WinUI3::Private::BackdropSurface::Composited
+            || effective == WinUI3::Private::BackdropSurface::Painted);
+    if (effective == WinUI3::Private::BackdropSurface::Composited) {
+        // Live material: translucency armed, clear paths allowed.
+        QVERIFY(window.testAttribute(Qt::WA_TranslucentBackground));
+        QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
+        QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&probe));
+    } else {
+        // No/outdated compositor or a failed DWM call: the surface stays
+        // opaque and no painter may clear a pixel.
+        QVERIFY(!window.testAttribute(Qt::WA_TranslucentBackground));
+        QCOMPARE(window.palette().color(QPalette::Window).alpha(), 255);
+        QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&probe));
+    }
+
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None));
+    QVERIFY(!window.property("_winui_backdrop").isValid());
+    QCOMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
+             WinUI3::Private::BackdropSurface::Solid);
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&probe));
+    window.close();
 }
 
 void WinUI3StyleNativeTest::dockFloatingFocusCleanup()

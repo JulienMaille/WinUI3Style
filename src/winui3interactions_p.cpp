@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3interactions_p.h"
 #include "winui3qtcompat_p.h"
 
@@ -24,13 +25,17 @@
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFrame>
+#include <QHoverEvent>
+#include <QGuiApplication>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QParallelAnimationGroup>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QPushButton>
@@ -42,7 +47,13 @@
 #include <QStyleOptionComboBox>
 #include <QTabBar>
 #include <QTextEdit>
+#include <QTimer>
 #include <QToolButton>
+
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 namespace WinUI3::Private {
 namespace {
@@ -112,6 +123,89 @@ enum class InteractionMotion {
     Press,
     Focus
 };
+
+void animateMenuPopup(QWidget *popup, const QComboBox *combo)
+{
+    // WinUI MenuFlyout/ComboBox open animation (PopupThemeTransition: slide
+    // from the anchor side with a fade, direction = side the popup extends
+    // toward). AnimateWindow was measured as a no-op on the already-visible
+    // native HWND (returns FALSE, frames identical), and a hide/show
+    // round-trip would break Qt grabs, active-popup state and menu event
+    // loops — so the slide runs here instead: window position from the
+    // anchor edge plus windowOpacity, fast 167 ms, fast-out-slow-in easing.
+    // The window stays visible throughout; geometry ends pixel-exact.
+    // Honor the animation kill-switch (deterministic captures) and skip
+    // offscreen (no compositor; tests assert exact first-frame geometry).
+    if (!Style::animationsAllowed())
+        return;
+    if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
+        return;
+    if (!popup->isVisible())
+        return;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return;
+    const QWidget *anchor = nullptr;
+    if (combo && combo->isVisible())
+        anchor = combo;
+    else if (popup->parentWidget() && popup->parentWidget()->isVisible())
+        anchor = popup->parentWidget();
+    bool aboveAnchor = false;
+    if (anchor) {
+        const int anchorBottom =
+            anchor->mapToGlobal(QPoint(0, anchor->height())).y();
+        aboveAnchor = popup->frameGeometry().bottom() <= anchorBottom;
+    }
+    // Short sweep from the anchor edge; keep it subtle like the reference.
+    // Same ownership contract as the dialog entrance above: parented to the
+    // popup (dies with it), deleted on finish.
+    constexpr int slidePixels = 12;
+    const QPoint finalPos = popup->pos();
+    const QPoint startPos = finalPos
+        + QPoint(0, aboveAnchor ? slidePixels : -slidePixels);
+    auto *group = new QParallelAnimationGroup(popup);
+    group->setObjectName(QStringLiteral("_winui_popup_open_animation"));
+    auto *slide = new QPropertyAnimation(popup, "pos", group);
+    slide->setStartValue(startPos);
+    slide->setEndValue(finalPos);
+    slide->setDuration(FastDuration);
+    slide->setEasingCurve(QEasingCurve::OutCubic);
+    auto *fade = new QPropertyAnimation(popup, "windowOpacity", group);
+    fade->setStartValue(0.0);
+    fade->setEndValue(1.0);
+    fade->setDuration(FastDuration);
+    fade->setEasingCurve(QEasingCurve::OutCubic);
+    QObject::connect(group, &QParallelAnimationGroup::finished, popup,
+                     [popup, group, finalPos] {
+        if (popup) {
+            popup->move(finalPos);
+            popup->setWindowOpacity(1.0);
+            // The sweep moves the popup under a stationary cursor with no
+            // mouse event, so Qt's row hover can freeze on the wrong row
+            // (or off-popup) with nothing to correct it until the next
+            // physical move. Re-hit-test once from the live cursor position:
+            // a move where it actually is, a leave everywhere else. Both
+            // are idempotent when the state is already correct.
+            QAbstractItemView *view =
+                popup->findChild<QAbstractItemView *>();
+            QWidget *viewport = view ? view->viewport() : nullptr;
+            QWidget *under = QApplication::widgetAt(QCursor::pos());
+            if (under && under->window() == popup
+                && (under == viewport || under == view)) {
+                const QPoint local = under->mapFromGlobal(QCursor::pos());
+                QHoverEvent move(QEvent::HoverMove, QPointF(local),
+                                 QPointF(local));
+                QCoreApplication::sendEvent(under, &move);
+            } else if (viewport) {
+                QEvent leave(QEvent::Leave);
+                QCoreApplication::sendEvent(viewport, &leave);
+            }
+        }
+        group->deleteLater();
+    });
+    popup->move(startPos);
+    popup->setWindowOpacity(0.0);
+    group->start();
+}
 
 int interactionDuration(const QWidget *widget, InteractionMotion motion,
                         bool active)
@@ -290,6 +384,26 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::Leave:
+        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+            // A stolen mouse grab (context menu, modal loop) loses the
+            // release that would normally end the press, leaving underMouse
+            // stuck: every later paint then falls back to a permanent hover.
+            // A Leave means the pointer is genuinely elsewhere, so cancel
+            // the pending press here instead of leaving its surface and
+            // chevron stuck. With a live grab no Leave arrives, so a
+            // legitimate hold-drag is unaffected. Only ever release our own
+            // grab (never another widget's): a persistently held grab keeps
+            // Qt's underMouse stuck true, which freezes the hover fallback
+            // even after every frame has settled to zero.
+            if (m_comboPressStates.remove(combo)) {
+                if (QWidget::mouseGrabber() == combo)
+                    combo->releaseMouse();
+                m_callbacks.animate(combo, pressProperty, 0.0,
+                                    interactionDuration(
+                                        combo, InteractionMotion::Press, false));
+                m_callbacks.releaseComboChevron(combo);
+            }
+        }
         if (!widget->isEnabled()) {
             m_callbacks.clearPointerInteraction(widget);
             widget->update();
@@ -624,6 +738,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
+                animateMenuPopup(widget, combo);
+            } else if (qobject_cast<QMenu *>(widget)) {
+                animateMenuPopup(widget, nullptr);
             }
         }
         if (auto *dialog = qobject_cast<QDialog *>(widget);

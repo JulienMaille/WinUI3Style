@@ -78,6 +78,19 @@ target_include_directories(winui3style
 )
 target_link_libraries(winui3style PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
 
+# Warnings-visible first (plan step 5). Promote to /WX + -Werror once the
+# baseline is clean; if MSVC system/Qt noise keeps /WX red after one cleanup
+# pass, keep /W4 non-fatal with residual warning IDs listed here.
+# Residual /W4 noise (Qt/system headers, not style code): C4996
+# (QVariant::Type, QHoverEvent, QCheckBox::stateChanged, QStyle::State_Editing
+# deprecations), C4456 (pre-existing local shadowing in menus). One pass
+# done: C4100 unused dialog-dark param removed by deriving the command fill
+# from the dialog palette token.
+target_compile_options(winui3style PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /external:W0>
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wall -Wextra -Wpedantic>
+)
+
 if(WIN32)
     target_link_libraries(winui3style PRIVATE advapi32 dwmapi user32)
 endif()

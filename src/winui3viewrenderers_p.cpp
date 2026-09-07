@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3viewrenderers_p.h"
 
 #include "winui3paint_p.h"
@@ -181,6 +182,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             fill = t.subtlePressed;
         else if (selected || hovered)
             fill = t.subtleHover;
+
         // Pointer events and animation invalidation belong to the viewport.
         // Delegates may invoke the style with either the view or its viewport,
         // so resolve the actual event surface explicitly.
@@ -197,9 +199,19 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             : tree ? QRectF(option->rect).adjusted(4, 2, -4, -2)
                    : table ? QRectF(option->rect)
                            : QRectF(option->rect).adjusted(2, 1, -2, -1);
-        if (fill.alpha() > 0)
+        if (fill.alpha() > 0) {
+            // Same accumulation contract as menu items: on a translucent
+            // (acrylic) popup, rebuild the row frame from transparent first.
+            if (paintsDirectlyOnBackdrop(widget)) {
+                painter->save();
+                painter->setCompositionMode(
+                    QPainter::CompositionMode_Source);
+                painter->fillRect(option->rect, Qt::transparent);
+                painter->restore();
+            }
             roundedRect(painter, itemRect, fill, Qt::transparent,
                         popup ? 3.0 : table ? 0.0 : ControlRadius);
+        }
         const bool firstColumn = !viewOption || !viewOption->index.isValid()
             || viewOption->index.column() == 0;
         if (selected && comboPopup && firstColumn) {
@@ -471,18 +483,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
                     ? QRectF(source->rect).adjusted(4, 2, -4, -2)
                     : table ? QRectF(source->rect).adjusted(1, 1, -1, -1)
                             : QRectF(source->rect).adjusted(2, 1, -2, -1);
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2.0));
-                painter->drawRoundedRect(focusRect.adjusted(1, 1, -1, -1),
-                                         table ? 0.0 : 5.0,
-                                         table ? 0.0 : 5.0);
-                painter->setPen(QPen(t.focusInner, 1.0));
-                painter->drawRoundedRect(focusRect.adjusted(3, 3, -3, -3),
-                                         table ? 0.0 : 3.0,
-                                         table ? 0.0 : 3.0);
-                painter->restore();
+                paintFocusRing(painter, focusRect,
+                               t.focusOuter, t.focusInner, 1, 3,
+                               table ? 0.0 : 5.0, table ? 0.0 : 3.0);
             }
             return true;
         }
@@ -562,8 +565,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
         const bool north = !tab || tab->shape == QTabBar::RoundedNorth
             || tab->shape == QTabBar::TriangularNorth;
         if (selected && north) {
-            const QColor selectedFill = t.dark ? QColor(44, 44, 44)
-                                                : QColor(251, 251, 251);
+            const QColor selectedFill = t.selectedTabFill;
             const QRectF rect = QRectF(option->rect).adjusted(1, 1, -1, 0);
             const qreal radius = 8.0;
             QPainterPath surface;
@@ -612,16 +614,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element,
             }
         }
         if ((option->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setBrush(Qt::NoBrush);
-            painter->setPen(QPen(t.focusOuter, 2));
-            painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
-                                     ControlRadius, ControlRadius);
-            painter->setPen(QPen(t.focusInner, 1));
-            painter->drawRoundedRect(QRectF(option->rect).adjusted(5, 5, -5, -5),
-                                     ControlRadius - 1, ControlRadius - 1);
-            painter->restore();
+            paintFocusRing(painter, QRectF(option->rect),
+                           t.focusOuter, t.focusInner, 3, 5,
+                           ControlRadius, ControlRadius - 1);
         }
         return true;
     }

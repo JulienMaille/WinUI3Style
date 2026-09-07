@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/animatedstack.h>
 #include <winui3style/winui3style.h>
 

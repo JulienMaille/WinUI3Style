@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include <QColor>
@@ -34,6 +35,14 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
 // chamfer instead of running edge-to-edge. Shared by TextBox and NumberBox.
 void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect,
                               const QColor &accent, qreal radius);
+
+// WinUI keyboard focus ring: 2 px outer + 1 px inner rounded rects. The
+// per-site adjusted() insets and radii are copied into the call args, never
+// unified by judgment; visual diffs hide there.
+void paintFocusRing(QPainter *painter, const QRectF &rect,
+                    const QColor &outer, const QColor &inner,
+                    qreal outerInset, qreal innerInset,
+                    qreal outerRadius, qreal innerRadius);
 
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter);

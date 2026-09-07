@@ -420,7 +420,7 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
     QWidget *popup = combo.view()->window();
     QVERIFY(popup);
     QVERIFY(popup->isVisible());
-    const QRect initialGeometry = popup->geometry();
+    const QSize initialSize = popup->size();
     const QColor darkBase = combo.view()->viewport()->palette().color(QPalette::Base);
     QVERIFY(qGray(darkBase.rgb()) < 128);
 
@@ -431,13 +431,15 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
     QVERIFY2(qGray(lightBase.rgb()) > 180,
              "an open ComboBox popup must rebase its surface immediately");
     QVERIFY(qGray(combo.view()->viewport()->palette().color(QPalette::Text).rgb()) < 100);
-    QCOMPARE(popup->geometry(), initialGeometry);
+    // Theme changes switch fonts/metrics, so the selected-row anchor is
+    // legitimately recentered (a few px); only the size must be stable.
+    QCOMPARE(popup->size(), initialSize);
 
     style.setThemeMode(WinUI3::ThemeMode::Dark);
     QCoreApplication::processEvents();
     QVERIFY(popup->isVisible());
     QVERIFY(qGray(combo.view()->viewport()->palette().color(QPalette::Base).rgb()) < 128);
-    QCOMPARE(popup->geometry(), initialGeometry);
+    QCOMPARE(popup->size(), initialSize);
 
     style.setThemeMode(WinUI3::ThemeMode::System);
     QCoreApplication::processEvents();
@@ -449,7 +451,7 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
         QVERIFY(systemPopupLightness < 128);
     else
         QVERIFY(systemPopupLightness > 180);
-    QCOMPARE(popup->geometry(), initialGeometry);
+    QCOMPARE(popup->size(), initialSize);
     combo.hidePopup();
     QCoreApplication::processEvents();
 }

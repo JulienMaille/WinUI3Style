@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3paint_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -94,6 +95,25 @@ void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect,
     painter->setPen(QPen(accent, 2.0, Qt::SolidLine, Qt::FlatCap));
     painter->drawLine(rect.left(), rect.bottom() - 1,
                       rect.right(), rect.bottom() - 1);
+    painter->restore();
+}
+
+void paintFocusRing(QPainter *painter, const QRectF &rect,
+                    const QColor &outer, const QColor &inner,
+                    qreal outerInset, qreal innerInset,
+                    qreal outerRadius, qreal innerRadius)
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setBrush(Qt::NoBrush);
+    painter->setPen(QPen(outer, 2));
+    painter->drawRoundedRect(rect.adjusted(outerInset, outerInset,
+                                           -outerInset, -outerInset),
+                             outerRadius, outerRadius);
+    painter->setPen(QPen(inner, 1));
+    painter->drawRoundedRect(rect.adjusted(innerInset, innerInset,
+                                           -innerInset, -innerInset),
+                             innerRadius, innerRadius);
     painter->restore();
 }
 

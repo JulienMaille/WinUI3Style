@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3buttons_p.h"
 
 #include "winui3paint_p.h"
@@ -341,8 +342,11 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         const bool focused = option->state & QStyle::State_HasFocus;
         const qreal lineEditHover = progress(widget, hoverProperty,
                                      option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+        // Keep the focused surface opaque (see CC_ComboBox): the old
+        // translucent dark fill washed out toward white over a light
+        // material.
         QColor fill = !enabled ? t.controlDisabled
-            : focused ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
+            : focused ? t.editorFocusedFill
                       : t.control;
         if (enabled && !focused)
             fill = mix(fill, t.controlHover, lineEditHover);
@@ -440,14 +444,8 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                     | Qt::TextShowMnemonic,
                 button->text);
             if ((button->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2));
-                painter->drawRoundedRect(QRectF(button->rect).adjusted(1, 1, -1, -1),
-                                         5, 5);
-                painter->setPen(QPen(t.focusInner, 1));
-                painter->drawRoundedRect(QRectF(button->rect).adjusted(3, 3, -3, -3),
-                                         3, 3);
+                paintFocusRing(painter, QRectF(button->rect),
+                               t.focusOuter, t.focusInner, 1, 3, 5, 3);
             }
             painter->restore();
             return true;
@@ -482,9 +480,7 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                 knob = withAlpha(checked ? t.controlOnAccentDisabled : t.textDisabled,
                                  150);
             } else if (dragging) {
-                const QColor off = t.dark ? QColor(0, 0, 0, 25)
-                                          : QColor(0, 0, 0, 6);
-                trackFill = mix(off, t.accentFillPressed, position);
+                trackFill = mix(t.toggleOff, t.accentFillPressed, position);
                 trackStroke = mix(t.strokeStrong, t.accentFillPressed, position);
                 knob = mix(t.textSecondary, t.controlOnAccentPrimary, position);
             } else if (checked) {
@@ -493,43 +489,20 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                 trackStroke = trackFill;
                 knob = t.controlOnAccentPrimary;
             } else {
-                const QColor off = t.dark ? QColor(0, 0, 0, 25)
-                                          : QColor(0, 0, 0, 6);
-                const QColor offHover = t.dark ? QColor(255, 255, 255, 11)
-                                               : QColor(0, 0, 0, 15);
-                const QColor offPressed = t.dark ? QColor(255, 255, 255, 18)
-                                                 : QColor(0, 0, 0, 24);
-                trackFill = mix(off, offHover, hover * (1.0 - press));
-                trackFill = mix(trackFill, offPressed, press);
+                trackFill = mix(t.toggleOff, t.toggleOffHover, hover * (1.0 - press));
+                trackFill = mix(trackFill, t.toggleOffPressed, press);
                 trackStroke = t.strokeStrong;
                 knob = t.textSecondary;
             }
             roundedRect(painter, track, trackFill, trackStroke, 10.0);
 
-            const qreal hoverSize = 12.0 + 2.0 * hover;
-            // WinUI animates the thumb to 17 x 14 independently of how far
-            // the pointer-over transition had progressed before the press.
-            const qreal knobWidth = hoverSize + (17.0 - hoverSize) * press;
-            const qreal knobHeight = hoverSize + (14.0 - hoverSize) * press;
-            qreal visualPosition = position;
-            if (check->direction == Qt::RightToLeft)
-                visualPosition = 1.0 - visualPosition;
-            // The XAML template uses a translated 20 px container. Its normal
-            // thumb is centred at 9.5 px; in Pressed it is aligned 3 px from
-            // the end, yielding centres 11.5 (off) and 28.5 (on). Interpolate
-            // the centre as well as the size so the elongated thumb never
-            // crowds either edge of the track.
-            const qreal normalCenter = 9.5 + 20.0 * visualPosition;
-            const qreal pressedCenter = 11.5 + 17.0 * visualPosition;
-            const qreal knobCenter = track.left()
-                + normalCenter + (pressedCenter - normalCenter) * press;
+            const QRectF knobRect = toggleKnobRect(track, position, hover,
+                                                   press, check->direction);
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
             painter->setBrush(knob);
-            painter->drawEllipse(QRectF(knobCenter - knobWidth / 2.0,
-                                        track.center().y() - knobHeight / 2.0,
-                                        knobWidth, knobHeight));
+            painter->drawEllipse(knobRect);
             painter->restore();
 
             const QVariant stateText = widget->property(
@@ -548,17 +521,9 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                       | Qt::TextShowMnemonic,
                                   label);
             }
-
-            if (keyboardFocusVisible(widget)) {
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2.0));
-                painter->drawRoundedRect(track.adjusted(-3, -3, 3, 3), 12, 12);
-                painter->setPen(QPen(t.focusInner, 1.0));
-                painter->drawRoundedRect(track.adjusted(-1, -1, 1, 1), 11, 11);
-                painter->restore();
-            }
+            if (keyboardFocusVisible(widget))
+                paintFocusRing(painter, track, t.focusOuter, t.focusInner,
+                               -3, -1, 12, 11);
             return true;
         }
         return false;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 // Metrics are deliberately kept in a private, header-only contract while the

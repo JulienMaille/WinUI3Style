@@ -138,6 +138,13 @@ void GalleryWindow::configureGallery()
         if (qApp->style())
             qApp->style()->setProperty("densityMode", index);
     });
+    connect(ui->micaToggle, &QCheckBox::toggled, this, [this](bool checked) {
+        // The gallery stays a plain Qt client: toggling the "winuiBackdrop"
+        // dynamic property is the documented, dependency-free way to ask the
+        // style for a Mica surface.
+        setProperty("winuiBackdrop", checked ? QStringLiteral("mica")
+                                             : QStringLiteral("none"));
+    });
     connect(ui->searchSettings, &QLineEdit::textChanged, this,
             [this](const QString &text) {
         for (int row = 0; row < ui->navigationList->count(); ++row) {

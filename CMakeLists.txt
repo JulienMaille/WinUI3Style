@@ -67,6 +67,7 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
                 --gallery $<TARGET_FILE:winui3style_gallery>
                 --baseline ${CMAKE_CURRENT_SOURCE_DIR}/spec/baselines/gallery
                 --report ${CMAKE_CURRENT_BINARY_DIR}/snapshot-report.json
+                --keep-captures ${CMAKE_CURRENT_BINARY_DIR}/snapshot-captures
     )
     set_tests_properties(winui3style_snapshot_matrix PROPERTIES
             RUN_SERIAL TRUE
@@ -85,13 +86,6 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_FONTDIR=$ENV{SystemRoot}/Fonts;QT_ACCESSIBILITY=0;WINUI3STYLE_DISABLE_ANIMATIONS=1;QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins;PATH=${_winui3style_snapshot_path}")
     endif()
 endif()
-
-add_test(
-    NAME winui3style_no_stylesheets
-    COMMAND ${CMAKE_COMMAND}
-        -DPROJECT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_no_stylesheets.cmake
-)
 
 configure_package_config_file(
     cmake/WinUI3StyleConfig.cmake.in

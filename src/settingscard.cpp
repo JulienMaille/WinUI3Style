@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/settingscard.h>
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>

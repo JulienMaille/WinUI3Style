@@ -102,3 +102,10 @@ if(_linked EQUAL -1)
     message(FATAL_ERROR
         "The gallery must link WinUI3::Widgets because the .ui promotes SettingsCard")
 endif()
+
+# Zero-QSS claim loop: Designer-set stylesheets bypass the setStyleSheet
+# source grep, so forbid stylesheet properties in the .ui itself.
+string(FIND "${_gallery_ui}" "styleSheet" _ui_stylesheet)
+if(NOT _ui_stylesheet EQUAL -1)
+    message(FATAL_ERROR "Designer gallery must not set styleSheet in gallerywindow.ui")
+endif()

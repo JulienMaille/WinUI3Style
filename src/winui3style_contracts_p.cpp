@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3style_contracts_p.h"
 
 #include "winui3geometry_p.h"

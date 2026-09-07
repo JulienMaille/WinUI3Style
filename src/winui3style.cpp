@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/winui3style.h>
 #include "winui3qtcompat_p.h"
 

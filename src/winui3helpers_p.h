@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 // Small, pure widget-classification and frame-state helpers shared by the

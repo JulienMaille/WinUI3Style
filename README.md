@@ -82,10 +82,11 @@ qApp->style()->setProperty("densityMode", 1); // Compact
 For mixed-density forms, set the inherited `winuiDensity` dynamic property on
 a page, panel, or individual control in Qt Designer. Compact follows WinUI's
 Compact Sizing scope: TextBox/LineEdit, ComboBox and its popup rows,
-QDateEdit/QTimeEdit, ListView, TreeView, NavigationView, and MenuBar become
+QDateEdit/QTimeEdit, ListView, TreeView, NavigationView, MenuBar, and menu
+flyout items (which follow the combo popup rows, 40 px to 32 px) become
 shorter. NumberBox-style QSpinBox/QDoubleSpinBox controls follow the TextBox
 height as a Qt consistency extension. Buttons, check/radio and toggle controls,
-sliders, toolbars, tabs, menu flyouts, tables, and headers retain their Standard
+sliders, toolbars, tabs, tables, and headers retain their Standard
 metrics.
 
 The equivalent C++ property call, when a form cannot be edited, is simply:

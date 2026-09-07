@@ -24,10 +24,10 @@ ordering, and timing are also reviewed against `winui-2.4/manifest.json`.
 Generate the Qt matrix with `winui3style_gallery --capture-dir <absolute-dir>`.
 Capture mode disables the native DWM material and paints WinUI's solid
 fallback base; this removes compositor alpha and wallpaper-dependent tint from
-the deterministic PNGs. Popup surfaces are opaque with rounded corners from the
-native window corner preference, so live popup captures stay pixel-stable.
-Mica on the main window is environment-dependent and validated in the live
-side-by-side pass.
+the deterministic PNGs. Popup surfaces fall back to opaque with rounded
+corners from the native window corner preference offscreen, so live popup
+captures stay pixel-stable. Mica on the main window and acrylic on popups are
+environment-dependent and validated in the live side-by-side pass.
 
 Acceptance requires both passes: the deterministic light/dark page matrix plus
 live interaction checks for pointer-over, press, mouse focus, keyboard focus,
@@ -37,4 +37,10 @@ or a crash-free screenshot is not visual validation.
 For automated repeatability, run the CTest target
 `winui3style_snapshot_matrix`; it creates two fresh gallery processes, checks
 the strict manifest and pixel identity, and compares an approved
-`spec/baselines/gallery` directory when present.
+`spec/baselines/gallery` directory when present. CI uploads
+`snapshot-report.json` plus both capture dirs as artifacts on failure.
+
+Baseline refresh (never auto-accept): regenerate via
+`winui3style_gallery --capture-dir <absolute-dir>`, review every diff
+pixel-by-pixel with `tools/compare_images.py` (RMS is a regression signal;
+geometry and state semantics decide), then commit the new approved PNGs.
