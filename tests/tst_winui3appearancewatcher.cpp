@@ -6,8 +6,9 @@
 #  define NOMINMAX
 #  include <windows.h>
 
-#  ifndef WM_DWMCOLORIZATIONCOLORCHANGE
-#    define WM_DWMCOLORIZATIONCOLORCHANGE WM_DWMCOLORIZATIONCOLORCHANGED
+#  ifndef WM_DWMCOLORIZATIONCOLORCHANGED
+// Absent from older MinGW headers; documented value is 0x0320.
+#    define WM_DWMCOLORIZATIONCOLORCHANGED 0x0320
 #  endif
 #endif
 
