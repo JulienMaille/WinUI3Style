@@ -63,10 +63,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 6.8.* = oldest supported Qt (install-qt resolves the glob); 6.11.x =
-        # the version this tree develops against. Both must pass: token roles
-        # (QPalette::Accent, Qt 6.6+) and font metrics drift between minors.
-        qt: ["6.8.*", "6.11.*"]
+        # Exact versions: aqt cannot glob-resolve "6.11.*" (6.11.2 exists but
+        # the glob path qt6_6112/Updates.xml 404s). 6.8.3 = oldest supported.
+        qt: ["6.8.3", "6.11.2"]
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1

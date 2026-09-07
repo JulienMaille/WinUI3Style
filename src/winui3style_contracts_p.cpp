@@ -463,7 +463,8 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
         return 1;
     case QStyle::SH_ComboBox_PopupFrameStyle:
         return QFrame::NoFrame;
-    case QStyle::SH_ComboBox_ListMouseTracking:
+    case QStyle::SH_ComboBox_ListMouseTracking: // == _Current
+    case QStyle::SH_ComboBox_ListMouseTracking_Active:
     case QStyle::SH_MenuBar_MouseTracking:
     case QStyle::SH_Menu_MouseTracking:
         return 1;
