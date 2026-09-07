@@ -1,0 +1,12 @@
+# pre-commit : le fix format local en un commit (le gate CI format-check
+# reste fail-only, sans app externe ni auto-commit bot).
+# Usage : pre-commit install (une fois), puis chaque git commit reformate.
+repos:
+  - repo: local
+    hooks:
+      - id: clang-format-18
+        name: clang-format 18.1.8 (style Qt upstream)
+        entry: clang-format -i
+        language: system
+        files: ^(src|include|tests|demo|plugin|benchmarks)/.*\.(cpp|h)$
+        require_serial: true
