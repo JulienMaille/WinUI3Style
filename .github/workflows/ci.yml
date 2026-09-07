@@ -101,9 +101,13 @@ jobs:
         run: >
           ctest --test-dir build -C Release --output-on-failure
           -E "^winui3style_native$"
-      - name: Rerun failures verbosely
+      - name: Dump QtTest failure lines
         if: failure()
-        run: ctest --test-dir build -C Release --rerun-failed --output-on-failure -V
+        shell: pwsh
+        run: >
+          Select-String -Path build/Testing/Temporary/LastTest.log
+          -Pattern 'FAIL!|Actual|Expected|failure location' |
+          Select-Object -First 40
       - name: Upload snapshot debug artifacts
         if: failure()
         uses: actions/upload-artifact@v4

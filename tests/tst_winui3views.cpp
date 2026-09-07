@@ -542,7 +542,11 @@ void WinUI3ViewsTest::tabViewContract()
     QVERIFY(bar->tabRect(0).width() >= 100);
     QCOMPARE(tabs.style()->pixelMetric(QStyle::PM_TabCloseIndicatorWidth, nullptr, bar), 32);
     QCOMPARE(tabs.style()->pixelMetric(QStyle::PM_TabCloseIndicatorHeight, nullptr, bar), 24);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
     QVERIFY(!tabs.style()->standardIcon(QStyle::SP_TabCloseButton).isNull());
+#else
+    QVERIFY(!tabs.style()->standardIcon(QStyle::SP_TitleBarCloseButton).isNull());
+#endif
 
     QStyleOptionTab selected;
     selected.rect = QRect(0, 0, 120, 32);
@@ -670,10 +674,10 @@ void WinUI3ViewsTest::itemViewGutterContract()
     auto treeOption = option;
     treeOption.widget = tree.viewport();
     treeOption.direction = Qt::LeftToRight;
-    treeOption.index = tree.indexFromItem(root);
+    treeOption.index = treeIndexFromItem(&tree, root);
     const QRect rootText =
             tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &treeOption, tree.viewport());
-    treeOption.index = tree.indexFromItem(child);
+    treeOption.index = treeIndexFromItem(&tree, child);
     const QRect childText =
             tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &treeOption, tree.viewport());
     QCOMPARE(childText.left() - rootText.left(), tree.indentation());
@@ -701,7 +705,7 @@ void WinUI3ViewsTest::treeViewContract()
     tree.resize(320, 180);
     tree.show();
     QTRY_VERIFY(tree.isVisible());
-    QCOMPARE(tree.sizeHintForIndex(tree.indexFromItem(root)).height(), 28);
+    QCOMPARE(tree.sizeHintForIndex(treeIndexFromItem(&tree, root)).height(), 28);
 
     QStyleOption branch;
     branch.initFrom(tree.viewport());
@@ -742,8 +746,8 @@ void WinUI3ViewsTest::treeSelectionMarkerLeadingEdge()
         option.initFrom(tree.viewport());
         option.widget = tree.viewport();
         option.direction = direction;
-        option.rect = tree.visualRect(tree.indexFromItem(child));
-        option.index = tree.indexFromItem(child);
+        option.rect = tree.visualRect(treeIndexFromItem(&tree, child));
+        option.index = treeIndexFromItem(&tree, child);
         option.text = child->text(0);
         option.features = QStyleOptionViewItem::HasDisplay;
         option.state = QStyle::State_Enabled | QStyle::State_Selected;
@@ -757,7 +761,7 @@ void WinUI3ViewsTest::treeSelectionMarkerLeadingEdge()
 
     const QColor accent = tree.palette().color(QPalette::Highlight);
     const auto hasAccentNear = [&](const QImage &image, int left) {
-        const int y = tree.visualRect(tree.indexFromItem(child)).center().y();
+        const int y = tree.visualRect(treeIndexFromItem(&tree, child)).center().y();
         for (int x = left; x < left + 8; ++x)
             if (image.rect().contains(x, y) && colorDistance(image.pixelColor(x, y), accent) < 18)
                 return true;

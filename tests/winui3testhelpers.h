@@ -18,6 +18,7 @@
 
 #include <QLabel>
 #include <QListWidget>
+#include <QTreeWidget>
 #include <QListView>
 #include <QLineEdit>
 #include <QAction>
@@ -377,3 +378,22 @@ public:
         return false;
     }
 };
+
+// QTreeWidget::indexFromItem is protected in Qt 5 (public since Qt 6).
+// Resolve through the model instead: top-level items are row(r),0 and
+// children are row(c),0 under their parent index.
+inline QModelIndex treeIndexFromItem(const QTreeWidget *tree, QTreeWidgetItem *item)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return tree->indexFromItem(item);
+#else
+    if (!tree || !item)
+        return QModelIndex();
+    QTreeWidgetItem *parent = item->parent();
+    if (!parent) {
+        const int row = tree->indexOfTopLevelItem(item);
+        return row >= 0 ? tree->model()->index(row, 0) : QModelIndex();
+    }
+    return tree->model()->index(parent->indexOfChild(item), 0, treeIndexFromItem(tree, parent));
+#endif
+}
