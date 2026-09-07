@@ -114,11 +114,16 @@ jobs:
           $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
           foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
-            Write-Output "===== $t -v2 ====="
-            & "build/tests/Release/$t.exe" -v2 2>&1 | Tee-Object -FilePath "$t-v2.log"
-            Write-Output "$t exit: $LASTEXITCODE"
+            Write-Output "===== $t per-function ====="
+            $funcs = & "build/tests/Release/$t.exe" -functions 2>&1
+            Write-Output ($funcs -join ', ')
+            foreach ($f in $funcs) {
+                if ($f -match '^(initTestCase|cleanupTestCase|init| cleanup)$') { continue }
+                & "build/tests/Release/$t.exe" $f 2>&1 | Tee-Object -FilePath "$t-$f.log" |
+                  Select-String -Pattern 'PASS|FAIL!|Totals|Received signal' | Select-Object -First 6
+                Write-Output "$t::$f exit: $LASTEXITCODE"
+            }
           }
-          Select-String -Path *-v2.log -Pattern 'FAIL!|Totals' | Select-Object -First 40
       - name: Upload snapshot debug artifacts
         if: failure()
         uses: actions/upload-artifact@v4
