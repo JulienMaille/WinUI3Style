@@ -60,13 +60,20 @@ jobs:
     # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
     # CMake's "Visual Studio 17 2022" generator can no longer find VS there.
     runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        # 6.8.* = oldest supported Qt (install-qt resolves the glob); 6.11.x =
+        # the version this tree develops against. Both must pass: token roles
+        # (QPalette::Accent, Qt 6.6+) and font metrics drift between minors.
+        qt: ["6.8.*", "6.11.*"]
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
-      - name: Install Qt 6.8 (MSVC 2022 64-bit)
+      - name: Install Qt ${{ matrix.qt }} (MSVC 2022 64-bit)
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.*"
+          version: ${{ matrix.qt }}
           arch: win64_msvc2022_64
           cache: true
       - name: Install Python + Pillow
@@ -113,7 +120,7 @@ jobs:
         with:
           version: "5.12.12"
           arch: win32_mingw73
-          tools: qt.tools.win32_mingw730
+          tools: tools_mingw,qt.tools.win32_mingw730
           cache: true
       - name: Install Python + Pillow
         uses: actions/setup-python@v5
