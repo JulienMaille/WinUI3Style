@@ -392,9 +392,10 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
     }
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
         const QAbstractItemView *view = selectionMarkerView(widget);
-        if (view && (element == QStyle::SE_ItemViewItemCheckIndicator
-                     || element == QStyle::SE_ItemViewItemDecoration
-                     || element == QStyle::SE_ItemViewItemText)) {
+        if (view
+            && (element == QStyle::SE_ItemViewItemCheckIndicator
+                || element == QStyle::SE_ItemViewItemDecoration
+                || element == QStyle::SE_ItemViewItemText)) {
             // The delegate's option.rect already includes QTreeView's
             // hierarchy offset. Adding the model depth here doubled the
             // indentation at every level.

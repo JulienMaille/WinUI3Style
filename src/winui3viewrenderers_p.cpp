@@ -269,12 +269,13 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         // leading edge.  The shift mirrors for RTL and does not alter the
         // tree's hierarchy indentation.
         const int branchCenter = option->rect.center().x()
-            + (option->direction == Qt::RightToLeft
-                   ? -treeBranchMarkerClearance : treeBranchMarkerClearance);
-        icon(glyph, enabled ? t.textPrimary : t.textDisabled).paint(painter,
-            QRect(branchCenter - extent / 2,
-                  option->rect.center().y() - extent / 2, extent, extent),
-            Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+                + (option->direction == Qt::RightToLeft ? -treeBranchMarkerClearance
+                                                        : treeBranchMarkerClearance);
+        icon(glyph, enabled ? t.textPrimary : t.textDisabled)
+                .paint(painter,
+                       QRect(branchCenter - extent / 2, option->rect.center().y() - extent / 2,
+                             extent, extent),
+                       Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
         return true;
     }
 

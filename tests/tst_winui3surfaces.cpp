@@ -384,21 +384,17 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
     QVERIFY(QTest::qWaitForWindowExposed(&darkWizard));
     QCOMPARE(darkWizard.palette().color(QPalette::Window), QColor(44, 44, 44));
     QCOMPARE(darkPage->palette().color(QPalette::Window), QColor(44, 44, 44));
-    QCOMPARE(darkWizard.button(QWizard::FinishButton)
-                     ->palette().color(QPalette::Window),
+    QCOMPARE(darkWizard.button(QWizard::FinishButton)->palette().color(QPalette::Window),
              QColor(32, 32, 32));
     auto *darkFooter = darkWizard.findChild<QWidget *>(
-            QStringLiteral("_winui_wizard_footer_surface"),
-            Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_wizard_footer_surface"), Qt::FindDirectChildrenOnly);
     QVERIFY(darkFooter);
     QTRY_VERIFY(darkFooter->isVisible());
     const QImage darkImage = darkWizard.grab().toImage();
-    const QPoint darkBodyPixel = darkPage->mapTo(
-            &darkWizard, QPoint(2, darkPage->height() / 2));
+    const QPoint darkBodyPixel = darkPage->mapTo(&darkWizard, QPoint(2, darkPage->height() / 2));
     QVERIFY(darkWizard.rect().contains(darkBodyPixel));
     QCOMPARE(darkImage.pixelColor(darkBodyPixel), QColor(44, 44, 44));
-    QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2,
-                                  darkFooter->geometry().top() + 2),
+    QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2, darkFooter->geometry().top() + 2),
              QColor(32, 32, 32));
 
     style->setThemeMode(WinUI3::ThemeMode::Light);
@@ -409,17 +405,13 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
     runtimeWizard.addPage(runtimePage);
     runtimeWizard.show();
     QVERIFY(QTest::qWaitForWindowExposed(&runtimeWizard));
-    QCOMPARE(runtimePage->palette().color(QPalette::Window),
-             QColor(252, 252, 252));
+    QCOMPARE(runtimePage->palette().color(QPalette::Window), QColor(252, 252, 252));
     style->setThemeMode(WinUI3::ThemeMode::Dark);
-    QTRY_COMPARE(runtimePage->palette().color(QPalette::Window),
-                 QColor(44, 44, 44));
-    QTRY_COMPARE(runtimeWizard.button(QWizard::NextButton)
-                         ->palette().color(QPalette::Window),
+    QTRY_COMPARE(runtimePage->palette().color(QPalette::Window), QColor(44, 44, 44));
+    QTRY_COMPARE(runtimeWizard.button(QWizard::NextButton)->palette().color(QPalette::Window),
                  QColor(32, 32, 32));
     auto *runtimeFooter = runtimeWizard.findChild<QWidget *>(
-            QStringLiteral("_winui_wizard_footer_surface"),
-            Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_wizard_footer_surface"), Qt::FindDirectChildrenOnly);
     QVERIFY(runtimeFooter);
     QTRY_VERIFY(runtimeFooter->isVisible());
 }

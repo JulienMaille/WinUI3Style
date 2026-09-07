@@ -737,8 +737,7 @@ void WinUI3ViewsTest::treeViewContract()
     image.fill(Qt::transparent);
     {
         QPainter painter(&image);
-        tree.style()->drawPrimitive(QStyle::PE_IndicatorBranch, &branch,
-                                    &painter, tree.viewport());
+        tree.style()->drawPrimitive(QStyle::PE_IndicatorBranch, &branch, &painter, tree.viewport());
     }
     int glyphRight = -1;
     for (int y = 0; y < image.height(); ++y) {

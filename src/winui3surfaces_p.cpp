@@ -131,21 +131,20 @@ private:
         setVisible(m_dialog->isVisible());
 
         if (messageBox) {
-            auto *label = messageBox->findChild<QLabel *>(
-                QStringLiteral("qt_msgbox_label"), Qt::FindDirectChildrenOnly);
-            auto *icon = messageBox->findChild<QLabel *>(
-                QStringLiteral("qt_msgboxex_icon_label"), Qt::FindDirectChildrenOnly);
+            auto *label = messageBox->findChild<QLabel *>(QStringLiteral("qt_msgbox_label"),
+                                                          Qt::FindDirectChildrenOnly);
+            auto *icon = messageBox->findChild<QLabel *>(QStringLiteral("qt_msgboxex_icon_label"),
+                                                         Qt::FindDirectChildrenOnly);
             if (label && label->isVisible()) {
                 // QMessageBox keeps the message widgets top-aligned when its
                 // height is enlarged to the ContentDialog minimum. Centre the
                 // actual content in the region above the command footer, then
                 // align the icon with the message instead of the layout row.
                 const int contentCenter = QRect(0, 0, messageBox->width(), top).center().y();
-                label->move(label->x(), label->y() + contentCenter
-                                         - label->geometry().center().y());
+                label->move(label->x(),
+                            label->y() + contentCenter - label->geometry().center().y());
                 if (icon && icon->isVisible()) {
-                    icon->move(icon->x(), contentCenter
-                                           - icon->rect().center().y());
+                    icon->move(icon->x(), contentCenter - icon->rect().center().y());
                 }
             }
         }

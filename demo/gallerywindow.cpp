@@ -208,19 +208,17 @@ void GalleryWindow::populateCollections()
     root->setExpanded(true);
     // Populate the Designer-owned plain TreeView so its hierarchy and
     // disclosure affordance can be inspected independently of checkboxes.
-    auto *plainRoot = new QTreeWidgetItem(ui->plainTreeViewTab,
-                                          {tr("Example album")});
+    auto *plainRoot = new QTreeWidgetItem(ui->plainTreeViewTab, { tr("Example album") });
     plainRoot->setIcon(0, folder);
     for (const QString &track : tracks)
-        new QTreeWidgetItem(plainRoot, {track});
+        new QTreeWidgetItem(plainRoot, { track });
     plainRoot->setExpanded(true);
     ui->plainTreeViewTab->setCurrentItem(plainRoot);
 
-    const QString rows[4][3] = {
-        {tr("Button"), tr("Ready"), tr("Complete")},
-        {tr("ComboBox"), tr("Interactive"), tr("Complete")},
-        {tr("TreeView"), tr("Expanded"), tr("Complete")},
-        {tr("TableView"), tr("Editable"), tr("Complete")}};
+    const QString rows[4][3] = { { tr("Button"), tr("Ready"), tr("Complete") },
+                                 { tr("ComboBox"), tr("Interactive"), tr("Complete") },
+                                 { tr("TreeView"), tr("Expanded"), tr("Complete") },
+                                 { tr("TableView"), tr("Editable"), tr("Complete") } };
     for (int row = 0; row < 4; ++row)
         for (int column = 0; column < 3; ++column)
             ui->tableViewTab->setItem(row, column, new QTableWidgetItem(rows[row][column]));
