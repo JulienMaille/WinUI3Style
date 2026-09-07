@@ -194,8 +194,12 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             ? progress(popupInteractionSurface, pressProperty,
                        pressedItem ? 1.0 : 0.0)
             : 0.0;
-        QRectF itemRect = popup
+        // ComboBoxItem LayoutRoot carries the official Margin="5,2,5,2",
+        // so the PointerOver/Selected SubtleFill sits 5px inside the row
+        // on both sides. Plain MenuFlyoutItem uses Margin="4,2,4,2".
+        QRectF itemRect = comboPopup
             ? QRectF(option->rect).adjusted(5, 2, -5, -2)
+            : popup ? QRectF(option->rect).adjusted(4, 2, -4, -2)
             : tree ? QRectF(option->rect).adjusted(4, 2, -4, -2)
                    : table ? QRectF(option->rect)
                            : QRectF(option->rect).adjusted(2, 1, -2, -1);
