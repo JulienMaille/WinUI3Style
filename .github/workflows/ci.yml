@@ -84,6 +84,9 @@ jobs:
         run: >
           ctest --test-dir build -C Release --output-on-failure
           -E "^winui3style_native$"
+      - name: Rerun failures verbosely
+        if: failure()
+        run: ctest --test-dir build -C Release --rerun-failed --output-on-failure -V
       - name: Upload snapshot debug artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -110,7 +113,7 @@ jobs:
         with:
           version: "5.12.12"
           arch: win32_mingw73
-          tools: tools_win32_mingw730
+          tools: qt.tools.win32_mingw730
           cache: true
       - name: Install Python + Pillow
         uses: actions/setup-python@v5
