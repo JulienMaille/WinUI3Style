@@ -115,18 +115,18 @@ jobs:
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
           foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
             Write-Output "===== $t -v2 ====="
-            & "build/tests/Release/$t.exe" -v2 2>&1 | Select-String -Pattern 'PASS|FAIL!|Totals' | Select-Object -First 40
+            & "build/tests/Release/$t.exe" -v2 2>&1 | Tee-Object -FilePath "$t-v2.log"
+            Write-Output "$t exit: $LASTEXITCODE"
           }
+          Select-String -Path *-v2.log -Pattern 'FAIL!|Totals' | Select-Object -First 40
       - name: Upload snapshot debug artifacts
         if: failure()
         uses: actions/upload-artifact@v4
-        with:
-          name: snapshot-matrix-debug
           path: |
             build/snapshot-report.json
             build/snapshot-captures/
-            build/Testing/Temporary/LastTest.log
             build/Testing/Temporary/LastTestsFailed.log
+            ./*-v2.log
           if-no-files-found: warn
 
   qt512-mingw:
