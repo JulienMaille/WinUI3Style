@@ -1214,7 +1214,9 @@ void WinUI3InteractionTest::runtimeAppearanceAndDialogLifecycle()
     const QColor accent(210, 45, 90);
     style->setAccentColor(accent);
     QTRY_COMPARE(qApp->palette().color(QPalette::Highlight), accent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     QVERIFY(qApp->palette().color(QPalette::Accent) != accent);
+#endif
     auto *watchdog =
             style->findChild<QTimer *>(QStringLiteral("_winui_system_appearance_watchdog"));
     QVERIFY(watchdog);

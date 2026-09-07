@@ -309,7 +309,13 @@ void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()
         QPainter painter(&image);
         toggle.style()->drawControl(QStyle::CE_CheckBox, &option, &painter, &toggle);
     }
+    // QPalette::Accent exists from Qt 6.6; on Qt 5.12 the selection accent
+    // (QPalette::Highlight) is the equivalent role.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const QColor accent = toggle.palette().color(QPalette::Accent);
+#else
+    const QColor accent = toggle.palette().color(QPalette::Highlight);
+#endif
     QVERIFY(colorDistance(image.pixelColor(expectedTrack.center()), accent) < 100);
     QVERIFY(colorDistance(image.pixelColor(expectedTrack.left() - 1, expectedTrack.center().y()),
                           background)
@@ -563,17 +569,17 @@ void WinUI3TogglesTest::darkModeIndicatorOnAccentIsBlack()
 
 void WinUI3TogglesTest::customAccentKeepsThemeTextSeparateFromControlInk()
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     QPalette palette = qApp->palette();
     const QColor paleAccent(255, 240, 0);
     palette.setColor(QPalette::Highlight, paleAccent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     palette.setColor(QPalette::Accent, paleAccent);
+#endif
     const WinUI3::Private::Tokens t = WinUI3::Private::buildTokens(palette);
 
     // WinUI resolves both roles from the theme; in Light they are white.
     QCOMPARE(t.textOnAccentPrimary, QColor(Qt::white));
     QCOMPARE(t.controlOnAccentPrimary, QColor(Qt::white));
-#endif
 }
 
 void WinUI3TogglesTest::checkboxGapHitTest()

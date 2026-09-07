@@ -250,7 +250,7 @@ void WinUI3ButtonsTest::systemAccentRampIsAtomic()
     for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         style->setThemeMode(mode);
         const QPalette palette = style->standardPalette();
-        const QColor controlAccent = palette.color(QPalette::Accent);
+        const QColor controlAccent = palette.color(QPalette::Highlight);
         QVERIFY(controlAccent.isValid());
         QVERIFY2(sameHueFamily(systemAccent, controlAccent),
                  qPrintable(QStringLiteral("system %1, control %2")

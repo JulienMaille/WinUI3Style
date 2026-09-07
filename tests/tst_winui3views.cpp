@@ -937,7 +937,11 @@ void WinUI3ViewsTest::richEditBoxContract()
         QPainter painter(&focused);
         editor.style()->drawPrimitive(QStyle::PE_Frame, &option, &painter, &editor);
     }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const QColor accent = editor.palette().color(QPalette::Accent);
+#else
+    const QColor accent = editor.palette().color(QPalette::Highlight);
+#endif
     const QColor underline = focused.pixelColor(focused.width() / 2, focused.height() - 2);
     const int distance = qAbs(underline.red() - accent.red())
             + qAbs(underline.green() - accent.green()) + qAbs(underline.blue() - accent.blue());

@@ -184,7 +184,11 @@ void WinUI3EditorsTest::textBoxInteraction()
         QPainter painter(&focused);
         edit.style()->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, &edit);
     }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const QColor accent = edit.palette().color(QPalette::Accent);
+#else
+    const QColor accent = edit.palette().color(QPalette::Highlight);
+#endif
     const auto distance = [](const QColor &a, const QColor &b) {
         return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
@@ -1123,7 +1127,11 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
         QPainter painter(&focused);
         spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
     }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const QColor accent = spin.palette().color(QPalette::Accent);
+#else
+    const QColor accent = spin.palette().color(QPalette::Highlight);
+#endif
     const auto distance = [](const QColor &a, const QColor &b) {
         return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
@@ -1189,7 +1197,11 @@ void WinUI3EditorsTest::verticalNumberBoxContract()
         QPainter painter(&focused);
         spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
     }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const QColor accent = spin.palette().color(QPalette::Accent);
+#else
+    const QColor accent = spin.palette().color(QPalette::Highlight);
+#endif
     const auto distance = [](const QColor &a, const QColor &b) {
         return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
@@ -1234,7 +1246,11 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
     const auto distance = [](const QColor &a, const QColor &b) {
         return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue());
     };
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const QColor accent = spin.palette().color(QPalette::Accent);
+#else
+    const QColor accent = spin.palette().color(QPalette::Highlight);
+#endif
     const auto verify = [&](bool vertical, Qt::LayoutDirection direction) {
         WinUI3::Style::setVerticalSpinButtons(&spin, vertical);
         spin.setLayoutDirection(direction);
