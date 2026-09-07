@@ -662,7 +662,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QVERIFY(chevron);
     QVERIFY(animation);
     QVERIFY(chevron->isVisible());
-    QVERIFY(!chevron->pixmap().isNull());
+    QVERIFY(!labelPixmap(chevron).isNull());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronRight));
 
@@ -670,14 +670,14 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     const QRect titleGeometry = title->geometry();
     const QRect descriptionGeometry = description->geometry();
     const QImage collapsed = card.grab().toImage();
-    const QPixmap collapsedChevron = chevron->pixmap();
+    const QPixmap collapsedChevron = labelPixmap(chevron);
 
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, header->geometry().center());
     QCOMPARE(card.isExpanded(), true);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     const QImage first = card.grab().toImage();
-    QTRY_VERIFY(chevron->pixmap().toImage() != collapsedChevron.toImage());
+    QTRY_VERIFY(labelPixmap(chevron).toImage() != collapsedChevron.toImage());
     QCOMPARE(header->geometry(), headerGeometry);
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
@@ -697,12 +697,12 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     palette.setColor(QPalette::WindowText, QColor(210, 40, 70));
     card.setPalette(palette);
     QCoreApplication::processEvents();
-    QVERIFY(!chevron->pixmap().isNull());
+    QVERIFY(!labelPixmap(chevron).isNull());
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QEvent dprChange(QEvent::DevicePixelRatioChange);
     QCoreApplication::sendEvent(&card, &dprChange);
 #endif
-    QVERIFY(!chevron->pixmap().isNull());
+    QVERIFY(!labelPixmap(chevron).isNull());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
 
@@ -894,8 +894,8 @@ void WinUI3InteractionTest::readOnlyActionRestoration()
     QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
     QAbstractButton *clearButton = nullptr;
     for (QAbstractButton *button : edit.findChildren<QAbstractButton *>()) {
-        const bool custom = leading.associatedObjects().contains(button)
-                || trailing.associatedObjects().contains(button);
+        const bool custom =
+                actionAssociatedWith(&leading, button) || actionAssociatedWith(&trailing, button);
         if (!custom) {
             clearButton = button;
             break;

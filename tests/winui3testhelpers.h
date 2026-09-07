@@ -397,3 +397,26 @@ inline QModelIndex treeIndexFromItem(const QTreeWidget *tree, QTreeWidgetItem *i
     return tree->model()->index(parent->indexOfChild(item), 0, treeIndexFromItem(tree, parent));
 #endif
 }
+
+// QLabel::pixmap(Qt::ReturnByValue) is Qt 6; Qt 5.12 has pixmap() returning
+// const QPixmap*. Tests only need null/image checks: copy out, null if unset.
+inline QPixmap labelPixmap(const QLabel *label)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return label->pixmap(Qt::ReturnByValue);
+#else
+    const QPixmap *pixmap = label->pixmap();
+    return pixmap ? *pixmap : QPixmap();
+#endif
+}
+
+// QAction::associatedObjects is Qt 6; Qt 5.12 has associatedWidgets.
+// Tests only check membership of a button: compare widget pointers.
+inline bool actionAssociatedWith(const QAction *action, const QWidget *widget)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return action->associatedObjects().contains(const_cast<QWidget *>(widget));
+#else
+    return action->associatedWidgets().contains(const_cast<QWidget *>(widget));
+#endif
+}
