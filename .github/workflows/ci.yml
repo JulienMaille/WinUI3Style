@@ -63,18 +63,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Exact versions: aqt cannot glob-resolve "6.11.*" (6.11.2 exists but
-        # the glob path qt6_6112/Updates.xml 404s). 6.8.3 = oldest supported.
-        qt: ["6.8.3", "6.11.2"]
+        # 6.8.3 = oldest supported Qt; 6.11.1 = version this tree develops
+        # against. Exact versions: stock aqt 3.3.x has no checksum entry for
+        # newer Qt 6.11 Windows archives, so the pinned action + dev snapshot
+        # below is required (not "any v4").
+        qt: ["6.8.3", "6.11.1"]
+    env:
+      QT_VERSION: ${{ matrix.qt }}
+      QT_ARCH: win64_msvc2022_64
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
-      - name: Install Qt ${{ matrix.qt }} (MSVC 2022 64-bit)
-        uses: jurplel/install-qt-action@v4
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
-          version: ${{ matrix.qt }}
-          arch: win64_msvc2022_64
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
           cache: true
+          cache-key-prefix: 'qt-${{ env.QT_VERSION }}-aqt-16db45a-v1'
+          # aqtinstall 3.3.x has no checksum entry for the Qt 6.11.1 Windows
+          # archives yet; use the tested checksum-enabled development snapshot.
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
       - name: Install Python + Pillow
         uses: actions/setup-python@v5
         with:
@@ -104,7 +115,7 @@ jobs:
           if-no-files-found: warn
 
   qt512-mingw:
-    # SoulseekQt compat claim (docs/showcase-post.md): Qt 5.12 MinGW must at
+    # SoulseekQt compat claim: Qt 5.12 MinGW must at
     # least build. No snapshot/DPI gate here; offscreen fidelity and Pillow
     # matrix belong to the MSVC job above.
     # Toolchain match: install-qt-action defaults to the runner's own
