@@ -464,7 +464,11 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
     case QStyle::SH_ComboBox_PopupFrameStyle:
         return QFrame::NoFrame;
     case QStyle::SH_ComboBox_ListMouseTracking: // == _Current
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    // Added in Qt 6.9 (qstyle.h). Qt 6.8/MinGW-5.12 builds fall through to the
+    // same value via SH_ComboBox_ListMouseTracking above.
     case QStyle::SH_ComboBox_ListMouseTracking_Active:
+#endif
     case QStyle::SH_MenuBar_MouseTracking:
     case QStyle::SH_Menu_MouseTracking:
         return 1;

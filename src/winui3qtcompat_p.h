@@ -7,8 +7,7 @@
 // added static QFontDatabase accessors, qintptr in
 // QAbstractNativeEventFilter, ...). These helpers keep the style
 // implementation written against the Qt 6 surface compilable under Qt 5.15,
-// which is required to load the style plugin into Qt 5 applications such as
-// SoulseekQt.
+// which is required to load the style plugin into Qt 5 applications.
 
 #include <QtGlobal>
 

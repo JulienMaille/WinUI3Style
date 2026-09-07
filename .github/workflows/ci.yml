@@ -115,9 +115,8 @@ jobs:
           if-no-files-found: warn
 
   qt512-mingw:
-    # SoulseekQt compat claim: Qt 5.12 MinGW must at
-    # least build. No snapshot/DPI gate here; offscreen fidelity and Pillow
-    # matrix belong to the MSVC job above.
+    # Qt 5.12 MinGW must at least build. No snapshot/DPI gate here;
+    # offscreen fidelity and Pillow matrix belong to the MSVC job above.
     # Toolchain match: install-qt-action defaults to the runner's own
     # C:/mingw64 (GCC 15 64-bit), which cannot link Qt 5.12's 32-bit MinGW 7.3
     # binaries. tools_win32_mingw730 puts the period-correct g++/mingw32-make
