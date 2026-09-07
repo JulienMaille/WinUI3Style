@@ -675,9 +675,11 @@ void WinUI3ViewsTest::itemViewGutterContract()
     treeOption.widget = tree.viewport();
     treeOption.direction = Qt::LeftToRight;
     treeOption.index = treeIndexFromItem(&tree, root);
+    treeOption.rect = tree.visualRect(treeOption.index);
     const QRect rootText =
             tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &treeOption, tree.viewport());
     treeOption.index = treeIndexFromItem(&tree, child);
+    treeOption.rect = tree.visualRect(treeOption.index);
     const QRect childText =
             tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &treeOption, tree.viewport());
     QCOMPARE(childText.left() - rootText.left(), tree.indentation());
@@ -718,15 +720,39 @@ void WinUI3ViewsTest::treeViewContract()
         tree.style()->drawPrimitive(QStyle::PE_IndicatorBranch, &branch, &painter, tree.viewport());
     }
     bool glyphFound = false;
+    int glyphLeft = image.width();
     for (int y = 0; y < image.height() && !glyphFound; ++y) {
         for (int x = 0; x < image.width(); ++x) {
             if (image.pixelColor(x, y).alpha() > 40) {
                 glyphFound = true;
+                glyphLeft = x;
                 break;
             }
         }
     }
     QVERIFY(glyphFound);
+    QVERIFY(glyphLeft >= 6);
+
+    branch.direction = Qt::RightToLeft;
+    image.fill(Qt::transparent);
+    {
+        QPainter painter(&image);
+        tree.style()->drawPrimitive(QStyle::PE_IndicatorBranch, &branch,
+                                    &painter, tree.viewport());
+    }
+    int glyphRight = -1;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = image.width() - 1; x >= 0; --x) {
+            if (image.pixelColor(x, y).alpha() > 40) {
+                glyphRight = x;
+                break;
+            }
+        }
+        if (glyphRight >= 0)
+            break;
+    }
+    QVERIFY(glyphRight >= 0);
+    QVERIFY(glyphRight <= 13);
 }
 
 void WinUI3ViewsTest::treeSelectionMarkerLeadingEdge()

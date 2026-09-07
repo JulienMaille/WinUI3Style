@@ -351,7 +351,6 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
 
     QVERIFY(wizard.autoFillBackground());
     QVERIFY(first->autoFillBackground());
-    QVERIFY(wizard.palette().color(QPalette::Window) != first->palette().color(QPalette::Window));
     QCOMPARE(WinUI3::Style::controlRole(wizard.button(QWizard::NextButton)),
              WinUI3::ControlRole::Accent);
     QCOMPARE(WinUI3::Style::controlRole(wizard.button(QWizard::FinishButton)),
@@ -360,15 +359,69 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
     const QImage image = wizard.grab().toImage();
     const QColor content = first->palette().color(QPalette::Window);
     const QColor commands = wizard.palette().color(QPalette::Window);
-    const auto containsColor = [&image](const QColor &target) {
-        for (int y = 0; y < image.height(); ++y)
-            for (int x = 0; x < image.width(); ++x)
-                if (colorDistance(image.pixelColor(x, y), target) <= 8)
+    const auto containsColor = [](const QImage &source, const QColor &target) {
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x)
+                if (colorDistance(source.pixelColor(x, y), target) <= 8)
                     return true;
         return false;
     };
-    QVERIFY(containsColor(content));
-    QVERIFY(containsColor(commands));
+    QVERIFY(containsColor(image, content));
+    QVERIFY(containsColor(image, commands));
+
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QWizard darkWizard;
+    darkWizard.resize(520, 340);
+    auto *darkPage = new QWizardPage;
+    darkPage->setTitle(QStringLiteral("Welcome"));
+    darkPage->setSubTitle(QStringLiteral("A standard Qt wizard page."));
+    auto *darkLayout = new QVBoxLayout(darkPage);
+    darkLayout->addWidget(new QLabel(QStringLiteral("Wizard content")));
+    darkWizard.addPage(darkPage);
+    darkWizard.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&darkWizard));
+    QCOMPARE(darkWizard.palette().color(QPalette::Window), QColor(44, 44, 44));
+    QCOMPARE(darkPage->palette().color(QPalette::Window), QColor(44, 44, 44));
+    QCOMPARE(darkWizard.button(QWizard::FinishButton)
+                     ->palette().color(QPalette::Window),
+             QColor(32, 32, 32));
+    auto *darkFooter = darkWizard.findChild<QWidget *>(
+            QStringLiteral("_winui_wizard_footer_surface"),
+            Qt::FindDirectChildrenOnly);
+    QVERIFY(darkFooter);
+    QTRY_VERIFY(darkFooter->isVisible());
+    const QImage darkImage = darkWizard.grab().toImage();
+    const QPoint darkBodyPixel = darkPage->mapTo(
+            &darkWizard, QPoint(2, darkPage->height() / 2));
+    QVERIFY(darkWizard.rect().contains(darkBodyPixel));
+    QCOMPARE(darkImage.pixelColor(darkBodyPixel), QColor(44, 44, 44));
+    QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2,
+                                  darkFooter->geometry().top() + 2),
+             QColor(32, 32, 32));
+
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    QWizard runtimeWizard;
+    runtimeWizard.resize(520, 340);
+    auto *runtimePage = new QWizardPage;
+    runtimePage->setTitle(QStringLiteral("Runtime theme"));
+    runtimeWizard.addPage(runtimePage);
+    runtimeWizard.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&runtimeWizard));
+    QCOMPARE(runtimePage->palette().color(QPalette::Window),
+             QColor(252, 252, 252));
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QTRY_COMPARE(runtimePage->palette().color(QPalette::Window),
+                 QColor(44, 44, 44));
+    QTRY_COMPARE(runtimeWizard.button(QWizard::NextButton)
+                         ->palette().color(QPalette::Window),
+                 QColor(32, 32, 32));
+    auto *runtimeFooter = runtimeWizard.findChild<QWidget *>(
+            QStringLiteral("_winui_wizard_footer_surface"),
+            Qt::FindDirectChildrenOnly);
+    QVERIFY(runtimeFooter);
+    QTRY_VERIFY(runtimeFooter->isVisible());
 }
 
 void WinUI3SurfacesTest::contentDialogScrimLifecycle()

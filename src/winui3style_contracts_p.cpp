@@ -93,21 +93,6 @@ const QAbstractItemView *selectionMarkerView(const QWidget *widget)
     return view;
 }
 
-int treeItemIndent(const QStyleOptionViewItem &option, const QAbstractItemView *view)
-{
-    const auto *tree = qobject_cast<const QTreeView *>(view);
-    if (!tree || !option.index.isValid() || option.index.column() != 0)
-        return 0;
-
-    int depth = 0;
-    for (QModelIndex parent = option.index.parent(); parent.isValid(); parent = parent.parent()) {
-        ++depth;
-    }
-    if (tree->rootIsDecorated())
-        ++depth;
-    return depth * tree->indentation();
-}
-
 } // namespace
 
 int pixelMetric(const Style *style, QStyle::PixelMetric metric, const QStyleOption *option,
@@ -407,11 +392,13 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
     }
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
         const QAbstractItemView *view = selectionMarkerView(widget);
-        if (view
-            && (element == QStyle::SE_ItemViewItemCheckIndicator
-                || element == QStyle::SE_ItemViewItemDecoration
-                || element == QStyle::SE_ItemViewItemText)) {
-            const int offset = treeItemIndent(*source, view) + density.itemSelectionGutter;
+        if (view && (element == QStyle::SE_ItemViewItemCheckIndicator
+                     || element == QStyle::SE_ItemViewItemDecoration
+                     || element == QStyle::SE_ItemViewItemText)) {
+            // The delegate's option.rect already includes QTreeView's
+            // hierarchy offset. Adding the model depth here doubled the
+            // indentation at every level.
+            const int offset = density.itemSelectionGutter;
             const int delta = source->direction == Qt::RightToLeft ? -offset : offset;
             result.translate(delta, 0);
             QRect content = source->rect;
@@ -464,11 +451,6 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
     case QStyle::SH_ComboBox_PopupFrameStyle:
         return QFrame::NoFrame;
     case QStyle::SH_ComboBox_ListMouseTracking: // == _Current
-#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
-    // Added in Qt 6.9 (qstyle.h). Qt 6.8/MinGW-5.12 builds fall through to the
-    // same value via SH_ComboBox_ListMouseTracking above.
-    case QStyle::SH_ComboBox_ListMouseTracking_Active:
-#endif
     case QStyle::SH_MenuBar_MouseTracking:
     case QStyle::SH_Menu_MouseTracking:
         return 1;
