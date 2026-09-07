@@ -230,8 +230,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             // the leading icon/check slot). Plain menu rows use the full
             // inset fill, driven by Qt's Selected flag like MenuFlyout's
             // PointerOver state.
-            const bool showHoverFill = comboItem ? showHover
-                                                 : (menu->state & QStyle::State_Selected);
+            const bool showHoverFill =
+                    comboItem ? showHover : (menu->state & QStyle::State_Selected);
             if (showHoverFill || showPressed) {
                 // QMenu's native erase fills the Selected row full-bleed
                 // behind our inset pill (nothing Qt-side insets it), so

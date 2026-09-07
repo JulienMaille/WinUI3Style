@@ -150,8 +150,8 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 const qreal chevron = progress(widget, comboChevronProperty, 0.0);
                 painter->save();
                 painter->translate(0.0, 1.875 * chevron);
-                paintDropdownChevron(painter, icon(Icon::ChevronDown), combo->rect, combo->direction,
-                                     enabled ? t.textPrimary : t.textDisabled,
+                paintDropdownChevron(painter, icon(Icon::ChevronDown), combo->rect,
+                                     combo->direction, enabled ? t.textPrimary : t.textDisabled,
                                      enabled ? QIcon::Normal : QIcon::Disabled);
                 painter->restore();
             }

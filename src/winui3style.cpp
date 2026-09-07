@@ -1562,8 +1562,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget
-        && widget->palette().color(QPalette::Window).alpha() == 0) {
+    if (element == PE_Widget && widget && widget->palette().color(QPalette::Window).alpha() == 0) {
         // Transparentized content island over a live material (see
         // transparentizeSurface): Qt's erase is disabled here
         // (StyledBackground, no autofill) and nothing else repaints the

@@ -74,11 +74,10 @@ void paintDropdownChevron(QPainter *painter, const QIcon &source, const QRect &b
     constexpr int glyphBoxSize = 12;
     constexpr int glyphTrailingMargin = 14;
     constexpr int fallbackGlyphSize = 10;
-    const QRect logicalGlyphBox(centerInBounds ? bounds.center().x() - glyphBoxSize / 2
-                                              : bounds.right() - glyphTrailingMargin - glyphBoxSize
-                                                      + 1,
-                                bounds.top() + (bounds.height() - glyphBoxSize) / 2, glyphBoxSize,
-                                glyphBoxSize);
+    const QRect logicalGlyphBox(
+            centerInBounds ? bounds.center().x() - glyphBoxSize / 2
+                           : bounds.right() - glyphTrailingMargin - glyphBoxSize + 1,
+            bounds.top() + (bounds.height() - glyphBoxSize) / 2, glyphBoxSize, glyphBoxSize);
     const QRect logicalChevron(logicalGlyphBox.left() + (glyphBoxSize - fallbackGlyphSize) / 2,
                                logicalGlyphBox.top() + (glyphBoxSize - fallbackGlyphSize) / 2,
                                fallbackGlyphSize, fallbackGlyphSize);

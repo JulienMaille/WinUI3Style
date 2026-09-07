@@ -11,11 +11,7 @@ namespace WinUI3::Private {
 // Effective surface states for a requested window backdrop. Painters may
 // clear pixels strictly in the Composited state; the Painted and Solid
 // states are fully opaque.
-enum class BackdropSurface {
-    Solid = 0,
-    Painted = 1,
-    Composited = 2
-};
+enum class BackdropSurface { Solid = 0, Painted = 1, Composited = 2 };
 
 // Single source of truth for the published effective state. The integer
 // mapping matches BackdropSurface above.
