@@ -2387,6 +2387,54 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         // at which a replacement popup can first become visible.
         syncCompleterPopupDensity(editor);
     }
+    if (event->type() == QEvent::Wheel) {
+        // Small-delta scrolls inside a translucent content/layer island would
+        // smear: Qt scrolls the viewport backing store with a blit and only
+        // repaints the exposed strip, so shifted pixels accumulate over the
+        // live material. Schedule one full viewport repaint past the scroll.
+        // Wheel ticks are the small-delta path; page steps repaint fully on
+        // their own. Only the area and its viewport arm this: wheel ticks
+        // over deeper children reach the viewport through propagation, which
+        // keeps one repaint per tick. Gated on Composited so offscreen
+        // snapshots stay deterministic. Viewports are never transparentized
+        // themselves, and island children keep failing the
+        // paintsDirectlyOnBackdrop gate, so nothing punches holes here.
+        QAbstractScrollArea *area = qobject_cast<QAbstractScrollArea *>(watched);
+        if (!area) {
+            if (QWidget *child = qobject_cast<QWidget *>(watched);
+                child && child->parentWidget()) {
+                if (QAbstractScrollArea *candidate =
+                            qobject_cast<QAbstractScrollArea *>(child->parentWidget());
+                    candidate && candidate->viewport() == child)
+                    area = candidate;
+            }
+        }
+        if (area && area->window()
+            && Private::backdropEffectiveSurface(area->window())
+                    == Private::BackdropSurface::Composited) {
+            bool inIsland = false;
+            for (QWidget *parent = area; parent && parent != area->window();
+                 parent = parent->parentWidget()) {
+                const QVariant surface = parent->property(SurfaceProperty);
+                const QString name = surface.toString();
+                if (surface.toBool()
+                    || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                    || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+                    inIsland = true;
+                    break;
+                }
+            }
+            if (inIsland) {
+                if (QWidget *viewport = area->viewport()) {
+                    const QPointer<QWidget> guardedViewport(viewport);
+                    QTimer::singleShot(0, viewport, [guardedViewport] {
+                        if (guardedViewport)
+                            guardedViewport->repaint();
+                    });
+                }
+            }
+        }
+    }
     if (event->type() == QEvent::DynamicPropertyChange) {
         auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
         if (auto *widget = qobject_cast<QWidget *>(watched)) {
