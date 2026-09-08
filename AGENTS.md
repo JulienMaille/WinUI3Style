@@ -7,7 +7,7 @@
 - Mapping first: declare the Qt→WinUI mapping in `spec/coverage.md` before
   coding. No silent base-style fallback for covered controls.
 - Tokens: `src/winui3tokens_p.h` owns values. Never add `QColor(` numeric
-  literals in `src/*_p.cpp` (gated by `winui3style_source_contracts`).
+  literals in `src/*.cpp` (gated by `winui3style_source_contracts`).
 - No QSS anywhere (`setStyleSheet` fails the build, including `.ui` files).
   No custom widgets: prefer stock widget + `winui*` property; QStyle owns
   visuals, states, animation.
