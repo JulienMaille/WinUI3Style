@@ -45,7 +45,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 - [ ] Ouvrir une PR depuis la branche de travail ; ne jamais pousser directement sur `main` protégé.
 - [ ] Ajouter une CI propre : configure Debug/Release, build plugin + demo + tests, CTest, snapshots et artefacts de logs/captures.
-  - Matrice Qt × Debug/Release et smoke d'installation ajoutés ; YAML validé localement, exécution GitHub Actions encore à confirmer. Tentative de fixer les répertoires Debug dans `plugin/CMakeLists.txt` revertée : VS multi-config ajoute toujours `$<CONFIG>`, le flatten CI reste requis.
+  - Matrice Qt × Debug/Release et smoke d'installation ajoutés ; YAML validé localement, exécution GitHub Actions encore à confirmer. Boucle : 40/40 CTests verts en Release Qt 6.9.2 local (natif exclu), snapshot matrix incluse.
 - [x] Tester l'installation dans un répertoire propre : plugin QStyle, headers publics et éventuelles DLL Qt uniquement.
   - Smokes Release et Debug réussis via `tools/install_smoke.ps1` avec Qt 6.9.2 local : installation temporaire, client lié uniquement à Qt Widgets, chargement isolé des deux clés du plugin.
 - [x] Ajouter une note de release distinguant API publique, propriétés Designer et comportements expérimentaux : `RELEASE_NOTES.md`.
