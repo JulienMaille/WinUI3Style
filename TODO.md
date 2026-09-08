@@ -31,7 +31,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 - [ ] **P2 — [#4 Retire `QColor(` grandfather list file-by-file](https://github.com/JulienMaille/WinUI3Style/issues/4)**
   - [x] `winui3menus_p.cpp` utilise le token existant `flyoutStroke` (valeurs Light/Dark identiques) ; exemption retirée du contrôle des couleurs codées en dur.
   - [x] `winui3surfaces_p.cpp` utilise les tokens `dialogCommandFill`/`dialogScrim` (valeurs Light/Dark identiques) ; gate `winui3style_source_contracts` verte, plus aucune exemption restante.
-  - [x] Gate `winui3style_source_contracts` : liste grandfather vide, machinerie `list(FIND)` retirée en boucle — interdiction totale hors `winui3tokens_p.h`/`winui3paint_p.cpp`/`winui3geometry_p.cpp`/`winui3theme_p.cpp`, gate verte.
+  - [x] `PE_PanelTipLabel` utilise les tokens `tooltipFill`/`tooltipStroke` (nouveau token `tooltipStroke`, valeurs Light/Dark couvertes par `paletteDerivedTokensMatchWinUIConstants`) ; rendu inchangé.
   - Clarifier le périmètre exact du titre GitHub, puis inventorier les couleurs codées en dur.
 - [ ] **P2 — [#2 Promote warnings to errors (`/WX` + `-Werror`)](https://github.com/JulienMaille/WinUI3Style/issues/2)**
   - Première étape : option `WINUI3STYLE_WARNINGS_AS_ERRORS` privée à la bibliothèque, activée en CI MSVC. Warnings Qt/paramètre Release corrigés avec compatibilité Qt 5 ; build Release `/WX` et 40 CTests/snapshots réussis sur Qt 6.9.2. Extension aux autres cibles/compilateurs encore à valider.

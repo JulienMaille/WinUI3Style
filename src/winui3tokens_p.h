@@ -69,6 +69,7 @@ struct Tokens
     QColor sliderThumbOuter;
     // Tooltip surface.
     QColor tooltipFill;
+    QColor tooltipStroke;
     // ContentDialog command-footer base and smoke scrim.
     QColor dialogCommandFill;
     QColor dialogScrim;
@@ -218,6 +219,7 @@ inline Tokens buildTokens(const QPalette &palette)
     t.selectedTabFill = t.dark ? QColor(44, 44, 44) : QColor(251, 251, 251);
     t.sliderThumbOuter = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
     t.tooltipFill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
+    t.tooltipStroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
     // ContentDialog command-footer base (LayerFill derivation input) and
     // smoke-layer scrim; fixed WinUI values, not palette derivations.
     t.dialogCommandFill = dialogCommandFillColor(t.dark);

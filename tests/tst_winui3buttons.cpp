@@ -190,6 +190,8 @@ void WinUI3ButtonsTest::paletteDerivedTokensMatchWinUIConstants()
 
         const QColor popup = WinUI3::Private::popupSurfaceColor(palette);
         QCOMPARE(popup, dark ? QColor(44, 44, 44) : QColor(252, 252, 252));
+        QCOMPARE(t.tooltipFill, dark ? QColor(43, 43, 43) : QColor(249, 249, 249));
+        QCOMPARE(t.tooltipStroke, dark ? QColor(255, 255, 255, 20) : QColor(0, 0, 0, 20));
     }
 }
 

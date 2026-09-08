@@ -1586,8 +1586,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
 
     if (element == PE_PanelTipLabel) {
         const QColor fill = t.tooltipFill;
-        const QColor stroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
-        roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1), fill, stroke, 4);
+        roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1), fill, t.tooltipStroke, 4);
         return;
     }
 
