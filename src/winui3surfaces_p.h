@@ -47,6 +47,7 @@ QComboBox *comboForPopupWidget(QWidget *widget);
 void makeChromeSurfacesTransparent(QWidget *window);
 void restoreChromeSurfaces(QWidget *window);
 void syncContentSurfacesForBackdrop(QWidget *window);
+void restoreContentSurfacesForBackdrop(QWidget *window);
 
 } // namespace Private
 } // namespace WinUI3

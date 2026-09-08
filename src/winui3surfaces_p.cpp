@@ -328,6 +328,32 @@ void syncContentSurfacesForBackdrop(QWidget *window)
     }
 }
 
+// Without this, sync's transparent islands leak past toggle-off: chrome
+// restore alone leaves the content island transparent, so PE_Widget keeps
+// Source-clearing to transparent on an opaque window (retained-frame smear).
+void restoreContentSurfacesForBackdrop(QWidget *window)
+{
+    if (!window)
+        return;
+    const QList<QWidget *> islands = window->findChildren<QWidget *>();
+    for (QWidget *island : islands) {
+        const QVariant surface = island->property(Style::SurfaceProperty);
+        const QString name = surface.toString();
+        const bool optedIn = surface.toBool()
+                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+        if (!optedIn)
+            continue;
+        // restoreTransparentizedSurface returns early for islands that were
+        // never transparentized, so no alpha pre-check is needed here. The
+        // restore helper does not track Styled; normalize back to the
+        // polish-provided opaque state.
+        restoreTransparentizedSurface(island);
+        island->setAttribute(Qt::WA_StyledBackground, false);
+        island->update();
+    }
+}
+
 void stopDialogAnimations(QDialog *dialog)
 {
     if (!dialog)

@@ -1562,7 +1562,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget && widget->palette().color(QPalette::Window).alpha() == 0) {
+    if (element == PE_Widget && widget && widget->palette().color(QPalette::Window).alpha() == 0
+        && Private::paintsDirectlyOnBackdrop(widget)) {
         // Transparentized content island over a live material (see
         // transparentizeSurface): Qt's erase is disabled here
         // (StyledBackground, no autofill) and nothing else repaints the
@@ -1570,7 +1571,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         // permanent ghosts until a resize reallocates the buffer. Rebuild
         // explicitly from transparent on every paint; DWM composites the
         // material underneath. Gated on the transparent Window role so
-        // ordinary widgets keep Qt's default erase path untouched.
+        // ordinary widgets keep Qt's default erase path untouched. The
+        // Composited gate prevents punching holes on opaque/painted fallbacks.
         painter->save();
         painter->setCompositionMode(QPainter::CompositionMode_Source);
         painter->fillRect(option->rect, Qt::transparent);

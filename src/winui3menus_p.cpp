@@ -107,14 +107,6 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // rounded-corner cutouts are never painted otherwise and keep their
         // white backing-store pixels as a permanent light frame.
         const QRect surface = widget ? widget->rect() : option->rect;
-        if (paintsDirectlyOnBackdrop(widget)) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(surface, Qt::transparent);
-            painter->restore();
-        } else {
-            painter->fillRect(surface, option->palette.color(QPalette::Window));
-        }
         const QColor fill = option->palette.color(QPalette::Window);
         const QColor stroke = t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15);
         // The 1px flyout stroke must read as a solid hairline on every
