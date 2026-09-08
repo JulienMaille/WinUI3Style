@@ -33,8 +33,6 @@ endforeach()
 # (b) Token centralization: no QColor( numeric literals outside the approved
 # token homes winui3tokens_p.h, winui3paint_p.cpp, winui3geometry_p.cpp,
 # winui3theme_p.cpp. Former per-file grandfather list is fully retired.
-set(_token_grandfathered
-)
 file(GLOB _token_checked "${SOURCE_DIR}/src/*_p.cpp" "${SOURCE_DIR}/src/*.cpp")
 foreach(_file IN LISTS _token_checked)
     get_filename_component(_name "${_file}" NAME)
@@ -42,10 +40,6 @@ foreach(_file IN LISTS _token_checked)
         OR _name STREQUAL "winui3geometry_p.cpp"
         OR _name STREQUAL "winui3theme_p.cpp"
         OR _name STREQUAL "winui3tokens_p.h")
-        continue()
-    endif()
-    list(FIND _token_grandfathered "${_name}" _grandfathered)
-    if(NOT _grandfathered EQUAL -1)
         continue()
     endif()
     file(READ "${_file}" _contents)
