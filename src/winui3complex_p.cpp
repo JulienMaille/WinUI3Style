@@ -139,7 +139,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 fill = mix(fill, t.controlHover, hover);
                 fill = mix(fill, t.controlPressed, press);
             } else {
-                fill = t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255);
+                fill = t.editorFocusedFill;
             }
             if (combo->subControls & QStyle::SC_ComboBoxFrame)
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
@@ -193,7 +193,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             const qreal hover = progress(widget, hoverProperty,
                                          spin->state & QStyle::State_MouseOver ? 1.0 : 0.0);
             QColor fill = !enabled ? t.controlDisabled
-                    : focused      ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
+                    : focused      ? t.editorFocusedFill
                                    : mix(t.control, t.controlHover, hover);
             controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
             if (verticalButtons) {
@@ -314,7 +314,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             if (!enabled)
                 innerDiameter = 14.0;
             QColor thumbColor = enabled ? valueColor : t.accentFillDisabled;
-            const QColor outerThumb = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
+            const QColor outerThumb = t.sliderThumbOuter;
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setBrush(outerThumb);

@@ -90,8 +90,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // preparePopupSurface already rebound the popup palette's Window role
         // to the raised translucent-layer stand-in color.
         const QColor fill = option->palette.color(QPalette::Window);
-        const QColor stroke = t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15);
-        roundedRect(painter, option->rect, fill, stroke, OverlayRadius);
+        roundedRect(painter, option->rect, fill, t.flyoutStroke, OverlayRadius);
         return true;
     }
 

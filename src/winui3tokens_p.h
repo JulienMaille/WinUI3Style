@@ -120,6 +120,19 @@ inline QColor contrastText(const QColor &background)
     return contrastWithBlack >= contrastWithWhite ? QColor(Qt::black) : QColor(Qt::white);
 }
 
+// ContentDialog command-footer base and smoke-layer scrim. Fixed WinUI
+// values, not palette derivations; explicit-dark helpers so call sites with
+// a theme flag (e.g. prepareContentDialogState on a stale palette) cannot
+// read the wrong theme from a palette-derived token.
+inline QColor dialogCommandFillColor(bool dark)
+{
+    return dark ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF3, 0xF3);
+}
+inline QColor dialogScrimColor()
+{
+    return QColor(0, 0, 0, 0x4D);
+}
+
 inline Tokens buildTokens(const QPalette &palette)
 {
     Tokens t;
@@ -207,8 +220,8 @@ inline Tokens buildTokens(const QPalette &palette)
     t.tooltipFill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
     // ContentDialog command-footer base (LayerFill derivation input) and
     // smoke-layer scrim; fixed WinUI values, not palette derivations.
-    t.dialogCommandFill = t.dark ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF3, 0xF3);
-    t.dialogScrim = QColor(0, 0, 0, 0x4D);
+    t.dialogCommandFill = dialogCommandFillColor(t.dark);
+    t.dialogScrim = dialogScrimColor();
     t.danger = QColor(196, 43, 28);
     return t;
 }

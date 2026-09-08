@@ -137,7 +137,7 @@ inline bool parseDensity(const QVariant &value, DensityMode *mode)
 
     // Q_PROPERTY enums arrive as an integer QVariant on both Qt 5 and Qt 6.
     // Do not interpret an accidental boolean dynamic property as a density.
-    if (value.type() == QVariant::Bool)
+    if (value.userType() == QMetaType::Bool)
         return false;
     bool ok = false;
     const int numeric = value.toInt(&ok);

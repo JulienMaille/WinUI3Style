@@ -68,9 +68,14 @@ jobs:
         # newer Qt 6.11 Windows archives, so the pinned action + dev snapshot
         # below is required (not "any v4").
         qt: ["6.8.3", "6.11.1"]
+        # Exercise both multi-config outputs. This verifies the plugin, demo,
+        # tests, CTest environment, and deterministic snapshot oracle in each
+        # configuration rather than allowing Debug deployment to drift.
+        configuration: ["Debug", "Release"]
     env:
       QT_VERSION: ${{ matrix.qt }}
       QT_ARCH: win64_msvc2022_64
+      BUILD_CONFIGURATION: ${{ matrix.configuration }}
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
@@ -91,12 +96,33 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow
-      - name: Configure (Release, benchmarks off)
+      - name: Configure (${{ matrix.configuration }}, benchmarks off)
         run: >
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DWINUI3STYLE_BUILD_PLUGIN=ON
+          -DWINUI3STYLE_BUILD_DEMO=ON
+          -DWINUI3STYLE_BUILD_TESTS=ON
+          -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config ${{ matrix.configuration }}
+      - name: Smoke-test clean installation with a Qt-only client
+        shell: pwsh
+        run: ./tools/install_smoke.ps1 -BuildDir build -Configuration $env:BUILD_CONFIGURATION
+      - name: Normalize Debug plugin deployment
+        if: matrix.configuration == 'Debug'
+        shell: pwsh
+        run: |
+          # Multi-config CMake appends Debug to the configured plugin output,
+          # while QT_PLUGIN_PATH expects the category directly below plugins.
+          # Flatten only this CI staging copy; Release already has an explicit
+          # styles output directory in plugin/CMakeLists.txt.
+          $source = Join-Path $PWD 'build/plugins/styles/Debug'
+          $target = Join-Path $PWD 'build/plugins/styles'
+          if (-not (Test-Path -LiteralPath $source)) {
+            throw "Debug plugin output missing: $source"
+          }
+          Get-ChildItem -LiteralPath $source -File | Copy-Item -Destination $target -Force
       - name: Test (exclude interactive native test)
         shell: pwsh
         run: |
@@ -104,7 +130,7 @@ jobs:
           # crash and an assertion look identical (empty LastTest.log output).
           # Tee to a file because Select-Object -Last truncates the FAIL! lines
           # we need; the next step greps the full log.
-          ctest --test-dir build -C Release --output-on-failure -V -E "^winui3style_native$" 2>&1 |
+          ctest --test-dir build -C $env:BUILD_CONFIGURATION --output-on-failure -V -E "^winui3style_native$" 2>&1 |
             Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
       - name: Rerun failed binaries with QtTest -v2
         if: failure()
@@ -113,13 +139,14 @@ jobs:
           $env:QT_QPA_PLATFORM = 'offscreen'
           $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
+          $config = $env:BUILD_CONFIGURATION
           foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
             Write-Output "===== $t per-function ====="
-            $funcs = & "build/tests/Release/$t.exe" -functions 2>&1
+            $funcs = & "build/tests/$config/$t.exe" -functions 2>&1
             foreach ($f in $funcs) {
                 $name = $f -replace '[()]', ''
                 if ($name -match '^(initTestCase|cleanupTestCase|init|cleanup)$') { continue }
-                & "build/tests/Release/$t.exe" -v2 $name > "$t-$name.log" 2>&1
+                & "build/tests/$config/$t.exe" -v2 $name > "$t-$name.log" 2>&1
                 $code = $LASTEXITCODE
                 Write-Output "$t::$name exit: $code"
                 Select-String -Path "$t-$name.log" -Pattern 'FAIL!|Totals|Received signal' |
@@ -130,12 +157,14 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
+          name: snapshot-debug-${{ matrix.qt }}-${{ matrix.configuration }}
           path: |
             build/snapshot-report.json
             build/snapshot-captures/
             build/Testing/Temporary/LastTest.log
             build/Testing/Temporary/LastTestsFailed.log
-            ./*-v2.log
+            ctest-verbose.log
+            ./*-*.log
           if-no-files-found: warn
 
   qt512-mingw:

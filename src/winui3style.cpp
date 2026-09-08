@@ -1585,7 +1585,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     }
 
     if (element == PE_PanelTipLabel) {
-        const QColor fill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
+        const QColor fill = t.tooltipFill;
         const QColor stroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
         roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1), fill, stroke, 4);
         return;
@@ -1611,9 +1611,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         // preparePopupSurface already rebound the popup palette's Window role
         // to the raised translucent-layer stand-in color.
         const QColor popupSurface = option->palette.color(QPalette::Window);
-        controlSurface(painter, option->rect, popupSurface,
-                       t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15),
-                       t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15), OverlayRadius);
+        controlSurface(painter, option->rect, popupSurface, t.flyoutStroke, t.flyoutStroke,
+                       OverlayRadius);
         return;
     }
 
@@ -1628,7 +1627,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
             const bool focused = editor->hasFocus();
             const bool editorEnabled = option->state & State_Enabled;
             const QColor fill = !editorEnabled ? t.controlDisabled
-                    : focused ? (t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255))
+                    : focused                  ? t.editorFocusedFill
                               : (option->state & State_MouseOver ? t.controlHover : t.control);
             controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
             if (focused)
@@ -2106,20 +2105,26 @@ void Style::polish(QWidget *widget)
                                     checkBox->isChecked() ? 1.0 : 0.0);
         d->toggleConnections.insert(
                 widget,
-                connect(checkBox, &QCheckBox::stateChanged, this, [this, checkBox](int state) {
-                    const bool on = state != Qt::Unchecked;
-                    // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
-                    // removes the stroke immediately. Only the acceptance path
-                    // is animated; an on-transition remains interruptible by
-                    // starting from its current progress.
-                    d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
-                               on ? (toggleSwitch(checkBox) ? Private::FastDuration
-                                                            : Private::CheckBoxDuration)
-                                  : 0);
-                    if (toggleSwitch(checkBox))
-                        d->animate(checkBox, togglePositionProperty, on ? 1.0 : 0.0,
-                                   Private::FasterDuration);
-                }));
+                connect(checkBox,
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+                        &QCheckBox::checkStateChanged,
+#else
+                        &QCheckBox::stateChanged,
+#endif
+                        this, [this, checkBox](int state) {
+                            const bool on = state != Qt::Unchecked;
+                            // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
+                            // removes the stroke immediately. Only the acceptance path
+                            // is animated; an on-transition remains interruptible by
+                            // starting from its current progress.
+                            d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
+                                       on ? (toggleSwitch(checkBox) ? Private::FastDuration
+                                                                    : Private::CheckBoxDuration)
+                                          : 0);
+                            if (toggleSwitch(checkBox))
+                                d->animate(checkBox, togglePositionProperty, on ? 1.0 : 0.0,
+                                           Private::FasterDuration);
+                        }));
     } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
         if (const auto previous = d->radioConnections.take(radio))
             disconnect(previous);

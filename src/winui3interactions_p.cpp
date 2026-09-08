@@ -181,7 +181,12 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
             QWidget *under = QApplication::widgetAt(QCursor::pos());
             if (under && under->window() == popup && (under == viewport || under == view)) {
                 const QPoint local = under->mapFromGlobal(QCursor::pos());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 3, 0)
+                QHoverEvent move(QEvent::HoverMove, QPointF(local), QPointF(QCursor::pos()),
+                                 QPointF(local));
+#else
                 QHoverEvent move(QEvent::HoverMove, QPointF(local), QPointF(local));
+#endif
                 QCoreApplication::sendEvent(under, &move);
             } else if (viewport) {
                 QEvent leave(QEvent::Leave);

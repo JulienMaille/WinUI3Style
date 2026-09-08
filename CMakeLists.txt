@@ -13,6 +13,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 option(WINUI3STYLE_BUILD_PLUGIN "Build the Qt style plugin" ON)
+option(WINUI3STYLE_WARNINGS_AS_ERRORS "Treat style library compiler warnings as errors" OFF)
 option(WINUI3STYLE_BUILD_DEMO "Build the widget gallery" ON)
 option(WINUI3STYLE_BUILD_TESTS "Build tests" ON)
 option(WINUI3STYLE_BUILD_NATIVE_TESTS

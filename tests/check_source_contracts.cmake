@@ -30,18 +30,11 @@ foreach(_file IN LISTS _qss_sources)
     endif()
 endforeach()
 
-# (b) Token centralization ratchet (grandfathered): no NEW QColor( numeric
-# literals outside the approved token homes winui3tokens_p.h,
-# winui3paint_p.cpp, winui3geometry_p.cpp, winui3theme_p.cpp. Pre-existing
-# literals in other units predate the gate and are listed here; ratchet
-# file-by-file as step-7 factorization centralizes them.
+# (b) Token centralization: no QColor( numeric literals outside the approved
+# token homes winui3tokens_p.h, winui3paint_p.cpp, winui3geometry_p.cpp,
+# winui3theme_p.cpp. Former per-file grandfather list is fully retired.
 set(_token_grandfathered
-    "winui3buttons_p.cpp"
-    "winui3complex_p.cpp"
-    "winui3menus_p.cpp"
-    "winui3style.cpp"
-    "winui3surfaces_p.cpp"
-    "winui3viewrenderers_p.cpp")
+)
 file(GLOB _token_checked "${SOURCE_DIR}/src/*_p.cpp" "${SOURCE_DIR}/src/*.cpp")
 foreach(_file IN LISTS _token_checked)
     get_filename_component(_name "${_file}" NAME)

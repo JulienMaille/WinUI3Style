@@ -17,6 +17,7 @@ bool checkGuiThread(const char *operation)
     const QCoreApplication *application = QCoreApplication::instance();
     const bool onGuiThread = !application || QThread::currentThread() == application->thread();
     Q_ASSERT_X(onGuiThread, "FramePropertyRegistry", operation);
+    Q_UNUSED(operation);
     return onGuiThread;
 }
 

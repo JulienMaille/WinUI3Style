@@ -289,7 +289,7 @@ void prepareContentDialogState(QDialog *dialog, bool dark)
     }
     dialog->setProperty(ownedPaletteProperty, true);
     QPalette palette = dialog->palette();
-    const QColor commandFill = dark ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF3, 0xF3);
+    const QColor commandFill = dialogCommandFillColor(dark);
     // ContentDialog uses LayerFillColorAlt for its content region and
     // SolidBackgroundFillColorBase for the full-width command footer.
     // Always derive the layer from the fixed base token. prepare() is called
@@ -339,7 +339,7 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.fillRect(rect(), QColor(0, 0, 0, 0x4D));
+        painter.fillRect(rect(), dialogScrimColor());
     }
 };
 

@@ -1,6 +1,9 @@
 #include <winui3style/navigationview.h>
 #include <winui3style/winui3style.h>
 
+#include "../src/winui3density_p.h"
+#include "winui3testhelpers.h"
+
 #include <QCalendarWidget>
 #include <QCheckBox>
 #include <QComboBox>
@@ -126,6 +129,8 @@ private slots:
     void runtimeThemeChangeRefreshesOpenComboPopup();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
     void compactNumberBoxAndUnlistedControlGeometry();
+    void menuDensityPreservesPopupGeometry_data();
+    void menuDensityPreservesPopupGeometry();
     void inheritedCompactNumberBoxMatchesTextBoxHeight();
     void calendarPopupRemainsReadableInLightAndDark();
 };
@@ -562,6 +567,62 @@ void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
     QCOMPARE(table.rowHeight(0), tableRowStandard);
     QCOMPARE(table.horizontalHeader()->sectionSize(0), headerStandard);
     QCOMPARE(menu.actionGeometry(&menuAction).height(), menuItemStandard);
+}
+
+void WinUI3DensityWidgetsTest::menuDensityPreservesPopupGeometry_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("initialCompact");
+    QTest::newRow("light-standard") << false << false;
+    QTest::newRow("light-compact") << false << true;
+    QTest::newRow("dark-standard") << true << false;
+    QTest::newRow("dark-compact") << true << true;
+}
+
+void WinUI3DensityWidgetsTest::menuDensityPreservesPopupGeometry()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, initialCompact);
+    DisableAnimationsGuard animations;
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    const auto initial =
+            initialCompact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard;
+    const auto other =
+            initialCompact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact;
+    style.setDensityMode(initial);
+    QMenu menu;
+    menu.setStyle(&style);
+    QAction *action = menu.addAction(
+            QStringLiteral("A deliberately long menu action label for density testing"));
+
+    menu.popup(QPoint(40, 40));
+    QTRY_VERIFY(menu.isVisible());
+    const QRect initialAction = menu.actionGeometry(action);
+    const QRect initialPopup = menu.geometry();
+    const auto &metrics = WinUI3::Private::densityMetrics(initial);
+    QCOMPARE(metrics.menuItemHorizontalPadding, 8);
+    QCOMPARE(initialAction.height(), metrics.menuItemHeight);
+    QCOMPARE(initialAction.width(),
+             42 + QFontMetrics(menu.font()).horizontalAdvance(action->text()) + 16);
+    // MenuFlyout rows/insets are invariant; only MenuBar is compacted.
+    // Exercise both a visible density switch and a hidden switch/reopen.
+    for (const auto mode : { other, initial }) {
+        style.setDensityMode(mode);
+        QCOMPARE(menu.actionGeometry(action), initialAction);
+        QCOMPARE(menu.geometry(), initialPopup);
+        QTest::qWait(60);
+        QCOMPARE(menu.geometry(), initialPopup);
+        QCOMPARE(menu.actionAt(initialAction.center()), action);
+        QCOMPARE(menu.actionAt(QPoint(menu.width(), initialAction.center().y())), nullptr);
+        menu.hide();
+        style.setDensityMode(mode == initial ? other : initial);
+        menu.popup(initialPopup.topLeft());
+        QTRY_VERIFY(menu.isVisible());
+        QCOMPARE(menu.actionGeometry(action), initialAction);
+        QCOMPARE(menu.geometry(), initialPopup);
+    }
+    menu.hide();
 }
 
 void WinUI3DensityWidgetsTest::inheritedCompactNumberBoxMatchesTextBoxHeight()
