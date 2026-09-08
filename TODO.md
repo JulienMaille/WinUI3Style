@@ -32,9 +32,9 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
   - [x] `winui3menus_p.cpp` utilise le token existant `flyoutStroke` (valeurs Light/Dark identiques) ; exemption retirée du contrôle des couleurs codées en dur.
   - [x] `winui3surfaces_p.cpp` utilise les tokens `dialogCommandFill`/`dialogScrim` (valeurs Light/Dark identiques) ; gate `winui3style_source_contracts` verte, plus aucune exemption restante.
   - [x] `PE_PanelTipLabel` utilise les tokens `tooltipFill`/`tooltipStroke` (nouveau token `tooltipStroke`, valeurs Light/Dark couvertes par `paletteDerivedTokensMatchWinUIConstants`) ; rendu inchangé.
-  - Clarifier le périmètre exact du titre GitHub, puis inventorier les couleurs codées en dur.
+  - Périmètre #4 clarifié en boucle : gate `QColor([0-9]` ne porte que sur `src/*_p.cpp`+`src/*.cpp` hors `winui3tokens_p.h`/`winui3paint_p.cpp`/`winui3geometry_p.cpp`/`winui3theme_p.cpp` ; zéro littéral numérique hors homes (gate verte). Restent : `QColor(Qt::white/black/transparent)` (états système, exemption documentée), `Qt::transparent` direct en peinture (idem), `QColor(…)` numériques dans `winui3theme_p.cpp` (palette home approuvée) et valeurs attendues dans `tests/` (contrats, hors gate).
 - [ ] **P2 — [#2 Promote warnings to errors (`/WX` + `-Werror`)](https://github.com/JulienMaille/WinUI3Style/issues/2)**
-  - Première étape : option `WINUI3STYLE_WARNINGS_AS_ERRORS` privée à la bibliothèque, activée en CI MSVC. Warnings Qt/paramètre Release corrigés avec compatibilité Qt 5 ; build Release `/WX` et 40 CTests/snapshots réussis sur Qt 6.9.2. Extension aux autres cibles/compilateurs encore à valider.
+  - Première étape : option `WINUI3STYLE_WARNINGS_AS_ERRORS` privée à la bibliothèque, activée en CI MSVC. Warnings Qt/paramètre Release corrigés avec compatibilité Qt 5 ; build Release `/WX` et 40 CTests/snapshots réussis sur Qt 6.9.2. Extension aux autres cibles/compilateurs encore à valider. Boucle : build Debug `/W4` sans warning sur la lib, `buttons`+`density_widgets`+`contracts` verts en Debug Qt 6.9.2.
   - Nettoyer les warnings existants par cible.
   - Activer `/WX`/`-Werror` en CI de façon progressive, avec exceptions locales justifiées uniquement si nécessaire.
 - [ ] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)**
