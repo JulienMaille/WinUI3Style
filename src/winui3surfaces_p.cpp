@@ -12,6 +12,7 @@
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -37,6 +38,7 @@
 #include <QParallelAnimationGroup>
 #include <QPointer>
 #include <QScreen>
+#include <QScrollBar>
 #include <QSlider>
 #include <QStyleOptionSlider>
 #include <QTimer>
@@ -304,6 +306,7 @@ void restoreChromeSurfaces(QWidget *window)
         restoreTransparentizedSurface(statusBar);
 }
 
+
 void syncContentSurfacesForBackdrop(QWidget *window)
 {
     if (!window)
@@ -322,13 +325,16 @@ void syncContentSurfacesForBackdrop(QWidget *window)
                 || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
         if (!optedIn)
             continue;
+        for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>())
+            guardIslandScrollArea(area);
+        if (auto *islandArea = qobject_cast<QAbstractScrollArea *>(island))
+            guardIslandScrollArea(islandArea);
         if (island->palette().color(QPalette::Window).alpha() == 0)
             continue;
         transparentizeSurface(island);
     }
 }
 
-// Without this, sync's transparent islands leak past toggle-off: chrome
 // restore alone leaves the content island transparent, so PE_Widget keeps
 // Source-clearing to transparent on an opaque window (retained-frame smear).
 void restoreContentSurfacesForBackdrop(QWidget *window)

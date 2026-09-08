@@ -77,17 +77,13 @@
 #include <QWizard>
 #include <QToolButton>
 #include <QTimer>
-#include <QVariantAnimation>
 #include <QVector>
 #include <QWidget>
-
-#include <cmath>
 
 namespace WinUI3 {
 using namespace PaintPrivate;
 using namespace Private;
 namespace {
-
 Backdrop backdropFromProperty(const QVariant &value)
 {
     const QString name = value.toString().trimmed().toLower();
@@ -1562,22 +1558,25 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget && widget->palette().color(QPalette::Window).alpha() == 0
-        && Private::paintsDirectlyOnBackdrop(widget)) {
-        // Transparentized content island over a live material (see
-        // transparentizeSurface): Qt's erase is disabled here
-        // (StyledBackground, no autofill) and nothing else repaints the
-        // backing store, so page switches and hover frames accumulate as
-        // permanent ghosts until a resize reallocates the buffer. Rebuild
-        // explicitly from transparent on every paint; DWM composites the
-        // material underneath. Gated on the transparent Window role so
-        // ordinary widgets keep Qt's default erase path untouched. The
-        // Composited gate prevents punching holes on opaque/painted fallbacks.
+    if (element == PE_Widget && widget && Private::paintsDirectlyOnBackdrop(widget)) {
+        // Erase to transparent on every paint over a live material: Qt's
+        // erase is disabled here (StyledBackground, no autofill) and neither
+        // the island nor its descendants repaint fully on scroll/hover/page
+        // switches, so shifted frames accumulate as permanent smear until a
+        // resize reallocates the buffer. DWM composites the material
+        // underneath. The island itself (zero-alpha Window role) clears and
+        // returns; descendants clear the same way and fall through so their
+        // content paints over the freshly erased rect (the island has no
+        // fill to punch through). Unrelated widgets keep Qt's default erase
+        // path: the paintsDirectlyOnBackdrop gate already excluded opaque
+        // islands and non-Composited fallbacks, so this branch never runs
+        // for them.
         painter->save();
         painter->setCompositionMode(QPainter::CompositionMode_Source);
         painter->fillRect(option->rect, Qt::transparent);
         painter->restore();
-        return;
+        if (widget->palette().color(QPalette::Window).alpha() == 0)
+            return;
     }
 
     if (element == PE_FrameFocusRect) {
@@ -1685,8 +1684,22 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     if (Private::drawButtonControl(this, element, option, painter, widget))
         return;
     using namespace Private;
+    // Same erase as PE_Widget below: any control painting straight onto the
+    // live material through a translucent island must rebuild from
+    // transparent first. CE paths never reach the PE_Widget branch, so the
+    // scroll-shifted pixels they leave behind smear exactly like the
+    // unguarded viewport case. The gate excludes opaque islands and
+    // non-Composited fallbacks, so unrelated controls are untouched.
+    if (widget && paintsDirectlyOnBackdrop(widget)
+        && (element == CE_PushButton || element == CE_PushButtonLabel
+            || element == CE_CheckBox || element == CE_CheckBoxLabel || element == CE_RadioButton
+            || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel)) {
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(option->rect, Qt::transparent);
+        painter->restore();
+    }
     const Tokens t = tokens(option->palette);
-
     if (element == CE_ProgressBar) {
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
             drawControl(CE_ProgressBarGroove, bar, painter, widget);
@@ -1921,6 +1934,16 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
 {
     if (Private::drawComplexControl(this, control, option, painter, widget))
         return;
+    // Same erase as PE_Widget: group boxes and other complex frames paint
+    // straight onto the live material through a translucent island and never
+    // pass the PE/CE branches, so their scroll-shifted pixels smear.
+    if (widget && Private::paintsDirectlyOnBackdrop(widget)
+        && (control == CC_GroupBox || control == CC_ToolButton)) {
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(option->rect, Qt::transparent);
+        painter->restore();
+    }
 
     Q_ASSERT_X(!Private::coveredComplex(control), "WinUI3::Style::drawComplexControl",
                "a covered complex control reached QCommonStyle");
@@ -2386,54 +2409,6 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         // setCompleter() has no change signal. User interaction is the point
         // at which a replacement popup can first become visible.
         syncCompleterPopupDensity(editor);
-    }
-    if (event->type() == QEvent::Wheel) {
-        // Small-delta scrolls inside a translucent content/layer island would
-        // smear: Qt scrolls the viewport backing store with a blit and only
-        // repaints the exposed strip, so shifted pixels accumulate over the
-        // live material. Schedule one full viewport repaint past the scroll.
-        // Wheel ticks are the small-delta path; page steps repaint fully on
-        // their own. Only the area and its viewport arm this: wheel ticks
-        // over deeper children reach the viewport through propagation, which
-        // keeps one repaint per tick. Gated on Composited so offscreen
-        // snapshots stay deterministic. Viewports are never transparentized
-        // themselves, and island children keep failing the
-        // paintsDirectlyOnBackdrop gate, so nothing punches holes here.
-        QAbstractScrollArea *area = qobject_cast<QAbstractScrollArea *>(watched);
-        if (!area) {
-            if (QWidget *child = qobject_cast<QWidget *>(watched);
-                child && child->parentWidget()) {
-                if (QAbstractScrollArea *candidate =
-                            qobject_cast<QAbstractScrollArea *>(child->parentWidget());
-                    candidate && candidate->viewport() == child)
-                    area = candidate;
-            }
-        }
-        if (area && area->window()
-            && Private::backdropEffectiveSurface(area->window())
-                    == Private::BackdropSurface::Composited) {
-            bool inIsland = false;
-            for (QWidget *parent = area; parent && parent != area->window();
-                 parent = parent->parentWidget()) {
-                const QVariant surface = parent->property(SurfaceProperty);
-                const QString name = surface.toString();
-                if (surface.toBool()
-                    || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                    || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
-                    inIsland = true;
-                    break;
-                }
-            }
-            if (inIsland) {
-                if (QWidget *viewport = area->viewport()) {
-                    const QPointer<QWidget> guardedViewport(viewport);
-                    QTimer::singleShot(0, viewport, [guardedViewport] {
-                        if (guardedViewport)
-                            guardedViewport->repaint();
-                    });
-                }
-            }
-        }
     }
     if (event->type() == QEvent::DynamicPropertyChange) {
         auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);

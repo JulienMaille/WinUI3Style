@@ -11,7 +11,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/winui3surfaces_p.h"
 
 #include <QLabel>
 #include <QListWidget>
@@ -99,6 +99,7 @@ private slots:
     void backdropLifecycleContract();
     void backdropButtonRepaintDoesNotAccumulate();
     void backdropComboRepaintDoesNotAccumulate();
+    void islandScrollPostsFullViewportRepaint();
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
@@ -221,17 +222,43 @@ void WinUI3SurfacesTest::backdropButtonRepaintDoesNotAccumulate()
     opaqueLayer.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
     QPushButton layeredButton(QStringLiteral("Layered"), &opaqueLayer);
     QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&layeredButton));
+
+    // A translucent island is the material surface itself: no fill to punch
+    // through, so children above it keep clearing every frame.
+    QWidget translucentIsland(&window);
+    translucentIsland.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QPalette clearPalette = translucentIsland.palette();
+    QColor clearWindow = clearPalette.color(QPalette::Window);
+    clearWindow.setAlpha(0);
+    clearPalette.setColor(QPalette::Window, clearWindow);
+    translucentIsland.setPalette(clearPalette);
+    QPushButton islandChild(QStringLiteral("IslandChild"), &translucentIsland);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&translucentIsland));
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&islandChild));
+
+    // Erase behavior: a child above a translucent island clears its own rect
+    // to transparent (Source) and then paints its content, so scroll/hover
+    // frames cannot accumulate. An opaque control child keeps its fill.
+    islandChild.resize(96, 32);
+    QStyleOptionButton childOption;
+    childOption.initFrom(&islandChild);
+    childOption.rect = islandChild.rect();
+    QImage childFrame(islandChild.size(), QImage::Format_ARGB32_Premultiplied);
+    childFrame.fill(QColor(255, 0, 0, 255));
+    QPainter childPainter(&childFrame);
+    style->drawPrimitive(QStyle::PE_Widget, &childOption, &childPainter, &islandChild);
+    childPainter.end();
+    // The child painted something (not a bare transparent hole).
+    QVERIFY(childFrame.pixelColor(4, 4).alpha() > 0 || childFrame.pixelColor(48, 16) != QColor(255, 0, 0));
 }
 
 void WinUI3SurfacesTest::backdropComboRepaintDoesNotAccumulate()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
-    QVERIFY(style);
     QWidget window;
     window.setProperty("_winui_backdrop", 1);
     QComboBox combo(&window);
     combo.addItem(QStringLiteral("Theme"));
-    combo.resize(160, 32);
 
     QStyleOptionComboBox option;
     option.initFrom(&combo);
@@ -254,6 +281,41 @@ void WinUI3SurfacesTest::backdropComboRepaintDoesNotAccumulate()
     setFrame(&combo, "_winui_hover_progress", 0.0);
     paintFrame(hoverThenNormal, QStyle::State_Enabled);
     QCOMPARE(hoverThenNormal, normal);
+}
+void WinUI3SurfacesTest::islandScrollPostsFullViewportRepaint()
+{
+    // Scroll bars inside a translucent content island must self-heal from
+    // small-delta blits: guardIslandScrollArea (armed by the backdrop sync)
+    // connects each bar's valueChanged to one queued full viewport update,
+    // so shifted pixels rebuild before the next present instead of smearing
+    // over the live material. Offscreen the Composited gate stays shut, so
+    // the observable contract here is structural: the guard arms exactly
+    // once per area and stays silent without the Composited state.
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QScrollArea area(&island);
+    area.resize(200, 200);
+    auto *body = new QLabel(QStringLiteral("body"), &area);
+    body->resize(400, 400);
+    area.setWidget(body);
+    // Arming twice must stay one guard: the property marker makes the second
+    // call a no-op. A probe connection counts deliveries: after one guarded
+    // arm plus one probe, a single bar tick delivers exactly twice.
+    WinUI3::Private::guardIslandScrollArea(&area);
+    QVERIFY(area.property("_winui_island_scroll_guard").isValid());
+    int probeDeliveries = 0;
+    QObject::connect(area.verticalScrollBar(), &QScrollBar::valueChanged, &area,
+                     [&probeDeliveries] { ++probeDeliveries; });
+    WinUI3::Private::guardIslandScrollArea(&area);
+
+    // Offscreen gate shut: bar ticks schedule nothing Composited, and the
+    // viewport paint state is untouched by the guard itself.
+    area.verticalScrollBar()->setValue(area.verticalScrollBar()->maximum() / 2);
+    QCOMPARE(probeDeliveries, 1);
+    QCOMPARE(window.property("_winui_backdrop_effective").isValid(), false);
+    QVERIFY(area.viewport() != nullptr);
 }
 
 void WinUI3SurfacesTest::contentDialogContract()

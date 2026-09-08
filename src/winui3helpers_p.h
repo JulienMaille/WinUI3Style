@@ -15,10 +15,11 @@
 #include <QAbstractButton>
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QPalette>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QToolButton>
-
+#include <QWidget>
 namespace WinUI3::Private {
 
 // Animated progress for a transient frame state (hover, press, focus...).
@@ -59,16 +60,24 @@ inline bool keyboardFocusVisible(const QWidget *widget)
     return widget && framePropertyRegistry().value(widget, focusVisibleProperty).toBool();
 }
 
-// True only when the widget paints straight into a translucent DWM
-// backdrop or an opaque window surface. An intervening content/layer surface
-// is opaque and must never be cleared, otherwise a child control would
-// punch through that surface. Critical subtlety: an opaque window ignores
-// the backing store's alpha channel at presentation, so clearing there is
-// always safe and required for animation frames not to accumulate. On a
-// translucent window the alpha is presented, so clearing is allowed strictly
-// when the compositor owns the material (Composited): clearing over a
-// painted fallback, a failed DWM call, or pre-composited first frames
-// reveals black or stale pixels instead of wallpaper tint.
+// True only when the widget paints straight onto the window surface: either
+// a live DWM material or an opaque window fill. Walk the parent chain for an
+// intervening opaque content/layer surface and stop there: a child control
+// must never Source-clear over an opaque island fill, otherwise it punches a
+// hole through that surface. A translucent island (zero-alpha Window role)
+// has no fill to punch through, so the walk continues past it: children
+// above a live material must clear to transparent on every paint, otherwise
+// scroll/hover/animation frames accumulate as permanent smear (the island
+// itself almost never repaints, so its own erase cannot cover them). The
+// walk starts at the parent, so the translucent island's own PE_Widget clear
+// (the island erase, gated on its zero-alpha Window role) is unaffected.
+// Critical subtlety: an opaque window ignores the backing store's alpha
+// channel at presentation, so clearing there is always safe and required for
+// animation frames not to accumulate. On a translucent window the alpha is
+// presented, so clearing is allowed strictly when the compositor owns the
+// material (Composited): clearing over a painted fallback, a failed DWM
+// call, or pre-composited first frames reveals black or stale pixels instead
+// of wallpaper tint.
 inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
 {
     if (!widget || !widget->window())
@@ -83,8 +92,13 @@ inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
         const QVariant surface = parent->property(Style::SurfaceProperty);
         const QString name = surface.toString();
         if (surface.toBool() || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-            || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0)
+            || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+            // Translucent islands are the material surface itself: no fill to
+            // punch through, keep walking so children clear every frame.
+            if (parent->palette().color(QPalette::Window).alpha() == 0)
+                continue;
             return false;
+        }
     }
     return true;
 }
