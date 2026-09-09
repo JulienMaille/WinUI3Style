@@ -71,7 +71,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 ### Navigation, arborescences et onglets
 
 - [ ] Revalider NavigationView selon les métriques WinUI (sélection, compact/expanded, recherche, clavier, focus).
-- [ ] Réduire le padding gauche cumulatif de QTreeView/QTreeWidget à chaque niveau ; couvrir arbre normal et arbre avec cases à cocher dans la galerie.
+- [x] Réduire le padding gauche cumulatif de QTreeView/QTreeWidget à chaque niveau ; couvrir arbre normal et arbre avec cases à cocher dans la galerie. Validation live 2026-09-09 (user) : OK.
 - [ ] Corriger les séparateurs de QTabBar/TabView adjacents à l'onglet sélectionné.
 - [ ] Vérifier les états hover/pressed/selected et le contraste en trois thèmes.
 
