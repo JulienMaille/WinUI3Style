@@ -270,6 +270,21 @@ void WinUI3InteractionTest::styleMutationRestoration()
     style->unpolish(&navigation);
     QVERIFY(!navigation.viewport()->hasMouseTracking());
     QCOMPARE(navigation.itemDelegate(), originalDelegate);
+
+    // Unknown public properties must be ignored without crashing: a typo
+    // like "Acennt" falls back to Standard, and an out-of-range numeric
+    // role clamps to the same default instead of casting garbage.
+    QWidget unknownRole;
+    unknownRole.setProperty("winuiControlRole", QStringLiteral("Acennt"));
+    QCOMPARE(WinUI3::Style::controlRole(&unknownRole), WinUI3::ControlRole::Standard);
+    unknownRole.setProperty("winuiControlRole", 9999);
+    QCOMPARE(WinUI3::Style::controlRole(&unknownRole), WinUI3::ControlRole::Standard);
+    unknownRole.setProperty("winuiDensity", QStringLiteral("ultacompact"));
+    QCOMPARE(WinUI3::Style::densityMode(&unknownRole), WinUI3::DensityMode::Standard);
+    QWidget unknownSurface;
+    unknownSurface.setProperty("winuiSurface", QStringLiteral("marble"));
+    style->polish(&unknownSurface);
+    style->unpolish(&unknownSurface);
 }
 
 void WinUI3InteractionTest::accessibilityOwnershipContracts()

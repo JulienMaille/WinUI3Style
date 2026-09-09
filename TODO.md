@@ -143,7 +143,7 @@ La liste ci-dessous reprend `spec/WIDGET_BACKLOG.md` et doit être traitée par 
 
 - [ ] Garder la galerie découplée du style : privilégier widgets Qt standards, propriétés dynamiques et Designer.
 - [ ] Réduire les appels `WinUI3::*` à l'API nécessaire (helpers de composition uniquement).
-- [ ] Maintenir une séparation nette entre palette, métriques, animation, surfaces et primitives de dessin.
+- [ ] Garantir que les propriétés inconnues sont ignorées sans crash et que le polish/unpolish est symétrique. Boucle : garde `styleMutationRestoration` étendue (rôle typo/out-of-range → Standard, densité inconnue → Standard, surface inconnue polish/unpolish sans crash) — verte.
 - [ ] Centraliser les rôles de palette (accent, texte, glyphes, surfaces, borders) et bannir les couleurs ad hoc.
 - [ ] Définir le contrat des propriétés publiques : `ThemeMode`, `DensityMode`, `ControlRole`, `winuiDensity`, `winuiControlRole`, `winuiBackdrop`, `winuiSurface`, `winuiToggleSwitch`, `winuiSettingsCard`, `winuiNavigationView`, etc.
 - [ ] Garantir que les propriétés inconnues sont ignorées sans crash et que le polish/unpolish est symétrique.
