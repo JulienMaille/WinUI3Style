@@ -102,6 +102,7 @@ private slots:
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
+    void wizardOpenThemeSwitchLifecycle();
     void contentDialogScrimLifecycle();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
@@ -415,6 +416,53 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
     QVERIFY(runtimeFooter);
     QTRY_VERIFY(runtimeFooter->isVisible());
 }
+
+void WinUI3SurfacesTest::wizardOpenThemeSwitchLifecycle()
+{
+    // Live defect 2026-09-09: an open wizard kept a stale command-area
+    // fill across Light/Dark switches (white footer in Dark). Switching
+    // the theme with the wizard open must re-resolve the footer fill,
+    // the page palette and the command-button palette, with no stale
+    // theme pixels left behind.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QWizard wizard;
+    wizard.resize(520, 340);
+    auto *page = new QWizardPage;
+    page->setTitle(QStringLiteral("Welcome"));
+    wizard.addPage(page);
+    wizard.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&wizard));
+    auto *footer = wizard.findChild<QWidget *>(QStringLiteral("_winui_wizard_footer_surface"),
+                                               Qt::FindDirectChildrenOnly);
+    QVERIFY(footer);
+    QTRY_VERIFY(footer->isVisible());
+    QAbstractButton *next = wizard.button(QWizard::NextButton);
+    QVERIFY(next);
+    const QColor darkContent(44, 44, 44);
+    const QColor darkCommand(32, 32, 32);
+    const QColor lightContent(252, 252, 252);
+    const QColor lightCommand(243, 243, 243);
+    QTRY_COMPARE(page->palette().color(QPalette::Window), darkContent);
+    QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
+    QCOMPARE(wizard.grab().toImage().pixelColor(
+                     wizard.width() / 2, footer->geometry().top() + 2),
+             darkCommand);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    QTRY_COMPARE(page->palette().color(QPalette::Window), lightContent);
+    QTRY_COMPARE(next->palette().color(QPalette::Window), lightCommand);
+    QTRY_COMPARE(wizard.grab().toImage().pixelColor(
+                         wizard.width() / 2, footer->geometry().top() + 2),
+                 lightCommand);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QTRY_COMPARE(page->palette().color(QPalette::Window), darkContent);
+    QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
+    QTRY_COMPARE(wizard.grab().toImage().pixelColor(
+                         wizard.width() / 2, footer->geometry().top() + 2),
+                 darkCommand);
+}
+
 
 void WinUI3SurfacesTest::contentDialogScrimLifecycle()
 {
