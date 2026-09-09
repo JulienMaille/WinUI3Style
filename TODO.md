@@ -20,11 +20,8 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 - [ ] **P1 — [#6 Animation ouverture menus : slide vertical-only + easing non conforme](https://github.com/JulienMaille/WinUI3Style/issues/6)**
   - Validation live 2026-09-09 (user) : motion OK, pas exactement WinUI mais jugé suffisant. Fermé comme déviation délibérée documentée dans `spec/coverage.md` (slide vertical 12 px + OutCubic, y compris sous-menus latéraux).
-- [ ] **P1 — [#5 QMenu popup : géométrie non recalculée au changement de densité](https://github.com/JulienMaille/WinUI3Style/issues/5)**
-  - Validation live 2026-09-09 (user) : compact ne tronque plus (OK, cf. géométrie) mais le popup ne diffère pas en Compact — non validé comme effet de densité. Conforme au contrat actuel (`menuItemHeight` 36 px + padding 8 px invariants, seul `QMenuBar` 12→8 compacte). Reproducteur précis encore requis avant correctif ou clôture by-design.
-  - Changer Standard/Compact avec le popup ouvert et fermé.
-  - Recalculer hauteur, padding, position et hit-test dès le changement de densité.
-  - Tester la première frame et la géométrie stabilisée.
+- [x] **P1 — [#5 QMenu popup : géométrie non recalculée au changement de densité](https://github.com/JulienMaille/WinUI3Style/issues/5)**
+  - Verdict 2026-09-10 (spec conjointe, pinned `microsoft-ui-xaml`) : pas de bug — `DensityStyles/Compact.xaml` ne contient aucune entrée MenuFlyoutItem ; `MenuFlyout_themeresources.xaml` ne définit pas de MinHeight sur l'item (seulement 32 sur le presenter). Lignes 36 px invariantes = conforme ; effet Compact visible = MenuBar uniquement (extension). Reste ouvert côté relayout si un popup ouvert ne se repositionne pas au switch — à reproduire séparément.
 - [ ] **P2 — [#4 Retire `QColor(` grandfather list file-by-file](https://github.com/JulienMaille/WinUI3Style/issues/4)**
   - [x] `winui3menus_p.cpp` utilise le token existant `flyoutStroke` (valeurs Light/Dark identiques) ; exemption retirée du contrôle des couleurs codées en dur.
   - [x] `winui3surfaces_p.cpp` utilise les tokens `dialogCommandFill`/`dialogScrim` (valeurs Light/Dark identiques) ; gate `winui3style_source_contracts` verte, plus aucune exemption restante.
