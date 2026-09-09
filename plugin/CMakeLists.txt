@@ -5,6 +5,13 @@ add_library(winui3styleplugin MODULE
 )
 
 target_link_libraries(winui3styleplugin PRIVATE WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Widgets)
+if(NOT WINUI3STYLE_STATIC)
+    # Link the import library explicitly (not just the alias): MSVC then
+    # tracks the .lib timestamp and relinks the plugin on every style
+    # rebuild, refreshing the gallery deploy copy (repeated live issue:
+    # fixes green in tests, invisible in gallery).
+    target_link_libraries(winui3styleplugin PRIVATE $<TARGET_LINKER_FILE:winui3style>)
+endif()
 set_target_properties(winui3styleplugin PROPERTIES
     OUTPUT_NAME qwinui3style
     PREFIX ""
@@ -16,6 +23,7 @@ set_target_properties(winui3styleplugin PROPERTIES
 )
 
 if(NOT WINUI3STYLE_STATIC)
+    # Keep the style DLL beside the plugin (implicitlink deploy).
     add_custom_command(TARGET winui3styleplugin POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:winui3style>

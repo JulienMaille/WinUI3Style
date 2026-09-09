@@ -95,6 +95,12 @@ if(WIN32)
     target_link_libraries(winui3style PRIVATE advapi32 dwmapi user32)
 endif()
 
+if(NOT WINUI3STYLE_STATIC AND TARGET winui3styleplugin)
+    # Order the plugin after the library; the TARGET_LINKER_FILE link
+    # in plugin/CMakeLists.txt makes MSVC relink it on style rebuilds.
+    add_dependencies(winui3styleplugin winui3style)
+endif()
+
 set_target_properties(winui3style PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
