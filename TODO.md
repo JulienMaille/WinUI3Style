@@ -62,10 +62,10 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 ### Dialogues et Wizard
 
-- [ ] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel. Repro live 2026-09-09 (user, screenshots) : QWizard Dark — fond de page noir, pied de page blanc cassé, boutons Next bleu clair/Cancel fantôme ; QWizard Light — pied de page gris/bandes bleues au hover, Next bleu foncé/Cancel blanc. Fix : labels internes forcés à l'encre contenue (Link bleu illisible), `WizardFooterSurface::setColors` repeint même à couleurs identiques ; test `wizardOpenThemeSwitchLifecycle` étendu (encre titres Light/Dark). En attente de revalidation live.
-- [ ] Corriger couleurs de titre, texte et boutons en Light/Dark/System.
-- [ ] Corriger centrage vertical indépendant de la partie haute et de la barre de commandes.
-- [ ] Réparer le Wizard en Dark : fond, pages, titre, boutons, disabled et navigation.
+- [x] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel. Validé live 2026-09-09 (user) : fix OK. Causes : ClassicStyle (bannière bleue + titre #003399 + fonds blancs forcés) → `SH_WizardStyle=ModernStyle` + `setWizardStyle` explicite galerie ; labels internes forcés à l'encre contenue ; footer repeint même à couleurs identiques ; relink plugin garanti (`d681ce5`). Tests : `wizardSurfaceContract`, `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle` ; captures `light/dark-wizard.png` dans la matrice.
+- [x] Corriger couleurs de titre, texte et boutons en Light/Dark/System.
+- [x] Corriger centrage vertical indépendant de la partie haute et de la barre de commandes.
+- [x] Réparer le Wizard en Dark : fond, pages, titre, boutons, disabled et navigation.
 - [ ] Tester QMessageBox, QDialogButtonBox, QWizard et les dialogs persistants avec changement de thème.
 
 ### Navigation, arborescences et onglets
