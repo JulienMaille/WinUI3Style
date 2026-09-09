@@ -388,6 +388,8 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
     QCOMPARE(darkPage->palette().color(QPalette::Window), QColor(44, 44, 44));
     QCOMPARE(darkWizard.button(QWizard::FinishButton)->palette().color(QPalette::Window),
              QColor(32, 32, 32));
+    QCOMPARE(WinUI3::Style::controlRole(darkWizard.button(QWizard::FinishButton)),
+             WinUI3::ControlRole::Accent);
     auto *darkFooter = darkWizard.findChild<QWidget *>(
             QStringLiteral("_winui_wizard_footer_surface"), Qt::FindDirectChildrenOnly);
     QVERIFY(darkFooter);

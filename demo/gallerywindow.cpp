@@ -21,6 +21,7 @@
 #include <QTimer>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
+#include <QWindow>
 #include <QWizard>
 #include <QWizardPage>
 
@@ -503,6 +504,47 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         success = messageBox.grab().save(output.filePath(theme + "-message-box.png"), "PNG")
                 && success;
         messageBox.close();
+
+        QWizard wizardSnap;
+        wizardSnap.setWindowTitle(tr("Application setup"));
+        auto *wizardWelcome = new QWizardPage;
+        wizardWelcome->setTitle(tr("Welcome"));
+        wizardWelcome->setSubTitle(tr("This standard QWizard is rendered entirely by the style."));
+        auto *wizardWelcomeLayout = new QVBoxLayout(wizardWelcome);
+        wizardWelcomeLayout->addWidget(new QLabel(
+                tr("The content and command areas use distinct WinUI surfaces."), wizardWelcome));
+        wizardSnap.addPage(wizardWelcome);
+        wizardSnap.resize(520, 340);
+        wizardSnap.show();
+        for (int spin = 0;
+             spin < 50 && (!wizardSnap.windowHandle() || !wizardSnap.windowHandle()->isExposed());
+             ++spin) {
+            qApp->processEvents();
+            QEventLoop pause;
+            QTimer::singleShot(20, &pause, &QEventLoop::quit);
+            pause.exec(QEventLoop::ExcludeUserInputEvents);
+        }
+        // Showing can deliver a pre-layout first frame; resize again once
+        // exposed so the header/page/footer settle before the grab.
+        wizardSnap.resize(521, 341);
+        wizardSnap.resize(520, 340);
+        if (QWidget *wizardFooter =
+                    wizardSnap.findChild<QWidget *>(QStringLiteral("_winui_wizard_footer_surface"))) {
+            for (int spin = 0; spin < 50 && !wizardFooter->isVisible(); ++spin) {
+                qApp->processEvents();
+                QEventLoop pause;
+                QTimer::singleShot(20, &pause, &QEventLoop::quit);
+                pause.exec(QEventLoop::ExcludeUserInputEvents);
+            }
+        }
+        if (QLayout *wizardLayout = wizardSnap.layout())
+            wizardLayout->activate();
+        qApp->processEvents();
+        wizardSnap.repaint();
+        qApp->processEvents();
+        success = wizardSnap.grab().save(output.filePath(theme + "-wizard.png"), "PNG")
+                && success;
+        wizardSnap.close();
 
         // Keep all historical Standard captures byte-comparable, then add a
         // small Compact oracle for the controls covered by WinUI's Compact
