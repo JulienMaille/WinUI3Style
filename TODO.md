@@ -98,7 +98,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 - [x] Corriger le splitter mal centré. Validation live 2026-09-09 (user) : OK. Couvert par `splitterHandleContract` + `splitterGripPixelAlignment` (DPR 100/125/150/200) ; le décalage 1px backlog (`spec/WIDGET_BACKLOG.md`) reste couvert par le snapping testé.
 - [ ] Auditer l'ascenseur/scrollbar (épaisseur, hit area, hover, dark/light).
-- [ ] Vérifier les menus tronqués en Compact et la largeur minimale de tous les combos de la galerie.
+- [x] Vérifier les menus tronqués en Compact et la largeur minimale de tous les combos de la galerie. Validation live 2026-09-09 (user) : compact plus tronqué — OK.
 
 ## P1 — protocole de validation WinUI obligatoire
 
