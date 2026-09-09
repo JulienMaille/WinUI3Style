@@ -165,6 +165,7 @@ void GalleryWindow::configureGallery()
     });
     connect(ui->wizardButton, &QPushButton::clicked, this, [this] {
         QWizard wizard(this);
+        wizard.setWizardStyle(QWizard::ModernStyle);
         wizard.setWindowTitle(tr("Application setup"));
         auto *welcome = new QWizardPage;
         welcome->setTitle(tr("Welcome"));
@@ -504,8 +505,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         success = messageBox.grab().save(output.filePath(theme + "-message-box.png"), "PNG")
                 && success;
         messageBox.close();
-
         QWizard wizardSnap;
+        wizardSnap.setWizardStyle(QWizard::ModernStyle);
         wizardSnap.setWindowTitle(tr("Application setup"));
         auto *wizardWelcome = new QWizardPage;
         wizardWelcome->setTitle(tr("Welcome"));

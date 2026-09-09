@@ -401,6 +401,14 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
     QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2, darkFooter->geometry().top() + 2),
              QColor(32, 32, 32));
 
+    // Gallery path: the app starts in System mode and the combo sets the
+    // raw index (0=System, 1=Light, 2=Dark). The style must answer
+    // ModernStyle even before any wizard exists (live defect: blue
+    // Classic header + white footer; QWizardPrivate caches wizStyle at
+    // construction from the app style).
+    style->setThemeMode(WinUI3::ThemeMode::System);
+    QCOMPARE(qApp->style()->styleHint(QStyle::SH_WizardStyle), int(QWizard::ModernStyle));
+
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QWizard runtimeWizard;
     runtimeWizard.resize(520, 340);
