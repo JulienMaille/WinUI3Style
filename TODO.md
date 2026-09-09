@@ -19,12 +19,9 @@
 Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/WinUI3Style/issues?q=is%3Aissue+is%3Aopen) — 5 issues ouvertes.
 
 - [ ] **P1 — [#6 Animation ouverture menus : slide vertical-only + easing non conforme](https://github.com/JulienMaille/WinUI3Style/issues/6)**
-  - Couverture rouverte en `partial` : direction/easing et mesure live début/milieu/fin restent à établir ; la revendication de mesure `AnimateWindow` a été retirée.
-  - Reproduire avec menu normal, sous-menu et popup de ComboBox.
-  - Valider trajectoire verticale uniquement, easing, durée, interruption et fermeture.
-  - Ajouter des captures aux étapes début/milieu/fin et un test d'interaction déterministe.
+  - Validation live 2026-09-09 (user) : motion OK, pas exactement WinUI mais jugé suffisant. Fermé comme déviation délibérée documentée dans `spec/coverage.md` (slide vertical 12 px + OutCubic, y compris sous-menus latéraux).
 - [ ] **P1 — [#5 QMenu popup : géométrie non recalculée au changement de densité](https://github.com/JulienMaille/WinUI3Style/issues/5)**
-  - Investigation : `QMenu` conserve volontairement sa hauteur (36 px) et son padding horizontal (8 px) dans les deux densités ; le changement 12 → 8 concerne `QMenuBar`. Le menu File de la galerie garde donc légitimement sa largeur. Reproducteur précis encore requis avant correctif.
+  - Validation live 2026-09-09 (user) : popup Compact identique à Standard — non validé. Conforme au contrat actuel (`menuItemHeight` 36 px + padding 8 px invariants, seul `QMenuBar` 12→8 compacte), mais l'absence d'effet visible bloque la validation Compact du menu. Reproducteur précis encore requis avant correctif ou clôture by-design.
   - Changer Standard/Compact avec le popup ouvert et fermé.
   - Recalculer hauteur, padding, position et hit-test dès le changement de densité.
   - Tester la première frame et la géométrie stabilisée.
