@@ -102,6 +102,7 @@ private slots:
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
+    void wizardUsesModernStyleHint();
     void wizardOpenThemeSwitchLifecycle();
     void contentDialogScrimLifecycle();
     void progressAnimationAndOrientations();
@@ -415,6 +416,19 @@ void WinUI3SurfacesTest::wizardSurfaceContract()
             QStringLiteral("_winui_wizard_footer_surface"), Qt::FindDirectChildrenOnly);
     QVERIFY(runtimeFooter);
     QTRY_VERIFY(runtimeFooter->isVisible());
+}
+
+void WinUI3SurfacesTest::wizardUsesModernStyleHint()
+{
+    // Live defect 2026-09-09: ClassicStyle draws a blue banner pixmap, a
+    // hardcoded #003399 title and a white page; AeroStyle forces its own
+    // white fills. ModernStyle takes the style palette in both themes.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWizard wizard;
+    QCOMPARE(style->styleHint(QStyle::SH_WizardStyle, nullptr, &wizard),
+             int(QWizard::ModernStyle));
+    QCOMPARE(wizard.wizardStyle(), QWizard::ModernStyle);
 }
 
 void WinUI3SurfacesTest::wizardOpenThemeSwitchLifecycle()

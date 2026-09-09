@@ -31,6 +31,7 @@
 #include <QStyleOptionViewItem>
 #include <QTreeView>
 #include <QToolButton>
+#include <QWizard>
 
 namespace WinUI3::Private {
 namespace {
@@ -451,6 +452,12 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
         return 1;
     case QStyle::SH_ComboBox_PopupFrameStyle:
         return QFrame::NoFrame;
+    case QStyle::SH_WizardStyle:
+        // QWizard's ClassicStyle draws a blue banner + #003399 Segoe UI
+        // title; AeroStyle forces white page/palette. ModernStyle gives a
+        // flat header that takes the style palette (live defect 2026-09-09:
+        // unreadable blue title, blue header, white footer in Dark).
+        return int(QWizard::ModernStyle);
     case QStyle::SH_ComboBox_ListMouseTracking: // == _Current
     case QStyle::SH_MenuBar_MouseTracking:
     case QStyle::SH_Menu_MouseTracking:
