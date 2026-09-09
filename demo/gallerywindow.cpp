@@ -133,6 +133,7 @@ void GalleryWindow::configureGallery()
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
 
+    ui->themeCombo->setCurrentIndex(qApp->style()->property("themeMode").toInt());
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &GalleryWindow::setTheme);
     connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
