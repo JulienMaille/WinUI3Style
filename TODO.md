@@ -76,7 +76,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 - [ ] AutoSuggestBox : modèle de suggestions, ouverture/fermeture, clavier, sélection, hit-test, thème et backdrop ; ajouter une interaction réellement testée.
 - [ ] ComboBox : ouverture au relâchement, animation du glyph, marker animé au click-and-hold, padding haut/bas, icône de l'item sélectionné et recalcul de taille.
-- [ ] ComboBox : texte fermé élidé car la largeur par défaut ne correspond pas au contenu (user 2026-09-10, à investiguer : repro + fix sizeHint).
+- [ ] ComboBox : texte fermé élidé car la largeur par défaut ne correspond pas au contenu (user 2026-09-10, à investiguer : repro + fix sizeHint). Boucle : garde `themeComboSizingContract` étendue (AdjustToContents + politique par défaut 120 px, pas d'élision) — verte ; mécanisme exact du rapport à reproduire avec le texte fautif.
 - [ ] Corriger le chevron ComboBox et son centrage sans modifier la hauteur de ligne WinUI.
 - [ ] LineEdit/TextBox : clear button visible uniquement quand le champ a le focus, glyph X correctement centré et hover centré.
 - [ ] Corriger le décalage gauche de l'editable ComboBox et les largeurs de NumberBox en Compact.

@@ -532,6 +532,28 @@ void WinUI3EditorsTest::themeComboSizingContract()
              qPrintable(QStringLiteral("edit width %1 < text width %2")
                                 .arg(edit.width())
                                 .arg(textWidth)));
+    // Closed-text elision guard (user 2026-09-10): a default-width combo
+    // showing its longest item must not elide. The edit slot reserves the
+    // arrow + left padding, so the minimum width must cover text + chrome.
+    const int chrome = combo.minimumWidth() - edit.width();
+    QVERIFY2(chrome >= 0, qPrintable(QStringLiteral("negative chrome %1").arg(chrome)));
+    QCOMPARE(combo.fontMetrics().elidedText(combo.itemText(0), Qt::ElideRight, edit.width()),
+             combo.itemText(0));
+    // Default policy path: without AdjustToContents the style minimum
+    // (120 px) must still fit short items without elision.
+    QComboBox plain;
+    plain.addItems({ QStringLiteral("Blue"), QStringLiteral("Green"), QStringLiteral("Red") });
+    plain.resize(120, 32);
+    plain.show();
+    QTRY_VERIFY(plain.isVisible());
+    QStyleOptionComboBox plainOption;
+    plainOption.initFrom(&plain);
+    plainOption.rect = plain.rect();
+    plainOption.currentText = plain.currentText();
+    const QRect plainEdit = plain.style()->subControlRect(
+            QStyle::CC_ComboBox, &plainOption, QStyle::SC_ComboBoxEditField, &plain);
+    QCOMPARE(plain.fontMetrics().elidedText(plain.currentText(), Qt::ElideRight, plainEdit.width()),
+             plain.currentText());
 
     combo.setEditable(true);
     QVERIFY(combo.lineEdit());
