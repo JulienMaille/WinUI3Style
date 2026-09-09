@@ -563,6 +563,8 @@ void WinUI3EditorsTest::themeComboSizingContract()
         option.initFrom(&combo);
         option.rect = combo.rect();
         option.direction = direction;
+        option.editable = true;
+        option.currentText = combo.currentText();
         const QRect labelSlot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
                                                               QStyle::SC_ComboBoxEditField, &combo);
         QStyleOptionFrame editorOption;
@@ -579,6 +581,10 @@ void WinUI3EditorsTest::themeComboSizingContract()
         else
             QCOMPARE(editorContents.right(), labelSlot.right());
     }
+    // Editable text-alignment guard (TODO 2026-09-10): the private editor
+    // widget geometry is Qt-owned (pos.x is framework layout, not the text
+    // origin). What matters is the text itself: editor contents must start
+    // at the closed-label slot in both directions (already asserted above).
 }
 
 void WinUI3EditorsTest::indeterminateProgressDeterminism()
