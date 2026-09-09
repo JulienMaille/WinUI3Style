@@ -21,7 +21,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 - [ ] **P1 — [#6 Animation ouverture menus : slide vertical-only + easing non conforme](https://github.com/JulienMaille/WinUI3Style/issues/6)**
   - Validation live 2026-09-09 (user) : motion OK, pas exactement WinUI mais jugé suffisant. Fermé comme déviation délibérée documentée dans `spec/coverage.md` (slide vertical 12 px + OutCubic, y compris sous-menus latéraux).
 - [ ] **P1 — [#5 QMenu popup : géométrie non recalculée au changement de densité](https://github.com/JulienMaille/WinUI3Style/issues/5)**
-  - Validation live 2026-09-09 (user) : popup Compact identique à Standard — non validé. Conforme au contrat actuel (`menuItemHeight` 36 px + padding 8 px invariants, seul `QMenuBar` 12→8 compacte), mais l'absence d'effet visible bloque la validation Compact du menu. Reproducteur précis encore requis avant correctif ou clôture by-design.
+  - Validation live 2026-09-09 (user) : compact ne tronque plus (OK, cf. géométrie) mais le popup ne diffère pas en Compact — non validé comme effet de densité. Conforme au contrat actuel (`menuItemHeight` 36 px + padding 8 px invariants, seul `QMenuBar` 12→8 compacte). Reproducteur précis encore requis avant correctif ou clôture by-design.
   - Changer Standard/Compact avec le popup ouvert et fermé.
   - Recalculer hauteur, padding, position et hit-test dès le changement de densité.
   - Tester la première frame et la géométrie stabilisée.
@@ -62,7 +62,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 ### Dialogues et Wizard
 
-- [ ] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel.
+- [ ] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel. Repro live 2026-09-09 (user, screenshots) : QWizard Dark — fond de page noir, pied de page blanc cassé, boutons Next bleu clair/Cancel fantôme ; QWizard Light — pied de page gris/bandes bleues au hover, Next bleu foncé/Cancel blanc. Pistes : `refreshWizardSurface` ne peint que le footer mais pas les `QWizardPage`/labels (fond noir = page sans palette contenue ?), boutons wizard hors `commandPalette`, `WizardFooterSurface` non repeint au hover/theme, caption native bleue via DWM à vérifier.
 - [ ] Corriger couleurs de titre, texte et boutons en Light/Dark/System.
 - [ ] Corriger centrage vertical indépendant de la partie haute et de la barre de commandes.
 - [ ] Réparer le Wizard en Dark : fond, pages, titre, boutons, disabled et navigation.
