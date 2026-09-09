@@ -62,7 +62,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 ### Dialogues et Wizard
 
-- [ ] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel. Repro live 2026-09-09 (user, screenshots) : QWizard Dark — fond de page noir, pied de page blanc cassé, boutons Next bleu clair/Cancel fantôme ; QWizard Light — pied de page gris/bandes bleues au hover, Next bleu foncé/Cancel blanc. Pistes : `refreshWizardSurface` ne peint que le footer mais pas les `QWizardPage`/labels (fond noir = page sans palette contenue ?), boutons wizard hors `commandPalette`, `WizardFooterSurface` non repeint au hover/theme, caption native bleue via DWM à vérifier.
+- [ ] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel. Repro live 2026-09-09 (user, screenshots) : QWizard Dark — fond de page noir, pied de page blanc cassé, boutons Next bleu clair/Cancel fantôme ; QWizard Light — pied de page gris/bandes bleues au hover, Next bleu foncé/Cancel blanc. Fix : labels internes forcés à l'encre contenue (Link bleu illisible), `WizardFooterSurface::setColors` repeint même à couleurs identiques ; test `wizardOpenThemeSwitchLifecycle` étendu (encre titres Light/Dark). En attente de revalidation live.
 - [ ] Corriger couleurs de titre, texte et boutons en Light/Dark/System.
 - [ ] Corriger centrage vertical indépendant de la partie haute et de la barre de commandes.
 - [ ] Réparer le Wizard en Dark : fond, pages, titre, boutons, disabled et navigation.

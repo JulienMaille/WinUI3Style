@@ -49,6 +49,7 @@
 #include <QGuiApplication>
 #include <QLinearGradient>
 #include <QListView>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
@@ -124,8 +125,13 @@ public:
 
     void setColors(const QColor &fill, const QColor &stroke)
     {
-        if (m_fill == fill && m_stroke == stroke)
+        if (m_fill == fill && m_stroke == stroke) {
+            // A theme switch can re-resolve to the same stored colors while
+            // the backing store still holds the previous theme's pixels
+            // (live defect 2026-09-09: white footer in Dark). Force repaint.
+            update();
             return;
+        }
         m_fill = fill;
         m_stroke = stroke;
         update();
@@ -249,6 +255,17 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
             continue;
 
         child->setPalette(internalButton ? commandPalette : contentPalette);
+        if (auto *label = qobject_cast<QLabel *>(child)) {
+            // QWizard's internal title/description labels carry the platform
+            // Link-role ink, unreadable on a dark page. Force content ink.
+            QPalette labelPalette = contentPalette;
+            labelPalette.setColor(QPalette::WindowText, contentPalette.color(QPalette::WindowText));
+            labelPalette.setColor(QPalette::Text, contentPalette.color(QPalette::Text));
+            labelPalette.setColor(QPalette::Link, contentPalette.color(QPalette::WindowText));
+            labelPalette.setColor(QPalette::LinkVisited,
+                                 contentPalette.color(QPalette::WindowText));
+            label->setPalette(labelPalette);
+        }
         if (!internalButton
             && (qobject_cast<QWizardPage *>(child) || qobject_cast<QFrame *>(child)
                 || child->parentWidget() == wizard))

@@ -440,24 +440,32 @@ void WinUI3SurfacesTest::wizardOpenThemeSwitchLifecycle()
     QTRY_VERIFY(footer->isVisible());
     QAbstractButton *next = wizard.button(QWizard::NextButton);
     QVERIFY(next);
+    // QWizard's internal title/description labels must inherit the content
+    // ink: a stale blue Link-role title on a dark page is unreadable (live
+    // defect 2026-09-09).
+    const auto titleLabels = wizard.findChildren<QLabel *>();
+    QVERIFY(!titleLabels.isEmpty());
     const QColor darkContent(44, 44, 44);
     const QColor darkCommand(32, 32, 32);
     const QColor lightContent(252, 252, 252);
     const QColor lightCommand(243, 243, 243);
     QTRY_COMPARE(page->palette().color(QPalette::Window), darkContent);
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
+    for (QLabel *label : titleLabels)
+        QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
     QCOMPARE(wizard.grab().toImage().pixelColor(
                      wizard.width() / 2, footer->geometry().top() + 2),
              darkCommand);
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_COMPARE(page->palette().color(QPalette::Window), lightContent);
     QTRY_COMPARE(next->palette().color(QPalette::Window), lightCommand);
-    QTRY_COMPARE(wizard.grab().toImage().pixelColor(
-                         wizard.width() / 2, footer->geometry().top() + 2),
-                 lightCommand);
+    for (QLabel *label : titleLabels)
+        QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(0, 0, 0, 228));
     style->setThemeMode(WinUI3::ThemeMode::Dark);
     QTRY_COMPARE(page->palette().color(QPalette::Window), darkContent);
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
+    for (QLabel *label : titleLabels)
+        QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
     QTRY_COMPARE(wizard.grab().toImage().pixelColor(
                          wizard.width() / 2, footer->geometry().top() + 2),
                  darkCommand);
