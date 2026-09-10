@@ -144,6 +144,23 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
             size += QSize(2 * density.comboHorizontalPadding, 2 * density.comboVerticalPadding);
             size.setHeight(qMax(size.height(), density.comboBoxHeight));
         }
+        if (const auto *combo = qobject_cast<const QComboBox *>(widget);
+            combo && option && size.width() > 0) {
+            // The closed-label slot (SC_ComboBoxEditField) reserves the left
+            // padding plus the arrow slot, but sizeFromContents only sees
+            // the text extent Qt offers: live rasterization of the same
+            // item can exceed that extent ("Standard densi..."). Guarantee
+            // the slot covers the longest item: grow the hint when the
+            // offered text plus chrome exceeds it. First-open popup tests
+            // still guard the mapped metric after any sizeFromContents
+            // change (METHODOLOGY §1).
+            const QFontMetrics metrics(option->fontMetrics);
+            int longest = 0;
+            for (int row = 0; row < combo->count(); ++row)
+                longest = qMax(longest, metrics.horizontalAdvance(combo->itemText(row)));
+            const int need = longest + density.comboEditLeftPadding + density.comboArrowWidth;
+            size.setWidth(qMax(size.width(), need));
+        }
         size.setWidth(qMax(size.width(), 120));
         break;
     case QStyle::CT_LineEdit:
