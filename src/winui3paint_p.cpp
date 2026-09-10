@@ -16,10 +16,20 @@ void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill, cons
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
+    // WinUI ButtonBorder sits inside the control bounds: fill to the rect
+    // edge, then stroke fully inside it. A centered 1px QPen straddles the
+    // edge and its outer half blends outside as a soft halo (the fuzzy zoom).
+    painter->setPen(Qt::NoPen);
     painter->setBrush(fill);
-    painter->setPen(stroke.alpha() > 0 ? QPen(stroke, strokeWidth) : Qt::NoPen);
-    const qreal half = stroke.alpha() > 0 ? strokeWidth / 2.0 : 0.0;
-    painter->drawRoundedRect(rect.adjusted(half, half, -half, -half), radius, radius);
+    painter->drawRoundedRect(rect, radius, radius);
+    if (stroke.alpha() > 0) {
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(stroke, strokeWidth));
+        painter->drawRoundedRect(
+                rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
+                              -strokeWidth / 2.0),
+                radius, radius);
+    }
     painter->restore();
 }
 
@@ -91,13 +101,22 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
+    // Same inside-stroke contract as roundedRect: fill to the edge, gradient
+    // border fully inside so the outer pixel keeps the parent fill.
+    painter->setPen(Qt::NoPen);
     painter->setBrush(fill);
+    painter->drawRoundedRect(rect, radius, radius);
     QLinearGradient border(rect.topLeft(), rect.bottomLeft());
     border.setColorAt(0.0, strokeTop);
     border.setColorAt(1.0, strokeBottom);
-    painter->setPen(QPen(QBrush(border), strokeWidth));
-    const qreal half = strokeWidth / 2.0;
-    painter->drawRoundedRect(rect.adjusted(half, half, -half, -half), radius, radius);
+    QPen borderPen(QBrush(border), strokeWidth);
+    borderPen.setCosmetic(true);
+    painter->setBrush(Qt::NoBrush);
+    painter->setPen(borderPen);
+    painter->drawRoundedRect(
+            rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
+                          -strokeWidth / 2.0),
+            radius, radius);
     painter->restore();
 }
 

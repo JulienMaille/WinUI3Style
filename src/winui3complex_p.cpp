@@ -112,8 +112,9 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
             // Rebuild the frame from transparent over a live material (see
-            // eraseForBackdrop); otherwise hover/press fills accumulate.
-            eraseForBackdrop(painter, widget, combo->rect, ControlRadius);
+            // eraseForBackdrop); otherwise hover/press fills accumulate. No
+            // radius clip: the fill below repaints the full frame every pass.
+            eraseForBackdrop(painter, widget, combo->rect);
             if (!paintsDirectlyOnBackdrop(widget) && widget && widget->parentWidget()
                        && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
@@ -169,7 +170,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     }
     if (control == QStyle::CC_SpinBox) {
         if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
-            eraseForBackdrop(painter, widget, spin->rect, ControlRadius);
+            eraseForBackdrop(painter, widget, spin->rect);
             const bool enabled = spin->state & QStyle::State_Enabled;
             const bool focused = spin->state & QStyle::State_HasFocus;
             const bool verticalButtons = verticalSpinButtons(widget);

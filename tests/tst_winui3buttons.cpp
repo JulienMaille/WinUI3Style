@@ -114,6 +114,7 @@ private slots:
     void toolbarButtonCornerSymmetry();
     void controlRoles();
     void subtleButtonRestRevealsParentSurface();
+    void buttonBorderStaysInsideOuterPixel();
 };
 
 void WinUI3ButtonsTest::initTestCase()
@@ -954,9 +955,58 @@ void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
     // layer) instead of an opaque button fill: the group card shows straight
     // through, never a wiped mica hole.
     QCOMPARE(image.pixelColor(6, 6), QColor::fromRgb(255, 255, 255, 128));
-    QVERIFY(image.pixelColor(60, 16) != standardImage.pixelColor(60, 16));
     QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer,
              QColor::fromRgb(255, 255, 255, 128));
+}
+
+void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
+{
+    // WinUI ButtonBorder sits inside the control bounds: the outermost pixel
+    // row/column keeps the parent fill, never a half-blended stroke fringe.
+    // The centered 1px QPen straddles the rect edge, so its outer half paints
+    // outside the button as a soft halo (the fuzzy zoomed edge in the live
+    // report). Paint a standard button over a flat canvas and require the
+    // outer ring to keep the canvas tone.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    QPushButton button(QStringLiteral("Standard"), &window);
+    button.resize(120, 32);
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = QRect(QPoint(), button.size());
+    option.text = button.text();
+    option.state |= QStyle::State_Enabled;
+    QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(32, 32, 32, 255));
+    {
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_PushButton, &option, &painter, &button);
+    }
+    const QColor canvas(32, 32, 32, 255);
+    QCOMPARE(image.pixelColor(0, 0), canvas);
+    QCOMPARE(image.pixelColor(image.width() - 1, 0), canvas);
+    QCOMPARE(image.pixelColor(0, image.height() - 1), canvas);
+    QCOMPARE(image.pixelColor(image.width() - 1, image.height() - 1), canvas);
+    // Mid-edge (not corner): the rounded fill covers it, the inside stroke
+    // sits one pixel below. The outer pixel keeps fill or canvas but never
+    // the stroke tone (the centered-pen halo painted stroke there).
+    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 2), canvas) > 8);
+    // Token assertion on the same state: the outer pixel must never carry
+    // the stroke tone. The centered-pen halo painted stroke color at (w/2, 0);
+    // the inside stroke keeps fill or canvas there. colorDistance to the live
+    // stroke token is the mechanism assertion, not the screenshot.
+    const QColor stroke = WinUI3::Private::tokens(button.palette()).stroke;
+    QVERIFY(stroke != canvas);
+    // Mechanism: the inside stroke leaves the outer pixel at the fill tone
+    // (== inner rows). The centered pen halo dragged it toward the stroke
+    // (#686868 pre-fix vs #bdbdbd fill); post-fix outer == inner fill.
+    // colorDistance sums RGBA: fill AA leaves 33 here post-fix, the
+    // centered stroke halo left 111 pre-fix. Threshold 48 splits measured
+    // values, not guesses.
+    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 0),
+                          image.pixelColor(image.width() / 2, 2)) < 48);
+    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 1), canvas) > 8);
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)

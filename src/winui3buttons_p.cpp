@@ -155,7 +155,10 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // pixels. Rebuild button frames from transparent when the button sits
         // directly on DWM Mica; otherwise repeated hover frames accumulate
         // into a visible ghost. Opaque content/layer ancestors are excluded.
-        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+        // No radius clip: the fill below repaints the full frame shape every
+        // pass, so a clipped erase would leave stale hover pixels outside
+        // the rounded path (the accumulate-contract failure).
+        eraseForBackdrop(painter, widget, option->rect);
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
