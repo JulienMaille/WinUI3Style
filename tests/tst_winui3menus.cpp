@@ -99,6 +99,7 @@ private slots:
     void menuSizingContract();
     void menuSubmenuChevronGeometry();
     void menuPaintTabParsing();
+    void menuMnemonicConsumesAmpersand();
     void compactMenuBarTextFits();
     void menuBarOnlyActiveActionIsHighlighted();
     void groupBoxContract();
@@ -290,10 +291,49 @@ void WinUI3MenusTest::menuPaintTabParsing()
     QVERIFY(twoFields == extraField);
 }
 
+void WinUI3MenusTest::menuMnemonicConsumesAmpersand()
+{
+    // Live defect 2026-09-10: File items showed raw "&New project" because
+    // CE_MenuItem painted without Qt::TextShowMnemonic (the menubar had it).
+    // Render "&New project" vs "New project": identical pixels except the
+    // mnemonic underline stroke itself.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    auto render = [style](const QString &text) {
+        QStyleOptionMenuItem option;
+        option.rect = QRect(0, 0, 320, 36);
+        option.direction = Qt::LeftToRight;
+        option.palette = qApp->palette();
+        option.state = QStyle::State_Enabled;
+        option.menuItemType = QStyleOptionMenuItem::Normal;
+        option.font = qApp->font();
+        option.fontMetrics = QFontMetrics(option.font);
+        option.text = text;
+        QImage result(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        result.fill(Qt::transparent);
+        QPainter painter(&result);
+        style->drawControl(QStyle::CE_MenuItem, &option, &painter);
+        return result;
+    };
+    const QImage plain = render(QStringLiteral("New project"));
+    const QImage mnemonic = render(QStringLiteral("&New project"));
+    // No raw '&' glyph: the mnemonic render must not contain extra ink
+    // beyond the underline. Count differing pixels; only the underline row
+    // (a few px) may differ, never a full '&' glyph block.
+    int diff = 0;
+    for (int y = 0; y < plain.height(); ++y) {
+        for (int x = 0; x < plain.width(); ++x) {
+            if (plain.pixelColor(x, y) != mnemonic.pixelColor(x, y))
+                ++diff;
+        }
+    }
+    QVERIFY2(diff > 0, "mnemonic underline missing entirely");
+    QVERIFY2(diff < 200, qPrintable(QStringLiteral("raw & painted? diff=%1").arg(diff)));
+}
+
 void WinUI3MenusTest::compactMenuBarTextFits()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
-    QVERIFY(style);
     const WinUI3::DensityMode previous = style->densityMode();
     style->setDensityMode(WinUI3::DensityMode::Compact);
 

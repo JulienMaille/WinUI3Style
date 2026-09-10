@@ -316,7 +316,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                                              menu->rect.height()));
             painter->drawText(
                     textRect,
-                    QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                    QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
+                            | Qt::TextShowMnemonic,
                     metrics.elidedText(itemText, Qt::ElideRight, textRect.width()));
             if (hasShortcut) {
                 painter->setPen(enabled ? t.textSecondary : t.textDisabled);
