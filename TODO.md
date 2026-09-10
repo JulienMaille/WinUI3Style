@@ -1,7 +1,7 @@
 # WinUI3Style — feuille de route
 
-> État de référence : 7 septembre 2026, branche `codex/treeview-wizard-rebase`.
-> Boucle de travail active depuis le 9 septembre 2026 : chaque lot met à jour ce fichier, est relu, commité sur la branche de travail, puis enchaîne le prochain fix facile. Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct.
+> État de référence : 10 septembre 2026, `main` @ `b0dfb0d` (merge Mica + fix hover-vanish, suite 40/40 verte).
+> Boucle de travail : chaque lot met à jour ce fichier, est relu, commité sur `main` puis poussé ; les branches `codex/treeview-wizard-rebase` et `draft/mica-ghost-glyphs` sont mergées et supprimées. Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct.
 
 ## État actuel
 
@@ -11,8 +11,8 @@
 - [x] Galerie principalement construite depuis un fichier `.ui`, avec une surface de démonstration des propriétés Designer.
 - [x] Bibliothèque, galerie et tests compilent en Release sur l'environnement courant.
 - [x] Suite CTest et matrice de snapshots passent sur la révision de référence.
-- [ ] La couverture indiquée dans `spec/coverage.md` est encore « source-audited » : la comparaison WinUI live reste obligatoire.
-- [ ] Lot en cours : fixer les items faciles dans l'ordre, committer par lot sur la branche de travail (jamais sur `main` protégé).
+- [ ] La couverture indiquée dans `spec/coverage.md` est encore « source-audited » : la comparaison WinUI live reste obligatoire. Mica/backdrop n'a aucune ligne (pas de mapping déclaré) — à ajouter avant toute revendication.
+- [ ] Lot en cours : fixer les items faciles dans l'ordre, committer par lot sur `main` puis pousser (workflow actuel : `main` direct, branches mergées/supprimées).
 
 ## Issues GitHub ouvertes (à intégrer au planning)
 
@@ -51,8 +51,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 ### Backdrop, repaint et surfaces
 
-- [ ] Diagnostiquer les ghostings Mica/Acrylic lors du hover des boutons.
-  - Revue actualisée du draft `origin/draft/mica-ghost-glyphs` au commit `dbd021c` : non intégré. Les deux erreurs de compilation signalées sur `4e64016` sont corrigées en amont ; la cible surfaces compile en Debug. Le test `islandScrollPostsFullViewportRepaint` échoue encore offscreen (aucun repaint complet observé) ; cause non établie, aucune exception ajoutée. La restauration de `WA_StyledBackground` manque et le chemin d'échec DWM ne restaure pas les surfaces enfants transparentisées. Worktree de revue : `D:/Dev/win11style-mica-review`.
+- [x] Diagnostiquer les ghostings Mica/Acrylic lors du hover des boutons. Merge `draft/mica-ghost-glyphs` dans `main` (`ecb5f0b`) + fix hover-vanish live 2026-09-10 (user) : `eraseForBackdrop` remplaçait le clip dirty-region (`ReplaceClip`), le clear `Source` élargi au rect complet effaçait le contenu sibling (backpanel par-dessus les widgets) → `IntersectClip` (`b0dfb0d`). Test mécanisme : `materialEraseRespectsDirtyRegionClip` (échoue pré-fix, passe post-fix) ; suite 40/40 verte + snapshot matrix. Worktree/branches de revue à nettoyer (`D:/Dev/win11style-mica-review`, `codex/mica-draft-test-repair` — remplacées).
 - [ ] Comparer le backdrop des AutoSuggestBox, ComboBox, menus et popups ; appliquer une seule stratégie de surface/blur/repaint.
 - [ ] Corriger le repaint lors du passage Light ↔ Dark ↔ System (fond principal, menu, panneau gauche, contour de fenêtre).
 - [ ] Tester activation/désactivation du backdrop, redimensionnement, occlusion et déplacement de fenêtre.
@@ -182,7 +181,7 @@ La liste ci-dessous reprend `spec/WIDGET_BACKLOG.md` et doit être traitée par 
 
 ## Ordre recommandé
 
-1. Fermer les issues #6 et #5 avec tests popup/animation et validation live.
+1. ~~Fermer les issues #6 et #5 avec tests popup/animation et validation live.~~ Fait 2026-09-10 : #6 fermée comme déviation délibérée documentée (slide 12 px + OutCubic), #5 fermée by-design (lignes 36 px Compact conformes, effet Compact = MenuBar).
 2. Corriger backdrop/repaint, dialogs/Wizard et palette/indicateurs Dark.
 3. Stabiliser AutoSuggestBox, ComboBox, TextBox clear button et DatePicker.
 4. Corriger NavigationView, TreeView, TabView, toolbar, splitter et scrollbar.
