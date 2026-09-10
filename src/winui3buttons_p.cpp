@@ -436,14 +436,13 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                 else
                     contents.setLeft(iconRect.right() + 6);
             }
+            paintGrayscaleText(painter, contents,
+                               QStyle::visualAlignment(button->direction,
+                                                       Qt::AlignLeft | Qt::AlignVCenter)
+                                       | Qt::TextShowMnemonic,
+                               widget ? widget->font() : QApplication::font(),
+                               enabled ? t.textPrimary : t.textDisabled, button->text);
             painter->save();
-            painter->setFont(widget ? widget->font() : QApplication::font());
-            painter->setPen(enabled ? t.textPrimary : t.textDisabled);
-            painter->drawText(
-                    contents,
-                    QStyle::visualAlignment(button->direction, Qt::AlignLeft | Qt::AlignVCenter)
-                            | Qt::TextShowMnemonic,
-                    button->text);
             if ((button->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
                 paintFocusRing(painter, QRectF(button->rect), t.focusOuter, t.focusInner, 1, 3, 5,
                                3);
@@ -515,8 +514,9 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                         : check->rect.adjusted(50, 0, 0, 0);
                 const Qt::Alignment horizontal =
                         check->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
-                painter->drawText(labelRect, horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic,
-                                  label);
+                paintGrayscaleText(painter, labelRect,
+                                   horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic,
+                                   widget->font(), enabled ? t.textPrimary : t.textDisabled, label);
             }
             if (keyboardFocusVisible(widget))
                 paintFocusRing(painter, track, t.focusOuter, t.focusInner, -3, -1, 12, 11);
@@ -574,12 +574,9 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                             button->direction, content,
                             QRect(logicalStart + (hasIcon ? iconSize.width() + gap : 0),
                                   content.top(), textWidth, content.height()));
-                    painter->save();
-                    painter->setFont(widget ? widget->font() : QApplication::font());
-                    painter->setPen(textColor);
-                    painter->drawText(textRect, Qt::AlignCenter | Qt::TextShowMnemonic,
-                                      button->text);
-                    painter->restore();
+                    paintGrayscaleText(painter, textRect, Qt::AlignCenter | Qt::TextShowMnemonic,
+                                       widget ? widget->font() : QApplication::font(), textColor,
+                                       button->text);
                 }
                 return true;
             }
@@ -619,11 +616,8 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             const QFontMetrics metrics(tool->fontMetrics);
             const int textWidth = tool->text.isEmpty() ? 0 : metrics.horizontalAdvance(tool->text);
             if (buttonStyle == Qt::ToolButtonTextOnly || !hasIcon) {
-                painter->save();
-                painter->setFont(tool->font);
-                painter->setPen(textColor);
-                painter->drawText(content, Qt::AlignCenter | Qt::TextShowMnemonic, tool->text);
-                painter->restore();
+                paintGrayscaleText(painter, content.toRect(), Qt::AlignCenter | Qt::TextShowMnemonic,
+                                   tool->font, textColor, tool->text);
             } else if (buttonStyle == Qt::ToolButtonTextBesideIcon && textWidth > 0) {
                 const qreal total = iconSize.width() + 6.0 + textWidth;
                 const qreal logicalStart =
@@ -639,11 +633,9 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                         visualRectF(tool->direction, content,
                                     QRectF(logicalStart + iconSize.width() + 6.0, content.top(),
                                            textWidth, content.height()));
-                painter->save();
-                painter->setFont(tool->font);
-                painter->setPen(textColor);
-                painter->drawText(textRect, Qt::AlignCenter | Qt::TextShowMnemonic, tool->text);
-                painter->restore();
+                paintGrayscaleText(painter, textRect.toRect(),
+                                   Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
+                                   tool->text);
             } else if (buttonStyle == Qt::ToolButtonTextUnderIcon && textWidth > 0) {
                 paintThemedIcon(painter, tool->icon,
                                 QRectF(content.center().x() - iconSize.width() / 2.0, content.top(),
@@ -651,12 +643,9 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                 Qt::AlignCenter, textColor,
                                 enabled ? QIcon::Normal : QIcon::Disabled,
                                 tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-                painter->save();
-                painter->setFont(tool->font);
-                painter->setPen(textColor);
-                painter->drawText(content.adjusted(0, iconSize.height(), 0, 0),
-                                  Qt::AlignCenter | Qt::TextShowMnemonic, tool->text);
-                painter->restore();
+                paintGrayscaleText(painter, content.adjusted(0, iconSize.height(), 0, 0).toRect(),
+                                   Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
+                                   tool->text);
             } else if (hasIcon) {
                 QRectF iconRect(content.center().x() - iconSize.width() / 2.0,
                                 content.center().y() - iconSize.height() / 2.0, iconSize.width(),

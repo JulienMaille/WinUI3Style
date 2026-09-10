@@ -39,6 +39,13 @@ void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect, const QColo
 void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, const QColor &inner,
                     qreal outerInset, qreal innerInset, qreal outerRadius, qreal innerRadius);
 
+// WinUI text antialiases in grayscale (DirectWrite neutral coverage); Qt's
+// default LCD subpixel rendering leaves R/B fringes that read as color halos
+// on non-RGB-striped outputs (measured 2026-09-10: #bd855d/#4c85e8 fringes vs
+// official #8685a5/#4e4d60 neutrals). One helper owns font+pen+grayscale for
+// every style-painted label so call sites cannot drift back to ClearType.
+void paintGrayscaleText(QPainter *painter, const QRect &rect, int flags, const QFont &font,
+                        const QColor &color, const QString &text);
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter);
 

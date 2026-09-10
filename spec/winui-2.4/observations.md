@@ -190,6 +190,13 @@ same 8 px content inset as other Fluent surfaces. These are consistency
 extensions and are validated in both orientations through Qt's shared splitter
 and dock-separator painting path.
 
+Live text-AA measurement 2026-09-10 (Accent button, dark, 100%): the official
+Gallery composites neutral grayscale coverage (fringes #8685a5/#4e4d60 around a
+#1a1a20 core); Qt's default LCD subpixel left R/B fringes (#bd855d/#4c85e8
+around #000000). The style therefore paints labels with
+`QFont::NoSubpixelAntialias` (`paintGrayscaleText`), trading a slightly softer
+LCD rendering for WinUI-neutral coverage on all outputs.
+
 These observations are checked against the exact Microsoft XAML resource files
 listed in `manifest.json`. A Qt capture is rejected if it merely renders without
 crashing; every state above must be inspected or covered by a state-level test.

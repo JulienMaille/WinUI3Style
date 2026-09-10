@@ -148,6 +148,25 @@ void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, 
     painter->restore();
 }
 
+void paintGrayscaleText(QPainter *painter, const QRect &rect, int flags, const QFont &font,
+                        const QColor &color, const QString &text)
+{
+    if (!painter || text.isEmpty())
+        return;
+    painter->save();
+    // QFont::NoSubpixelAntialias caps the rasterizer to neutral grayscale
+    // coverage: no LCD-stripe R/B fringes. Lives on the font copy used for
+    // this paint only; the widget font is never mutated.
+    QFont grayFont = font;
+    grayFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+            grayFont.styleStrategy() | QFont::NoSubpixelAntialias));
+    painter->setFont(grayFont);
+    painter->setPen(color);
+    painter->setRenderHint(QPainter::TextAntialiasing, true);
+    painter->drawText(rect, flags, text);
+    painter->restore();
+}
+
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter)
 {
@@ -155,7 +174,6 @@ QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
         return QRectF(logicalBounds.center().x() - logicalDiameter / 2.0,
                       logicalBounds.center().y() - logicalDiameter / 2.0, logicalDiameter,
                       logicalDiameter);
-
     const QTransform device = painter->deviceTransform();
     const qreal sx = qAbs(device.m11());
     const qreal sy = qAbs(device.m22());

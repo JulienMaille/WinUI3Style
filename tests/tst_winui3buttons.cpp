@@ -115,6 +115,7 @@ private slots:
     void controlRoles();
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
+    void buttonTextAntialiasesGrayscale();
 };
 
 void WinUI3ButtonsTest::initTestCase()
@@ -1003,10 +1004,55 @@ void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
     // (#686868 pre-fix vs #bdbdbd fill); post-fix outer == inner fill.
     // colorDistance sums RGBA: fill AA leaves 33 here post-fix, the
     // centered stroke halo left 111 pre-fix. Threshold 48 splits measured
-    // values, not guesses.
     QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 0),
                           image.pixelColor(image.width() / 2, 2)) < 48);
     QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 1), canvas) > 8);
+}
+
+void WinUI3ButtonsTest::buttonTextAntialiasesGrayscale()
+{
+    // WinUI text composites neutral coverage; Qt's LCD subpixel leaves R/B
+    // fringes (measured live 2026-09-10 on Accent dark: #bd855d/#4c85e8 vs
+    // official #8685a5/#4e4d60). Offscreen has no LCD stripes so this cannot
+    // reproduce the fringes; it guards the NoSubpixelAntialias mechanism
+    // (font strategy bit) plus zero channel-spread fringe pixels.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    QPushButton button(QStringLiteral("Accent"), &window);
+    button.resize(160, 32);
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = QRect(QPoint(), button.size());
+    option.text = button.text();
+    option.state = QStyle::State_Enabled;
+    const QColor fill(189, 187, 232, 255);
+    QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(fill);
+    {
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_PushButtonLabel, &option, &painter, &button);
+    }
+    const auto channelSpread = [](const QColor &c) {
+        const int hi = (qMax)(c.red(), (qMax)(c.green(), c.blue()));
+        const int lo = (qMin)(c.red(), (qMin)(c.green(), c.blue()));
+        return hi - lo;
+    };
+    int fringe = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor px = image.pixelColor(x, y);
+            if (px == fill)
+                continue;
+            if (channelSpread(px) > 48)
+                ++fringe;
+        }
+    }
+    QCOMPARE(fringe, 0);
+    QFont gray = button.font();
+    gray.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+            gray.styleStrategy() | QFont::NoSubpixelAntialias));
+    QVERIFY(gray.styleStrategy() & QFont::NoSubpixelAntialias);
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)

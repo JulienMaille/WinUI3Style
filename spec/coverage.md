@@ -6,7 +6,7 @@ to `source-audited`; missing evidence remains explicit in the last column.
 
 | Qt widget / variant | WinUI mapping | Mapping kind | Current status | Required state evidence |
 |---|---|---|---|---|
-| `QPushButton` | Button | Direct | source-audited | direct panel/label ownership, icon/text, menu reserve, rest/hover/down/disabled, mouse/keyboard focus and default/accent are under contract; live WinUI comparison remains |
+| `QPushButton` | Button | Direct | source-audited | direct panel/label ownership, icon/text, menu reserve, rest/hover/down/disabled, mouse/keyboard focus and default/accent are under contract; label text paints grayscale AA (`paintGrayscaleText`, `QFont::NoSubpixelAntialias`) matching WinUI neutral coverage — measured live 2026-09-10 Accent dark (ours ClearType fringes #bd855d/#4c85e8 vs official #8685a5/#4e4d60 neutrals); guard `buttonTextAntialiasesGrayscale`; live WinUI comparison remains |
 | `QCommandLinkButton` | Command-link composition | Consistency extension | source-audited | 160×64 minimum, title/description ownership, enabled/disabled surface and native activation are covered; live pointer/focus comparison remains |
 | checkable `QPushButton` | ToggleButton | Direct | source-audited | direct off/on surface, hover/down, disabled-on and focus paths are captured; live comparison remains |
 | `QToolButton` / toolbar | AppBarButton / CommandBar | Direct | source-audited | direct label painting, icon/text layouts, toggle, split-menu partition/hit test, dropdown glyph, hover/down and separator are covered; live overflow comparison remains |
