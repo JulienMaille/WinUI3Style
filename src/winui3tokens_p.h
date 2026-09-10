@@ -18,6 +18,18 @@ constexpr int CheckBoxDuration = FastDuration;
 constexpr int NormalDuration = 250;
 constexpr qreal ControlRadius = 4.0;
 constexpr qreal OverlayRadius = 8.0;
+// Group cards over a live material veil to 178 so Mica shows through; opaque
+// windows keep the full card tone. One definition shared by the group frame
+// and the resting subtle button inside it (same surface, same alpha).
+constexpr int VeiledCardAlpha = 178;
+inline QColor veiledCard(const QColor &layer, bool onBackdrop)
+{
+    if (!onBackdrop)
+        return layer;
+    QColor card = layer;
+    card.setAlpha(qMin(card.alpha(), VeiledCardAlpha));
+    return card;
+}
 
 struct Tokens
 {

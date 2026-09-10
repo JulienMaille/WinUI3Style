@@ -134,10 +134,8 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                  ancestor = ancestor->parentWidget()) {
                 if (!qobject_cast<const QGroupBox *>(ancestor))
                     continue;
-                QColor card = t.layer;
-                if (paintsDirectlyOnBackdrop(widget))
-                    card.setAlpha(qMin(card.alpha(), 178));
-                roundedRect(painter, QRectF(option->rect), card, Qt::transparent, ControlRadius);
+                roundedRect(painter, QRectF(option->rect), veiledCard(t.layer, true),
+                            Qt::transparent, ControlRadius);
                 break;
             }
             return true;

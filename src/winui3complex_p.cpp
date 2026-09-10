@@ -80,10 +80,8 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
         if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option)) {
             const bool enabled = group->state & QStyle::State_Enabled;
             eraseForBackdrop(painter, widget, group->rect, 6.0);
-            QColor card = t.layer;
-            if (paintsDirectlyOnBackdrop(widget))
-                card.setAlpha(qMin(card.alpha(), 178));
-            roundedRect(painter, group->rect, card, t.stroke, 6.0);
+            roundedRect(painter, group->rect, veiledCard(t.layer, paintsDirectlyOnBackdrop(widget)),
+                        t.stroke, 6.0);
 
             if (group->subControls & QStyle::SC_GroupBoxCheckBox) {
                 QStyleOptionButton indicator;
