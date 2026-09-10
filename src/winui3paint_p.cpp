@@ -3,9 +3,11 @@
 
 #include <winui3style/winui3icons.h>
 
+#include <QApplication>
 #include <QLineF>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QStyle>
 
 #include <cmath>
 
@@ -163,7 +165,13 @@ void paintGrayscaleText(QPainter *painter, const QRect &rect, int flags, const Q
     painter->setFont(grayFont);
     painter->setPen(color);
     painter->setRenderHint(QPainter::TextAntialiasing, true);
-    painter->drawText(rect, flags, text);
+    // Same Alt-reveal as menus: hide the mnemonic underline until the style
+    // hint says underlines show (Windows hides them until Alt).
+    int textFlags = flags;
+    if ((flags & Qt::TextShowMnemonic)
+        && QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut) == 0)
+        textFlags |= Qt::TextHideMnemonic;
+    painter->drawText(rect, textFlags, text);
     painter->restore();
 }
 

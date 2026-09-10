@@ -12,6 +12,7 @@
 #include <winui3style/winui3style.h>
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QComboBox>
 #include <QCursor>
 #include <QFontDatabase>
@@ -166,8 +167,11 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             // Keeping the historical fixed 10 px paint inset in Compact
             // (which reserves 8 px) clipped four pixels from tight labels.
             const int textInset = qMin(10, densityMetricsFor(widget).menuBarHorizontalPadding);
-            painter->drawText(item->rect.adjusted(textInset, 0, -textInset, 0),
-                              Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextSingleLine,
+            int barFlags = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextSingleLine;
+            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget)
+                == 0)
+                barFlags |= Qt::TextHideMnemonic;
+            painter->drawText(item->rect.adjusted(textInset, 0, -textInset, 0), barFlags,
                               item->text);
             return true;
         }
@@ -314,10 +318,14 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                                        QRect(menu->rect.left() + textLeft, menu->rect.top(),
                                              qMax(0, textRight - menu->rect.left() - textLeft + 1),
                                              menu->rect.height()));
-            painter->drawText(
-                    textRect,
+            int itemFlags =
                     QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
-                            | Qt::TextShowMnemonic,
+                    | Qt::TextShowMnemonic;
+            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget)
+                == 0)
+                itemFlags |= Qt::TextHideMnemonic;
+            painter->drawText(
+                    textRect, itemFlags,
                     metrics.elidedText(itemText, Qt::ElideRight, textRect.width()));
             if (hasShortcut) {
                 painter->setPen(enabled ? t.textSecondary : t.textDisabled);

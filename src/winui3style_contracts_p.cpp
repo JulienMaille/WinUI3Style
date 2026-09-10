@@ -491,6 +491,12 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
         return Qt::LeftButton;
     case QStyle::SH_ToolButtonStyle:
         return Qt::ToolButtonFollowStyle;
+    case QStyle::SH_UnderlineShortcut:
+        // Qt-idiomatic Alt-reveal (QWindowsStyle: SPI_GETKEYBOARDCUES plus an
+        // Alt event filter; underlines hidden by default on Windows). Our
+        // base is QCommonStyle (always underlines), so opt out here; paint
+        // sites add TextHideMnemonic until Alt is pressed.
+        return 0;
     default:
         return style->QProxyStyle::styleHint(hint, option, widget, returnData);
     }

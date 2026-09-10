@@ -295,8 +295,10 @@ void WinUI3MenusTest::menuMnemonicConsumesAmpersand()
 {
     // Live defect 2026-09-10: File items showed raw "&New project" because
     // CE_MenuItem painted without Qt::TextShowMnemonic (the menubar had it).
-    // Render "&New project" vs "New project": identical pixels except the
-    // mnemonic underline stroke itself.
+    // Second defect: QCommonStyle base always underlines (ret=1), so the fix
+    // adds SH_UnderlineShortcut=0 plus TextHideMnemonic until Alt. Render
+    // "&New project" vs "New project": identical pixels now (hidden), and
+    // the hint reads 0 by default.
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
     auto render = [style](const QString &text) {
@@ -317,18 +319,9 @@ void WinUI3MenusTest::menuMnemonicConsumesAmpersand()
     };
     const QImage plain = render(QStringLiteral("New project"));
     const QImage mnemonic = render(QStringLiteral("&New project"));
-    // No raw '&' glyph: the mnemonic render must not contain extra ink
-    // beyond the underline. Count differing pixels; only the underline row
-    // (a few px) may differ, never a full '&' glyph block.
-    int diff = 0;
-    for (int y = 0; y < plain.height(); ++y) {
-        for (int x = 0; x < plain.width(); ++x) {
-            if (plain.pixelColor(x, y) != mnemonic.pixelColor(x, y))
-                ++diff;
-        }
-    }
-    QVERIFY2(diff > 0, "mnemonic underline missing entirely");
-    QVERIFY2(diff < 200, qPrintable(QStringLiteral("raw & painted? diff=%1").arg(diff)));
+    // Alt not pressed: SH_UnderlineShortcut=0, no underline, no raw '&'.
+    QCOMPARE(style->styleHint(QStyle::SH_UnderlineShortcut, nullptr, nullptr), 0);
+    QCOMPARE(mnemonic, plain);
 }
 
 void WinUI3MenusTest::compactMenuBarTextFits()
