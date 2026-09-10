@@ -335,8 +335,16 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         // Switching the presentation mode rebuilds the whole buffer: stale
         // opaque frames would otherwise linger under the new material.
         // update() alone does not dirty already-clean children, so force a
-        // synchronous full repaint of the window hierarchy here.
+        // synchronous full repaint of the window hierarchy here. A parent
+        // repaint clips children out, so every widget repaints itself: the
+        // left pane (navigation panel, labels, combos) keeps no stale rows
+        // and needs no resize to converge (same heal as the scroll guard).
         window->repaint();
+        const QList<QWidget *> subtree = window->findChildren<QWidget *>();
+        for (QWidget *child : subtree) {
+            if (child->isVisible())
+                child->repaint();
+        }
     } else {
         // DWM refused the material: opaque painted fallback, explicit
         // Painted state so clears stay off (black/stale pixels otherwise).

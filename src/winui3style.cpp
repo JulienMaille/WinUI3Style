@@ -1578,7 +1578,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget && Private::eraseForBackdrop(painter, widget, option->rect)) {
+    if (element == PE_Widget && widget
+        && Private::eraseForBackdrop(painter, widget, option->rect, Private::ControlRadius)) {
         // Erase to transparent on every paint over a live material: Qt's
         // erase is disabled here (StyledBackground, no autofill) and neither
         // the island nor its descendants repaint fully on scroll/hover/page

@@ -358,6 +358,18 @@ void syncContentSurfacesForBackdrop(QWidget *window)
             continue;
         transparentizeSurface(island);
     }
+    // Left shell (centralWidget, navigationPanel): not opt-in islands, but
+    // they paint PE_Widget straight onto the live material through the
+    // window (no opaque island between them and the window, so the gate
+    // passes). Same no-fill recipe, otherwise their backing-store rows keep
+    // the opaque frame until a resize reallocates (aliased "Mica backdrop"
+    // label, incomplete left Mica background). Toggle-off restore below
+    // returns every link (restore is a no-op for never-transparentized).
+    if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
+        transparentizeForBackdrop(central);
+        if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel")))
+            transparentizeForBackdrop(nav);
+    }
 }
 
 // restore alone leaves the content island transparent, so PE_Widget keeps
@@ -402,6 +414,17 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
                 }
             }
             area->update();
+        }
+    }
+    // Shell links transparentized by the sync above (no-ops if never armed).
+    if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
+        restoreTransparentizedForBackdrop(central);
+        central->setAttribute(Qt::WA_StyledBackground, false);
+        central->update();
+        if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel"))) {
+            restoreTransparentizedForBackdrop(nav);
+            nav->setAttribute(Qt::WA_StyledBackground, false);
+            nav->update();
         }
     }
 }
