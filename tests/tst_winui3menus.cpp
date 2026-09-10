@@ -322,6 +322,22 @@ void WinUI3MenusTest::menuMnemonicConsumesAmpersand()
     // Alt not pressed: SH_UnderlineShortcut=0, no underline, no raw '&'.
     QCOMPARE(style->styleHint(QStyle::SH_UnderlineShortcut, nullptr, nullptr), 0);
     QCOMPARE(mnemonic, plain);
+    // Alt pressed: hint flips to 1, the mnemonic render gains exactly the
+    // underline stroke (small diff, never a raw '&' glyph block).
+    WinUI3::Style::setAltMnemonicsVisible(true);
+    QCOMPARE(style->styleHint(QStyle::SH_UnderlineShortcut, nullptr, nullptr), 1);
+    const QImage revealed = render(QStringLiteral("&New project"));
+    int diff = 0;
+    for (int y = 0; y < plain.height(); ++y) {
+        for (int x = 0; x < plain.width(); ++x) {
+            if (plain.pixelColor(x, y) != revealed.pixelColor(x, y))
+                ++diff;
+        }
+    }
+    QVERIFY2(diff > 0, "Alt reveal shows no underline");
+    QVERIFY2(diff < 200, qPrintable(QStringLiteral("raw & painted? diff=%1").arg(diff)));
+    WinUI3::Style::setAltMnemonicsVisible(false);
+    QCOMPARE(style->styleHint(QStyle::SH_UnderlineShortcut, nullptr, nullptr), 0);
 }
 
 void WinUI3MenusTest::compactMenuBarTextFits()

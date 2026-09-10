@@ -634,12 +634,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         if (const auto *key = static_cast<QKeyEvent *>(event); revealsKeyboardFocus(key->key())) {
             *m_callbacks.keyboardInput = true;
         }
-        if (*m_callbacks.keyboardInput) {
-            framePropertyRegistry().set(widget, focusVisibleProperty, true);
-            widget->update();
-        }
+        // Windows Alt-reveal contract (QWindowsStyle event filter): Alt press
+        // shows mnemonic underlines, release hides them again. Repaint the
+        // top levels; each paint site queries SH_UnderlineShortcut live.
+        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Alt)
+            Style::setAltMnemonicsVisible(true);
         break;
     case QEvent::KeyRelease:
+        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Alt)
+            Style::setAltMnemonicsVisible(false);
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
             const auto *key = static_cast<QKeyEvent *>(event);
             if (key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter

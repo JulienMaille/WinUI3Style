@@ -9,10 +9,9 @@
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
-#include <QAbstractItemView>
-#include <QAbstractButton>
-#include <QAbstractSpinBox>
 #include <QCheckBox>
+#include <QMenu>
+#include <QMenuBar>
 #include <QCalendarWidget>
 #include <QCommandLinkButton>
 #include <QComboBox>
@@ -493,10 +492,10 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
         return Qt::ToolButtonFollowStyle;
     case QStyle::SH_UnderlineShortcut:
         // Qt-idiomatic Alt-reveal (QWindowsStyle: SPI_GETKEYBOARDCUES plus an
-        // Alt event filter; underlines hidden by default on Windows). Our
-        // base is QCommonStyle (always underlines), so opt out here; paint
-        // sites add TextHideMnemonic until Alt is pressed.
-        return 0;
+        // Alt event filter; underlines hidden by default on Windows). The Alt
+        // press is tracked in Style::eventFilter (every polished widget is
+        // filtered); ask the live style instance, never cache here.
+        return Style::altMnemonicsVisible() ? 1 : 0;
     default:
         return style->QProxyStyle::styleHint(hint, option, widget, returnData);
     }

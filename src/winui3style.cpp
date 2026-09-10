@@ -1246,6 +1246,28 @@ bool Style::animationsAllowed()
     return !qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
 }
 
+namespace {
+bool g_altMnemonicsVisible = false;
+} // namespace
+
+bool Style::altMnemonicsVisible()
+{
+    return g_altMnemonicsVisible;
+}
+
+void Style::setAltMnemonicsVisible(bool visible)
+{
+    if (g_altMnemonicsVisible == visible)
+        return;
+    g_altMnemonicsVisible = visible;
+    for (QWidget *widget : QApplication::topLevelWidgets()) {
+        if (auto *menuBar = qobject_cast<QMenuBar *>(widget))
+            menuBar->update();
+        else if (widget->isWindow())
+            widget->update();
+    }
+}
+
 void Style::setAccentColor(const QColor &color)
 {
     if (d->accent == color)

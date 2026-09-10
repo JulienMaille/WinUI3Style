@@ -59,6 +59,12 @@ public:
     // reduced-motion environments, and application code cannot disagree.
     static bool animationsAllowed();
 
+    // Whether mnemonic underlines are currently shown (Alt pressed, Windows
+    // Alt-reveal contract). Tracked by the style's event filter; paint sites
+    // query it through SH_UnderlineShortcut.
+    static bool altMnemonicsVisible();
+    static void setAltMnemonicsVisible(bool visible);
+
     static void setControlRole(QWidget *widget, ControlRole role);
     static ControlRole controlRole(const QWidget *widget);
 
