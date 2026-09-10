@@ -102,6 +102,7 @@ private slots:
     void islandScrollPostsFullViewportRepaint();
     void materialEraseKeepsCornersTransparent();
     void materialEraseRespectsDirtyRegionClip();
+    void backdropToggleOffRestoresShellSurfaces();
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
@@ -410,6 +411,25 @@ void WinUI3SurfacesTest::materialEraseRespectsDirtyRegionClip()
     QCOMPARE(canvas.pixelColor(120, 16), QColor(255, 0, 0, 255));
     QVERIFY(canvas.pixelColor(120, 80).alpha() == 0);
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&edit));
+}
+
+void WinUI3SurfacesTest::backdropToggleOffRestoresShellSurfaces()
+{
+    // Toggle-off must restore the opaque window: offscreen the None branch
+    // runs restoreBackdropState, republishes Solid so no painter keeps
+    // Source-clearing, and leaves no backdrop marker behind. Without the
+    // restore the last composited frame stays on screen and the toggle
+    // looks like a no-op (stale Mica fossil).
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None));
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(window.property("_winui_backdrop_effective").toInt(), 0);
+    QVERIFY(!window.property("_winui_backdrop").isValid());
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&window));
 }
 
 void WinUI3SurfacesTest::contentDialogContract()
