@@ -51,7 +51,7 @@ Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/
 
 ### Backdrop, repaint et surfaces
 
-- [x] Diagnostiquer les ghostings Mica/Acrylic lors du hover des boutons. Merge `draft/mica-ghost-glyphs` dans `main` (`ecb5f0b`) + fix hover-vanish live 2026-09-10 (user) : `eraseForBackdrop` remplaçait le clip dirty-region (`ReplaceClip`), le clear `Source` élargi au rect complet effaçait le contenu sibling (backpanel par-dessus les widgets) → `IntersectClip` (`b0dfb0d`). Test mécanisme : `materialEraseRespectsDirtyRegionClip` (échoue pré-fix, passe post-fix) ; suite 40/40 verte + snapshot matrix. Worktree/branches de revue à nettoyer (`D:/Dev/win11style-mica-review`, `codex/mica-draft-test-repair` — remplacées).
+- [x] Diagnostiquer les ghostings Mica/Acrylic lors du hover des boutons. Merge `draft/mica-ghost-glyphs` dans `main` (`ecb5f0b`) + fix hover-vanish live 2026-09-10 (user) : `eraseForBackdrop` remplaçait le clip dirty-region (`ReplaceClip`), le clear `Source` élargi au rect complet effaçait le contenu sibling (backpanel par-dessus les widgets) → `IntersectClip` (`b0dfb0d`). Test mécanisme : `materialEraseRespectsDirtyRegionClip` (échoue pré-fix, passe post-fix) ; suite 40/40 verte + snapshot matrix. Worktree/branches de revue nettoyés 2026-09-10 (worktree `win11style-mica-review` + branche `codex/mica-draft-test-repair` supprimés, distants déjà purgés).
 - [ ] Comparer le backdrop des AutoSuggestBox, ComboBox, menus et popups ; appliquer une seule stratégie de surface/blur/repaint.
 - [ ] Corriger le repaint lors du passage Light ↔ Dark ↔ System (fond principal, menu, panneau gauche, contour de fenêtre).
 - [ ] Tester activation/désactivation du backdrop, redimensionnement, occlusion et déplacement de fenêtre.
