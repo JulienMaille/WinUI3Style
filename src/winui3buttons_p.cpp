@@ -18,6 +18,7 @@
 #include <QCheckBox>
 #include <QCommandLinkButton>
 #include <QComboBox>
+#include <QGroupBox>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
@@ -117,6 +118,30 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             : 0.0;
 
     if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool) {
+        // Subtle-at-rest is the WinUI no-fill case: the parent surface must
+        // show straight through. Erase the hover ghost, then repaint the
+        // parent card tone when inside a group card (directly on the
+        // material transparent is correct). Interactive states keep the
+        // standard erase-then-fill path below.
+        if ((Style::controlRole(widget) == ControlRole::Subtle
+             || Style::controlRole(widget) == ControlRole::Navigation)
+            && paintsDirectlyOnBackdrop(widget)
+            && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken))
+            && progress(widget, hoverProperty, 0.0) < 0.01
+            && progress(widget, pressProperty, 0.0) < 0.01) {
+            eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
+                 ancestor = ancestor->parentWidget()) {
+                if (!qobject_cast<const QGroupBox *>(ancestor))
+                    continue;
+                QColor card = t.layer;
+                if (paintsDirectlyOnBackdrop(widget))
+                    card.setAlpha(qMin(card.alpha(), 178));
+                roundedRect(painter, QRectF(option->rect), card, Qt::transparent, ControlRadius);
+                break;
+            }
+            return true;
+        }
         // The private clear button of a QLineEdit must not paint its own
         // small hover surface: PE_PanelLineEdit already paints the
         // editor-scoped full-height clear surface, so a per-button surface

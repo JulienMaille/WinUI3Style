@@ -113,6 +113,7 @@ private slots:
     void toolButtonIconVerticalCenter();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
+    void subtleButtonRestRevealsParentSurface();
 };
 
 void WinUI3ButtonsTest::initTestCase()
@@ -915,6 +916,47 @@ void WinUI3ButtonsTest::controlRoles()
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
     WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
+}
+
+void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
+{
+    // WinUI SubtleButtonStyle has no resting fill: inside a group card the
+    // card surface shows straight through, even over Mica. The resting panel
+    // repaints the transparentized card tone after erasing the hover ghost.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    QGroupBox group(QStringLiteral("Buttons"), &window);
+    QPushButton standard(QStringLiteral("Standard"), &group);
+    standard.resize(120, 32);
+    QPushButton subtle(QStringLiteral("Subtle"), &group);
+    WinUI3::Style::setControlRole(&subtle, WinUI3::ControlRole::Subtle);
+    subtle.resize(120, 32);
+    auto paintButton = [&](QPushButton *button) {
+        QStyleOptionButton option;
+        option.initFrom(button);
+        option.rect = QRect(QPoint(), button->size());
+        option.text = button->text();
+        option.state |= QStyle::State_Enabled;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(61, 61, 90, 255));
+        {
+            QPainter painter(&image);
+            style->drawControl(QStyle::CE_PushButton, &option, &painter, button);
+        }
+        return image;
+    };
+    const QImage standardImage = paintButton(&standard);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&subtle));
+    QImage image = paintButton(&subtle);
+    // The resting subtle panel repaints the veiled card tone (transparentized
+    // layer) instead of an opaque button fill: the group card shows straight
+    // through, never a wiped mica hole.
+    QCOMPARE(image.pixelColor(6, 6), QColor::fromRgb(255, 255, 255, 128));
+    QVERIFY(image.pixelColor(60, 16) != standardImage.pixelColor(60, 16));
+    QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer,
+             QColor::fromRgb(255, 255, 255, 128));
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)
