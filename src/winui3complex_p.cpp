@@ -302,17 +302,9 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             const QColor outerThumb = t.sliderThumbOuter;
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
-            painter->setPen(Qt::NoPen);
             painter->setBrush(outerThumb);
+            painter->setPen(QPen(t.strokeSecondary, 1));
             painter->drawEllipse(QPointF(handle.center()), 10.5, 10.5);
-            painter->restore();
-            {
-                const QRectF ring(handle.center().x() - 10.5, handle.center().y() - 10.5, 21.0,
-                                  21.0);
-                roundedOutline(painter, ring, t.strokeSecondary, 10.5);
-            }
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
             painter->setBrush(thumbColor);
             painter->setPen(Qt::NoPen);
             painter->drawEllipse(QPointF(handle.center()), innerDiameter / 2.0,

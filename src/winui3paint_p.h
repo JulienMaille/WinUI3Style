@@ -17,12 +17,6 @@ namespace WinUI3::PaintPrivate {
 void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
                  qreal radius, qreal strokeWidth = 1.0);
 
-// Inside-stroke outline for shapes that own no fill pass here (checkbox and
-// radio indicators, slider thumb ring, popup frames): one call draws the
-// stroke fully inside the given rect so the outer pixel keeps the parent
-// fill, like roundedRect above. Factor of the per-site adjusted(0.5) copies.
-void roundedOutline(QPainter *painter, const QRectF &rect, const QColor &stroke, qreal radius,
-                    qreal strokeWidth = 1.0);
 void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground,
                      QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off);

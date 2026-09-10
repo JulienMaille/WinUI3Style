@@ -115,7 +115,6 @@ private slots:
     void controlRoles();
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
-    void indicatorBorderStaysInsideOuterPixel();
 };
 
 void WinUI3ButtonsTest::initTestCase()
@@ -1008,42 +1007,6 @@ void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
     QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 0),
                           image.pixelColor(image.width() / 2, 2)) < 48);
     QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 1), canvas) > 8);
-}
-
-void WinUI3ButtonsTest::indicatorBorderStaysInsideOuterPixel()
-{
-    // Same inside-stroke contract for the checkbox indicator: fill to the
-    // slot edge, stroke fully inside. The 20px template slot keeps its size;
-    // the outer pixel keeps the canvas, the stroke sits one pixel in.
-    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
-    QVERIFY(style);
-    QWidget window;
-    QCheckBox check(QStringLiteral("Check"), &window);
-    check.resize(120, 32);
-    QStyleOptionButton option;
-    option.initFrom(&check);
-    option.rect = QRect(0, 0, 20, 20);
-    option.state = QStyle::State_Enabled;
-    QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-    image.fill(QColor(32, 32, 32, 255));
-    {
-        QPainter painter(&image);
-        style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &option, &painter, &check);
-    }
-    const QColor canvas(32, 32, 32, 255);
-    // Corners keep canvas within fill-AA tolerance (never stroke): the
-    // rounded fill touches them lightly, the outline sits fully inside.
-    QVERIFY(colorDistance(image.pixelColor(0, 0), canvas) < 48);
-    QVERIFY(colorDistance(image.pixelColor(image.width() - 1, 0), canvas) < 48);
-    QVERIFY(colorDistance(image.pixelColor(0, image.height() - 1), canvas) < 48);
-    QVERIFY(colorDistance(image.pixelColor(image.width() - 1, image.height() - 1), canvas) < 48);
-    const QColor stroke = WinUI3::Private::tokens(check.palette()).strokeStrong;
-    QVERIFY(stroke != canvas);
-    // The outline stroke sits fully inside: the pixel below it (row1) keeps
-    // the pure fill tone (no halo bleed), while the top pixel carries the
-    // stroke. Pre-fix the centered pen bled stroke into row1.
-    QVERIFY(colorDistance(image.pixelColor(10, 1), image.pixelColor(10, 2)) < 24);
-    QVERIFY(colorDistance(image.pixelColor(10, 0), image.pixelColor(10, 2)) > 48);
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)

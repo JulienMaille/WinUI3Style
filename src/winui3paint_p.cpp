@@ -33,20 +33,6 @@ void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill, cons
     painter->restore();
 }
 
-void roundedOutline(QPainter *painter, const QRectF &rect, const QColor &stroke, qreal radius,
-                    qreal strokeWidth)
-{
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(stroke, strokeWidth));
-    painter->drawRoundedRect(
-            rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
-                          -strokeWidth / 2.0),
-            radius, radius);
-    painter->restore();
-}
-
 void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground, QIcon::Mode mode,
                      QIcon::State state)
@@ -153,15 +139,11 @@ void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setBrush(Qt::NoBrush);
-    // Inside-stroke like every other ring: inset by half the width so the
-    // outer edge lands on the inset rect, no halo outside it.
     painter->setPen(QPen(outer, 2));
-    painter->drawRoundedRect(rect.adjusted(outerInset + 1.0, outerInset + 1.0, -outerInset - 1.0,
-                                           -outerInset - 1.0),
+    painter->drawRoundedRect(rect.adjusted(outerInset, outerInset, -outerInset, -outerInset),
                              outerRadius, outerRadius);
     painter->setPen(QPen(inner, 1));
-    painter->drawRoundedRect(rect.adjusted(innerInset + 0.5, innerInset + 0.5, -innerInset - 0.5,
-                                           -innerInset - 0.5),
+    painter->drawRoundedRect(rect.adjusted(innerInset, innerInset, -innerInset, -innerInset),
                              innerRadius, innerRadius);
     painter->restore();
 }

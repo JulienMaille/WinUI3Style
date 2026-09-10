@@ -312,17 +312,11 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     }
 
     if (element == QStyle::PE_FrameDockWidget) {
-        // 1px frame fully inside the bounds: fillRect bands (no antialiased
-        // straddle) instead of a centered drawRect pen.
         const Tokens t = tokens(option->palette);
         painter->save();
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(t.stroke);
-        const QRect frame = option->rect;
-        painter->fillRect(QRect(frame.left(), frame.top(), frame.width(), 1), t.stroke);
-        painter->fillRect(QRect(frame.left(), frame.bottom(), frame.width(), 1), t.stroke);
-        painter->fillRect(QRect(frame.left(), frame.top(), 1, frame.height()), t.stroke);
-        painter->fillRect(QRect(frame.right(), frame.top(), 1, frame.height()), t.stroke);
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(t.stroke, 1));
+        painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
         painter->restore();
         return true;
     }
