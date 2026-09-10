@@ -38,6 +38,7 @@
 #include <QParallelAnimationGroup>
 #include <QPointer>
 #include <QScreen>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSlider>
 #include <QStyleOptionSlider>
@@ -46,7 +47,6 @@
 
 namespace WinUI3::Private {
 using namespace PaintPrivate;
-
 namespace {
 
 constexpr auto contentDialogFooterName = "_winui_content_dialog_footer_surface";
@@ -280,6 +280,16 @@ void restoreTransparentizedSurface(QWidget *surface)
     surface->update();
 }
 
+void transparentizeForBackdrop(QWidget *surface)
+{
+    transparentizeSurface(surface);
+}
+
+void restoreTransparentizedForBackdrop(QWidget *surface)
+{
+    restoreTransparentizedSurface(surface);
+}
+
 void makeChromeSurfacesTransparent(QWidget *window)
 {
     if (!window)
@@ -306,7 +316,6 @@ void restoreChromeSurfaces(QWidget *window)
         restoreTransparentizedSurface(statusBar);
 }
 
-
 void syncContentSurfacesForBackdrop(QWidget *window)
 {
     if (!window)
@@ -325,8 +334,24 @@ void syncContentSurfacesForBackdrop(QWidget *window)
                 || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
         if (!optedIn)
             continue;
-        for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>())
+        for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>()) {
             guardIslandScrollArea(area);
+            // The area frame, its viewport, and its container widget are one
+            // visual surface with the island: every link paints PE_Widget over
+            // the live material, so every link gets the same no-fill recipe.
+            // Without this the Controls-heading band above the first card
+            // keeps its opaque fill and ghosts exactly like the island did
+            // (healed only by resize). Scroll areas and viewports are armed,
+            // not skipped: the queued guard repaint covers their blit smear,
+            // and the toggle-off restore below returns every link.
+            transparentizeForBackdrop(area);
+            if (QWidget *viewport = area->viewport())
+                transparentizeForBackdrop(viewport);
+            if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
+                if (QWidget *container = scrollArea->widget())
+                    transparentizeForBackdrop(container);
+            }
+        }
         if (auto *islandArea = qobject_cast<QAbstractScrollArea *>(island))
             guardIslandScrollArea(islandArea);
         if (island->palette().color(QPalette::Window).alpha() == 0)
@@ -357,6 +382,27 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
         restoreTransparentizedSurface(island);
         island->setAttribute(Qt::WA_StyledBackground, false);
         island->update();
+        // The sync above transparentized the scrolled chain alongside the
+        // island: restore every link the same way (each restore is a no-op
+        // for widgets that were never transparentized).
+        const QList<QAbstractScrollArea *> areas = island->findChildren<QAbstractScrollArea *>();
+        for (QAbstractScrollArea *area : areas) {
+            restoreTransparentizedForBackdrop(area);
+            area->setAttribute(Qt::WA_StyledBackground, false);
+            if (QWidget *viewport = area->viewport()) {
+                restoreTransparentizedForBackdrop(viewport);
+                viewport->setAttribute(Qt::WA_StyledBackground, false);
+                viewport->update();
+            }
+            if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
+                if (QWidget *container = scrollArea->widget()) {
+                    restoreTransparentizedForBackdrop(container);
+                    container->setAttribute(Qt::WA_StyledBackground, false);
+                    container->update();
+                }
+            }
+            area->update();
+        }
     }
 }
 

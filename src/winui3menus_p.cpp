@@ -86,13 +86,8 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // explicitly on a direct backdrop: neither this fill nor Qt's
         // auto-fill (deliberately disabled there) erases stale pixels, so
         // resize/expose frames would otherwise leave permanent ghosts.
-        if (paintsDirectlyOnBackdrop(widget)) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(option->rect, Qt::transparent);
-            painter->restore();
+        if (eraseForBackdrop(painter, widget, option->rect))
             return true;
-        }
         painter->fillRect(option->rect, option->palette.brush(QPalette::Window));
         return true;
     }
@@ -114,11 +109,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // its rect, which excludes the contents margins) then draw the
         // stroke on top, centered on device pixels so antialiasing does
         // not flatten it to half-strength grey on two of the four sides.
-        if (paintsDirectlyOnBackdrop(widget)) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(surface, Qt::transparent);
-            painter->restore();
+        if (eraseForBackdrop(painter, widget, surface)) {
             roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
         } else {
             painter->fillRect(surface, fill);

@@ -16,10 +16,14 @@
 #include <QCheckBox>
 #include <QLineEdit>
 #include <QPalette>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRect>
 #include <QToolButton>
 #include <QWidget>
+
 namespace WinUI3::Private {
 
 // Animated progress for a transient frame state (hover, press, focus...).
@@ -27,7 +31,6 @@ inline qreal progress(const QWidget *widget, const char *name, qreal fallback = 
 {
     return framePropertyRegistry().real(widget, name, fallback);
 }
-
 // A QCheckBox promoted to WinUI's ToggleSwitch control.
 inline bool toggleSwitch(const QWidget *widget)
 {
@@ -41,7 +44,6 @@ inline bool textBoxHelperButton(const QWidget *widget)
     return qobject_cast<const QAbstractButton *>(widget)
             && qobject_cast<const QLineEdit *>(widget->parentWidget());
 }
-
 // Whether a button-like surface pulses on press (all of them except the
 // discrete TextBox helper button).
 inline bool buttonPressPulse(const QWidget *widget)
@@ -102,5 +104,29 @@ inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
     }
     return true;
 }
-
+// Source-clear one rect over a live material, gated on paintsDirectlyOnBackdrop.
+// Every painter below that lays a fill over a translucent island must call this
+// first: Qt keeps backing-store rows between frames (blit + partial expose),
+// so a fill without erase re-blends over stale rows (white hover fields,
+// gray bands, retained scroll rows; only a resize heals). Returns true when
+// the erase ran. painters that only lay text/glyphs over an already-erased
+// rect (labels, item delegates) must NOT call it. Pass the fill radius to
+// clip the clear inside the painted shape (antialiased corners outside the
+// rounded rect would otherwise keep transparent-black dots).
+inline bool eraseForBackdrop(QPainter *painter, const QWidget *widget, const QRect &rect,
+                             qreal radius = 0.0)
+{
+    if (!painter || !paintsDirectlyOnBackdrop(widget))
+        return false;
+    painter->save();
+    if (radius > 0.0) {
+        QPainterPath clip;
+        clip.addRoundedRect(QRectF(rect), radius, radius);
+        painter->setClipPath(clip);
+    }
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
+    painter->fillRect(rect, Qt::transparent);
+    painter->restore();
+    return true;
+}
 } // namespace WinUI3::Private

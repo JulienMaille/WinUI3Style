@@ -50,6 +50,7 @@
 #include <QLinearGradient>
 #include <QListView>
 #include <QLineEdit>
+#include <QLayout>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -390,9 +391,21 @@ void invalidateDensityTree(QWidget *root)
 {
     if (!root)
         return;
+    // Bottom-up : les enfants d'abord, le parent ensuite. Un layout parent
+    // repositionne ses enfants ; si le parent repeint avant, ses lignes
+    // backing-store gardent les enfants a l'ancienne geometrie (doublons
+    // "Palette lab", combos superposes). Le layout doit etre actif avant le
+    // repaint, sinon updateGeometry() ne fait que marquer dirty.
     const auto invalidateWidget = [](QWidget *widget) {
+        if (widget->layout())
+            widget->layout()->activate();
         widget->updateGeometry();
-        widget->update();
+        // Density changes resize rows/controls in place: every backing store
+        // keeps stale rows exactly like a scroll blit (the left-pane smear
+        // when switching Standard/Compact). update() only repaints the
+        // exposed strip, so force the synchronous full repaint here, like
+        // the island scroll guard does after a valueChanged tick.
+        widget->repaint();
         if (auto *editor = qobject_cast<QLineEdit *>(widget))
             syncCompleterPopupDensity(editor);
         if (qobject_cast<QMenuBar *>(widget)) {
@@ -417,10 +430,13 @@ void invalidateDensityTree(QWidget *root)
                 view->viewport()->update();
         }
     };
+    // Enfants (feuilles) d'abord : findChildren rend les parents avant les
+    // enfants, donc parcours inverse. Chaque niveau est repositionne puis
+    // repeint avant que son parent ne fige ses propres lignes.
+    const auto descendants = root->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
+    for (auto it = descendants.crbegin(); it != descendants.crend(); ++it)
+        invalidateWidget(*it);
     invalidateWidget(root);
-    const auto descendants = root->findChildren<QWidget *>();
-    for (QWidget *widget : descendants)
-        invalidateWidget(widget);
 }
 
 Icon arrowIcon(QStyle::PrimitiveElement element)
@@ -1267,11 +1283,15 @@ void Style::refreshApplicationAppearance()
             preparePopupSurface(widget);
         } else if (auto *wizard = qobject_cast<QWizard *>(widget)) {
             refreshWizardSurface(wizard, applicationPalette);
-        } else if (widget->property(originalPaletteExplicitProperty).toBool()) {
+        } else if (widget->property(originalPaletteExplicitProperty).toBool()
+                   && !widget->property(ownedPaletteProperty).toBool()) {
             // The widget carried an explicit palette before the style touched
-            // it. A style-wide theme refresh must not clobber user-set
-            // colors; painters already derive their tokens from the widget's
-            // own palette at draw time.
+            // it, and the style never claimed it (no surface, no implicit
+            // registration). A style-wide theme refresh must not clobber
+            // user-set colors; painters already derive their tokens from the
+            // widget's own palette at draw time. Style-claimed widgets
+            // (ownedPaletteProperty) always rebase: their "explicit" flag
+            // only records the factory palette Qt set before polish.
             continue;
         } else {
             QPalette palette = applicationPalette;
@@ -1558,7 +1578,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget && Private::paintsDirectlyOnBackdrop(widget)) {
+    if (element == PE_Widget && widget && Private::eraseForBackdrop(painter, widget, option->rect)) {
         // Erase to transparent on every paint over a live material: Qt's
         // erase is disabled here (StyledBackground, no autofill) and neither
         // the island nor its descendants repaint fully on scroll/hover/page
@@ -1571,10 +1591,6 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         // path: the paintsDirectlyOnBackdrop gate already excluded opaque
         // islands and non-Composited fallbacks, so this branch never runs
         // for them.
-        painter->save();
-        painter->setCompositionMode(QPainter::CompositionMode_Source);
-        painter->fillRect(option->rect, Qt::transparent);
-        painter->restore();
         if (widget->palette().color(QPalette::Window).alpha() == 0)
             return;
     }
@@ -1690,15 +1706,10 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     // scroll-shifted pixels they leave behind smear exactly like the
     // unguarded viewport case. The gate excludes opaque islands and
     // non-Composited fallbacks, so unrelated controls are untouched.
-    if (widget && paintsDirectlyOnBackdrop(widget)
-        && (element == CE_PushButton || element == CE_PushButtonLabel
-            || element == CE_CheckBox || element == CE_CheckBoxLabel || element == CE_RadioButton
-            || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel)) {
-        painter->save();
-        painter->setCompositionMode(QPainter::CompositionMode_Source);
-        painter->fillRect(option->rect, Qt::transparent);
-        painter->restore();
-    }
+    if (element == CE_PushButton || element == CE_PushButtonLabel
+        || element == CE_CheckBox || element == CE_CheckBoxLabel || element == CE_RadioButton
+        || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel)
+        Private::eraseForBackdrop(painter, widget, option->rect);
     const Tokens t = tokens(option->palette);
     if (element == CE_ProgressBar) {
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
@@ -1937,13 +1948,8 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
     // Same erase as PE_Widget: group boxes and other complex frames paint
     // straight onto the live material through a translucent island and never
     // pass the PE/CE branches, so their scroll-shifted pixels smear.
-    if (widget && Private::paintsDirectlyOnBackdrop(widget)
-        && (control == CC_GroupBox || control == CC_ToolButton)) {
-        painter->save();
-        painter->setCompositionMode(QPainter::CompositionMode_Source);
-        painter->fillRect(option->rect, Qt::transparent);
-        painter->restore();
-    }
+    if (control == CC_GroupBox || control == CC_ToolButton)
+        Private::eraseForBackdrop(painter, widget, option->rect);
 
     Q_ASSERT_X(!Private::coveredComplex(control), "WinUI3::Style::drawComplexControl",
                "a covered complex control reached QCommonStyle");
@@ -2039,6 +2045,19 @@ void Style::polish(QWidget *widget)
     remember(widget, originalRoleProperty, widget->property(roleProperty));
     widget->setAttribute(Qt::WA_Hover, true);
     widget->installEventFilter(this);
+    // Any widget without a user-set palette belongs to the style's palette
+    // contract: a later theme/accent change must rebase it on the new
+    // standardPalette, exactly like the surface islands below. Without this
+    // only explicitly registered owners (islands, popups, chrome) follow the
+    // theme, and a plain QLineEdit keeps its light factory palette inside a
+    // dark window (white "Search settings" field). The explicit-palette
+    // guard in the refresh loop still protects user-set colors, and unpolish
+    // still restores the remembered original, so this only widens the set of
+    // widgets the refresh visits, never what it writes to custom palettes.
+    if (!widget->testAttribute(Qt::WA_SetPalette)) {
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+    }
     const QVariant surface = widget->property(SurfaceProperty);
     const QString surfaceName = surface.toString();
     if (surface.toBool() || surfaceName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0

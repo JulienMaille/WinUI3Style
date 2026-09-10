@@ -132,12 +132,7 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // pixels. Rebuild button frames from transparent when the button sits
         // directly on DWM Mica; otherwise repeated hover frames accumulate
         // into a visible ghost. Opaque content/layer ancestors are excluded.
-        if (paintsDirectlyOnBackdrop(widget)) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(option->rect, Qt::transparent);
-            painter->restore();
-        }
+        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
@@ -317,8 +312,16 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // "double outline".
         if (comboBoxEditor(widget))
             return true;
+        // Same erase as buttons/combos/groups: the editor sits directly
+        // on the live material and Qt keeps backing-store rows between
+        // repaints (blit + partial expose). Without a clear the fill
+        // re-blends over stale light rows: white field on hover in dark,
+        // and a stuck light fossil after a Light->Dark switch (only a
+        // resize reallocates and heals).
+        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
         if (widget && widget->parentWidget()
-            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()
+            && !paintsDirectlyOnBackdrop(widget)) {
             painter->fillRect(option->rect,
                               widget->parentWidget()->palette().color(QPalette::Window));
         }

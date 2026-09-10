@@ -111,6 +111,7 @@ private slots:
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
+    void materialEraseKeepsCornersTransparent();
 };
 
 void WinUI3EditorsTest::initTestCase()
@@ -1290,6 +1291,57 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
     verify(false, Qt::RightToLeft);
     verify(true, Qt::LeftToRight);
     verify(true, Qt::RightToLeft);
+}
+
+void WinUI3EditorsTest::materialEraseKeepsCornersTransparent()
+{
+    // Corners outside the rounded rect must never turn black: the
+    // clear clips to the fill radius (ControlRadius), the fill repaints
+    // the inside, and off-shape pixels stay transparent for DWM.
+    // Without the clip, the Source clear writes transparent-black into the
+    // antialiased corners and the fill never covers them (black dots on
+    // light Mica, light dots on dark Mica after a theme switch).
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QPalette clearPalette = island.palette();
+    QColor clearWindow = clearPalette.color(QPalette::Window);
+    clearWindow.setAlpha(0);
+    clearPalette.setColor(QPalette::Window, clearWindow);
+    island.setPalette(clearPalette);
+    QLineEdit edit(&island);
+    edit.resize(240, 32);
+    QStyleOptionFrame option;
+    option.initFrom(&edit);
+    option.rect = edit.rect();
+    option.state = QStyle::State_Enabled;
+    QImage image(edit.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    QPainter painter(&image);
+    style->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, &edit);
+    painter.end();
+    // Coins : transparents (le fill arrondi ne les couvre pas, le clear
+    // clippe ne les touche pas). Centre : le fill de l'editeur.
+    const QPoint corners[4] = { { 0, 0 },
+                                { image.width() - 1, 0 },
+                                { 0, image.height() - 1 },
+                                { image.width() - 1, image.height() - 1 } };
+    // Le clear clippe au rayon du fill : les coins hors forme gardent le fond
+    // du QImage (rouge ici, backing-store transparent en prod). L'important :
+    // pas de NOIR (clear non clippe) et le centre porte le fill.
+    for (const QPoint &corner : corners) {
+        const QColor px = image.pixelColor(corner);
+        QVERIFY2(px.alpha() == 0 || px == QColor(255, 0, 0, 255),
+                 qPrintable(QStringLiteral("corner %1,%2 = %3 (black fringe!)")
+                                .arg(corner.x())
+                                .arg(corner.y())
+                                .arg(px.name(QColor::HexArgb))));
+    }
+    QVERIFY(image.pixelColor(image.rect().center()).alpha() > 0);
 }
 
 QTEST_MAIN(WinUI3EditorsTest)

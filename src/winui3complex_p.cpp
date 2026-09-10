@@ -79,7 +79,11 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     if (control == QStyle::CC_GroupBox) {
         if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option)) {
             const bool enabled = group->state & QStyle::State_Enabled;
-            roundedRect(painter, group->rect, t.layer, t.stroke, 6.0);
+            eraseForBackdrop(painter, widget, group->rect, 6.0);
+            QColor card = t.layer;
+            if (paintsDirectlyOnBackdrop(widget))
+                card.setAlpha(qMin(card.alpha(), 178));
+            roundedRect(painter, group->rect, card, t.stroke, 6.0);
 
             if (group->subControls & QStyle::SC_GroupBoxCheckBox) {
                 QStyleOptionButton indicator;
@@ -109,15 +113,10 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
-            // Like buttons, controls painted directly on a native Mica window
-            // have a translucent backing store.  Clear the previous animated
-            // frame before compositing this one or hover/press fills accumulate.
-            if (paintsDirectlyOnBackdrop(widget)) {
-                painter->save();
-                painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(combo->rect, Qt::transparent);
-                painter->restore();
-            } else if (widget && widget->parentWidget()
+            // Rebuild the frame from transparent over a live material (see
+            // eraseForBackdrop); otherwise hover/press fills accumulate.
+            eraseForBackdrop(painter, widget, combo->rect, ControlRadius);
+            if (!paintsDirectlyOnBackdrop(widget) && widget && widget->parentWidget()
                        && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
                                   widget->parentWidget()->palette().color(QPalette::Window));
@@ -172,6 +171,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     }
     if (control == QStyle::CC_SpinBox) {
         if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
+            eraseForBackdrop(painter, widget, spin->rect, ControlRadius);
             const bool enabled = spin->state & QStyle::State_Enabled;
             const bool focused = spin->state & QStyle::State_HasFocus;
             const bool verticalButtons = verticalSpinButtons(widget);
@@ -229,6 +229,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_Slider) {
         if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
+            eraseForBackdrop(painter, widget, option->rect);
             const bool horizontal = slider->orientation == Qt::Horizontal;
             QRect groove = style->subControlRect(QStyle::CC_Slider, slider, QStyle::SC_SliderGroove,
                                                  widget);
@@ -341,12 +342,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             // Ghost scrollbar: a scrollbar painted straight onto a live
             // backdrop keeps its backing-store head across frames. Rebuild
             // from transparent first so the rest state never smears.
-            if (paintsDirectlyOnBackdrop(widget)) {
-                painter->save();
-                painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(option->rect, Qt::transparent);
-                painter->restore();
-            }
+            eraseForBackdrop(painter, widget, option->rect);
             painter->fillRect(option->rect, background);
             const bool enabled = option->state & QStyle::State_Enabled;
             // The WinUI ScrollBarThumb template fades the thumb to zero in its

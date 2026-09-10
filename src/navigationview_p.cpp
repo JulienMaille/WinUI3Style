@@ -118,12 +118,8 @@ public:
         // delegate to repaint them, so the previous selection fill/indicator
         // otherwise remains in the backing store after currentRow changes.
         // Clear this row's pixels with Source composition before rebuilding it.
-        if (m_view && m_view->palette().color(QPalette::Base).alpha() == 0) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(option.rect, Qt::transparent);
-            painter->restore();
-        }
+        if (m_view && m_view->palette().color(QPalette::Base).alpha() == 0)
+            Private::eraseForBackdrop(painter, m_view, option.rect);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         QColor fill = selected ? t.subtlePressed : Qt::transparent;
