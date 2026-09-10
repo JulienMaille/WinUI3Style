@@ -116,6 +116,7 @@ private slots:
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
     void buttonTextAntialiasesGrayscale();
+    void standardControlHeightsAre32px();
 };
 
 void WinUI3ButtonsTest::initTestCase()
@@ -1053,6 +1054,28 @@ void WinUI3ButtonsTest::buttonTextAntialiasesGrayscale()
     gray.setStyleStrategy(static_cast<QFont::StyleStrategy>(
             gray.styleStrategy() | QFont::NoSubpixelAntialias));
     QVERIFY(gray.styleStrategy() & QFont::NoSubpixelAntialias);
+}
+
+void WinUI3ButtonsTest::standardControlHeightsAre32px()
+{
+    // Live probe 2026-09-10 (galleryStandardButton 79x32 vs densityCombo
+    // 153x33, galleryLineEdit 300x33): button hints clamp at 32 but combo
+    // and edit hints come out 33 — sizeFromContents adds padding to Qt's
+    // offered height instead of clamping to the 32 px template. Same state
+    // for all three: sizeHint height must equal the pinned 32 px metric.
+    WinUI3::Style style(WinUI3::ThemeMode::Light);
+    QPushButton button(QStringLiteral("Standard"));
+    button.setStyle(&style);
+    QComboBox combo;
+    combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
+    QLineEdit edit;
+    edit.setStyle(&style);
+    button.ensurePolished();
+    combo.ensurePolished();
+    edit.ensurePolished();
+    QCOMPARE(button.sizeHint().height(), 32);
+    QCOMPARE(combo.sizeHint().height(), 32);
+    QCOMPARE(edit.sizeHint().height(), 32);
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)

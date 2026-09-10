@@ -127,7 +127,9 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
             button && (button->features & QStyleOptionButton::HasMenu))
             size.rwidth() += 22;
         size.setWidth(qMax(size.width(), 32));
-        size.setHeight(qMax(size.height(), density.buttonHeight));
+        // WinUI buttons are a fixed 32 px template: font ascent must never
+        // grow the frame (live Segoe 14 px offers 33). Clamp, don't floor.
+        size.setHeight(density.buttonHeight);
         break;
     case QStyle::CT_ComboBox:
         if (densityModeFor(widget) == DensityMode::Compact) {
@@ -142,7 +144,9 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         } else {
             // Preserve the established Standard geometry pixel-for-pixel.
             size += QSize(2 * density.comboHorizontalPadding, 2 * density.comboVerticalPadding);
-            size.setHeight(qMax(size.height(), density.comboBoxHeight));
+            // Same fixed-template clamp as buttons: Segoe 14 px offers 33
+            // for combo and edit alike (live probe); the template is 32.
+            size.setHeight(density.comboBoxHeight);
         }
         if (const auto *combo = qobject_cast<const QComboBox *>(widget);
             combo && option && size.width() > 0) {
@@ -176,7 +180,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         } else {
             size += QSize(2 * density.lineEditHorizontalPadding,
                           2 * density.lineEditVerticalPadding);
-            size.setHeight(qMax(size.height(), density.textBoxHeight));
+            size.setHeight(density.textBoxHeight);
         }
         break;
     case QStyle::CT_SpinBox:
