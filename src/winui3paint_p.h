@@ -55,4 +55,16 @@ QRect headerSortIndicatorRect(const QStyleOptionHeader &header);
 
 QRectF snappedSplitterGrip(const QRectF &grip, bool horizontal, const QPainter *painter);
 
+// WinUI's 12 px dropdown chevron: 10 px Segoe Fluent artwork centered in a
+// 12 px box. For full-width buttons the box sits 14 px from the trailing
+// edge; inside a split-button dropdown half it centers in the half
+// (official SplitButton: chevron horizontally centered, right padding 0).
+// One definition for the ComboBox arrow, PushButton/ToolButton menu
+// indicators and submenu chevrons so every dropdown glyph renders
+// identically.
+void paintDropdownChevron(QPainter *painter, const QIcon &source, const QRect &bounds,
+                          Qt::LayoutDirection direction, const QColor &foreground,
+                          QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off,
+                          bool centerInBounds = false);
+
 } // namespace WinUI3::PaintPrivate

@@ -132,12 +132,7 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // pixels. Rebuild button frames from transparent when the button sits
         // directly on DWM Mica; otherwise repeated hover frames accumulate
         // into a visible ghost. Opaque content/layer ancestors are excluded.
-        if (paintsDirectlyOnBackdrop(widget)) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(option->rect, Qt::transparent);
-            painter->restore();
-        }
+        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
@@ -317,8 +312,16 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // "double outline".
         if (comboBoxEditor(widget))
             return true;
+        // Same erase as buttons/combos/groups: the editor sits directly
+        // on the live material and Qt keeps backing-store rows between
+        // repaints (blit + partial expose). Without a clear the fill
+        // re-blends over stale light rows: white field on hover in dark,
+        // and a stuck light fossil after a Light->Dark switch (only a
+        // resize reallocates and heals).
+        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
         if (widget && widget->parentWidget()
-            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()
+            && !paintsDirectlyOnBackdrop(widget)) {
             painter->fillRect(option->rect,
                               widget->parentWidget()->palette().color(QPalette::Window));
         }
@@ -365,15 +368,11 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
             style->drawPrimitive(QStyle::PE_PanelButtonCommand, button, painter, widget);
             style->drawControl(QStyle::CE_PushButtonLabel, button, painter, widget);
             if (button->features & QStyleOptionButton::HasMenu) {
-                const QRect logical(button->rect.right() - 22, button->rect.center().y() - 7, 14,
-                                    14);
-                WinUI3::icon(Icon::ChevronDown,
-                             button->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled)
-                        .paint(painter,
-                               QStyle::visualRect(button->direction, button->rect, logical),
-                               Qt::AlignCenter,
-                               button->state & QStyle::State_Enabled ? QIcon::Normal
-                                                                     : QIcon::Disabled);
+                paintDropdownChevron(
+                        painter, WinUI3::icon(Icon::ChevronDown), button->rect, button->direction,
+                        button->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
+                        button->state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled,
+                        button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
             }
             return true;
         }
@@ -652,11 +651,15 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                                 tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
             }
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
-                const QRect menuRect = style->subControlRect(QStyle::CC_ToolButton, tool,
+                // Center the shared chevron in the dropdown half (official
+                // SplitButton: centered, right padding 0), never on the
+                // divider line.
+                const QRect menuZone = style->subControlRect(QStyle::CC_ToolButton, tool,
                                                              QStyle::SC_ToolButtonMenu, widget);
-                WinUI3::icon(Icon::ChevronDown, textColor)
-                        .paint(painter, menuRect, Qt::AlignCenter,
-                               enabled ? QIcon::Normal : QIcon::Disabled);
+                paintDropdownChevron(painter, WinUI3::icon(Icon::ChevronDown), menuZone,
+                                     tool->direction, textColor,
+                                     enabled ? QIcon::Normal : QIcon::Disabled,
+                                     tool->state & QStyle::State_On ? QIcon::On : QIcon::Off, true);
             }
             return true;
         }

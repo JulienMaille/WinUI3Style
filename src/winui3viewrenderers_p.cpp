@@ -122,6 +122,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
 
     if (element == QStyle::PE_FrameTabWidget) {
         const Tokens t = tokens(option->palette);
+        eraseForBackdrop(painter, widget, option->rect);
         roundedRect(painter, QRectF(option->rect).adjusted(0, 0, -1, -1), t.control, t.stroke,
                     ControlRadius);
         return true;
@@ -196,12 +197,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         if (fill.alpha() > 0) {
             // Same accumulation contract as menu items: on a translucent
             // (acrylic) popup, rebuild the row frame from transparent first.
-            if (paintsDirectlyOnBackdrop(widget)) {
-                painter->save();
-                painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(option->rect, Qt::transparent);
-                painter->restore();
-            }
+            eraseForBackdrop(painter, widget, option->rect);
             roundedRect(painter, itemRect, fill, Qt::transparent,
                         popup           ? 3.0
                                 : table ? 0.0
@@ -502,6 +498,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
     if (element == QStyle::CE_DockWidgetTitle) {
         if (const auto *dock = qstyleoption_cast<const QStyleOptionDockWidget *>(option)) {
             const Tokens t = tokens(option->palette);
+            eraseForBackdrop(painter, widget, dock->rect);
             painter->save();
             painter->fillRect(dock->rect, t.layer);
             painter->setPen(t.stroke);
@@ -634,6 +631,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
 
     if (element == QStyle::CE_HeaderSection) {
         const Tokens t = tokens(option->palette);
+        eraseForBackdrop(painter, widget, option->rect);
         QColor fill = t.layer;
         if (option->state & QStyle::State_Sunken)
             fill = t.subtlePressed;

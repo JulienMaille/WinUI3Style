@@ -62,6 +62,29 @@ QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds, const QR
                   logical.height());
 }
 
+void paintDropdownChevron(QPainter *painter, const QIcon &source, const QRect &bounds,
+                          Qt::LayoutDirection direction, const QColor &foreground, QIcon::Mode mode,
+                          QIcon::State state, bool centerInBounds)
+{
+    // WinUI places a 12 px AnimatedIcon box 14 px from the trailing edge.
+    // Its AnimatedChevronDownSmall artwork is narrower than the 12 px Segoe
+    // Fluent fallback, so render that fallback at 10 px while preserving
+    // the official box position. Inside a split-button dropdown half the
+    // box centers instead (official template: right padding 0).
+    constexpr int glyphBoxSize = 12;
+    constexpr int glyphTrailingMargin = 14;
+    constexpr int fallbackGlyphSize = 10;
+    const QRect logicalGlyphBox(
+            centerInBounds ? bounds.center().x() - glyphBoxSize / 2
+                           : bounds.right() - glyphTrailingMargin - glyphBoxSize + 1,
+            bounds.top() + (bounds.height() - glyphBoxSize) / 2, glyphBoxSize, glyphBoxSize);
+    const QRect logicalChevron(logicalGlyphBox.left() + (glyphBoxSize - fallbackGlyphSize) / 2,
+                               logicalGlyphBox.top() + (glyphBoxSize - fallbackGlyphSize) / 2,
+                               fallbackGlyphSize, fallbackGlyphSize);
+    const QRect chevronRect = QStyle::visualRect(direction, bounds, logicalChevron);
+    paintThemedIcon(painter, source, chevronRect, Qt::AlignCenter, foreground, mode, state);
+}
+
 void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
                     const QColor &strokeTop, const QColor &strokeBottom, qreal radius,
                     qreal strokeWidth)

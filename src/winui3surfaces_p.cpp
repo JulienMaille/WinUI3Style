@@ -12,6 +12,7 @@
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -28,12 +29,17 @@
 #include <QMetaObject>
 #include <QListView>
 #include <QMenu>
+#include <QMenuBar>
+#include <QStatusBar>
+#include <QToolBar>
 #include <QMessageBox>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QParallelAnimationGroup>
 #include <QPointer>
 #include <QScreen>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSlider>
 #include <QStyleOptionSlider>
 #include <QTimer>
@@ -41,7 +47,6 @@
 
 namespace WinUI3::Private {
 using namespace PaintPrivate;
-
 namespace {
 
 constexpr auto contentDialogFooterName = "_winui_content_dialog_footer_surface";
@@ -221,6 +226,207 @@ QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback)
     if (!widget || !widget->property(originalPaletteExplicitProperty).toBool())
         return fallback;
     return widget->property(originalPaletteProperty).value<QPalette>().resolve(fallback);
+}
+
+// transparentized(): preserve RGB, drive alpha toward 0. The tokens file
+// owns color values; this helper only modulates an existing role color so
+// no numeric QColor literal ever appears in a _p.cpp painter.
+inline QColor transparentized(const QColor &color, int alpha)
+{
+    QColor result = color;
+    result.setAlpha(alpha);
+    return result;
+}
+
+void transparentizeSurface(QWidget *surface)
+{
+    if (!surface)
+        return;
+    rememberPalette(surface);
+    remember(surface, originalAutoFillProperty, surface->autoFillBackground());
+    remember(surface, originalTranslucentBackgroundProperty,
+             surface->testAttribute(Qt::WA_TranslucentBackground));
+    remember(surface, originalNoSystemBackgroundProperty,
+             surface->testAttribute(Qt::WA_NoSystemBackground));
+    QPalette palette = surface->palette();
+    // The Window role reveals the live material; keep text roles intact.
+    palette.setColor(QPalette::Window, transparentized(palette.color(QPalette::Window), 0));
+    surface->setPalette(palette);
+    // Never auto-fill here: an opaque fill would paint a solid band over
+    // the composited material (the white-veil ghost).
+    surface->setAutoFillBackground(false);
+    surface->setAttribute(Qt::WA_StyledBackground, true);
+    surface->update();
+}
+
+void restoreTransparentizedSurface(QWidget *surface)
+{
+    if (!surface || !surface->property(originalPaletteProperty).isValid())
+        return;
+    restoreRememberedPalette(surface);
+    if (surface->property(originalAutoFillProperty).isValid())
+        surface->setAutoFillBackground(surface->property(originalAutoFillProperty).toBool());
+    if (surface->property(originalTranslucentBackgroundProperty).isValid())
+        surface->setAttribute(Qt::WA_TranslucentBackground,
+                              surface->property(originalTranslucentBackgroundProperty).toBool());
+    if (surface->property(originalNoSystemBackgroundProperty).isValid())
+        surface->setAttribute(Qt::WA_NoSystemBackground,
+                              surface->property(originalNoSystemBackgroundProperty).toBool());
+    surface->setProperty(originalPaletteProperty, {});
+    surface->setProperty(originalPaletteExplicitProperty, {});
+    surface->setProperty(originalAutoFillProperty, {});
+    surface->setProperty(originalTranslucentBackgroundProperty, {});
+    surface->setProperty(originalNoSystemBackgroundProperty, {});
+    surface->update();
+}
+
+void transparentizeForBackdrop(QWidget *surface)
+{
+    transparentizeSurface(surface);
+}
+
+void restoreTransparentizedForBackdrop(QWidget *surface)
+{
+    restoreTransparentizedSurface(surface);
+}
+
+void makeChromeSurfacesTransparent(QWidget *window)
+{
+    if (!window)
+        return;
+    // Menu bar, tool bars, status bar: WinUI draws no chrome panels over
+    // Mica; the material shows through and controls float on it.
+    if (QMenuBar *menuBar = window->findChild<QMenuBar *>())
+        transparentizeSurface(menuBar);
+    for (QToolBar *toolBar : window->findChildren<QToolBar *>())
+        transparentizeSurface(toolBar);
+    for (QStatusBar *statusBar : window->findChildren<QStatusBar *>())
+        transparentizeSurface(statusBar);
+}
+
+void restoreChromeSurfaces(QWidget *window)
+{
+    if (!window)
+        return;
+    if (QMenuBar *menuBar = window->findChild<QMenuBar *>())
+        restoreTransparentizedSurface(menuBar);
+    for (QToolBar *toolBar : window->findChildren<QToolBar *>())
+        restoreTransparentizedSurface(toolBar);
+    for (QStatusBar *statusBar : window->findChildren<QStatusBar *>())
+        restoreTransparentizedSurface(statusBar);
+}
+
+void syncContentSurfacesForBackdrop(QWidget *window)
+{
+    if (!window)
+        return;
+    // Content/layer islands opted into the style-owned surface contract
+    // reveal the material too; anything else keeps its opaque fill so a
+    // child control can never punch through an opaque island. A content
+    // island that is itself already transparent keeps walking the gate in
+    // paintsDirectlyOnBackdrop instead of disabling clears.
+    const QList<QWidget *> islands = window->findChildren<QWidget *>();
+    for (QWidget *island : islands) {
+        const QVariant surface = island->property(Style::SurfaceProperty);
+        const QString name = surface.toString();
+        const bool optedIn = surface.toBool()
+                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+        if (!optedIn)
+            continue;
+        for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>()) {
+            guardIslandScrollArea(area);
+            // The area frame, its viewport, and its container widget are one
+            // visual surface with the island: every link paints PE_Widget over
+            // the live material, so every link gets the same no-fill recipe.
+            // Without this the Controls-heading band above the first card
+            // keeps its opaque fill and ghosts exactly like the island did
+            // (healed only by resize). Scroll areas and viewports are armed,
+            // not skipped: the queued guard repaint covers their blit smear,
+            // and the toggle-off restore below returns every link.
+            transparentizeForBackdrop(area);
+            if (QWidget *viewport = area->viewport())
+                transparentizeForBackdrop(viewport);
+            if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
+                if (QWidget *container = scrollArea->widget())
+                    transparentizeForBackdrop(container);
+            }
+        }
+        if (auto *islandArea = qobject_cast<QAbstractScrollArea *>(island))
+            guardIslandScrollArea(islandArea);
+        if (island->palette().color(QPalette::Window).alpha() == 0)
+            continue;
+        transparentizeSurface(island);
+    }
+    // Left shell (centralWidget, navigationPanel): not opt-in islands, but
+    // they paint PE_Widget straight onto the live material through the
+    // window (no opaque island between them and the window, so the gate
+    // passes). Same no-fill recipe, otherwise their backing-store rows keep
+    // the opaque frame until a resize reallocates (aliased "Mica backdrop"
+    // label, incomplete left Mica background). Toggle-off restore below
+    // returns every link (restore is a no-op for never-transparentized).
+    if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
+        transparentizeForBackdrop(central);
+        if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel")))
+            transparentizeForBackdrop(nav);
+    }
+}
+
+// restore alone leaves the content island transparent, so PE_Widget keeps
+// Source-clearing to transparent on an opaque window (retained-frame smear).
+void restoreContentSurfacesForBackdrop(QWidget *window)
+{
+    if (!window)
+        return;
+    const QList<QWidget *> islands = window->findChildren<QWidget *>();
+    for (QWidget *island : islands) {
+        const QVariant surface = island->property(Style::SurfaceProperty);
+        const QString name = surface.toString();
+        const bool optedIn = surface.toBool()
+                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+        if (!optedIn)
+            continue;
+        // restoreTransparentizedSurface returns early for islands that were
+        // never transparentized, so no alpha pre-check is needed here. The
+        // restore helper does not track Styled; normalize back to the
+        // polish-provided opaque state.
+        restoreTransparentizedSurface(island);
+        island->setAttribute(Qt::WA_StyledBackground, false);
+        island->update();
+        // The sync above transparentized the scrolled chain alongside the
+        // island: restore every link the same way (each restore is a no-op
+        // for widgets that were never transparentized).
+        const QList<QAbstractScrollArea *> areas = island->findChildren<QAbstractScrollArea *>();
+        for (QAbstractScrollArea *area : areas) {
+            restoreTransparentizedForBackdrop(area);
+            area->setAttribute(Qt::WA_StyledBackground, false);
+            if (QWidget *viewport = area->viewport()) {
+                restoreTransparentizedForBackdrop(viewport);
+                viewport->setAttribute(Qt::WA_StyledBackground, false);
+                viewport->update();
+            }
+            if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
+                if (QWidget *container = scrollArea->widget()) {
+                    restoreTransparentizedForBackdrop(container);
+                    container->setAttribute(Qt::WA_StyledBackground, false);
+                    container->update();
+                }
+            }
+            area->update();
+        }
+    }
+    // Shell links transparentized by the sync above (no-ops if never armed).
+    if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
+        restoreTransparentizedForBackdrop(central);
+        central->setAttribute(Qt::WA_StyledBackground, false);
+        central->update();
+        if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel"))) {
+            restoreTransparentizedForBackdrop(nav);
+            nav->setAttribute(Qt::WA_StyledBackground, false);
+            nav->update();
+        }
+    }
 }
 
 void stopDialogAnimations(QDialog *dialog)
@@ -725,7 +931,42 @@ void preparePopupSurface(QWidget *widget)
     popup->setAutoFillBackground(true);
     popup->setAttribute(Qt::WA_TranslucentBackground, false);
     popup->setAttribute(Qt::WA_NoSystemBackground, false);
+    // Claim the whole popup paint: QMenu's native erase fills the Selected
+    // row background full-bleed behind our inset pill, and nothing Qt-side
+    // insets it. Our CE_MenuItem/PE_PanelMenu cover every pixel.
+    if (qobject_cast<QMenu *>(widget))
+        popup->setAttribute(Qt::WA_OpaquePaintEvent, true);
     applyPopupRoundedCorners(popup);
+    // WinUI Desktop Acrylic: on a live compositor the popup reveals a
+    // blurred, wallpaper-tinted backdrop instead of the opaque fallback
+    // above (ComboBox "Acrylic popup", MenuFlyout "Acrylic presenter" in the
+    // acceptance matrix). Offscreen and failed DWM paths keep the opaque
+    // surface, and the deterministic snapshots with it.
+    bool compositedPopup = false;
+    if (QGuiApplication::platformName() != QStringLiteral("offscreen")) {
+        if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
+            && backdropEffectiveSurface(popup) == BackdropSurface::Composited)
+            compositedPopup = true;
+    }
+    if (compositedPopup) {
+        // DWM supplies blur and tint; Qt paints translucent ink over it.
+        // Never auto-fill here (opaque white band, same as window chrome).
+        // Official transient-background recipe (issue #3478) resolves over
+        // the fallback #2C2C2C (dark) / #FCFCFC (light), which doubles as
+        // the visible surface when the compositor contributes no tint: a
+        // near-solid paper, never a washed veil. Recompute from the
+        // fallback rather than layering over the stale translucent roles.
+        QPalette translucent = popup->palette();
+        QColor windowTint = popupSurface;
+        windowTint.setAlpha(popupTokens.dark ? 178 : 242);
+        translucent.setColor(QPalette::Window, windowTint);
+        QColor baseTint = windowTint;
+        translucent.setColor(QPalette::Base, baseTint);
+        popup->setPalette(translucent);
+        popup->setAutoFillBackground(false);
+        popup->setAttribute(Qt::WA_OpaquePaintEvent, false);
+        popup->setAttribute(Qt::WA_StyledBackground, true);
+    }
     const bool comboPopup = qobject_cast<QComboBox *>(popup->parentWidget());
     if (comboPopup) {
         // WinUI DropdownContentMargin: the popup surface has a four-pixel
@@ -769,6 +1010,26 @@ void preparePopupSurface(QWidget *widget)
         // pixel, so claiming an opaque paint event suppresses Qt's background
         // erase and retains old frames as dark Mica-like ghosts.
         view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, !completerPopup);
+        if (compositedPopup) {
+            // Acrylic presenter: the view and its viewport reveal the
+            // composited popup tint instead of the opaque fallback above.
+            // Never auto-fill (opaque white band) and never claim an opaque
+            // paint event (retained frames); item delegates rebuild rows
+            // from transparent (see CE_MenuItem/CE_ItemViewItem). Same
+            // fallback-resolved tint as the popup window above.
+            QColor viewTint = popupSurface;
+            viewTint.setAlpha(popupTokens.dark ? 178 : 242);
+            QPalette translucentView = view->palette();
+            translucentView.setColor(QPalette::Base, viewTint);
+            translucentView.setColor(QPalette::Window, viewTint);
+            view->setPalette(translucentView);
+            QPalette translucentViewport = view->viewport()->palette();
+            translucentViewport.setColor(QPalette::Base, viewTint);
+            translucentViewport.setColor(QPalette::Window, viewTint);
+            view->viewport()->setPalette(translucentViewport);
+            view->viewport()->setAutoFillBackground(false);
+            view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
+        }
         if (auto *list = qobject_cast<QListView *>(view)) {
             remember(list, originalListSpacingProperty, list->spacing());
             list->setSpacing(0);

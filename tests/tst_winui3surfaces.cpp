@@ -11,7 +11,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/winui3surfaces_p.h"
 
 #include <QLabel>
 #include <QListWidget>
@@ -99,6 +99,8 @@ private slots:
     void backdropLifecycleContract();
     void backdropButtonRepaintDoesNotAccumulate();
     void backdropComboRepaintDoesNotAccumulate();
+    void islandScrollPostsFullViewportRepaint();
+    void materialEraseKeepsCornersTransparent();
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
@@ -223,17 +225,43 @@ void WinUI3SurfacesTest::backdropButtonRepaintDoesNotAccumulate()
     opaqueLayer.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
     QPushButton layeredButton(QStringLiteral("Layered"), &opaqueLayer);
     QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&layeredButton));
+
+    // A translucent island is the material surface itself: no fill to punch
+    // through, so children above it keep clearing every frame.
+    QWidget translucentIsland(&window);
+    translucentIsland.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QPalette clearPalette = translucentIsland.palette();
+    QColor clearWindow = clearPalette.color(QPalette::Window);
+    clearWindow.setAlpha(0);
+    clearPalette.setColor(QPalette::Window, clearWindow);
+    translucentIsland.setPalette(clearPalette);
+    QPushButton islandChild(QStringLiteral("IslandChild"), &translucentIsland);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&translucentIsland));
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&islandChild));
+
+    // Erase behavior: a child above a translucent island clears its own rect
+    // to transparent (Source) and then paints its content, so scroll/hover
+    // frames cannot accumulate. An opaque control child keeps its fill.
+    islandChild.resize(96, 32);
+    QStyleOptionButton childOption;
+    childOption.initFrom(&islandChild);
+    childOption.rect = islandChild.rect();
+    QImage childFrame(islandChild.size(), QImage::Format_ARGB32_Premultiplied);
+    childFrame.fill(QColor(255, 0, 0, 255));
+    QPainter childPainter(&childFrame);
+    style->drawPrimitive(QStyle::PE_Widget, &childOption, &childPainter, &islandChild);
+    childPainter.end();
+    // The child painted something (not a bare transparent hole).
+    QVERIFY(childFrame.pixelColor(4, 4).alpha() > 0 || childFrame.pixelColor(48, 16) != QColor(255, 0, 0));
 }
 
 void WinUI3SurfacesTest::backdropComboRepaintDoesNotAccumulate()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
-    QVERIFY(style);
     QWidget window;
     window.setProperty("_winui_backdrop", 1);
     QComboBox combo(&window);
     combo.addItem(QStringLiteral("Theme"));
-    combo.resize(160, 32);
 
     QStyleOptionComboBox option;
     option.initFrom(&combo);
@@ -256,6 +284,91 @@ void WinUI3SurfacesTest::backdropComboRepaintDoesNotAccumulate()
     setFrame(&combo, "_winui_hover_progress", 0.0);
     paintFrame(hoverThenNormal, QStyle::State_Enabled);
     QCOMPARE(hoverThenNormal, normal);
+}
+void WinUI3SurfacesTest::islandScrollPostsFullViewportRepaint()
+{
+    // Scroll bars inside a translucent content island must self-heal from
+    // small-delta blits: guardIslandScrollArea (armed by the backdrop sync)
+    // connects each bar's valueChanged to one queued full viewport update,
+    // so shifted pixels rebuild before the next present instead of smearing
+    // over the live material. Offscreen the Composited gate stays shut, so
+    // the observable contract here is structural: the guard arms exactly
+    // once per area and stays silent without the Composited state.
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QScrollArea area(&island);
+    area.resize(200, 200);
+    auto *body = new QLabel(QStringLiteral("body"), &area);
+    body->resize(400, 400);
+    area.setWidget(body);
+    // Arming twice must stay one guard: the property marker makes the second
+    // call a no-op. A probe connection counts deliveries: after one guarded
+    // arm plus one probe, a single bar tick delivers exactly twice.
+    WinUI3::Private::guardIslandScrollArea(&area);
+    QVERIFY(area.property("_winui_island_scroll_guard").isValid());
+    int probeDeliveries = 0;
+    QObject::connect(area.verticalScrollBar(), &QScrollBar::valueChanged, &area,
+                     [&probeDeliveries] { ++probeDeliveries; });
+    WinUI3::Private::guardIslandScrollArea(&area);
+
+    // Offscreen gate shut: bar ticks schedule nothing Composited, and the
+    // viewport paint state is untouched by the guard itself.
+    area.verticalScrollBar()->setValue(area.verticalScrollBar()->maximum() / 2);
+    QCOMPARE(probeDeliveries, 1);
+    QCOMPARE(window.property("_winui_backdrop_effective").isValid(), false);
+    QVERIFY(area.viewport() != nullptr);
+}
+
+void WinUI3SurfacesTest::materialEraseKeepsCornersTransparent()
+{
+    // Corners outside the rounded rect must never turn black: the
+    // clear clips to the fill radius (ControlRadius), the fill repaints
+    // the inside, and off-shape pixels stay transparent for DWM.
+    // Without the clip, the Source clear writes transparent-black into the
+    // antialiased corners and the fill never covers them (black dots on
+    // light Mica, light dots on dark Mica after a theme switch).
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QPalette clearPalette = island.palette();
+    QColor clearWindow = clearPalette.color(QPalette::Window);
+    clearWindow.setAlpha(0);
+    clearPalette.setColor(QPalette::Window, clearWindow);
+    island.setPalette(clearPalette);
+    QLineEdit edit(&island);
+    edit.resize(240, 32);
+    QStyleOptionFrame option;
+    option.initFrom(&edit);
+    option.rect = edit.rect();
+    option.state = QStyle::State_Enabled;
+    QImage image(edit.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    QPainter painter(&image);
+    style->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, &edit);
+    painter.end();
+    // The clipped clear never touches the off-shape corners: they keep the
+    // QImage background here (transparent backing store in production).
+    // What matters: no black fringe from an unclipped clear, and the fill
+    // covers the center.
+    const QPoint corners[4] = { { 0, 0 },
+                                { image.width() - 1, 0 },
+                                { 0, image.height() - 1 },
+                                { image.width() - 1, image.height() - 1 } };
+    for (const QPoint &corner : corners) {
+        const QColor px = image.pixelColor(corner);
+        QVERIFY2(px.alpha() == 0 || px == QColor(255, 0, 0, 255),
+                 qPrintable(QStringLiteral("corner %1,%2 = %3 (black fringe!)")
+                                .arg(corner.x())
+                                .arg(corner.y())
+                                .arg(px.name(QColor::HexArgb))));
+    }
+    QVERIFY(image.pixelColor(image.rect().center()).alpha() > 0);
 }
 
 void WinUI3SurfacesTest::contentDialogContract()

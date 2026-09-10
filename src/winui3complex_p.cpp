@@ -61,13 +61,15 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             style->drawPrimitive(QStyle::PE_PanelButtonTool, tool, painter, widget);
             style->drawControl(QStyle::CE_ToolButtonLabel, tool, painter, widget);
             if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
+                // WinUI SplitButton divider: a 1px full-height separator at
+                // the leading edge of the secondary (dropdown) half.
                 const QRect menuRect = style->subControlRect(QStyle::CC_ToolButton, tool,
                                                              QStyle::SC_ToolButtonMenu, widget);
                 painter->save();
-                painter->setPen(t.stroke);
+                painter->setPen(QPen(t.stroke, 1));
                 const int x =
                         option->direction == Qt::RightToLeft ? menuRect.right() : menuRect.left();
-                painter->drawLine(x, menuRect.top() + 5, x, menuRect.bottom() - 5);
+                painter->drawLine(x, menuRect.top() + 4, x, menuRect.bottom() - 4);
                 painter->restore();
             }
             return true;
@@ -77,7 +79,11 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     if (control == QStyle::CC_GroupBox) {
         if (const auto *group = qstyleoption_cast<const QStyleOptionGroupBox *>(option)) {
             const bool enabled = group->state & QStyle::State_Enabled;
-            roundedRect(painter, group->rect, t.layer, t.stroke, 6.0);
+            eraseForBackdrop(painter, widget, group->rect, 6.0);
+            QColor card = t.layer;
+            if (paintsDirectlyOnBackdrop(widget))
+                card.setAlpha(qMin(card.alpha(), 178));
+            roundedRect(painter, group->rect, card, t.stroke, 6.0);
 
             if (group->subControls & QStyle::SC_GroupBoxCheckBox) {
                 QStyleOptionButton indicator;
@@ -107,15 +113,10 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_ComboBox) {
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
-            // Like buttons, controls painted directly on a native Mica window
-            // have a translucent backing store.  Clear the previous animated
-            // frame before compositing this one or hover/press fills accumulate.
-            if (paintsDirectlyOnBackdrop(widget)) {
-                painter->save();
-                painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(combo->rect, Qt::transparent);
-                painter->restore();
-            } else if (widget && widget->parentWidget()
+            // Rebuild the frame from transparent over a live material (see
+            // eraseForBackdrop); otherwise hover/press fills accumulate.
+            eraseForBackdrop(painter, widget, combo->rect, ControlRadius);
+            if (!paintsDirectlyOnBackdrop(widget) && widget && widget->parentWidget()
                        && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
                                   widget->parentWidget()->palette().color(QPalette::Window));
@@ -145,29 +146,12 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
             if (combo->subControls & QStyle::SC_ComboBoxArrow) {
-                // WinUI places a 12 px AnimatedIcon box 14 px from the trailing
-                // edge.  Its AnimatedChevronDownSmall artwork is narrower than
-                // the 12 px Segoe Fluent fallback, so render that fallback at
-                // 10 px while preserving the official box position.
-                constexpr int glyphBoxSize = 12;
-                constexpr int glyphTrailingMargin = 14;
-                constexpr int fallbackGlyphSize = 10;
-                const QRect logicalGlyphBox(
-                        combo->rect.right() - glyphTrailingMargin - glyphBoxSize + 1,
-                        combo->rect.top() + (combo->rect.height() - glyphBoxSize) / 2, glyphBoxSize,
-                        glyphBoxSize);
-                const QRect logicalChevron(
-                        logicalGlyphBox.left() + (glyphBoxSize - fallbackGlyphSize) / 2,
-                        logicalGlyphBox.top() + (glyphBoxSize - fallbackGlyphSize) / 2,
-                        fallbackGlyphSize, fallbackGlyphSize);
-                const QRect chevronRect =
-                        QStyle::visualRect(combo->direction, combo->rect, logicalChevron);
                 const qreal chevron = progress(widget, comboChevronProperty, 0.0);
                 painter->save();
                 painter->translate(0.0, 1.875 * chevron);
-                paintThemedIcon(painter, icon(Icon::ChevronDown), chevronRect, Qt::AlignCenter,
-                                enabled ? t.textPrimary : t.textDisabled,
-                                enabled ? QIcon::Normal : QIcon::Disabled);
+                paintDropdownChevron(painter, icon(Icon::ChevronDown), combo->rect,
+                                     combo->direction, enabled ? t.textPrimary : t.textDisabled,
+                                     enabled ? QIcon::Normal : QIcon::Disabled);
                 painter->restore();
             }
             if (editableFocused)
@@ -187,6 +171,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
     }
     if (control == QStyle::CC_SpinBox) {
         if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
+            eraseForBackdrop(painter, widget, spin->rect, ControlRadius);
             const bool enabled = spin->state & QStyle::State_Enabled;
             const bool focused = spin->state & QStyle::State_HasFocus;
             const bool verticalButtons = verticalSpinButtons(widget);
@@ -244,6 +229,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_Slider) {
         if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
+            eraseForBackdrop(painter, widget, option->rect);
             const bool horizontal = slider->orientation == Qt::Horizontal;
             QRect groove = style->subControlRect(QStyle::CC_Slider, slider, QStyle::SC_SliderGroove,
                                                  widget);
@@ -353,6 +339,10 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                 opaqueLayer.setAlpha(255);
                 background = mix(background, opaqueLayer, opacity);
             }
+            // Ghost scrollbar: a scrollbar painted straight onto a live
+            // backdrop keeps its backing-store head across frames. Rebuild
+            // from transparent first so the rest state never smears.
+            eraseForBackdrop(painter, widget, option->rect);
             painter->fillRect(option->rect, background);
             const bool enabled = option->state & QStyle::State_Enabled;
             // The WinUI ScrollBarThumb template fades the thumb to zero in its

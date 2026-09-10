@@ -13,7 +13,10 @@
 
 #include <QAbstractItemView>
 #include <QComboBox>
+#include <QCursor>
 #include <QFontDatabase>
+#include <QGuiApplication>
+#include <QMenu>
 #include <QPainter>
 #include <QStyleOptionMenuItem>
 #include <QVariant>
@@ -74,23 +77,50 @@ void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirect
 } // namespace
 
 bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QStyleOption *option,
-                       QPainter *painter, const QWidget *)
+                       QPainter *painter, const QWidget *widget)
 {
     if (element == QStyle::PE_PanelMenuBar) {
-        const Tokens t = tokens(option->palette);
-        painter->fillRect(option->rect, t.surface);
+        // Fill from the palette Window role: the chrome sync makes that role
+        // transparent over a live composited backdrop, so the menu bar
+        // reveals the material instead of painting an opaque band. Clear
+        // explicitly on a direct backdrop: neither this fill nor Qt's
+        // auto-fill (deliberately disabled there) erases stale pixels, so
+        // resize/expose frames would otherwise leave permanent ghosts.
+        if (eraseForBackdrop(painter, widget, option->rect))
+            return true;
+        painter->fillRect(option->rect, option->palette.brush(QPalette::Window));
         return true;
     }
 
-    if (element == QStyle::PE_PanelMenu) {
+    if (element == QStyle::PE_PanelMenu || element == QStyle::PE_FrameMenu) {
         const Tokens t = tokens(option->palette);
-        // The menu flyout surface is opaque (WinUI's SolidBackgroundFill
-        // fallback), with the SurfaceStrokeColorFlyout border. Windows rounds
-        // the opaque popup window so the OverlayRadius paint stays visible.
-        // preparePopupSurface already rebound the popup palette's Window role
-        // to the raised translucent-layer stand-in color.
+        // Menu flyout surface: opaque SolidBackgroundFill fallback, or the
+        // translucent acrylic tint on a composited popup (the palette Window
+        // role already carries the right variant). Windows rounds the popup
+        // window so the OverlayRadius paint stays visible. Cover the whole
+        // widget, not just the option rect: the 2px contents margins and the
+        // rounded-corner cutouts are never painted otherwise and keep their
+        // white backing-store pixels as a permanent light frame.
+        const QRect surface = widget ? widget->rect() : option->rect;
         const QColor fill = option->palette.color(QPalette::Window);
-        roundedRect(painter, option->rect, fill, t.flyoutStroke, OverlayRadius);
+        const QColor stroke = t.flyoutStroke;
+        // The 1px flyout stroke must read as a solid hairline on every
+        // edge, even over a live material: rebuild the panel (not just
+        // its rect, which excludes the contents margins) then draw the
+        // stroke on top, centered on device pixels so antialiasing does
+        // not flatten it to half-strength grey on two of the four sides.
+        if (eraseForBackdrop(painter, widget, surface)) {
+            roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
+        } else {
+            painter->fillRect(surface, fill);
+        }
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(stroke, 1.0));
+        painter->drawRoundedRect(QRectF(surface).adjusted(0.5, 0.5, -0.5, -0.5), OverlayRadius,
+                                 OverlayRadius);
+        painter->restore();
         return true;
     }
 
@@ -146,26 +176,74 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
 
     if (element == QStyle::CE_MenuItem) {
         if (const auto *menu = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
-            const bool comboItem = qobject_cast<const QComboBox *>(widget);
+            // Combo popup rows arrive with the QComboBox as the style
+            // widget; plain menu rows arrive with their QMenu. The two map
+            // to different upstream templates (ComboBoxItem vs
+            // MenuFlyoutItem) with different hover contracts.
+            const QComboBox *combo = qobject_cast<const QComboBox *>(widget);
+            const bool comboItem = combo != nullptr;
             if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
                 painter->setPen(t.stroke);
                 painter->drawLine(menu->rect.left() + 12, menu->rect.center().y(),
                                   menu->rect.right() - 12, menu->rect.center().y());
                 return true;
             }
-            if (menu->checked || menu->state & (QStyle::State_Selected | QStyle::State_Sunken))
-                roundedRect(
-                        painter,
-                        QRectF(menu->rect).adjusted(comboItem ? 5 : 4, 2, comboItem ? -5 : -4, -2),
-                        menu->state & QStyle::State_Sunken ? t.subtlePressed : t.subtleHover,
-                        Qt::transparent, ControlRadius);
+            // Combo rows: Qt's Selected flag conflates the current row with
+            // hover tracking that nothing reliably clears (stuck highlight
+            // with the pointer elsewhere). Drive the transient hover fill
+            // from the live cursor instead: a row is hovered iff the cursor
+            // is really inside it. The current/checkable marker below keeps
+            // using checked/current state, so selection rendering is
+            // untouched. Offscreen keeps the flag path (no cursor there;
+            // deterministic captures unchanged).
+            bool showHover = false;
+            if (comboItem) {
+                if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+                    showHover = menu->state & QStyle::State_MouseOver;
+                } else if (combo->view() && combo->view()->viewport()) {
+                    const QWidget *viewport = combo->view()->viewport();
+                    const QRect rowGlobal(viewport->mapToGlobal(menu->rect.topLeft()),
+                                          menu->rect.size());
+                    showHover = rowGlobal.contains(QCursor::pos());
+                }
+            }
+            const bool showPressed = menu->state & QStyle::State_Sunken;
+            // Combo rows paint their own selection pill separately below;
+            // their hover fill must NOT cover the whole row (WinUI reserves
+            // the leading icon/check slot). Plain menu rows use the full
+            // inset fill, driven by Qt's Selected flag like MenuFlyout's
+            // PointerOver state.
+            const bool showHoverFill =
+                    comboItem ? showHover : (menu->state & QStyle::State_Selected);
+            if (showHoverFill || showPressed) {
+                // QMenu's native erase fills the Selected row full-bleed
+                // behind our inset pill (nothing Qt-side insets it), so
+                // rebuild the row from the popup surface first in the
+                // opaque fallback: the pill then reads as an inset card
+                // on every edge. MenuFlyout maps item PointerOver/Pressed
+                // to SubtleFillColorSecondary/Tertiary over the flyout
+                // surface. On a composited acrylic surface the native
+                // erase is a no-op (WA_StyledBackground): Source-blend the
+                // already translucent surface roles explicitly so the
+                // pill composites exactly one SubtleFill layer.
+                if (paintsDirectlyOnBackdrop(widget)) {
+                    painter->save();
+                    painter->setCompositionMode(QPainter::CompositionMode_Source);
+                    painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
+                    painter->restore();
+                } else {
+                    painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
+                }
+                roundedRect(painter, QRectF(menu->rect).adjusted(4, 2, -4, -2),
+                            showPressed ? t.subtlePressed : t.subtleHover, Qt::transparent,
+                            ControlRadius);
+            }
 
             const bool enabled = menu->state & QStyle::State_Enabled;
             const QRect leading = QStyle::visualRect(
                     menu->direction, menu->rect,
                     QRect(menu->rect.left() + 12, menu->rect.center().y() - 8, 16, 16));
             if (comboItem && menu->checked) {
-                const auto *combo = static_cast<const QComboBox *>(widget);
                 const QWidget *interactionSurface =
                         combo->view() ? combo->view()->viewport() : nullptr;
                 // WinUI's SelectedPressed state exists only when the already

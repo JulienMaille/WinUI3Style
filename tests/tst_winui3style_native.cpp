@@ -223,10 +223,19 @@ void WinUI3StyleNativeTest::menuSurface()
     submenu->addAction(QStringLiteral("Child"));
     menu.popup(window.mapToGlobal(QPoint(20, 20)));
     QTRY_VERIFY(menu.isVisible());
-    QCOMPARE(menu.palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(menu.palette().color(QPalette::Base).alpha(), 255);
-    QVERIFY(menu.autoFillBackground());
-    QVERIFY(!menu.testAttribute(Qt::WA_TranslucentBackground));
+    // WinUI MenuFlyoutPresenterBackground is DesktopAcrylicTransparentBrush:
+    // on a live compositor the popup carries the translucent acrylic tint
+    // (light: #FCFCFC @242) with no autofill; offscreen keeps the opaque
+    // fallback and the deterministic snapshots with it.
+    const int menuWindowAlpha = menu.palette().color(QPalette::Window).alpha();
+    if (menu.testAttribute(Qt::WA_TranslucentBackground)) {
+        QCOMPARE(menuWindowAlpha, 242);
+        QVERIFY(!menu.autoFillBackground());
+    } else {
+        QCOMPARE(menuWindowAlpha, 255);
+        QCOMPARE(menu.palette().color(QPalette::Base).alpha(), 255);
+        QVERIFY(menu.autoFillBackground());
+    }
     const QRect actionRect = menu.actionGeometry(action);
     QTest::mouseMove(&menu, actionRect.center());
     QVERIFY(actionRect.isValid());
@@ -254,11 +263,22 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     combo->showPopup();
     QTRY_VERIFY(combo->view()->isVisible());
     QVERIFY(popup->isVisible());
-    QCOMPARE(popup->palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(combo->view()->viewport()->palette().color(QPalette::Base).alpha(), 255);
-    QVERIFY(popup->autoFillBackground());
-    QVERIFY(combo->view()->viewport()->autoFillBackground());
-    QVERIFY(!popup->testAttribute(Qt::WA_TranslucentBackground));
+    // WinUI ComboBoxDropDownBackground is AcrylicInAppFillColorDefaultBrush:
+    // on a live compositor the popup and its view carry the translucent
+    // acrylic tint (light: #FCFCFC @242) with no autofill; offscreen keeps
+    // the opaque fallback and the deterministic snapshots with it.
+    const int popupWindowAlpha = popup->palette().color(QPalette::Window).alpha();
+    if (popup->testAttribute(Qt::WA_TranslucentBackground)) {
+        QCOMPARE(popupWindowAlpha, 242);
+        QCOMPARE(combo->view()->viewport()->palette().color(QPalette::Base).alpha(), 242);
+        QVERIFY(!popup->autoFillBackground());
+        QVERIFY(!combo->view()->viewport()->autoFillBackground());
+    } else {
+        QCOMPARE(popupWindowAlpha, 255);
+        QCOMPARE(combo->view()->viewport()->palette().color(QPalette::Base).alpha(), 255);
+        QVERIFY(popup->autoFillBackground());
+        QVERIFY(combo->view()->viewport()->autoFillBackground());
+    }
     QTRY_VERIFY(probe.painted);
     const QModelIndex selected = combo->model()->index(1, 0);
     QVERIFY(combo->view()->visualRect(selected).isValid());
