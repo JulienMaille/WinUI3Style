@@ -103,6 +103,7 @@ private slots:
     void materialEraseKeepsCornersTransparent();
     void materialEraseRespectsDirtyRegionClip();
     void backdropToggleOffRestoresShellSurfaces();
+    void backdropThemeSwitchRebasesIslandPalette();
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
@@ -430,6 +431,35 @@ void WinUI3SurfacesTest::backdropToggleOffRestoresShellSurfaces()
     QCOMPARE(window.property("_winui_backdrop_effective").toInt(), 0);
     QVERIFY(!window.property("_winui_backdrop").isValid());
     QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&window));
+}
+
+void WinUI3SurfacesTest::backdropThemeSwitchRebasesIslandPalette()
+{
+    // Light->Dark with a live transparentized island must refresh its RGB:
+    // syncContentSurfacesForBackdrop drives the island Window role to zero
+    // alpha, and it carries no palette-owner registration, so a theme
+    // switch that only visits paletteOwners leaves the stale light RGB
+    // behind as a ghost. Alpha must be preserved: the island keeps
+    // revealing the live material with fresh theme RGB.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QPalette live = style->standardPalette();
+    QColor liveWindow = live.color(QPalette::Window);
+    liveWindow.setAlpha(0);
+    live.setColor(QPalette::Window, liveWindow);
+    island.setPalette(live);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    const QColor darkWindow = style->standardPalette().color(QPalette::Window);
+    QCOMPARE(island.palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(island.palette().color(QPalette::Window).red(), darkWindow.red());
+    QCOMPARE(island.palette().color(QPalette::Window).green(), darkWindow.green());
+    QCOMPARE(island.palette().color(QPalette::Window).blue(), darkWindow.blue());
+    style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 
 void WinUI3SurfacesTest::contentDialogContract()

@@ -1292,6 +1292,35 @@ void Style::refreshApplicationAppearance()
         }
     }
     d->prunePaletteOwners();
+    // Backdrop islands transparentized by syncContentSurfacesForBackdrop carry
+    // no palette-owner registration (only polish-registered widgets are
+    // visited below), so a Light->Dark switch leaves their stale fill behind
+    // as a ghost. Rebase every opted-in island's Window role on the new
+    // application palette here, preserving its current alpha: opaque islands
+    // follow the theme, transparent live-material islands keep revealing DWM
+    // with fresh RGB. Toggle-off still restores the remembered state.
+    for (QWidget *window : qApp->topLevelWidgets()) {
+        if (!window || !window->property("_winui_backdrop").isValid())
+            continue;
+        const QList<QWidget *> islands = window->findChildren<QWidget *>();
+        for (QWidget *island : islands) {
+            const QVariant surface = island->property(Style::SurfaceProperty);
+            const QString name = surface.toString();
+            const bool optedIn = surface.toBool()
+                    || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                    || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+            if (!optedIn)
+                continue;
+            QPalette rebased = island->palette();
+            QColor rebasedWindow = applicationPalette.color(QPalette::Window);
+            rebasedWindow.setAlpha(rebased.color(QPalette::Window).alpha());
+            if (rebased.color(QPalette::Window) == rebasedWindow)
+                continue;
+            rebased.setColor(QPalette::Window, rebasedWindow);
+            island->setPalette(rebased);
+            island->update();
+        }
+    }
     for (const QPointer<QWidget> &guarded : d->paletteOwners) {
         QWidget *widget = guarded.data();
         if (!widget)
