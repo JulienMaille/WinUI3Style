@@ -273,18 +273,18 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             if (!checked)
                 stroke = mix(stroke, t.textDisabled, indicatorPress);
         }
+        // Fill to the slot edge, then the inside-stroke outline: the outer
+        // pixel keeps the parent fill, like every roundedRect surface.
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
         painter->setBrush(fill);
-        painter->setPen(QPen(stroke, 1));
         if (element == QStyle::PE_IndicatorRadioButton)
-            // Inset the centered one-pixel border inside the 20 px slot,
-            // matching the CheckBox ring for equal edge sharpness.
-            painter->drawEllipse(indicator.adjusted(0.5, 0.5, -0.5, -0.5));
+            painter->drawEllipse(indicator);
         else
-            // Keep the template slot at 20 px while keeping the centered
-            // one-pixel border inside that slot, as the XAML Rectangle does.
-            painter->drawRoundedRect(indicator.adjusted(0.5, 0.5, -0.5, -0.5), 3, 3);
+            painter->drawRoundedRect(indicator, 3, 3);
+        painter->restore();
+        roundedOutline(painter, indicator, stroke, 3);
 
         if (checkAmount > 0.001) {
             const QColor onAccent = enabled ? t.controlOnAccentPrimary : t.controlOnAccentDisabled;

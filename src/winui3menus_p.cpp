@@ -114,13 +114,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         } else {
             painter->fillRect(surface, fill);
         }
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(stroke, 1.0));
-        painter->drawRoundedRect(QRectF(surface).adjusted(0.5, 0.5, -0.5, -0.5), OverlayRadius,
-                                 OverlayRadius);
-        painter->restore();
+        roundedOutline(painter, QRectF(surface), stroke, OverlayRadius);
         return true;
     }
 
