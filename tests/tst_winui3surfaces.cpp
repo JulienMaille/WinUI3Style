@@ -101,6 +101,7 @@ private slots:
     void backdropComboRepaintDoesNotAccumulate();
     void islandScrollPostsFullViewportRepaint();
     void materialEraseKeepsCornersTransparent();
+    void materialEraseRespectsDirtyRegionClip();
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();
@@ -369,6 +370,46 @@ void WinUI3SurfacesTest::materialEraseKeepsCornersTransparent()
                                 .arg(px.name(QColor::HexArgb))));
     }
     QVERIFY(image.pixelColor(image.rect().center()).alpha() > 0);
+}
+
+void WinUI3SurfacesTest::materialEraseRespectsDirtyRegionClip()
+{
+    // Hover/scroll repaints arrive with a dirty-region clip already set.
+    // The island erase must narrow that clip (IntersectClip), never widen
+    // it: replacing the clip clears the full widget rect with Source and
+    // wipes sibling content — the live defect where hovering under Mica
+    // hides surrounding controls as if a backpanel painted over them.
+    // Call the helper directly under a dirty-region clip: the guard rect
+    // outside the clip must survive the Source clear.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QCOMPARE(style->themeMode(), WinUI3::ThemeMode::Light);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    QPalette clearPalette = island.palette();
+    QColor clearWindow = clearPalette.color(QPalette::Window);
+    clearWindow.setAlpha(0);
+    clearPalette.setColor(QPalette::Window, clearWindow);
+    island.setPalette(clearPalette);
+    QLineEdit edit(&island);
+    edit.resize(240, 96);
+
+    QImage canvas(edit.size(), QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(QColor(255, 0, 0, 255));
+    QPainter painter(&canvas);
+    // Dirty region: a hover repaint of the bottom half only.
+    painter.setClipRect(QRect(0, 48, 240, 48));
+    QVERIFY(WinUI3::Private::eraseForBackdrop(&painter, &edit, edit.rect(),
+                                              WinUI3::Private::ControlRadius));
+    painter.end();
+    // Token assertion on the same state: the guard rows outside the clip
+    // keep their fill (opaque red), the clipped rows clear to transparent.
+    QCOMPARE(canvas.pixelColor(120, 16), QColor(255, 0, 0, 255));
+    QVERIFY(canvas.pixelColor(120, 80).alpha() == 0);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&edit));
 }
 
 void WinUI3SurfacesTest::contentDialogContract()

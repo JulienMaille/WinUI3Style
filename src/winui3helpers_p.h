@@ -122,7 +122,11 @@ inline bool eraseForBackdrop(QPainter *painter, const QWidget *widget, const QRe
     if (radius > 0.0) {
         QPainterPath clip;
         clip.addRoundedRect(QRectF(rect), radius, radius);
-        painter->setClipPath(clip);
+        // Intersect, never replace: hover/scroll repaints arrive with a
+        // dirty-region clip already set. Replacing it widens the Source
+        // clear to the full widget rect and wipes sibling content (the
+        // hover-vanish: backpanel painted over widgets on live Mica).
+        painter->setClipPath(clip, Qt::IntersectClip);
     }
     painter->setCompositionMode(QPainter::CompositionMode_Source);
     painter->fillRect(rect, Qt::transparent);
