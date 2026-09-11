@@ -1,193 +1,68 @@
 # WinUI3Style — feuille de route
 
-> État de référence : 10 septembre 2026, `main` @ `b0dfb0d` (merge Mica + fix hover-vanish, suite 40/40 verte).
-> Boucle de travail : chaque lot met à jour ce fichier, est relu, commité sur `main` puis poussé ; les branches `codex/treeview-wizard-rebase` et `draft/mica-ghost-glyphs` sont mergées et supprimées. Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct.
+> État de référence : 11 septembre 2026, `main` @ `fa28570` (toggle toolbar mica + contrats combo icône).
+> Suite : 39/40 — seul échec `inputModalityFocus`, flake pré-existant prouvé sur stash pristine (échoue sans nos changements).
+> Gates `winui3style_source_contracts` et `winui3style_designer_gallery_contract` vertes.
+> Boucle de travail : chaque lot met à jour ce fichier, est relu, commité sur `main` puis poussé (workflow actuel : `main` direct).
+> Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct (`spec/coverage.md` reste « source-audited » partout, comparaison live obligatoire).
 
-## État actuel
+## Fermés récemment (trace, ne pas rouvrir sans régression)
 
-- [x] Style livré comme `QStyle` (pas de QSS requis) et chargeable par plugin (`winui3`, `winui3compact`).
-- [x] Thèmes Light, Dark et System.
-- [x] Densités Standard et Compact, avec propriétés dynamiques `winuiDensity`/`DensityMode`.
-- [x] Galerie principalement construite depuis un fichier `.ui`, avec une surface de démonstration des propriétés Designer.
-- [x] Bibliothèque, galerie et tests compilent en Release sur l'environnement courant.
-- [x] Suite CTest et matrice de snapshots passent sur la révision de référence.
-- [ ] La couverture indiquée dans `spec/coverage.md` est encore « source-audited » : la comparaison WinUI live reste obligatoire. Mica/backdrop n'a aucune ligne (pas de mapping déclaré) — à ajouter avant toute revendication.
-- [ ] Lot en cours : fixer les items faciles dans l'ordre, committer par lot sur `main` puis pousser (workflow actuel : `main` direct, branches mergées/supprimées).
+- Issues [#6](https://github.com/JulienMaille/WinUI3Style/issues/6) (slide vertical 12 px + OutCubic, déviation délibérée documentée `spec/coverage.md:27`) et [#5](https://github.com/JulienMaille/WinUI3Style/issues/5) (lignes 36 px Compact conformes, effet Compact = MenuBar) — 2026-09-10.
+- Issue [#4](https://github.com/JulienMaille/WinUI3Style/issues/4) : gate `QColor([0-9]` zéro exemption (`tests/check_source_contracts.cmake:29-50`, homes `winui3tokens_p.h`/`winui3paint_p.cpp`/`winui3geometry_p.cpp`/`winui3theme_p.cpp`).
+- Ghosting Mica/Acrylic + hover-vanish (`IntersectClip`, `materialEraseRespectsDirtyRegionClip`), branches `codex/treeview-wizard-rebase` et `draft/mica-ghost-glyphs` mergées et supprimées.
+- Wizard/dialogs Dark, deux surfaces, centrage (`wizardSurfaceContract`, `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle`, baselines `light/dark-wizard.png`).
+- Combo texte fermé élidé + chrome icône 16+8 (`comboClosedTextContracts`, `themeComboSizingContract`), spin affixe (`spinBoxPrefixSuffixSizingContract`), toggle toolbar mica (`checkedToolbarToggleKeepsFillOverBackdrop`, `fa28570`).
+- TreeView padding cumulatif, séparateurs QTabBar adjacent sélectionné, splitter centré, scrollbar offscreen, chevron/clear/editable/NumberBox, DatePicker lisible, rôles Accent, vitesses 83/167/250 ms, `toolbarButtonCornerSymmetry`, `styleMutationRestoration`, install smoke Release+Debug, `RELEASE_NOTES.md`.
 
-## Issues GitHub ouvertes (à intégrer au planning)
+## Issues GitHub encore ouvertes
 
-Snapshot de la liste GitHub : [issues ouvertes](https://github.com/JulienMaille/WinUI3Style/issues?q=is%3Aissue+is%3Aopen) — 5 issues ouvertes.
+- [ ] **P2 — [#2 Promote warnings to errors](https://github.com/JulienMaille/WinUI3Style/issues/2)** — `WINUI3STYLE_WARNINGS_AS_ERRORS` limité à la lib (`src/CMakeLists.txt:87-90`, ON en CI `ci.yml:105`) ; reste : autres cibles/compilateurs, build Debug `/W4` complet.
+- [ ] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)** — `src/winui3buttons_p.cpp:381` monolithique (QPushButton/QToolButton/CommandLink/checkable/disabled) ; prévoir non-régression par élément × thème/densité.
+- [ ] **P1 — [#5 (suivi) relayout popup ouvert au switch de densité** — le verdict by-design est clos ; le repositionnement d'un popup déjà ouvert reste à reproduire séparément.
 
-- [ ] **P1 — [#6 Animation ouverture menus : slide vertical-only + easing non conforme](https://github.com/JulienMaille/WinUI3Style/issues/6)**
-  - Validation live 2026-09-09 (user) : motion OK, pas exactement WinUI mais jugé suffisant. Fermé comme déviation délibérée documentée dans `spec/coverage.md` (slide vertical 12 px + OutCubic, y compris sous-menus latéraux).
-- [x] **P1 — [#5 QMenu popup : géométrie non recalculée au changement de densité](https://github.com/JulienMaille/WinUI3Style/issues/5)**
-  - Verdict 2026-09-10 (spec conjointe, pinned `microsoft-ui-xaml`) : pas de bug — `DensityStyles/Compact.xaml` ne contient aucune entrée MenuFlyoutItem ; `MenuFlyout_themeresources.xaml` ne définit pas de MinHeight sur l'item (seulement 32 sur le presenter). Lignes 36 px invariantes = conforme ; effet Compact visible = MenuBar uniquement (extension). Reste ouvert côté relayout si un popup ouvert ne se repositionne pas au switch — à reproduire séparément.
-- [ ] **P2 — [#4 Retire `QColor(` grandfather list file-by-file](https://github.com/JulienMaille/WinUI3Style/issues/4)**
-  - [x] `winui3menus_p.cpp` utilise le token existant `flyoutStroke` (valeurs Light/Dark identiques) ; exemption retirée du contrôle des couleurs codées en dur.
-  - [x] `winui3surfaces_p.cpp` utilise les tokens `dialogCommandFill`/`dialogScrim` (valeurs Light/Dark identiques) ; gate `winui3style_source_contracts` verte, plus aucune exemption restante.
-  - [x] `PE_PanelTipLabel` utilise les tokens `tooltipFill`/`tooltipStroke` (nouveau token `tooltipStroke`, valeurs Light/Dark couvertes par `paletteDerivedTokensMatchWinUIConstants`) ; rendu inchangé.
-  - Périmètre #4 clarifié en boucle : gate `QColor([0-9]` ne porte que sur `src/*_p.cpp`+`src/*.cpp` hors `winui3tokens_p.h`/`winui3paint_p.cpp`/`winui3geometry_p.cpp`/`winui3theme_p.cpp` ; zéro littéral numérique hors homes (gate verte). Restent : `QColor(Qt::white/black/transparent)` (états système, exemption documentée), `Qt::transparent` direct en peinture (idem), `QColor(…)` numériques dans `winui3theme_p.cpp` (palette home approuvée) et valeurs attendues dans `tests/` (contrats, hors gate).
-- [ ] **P2 — [#2 Promote warnings to errors (`/WX` + `-Werror`)](https://github.com/JulienMaille/WinUI3Style/issues/2)**
-  - Première étape : option `WINUI3STYLE_WARNINGS_AS_ERRORS` privée à la bibliothèque, activée en CI MSVC. Warnings Qt/paramètre Release corrigés avec compatibilité Qt 5 ; build Release `/WX` et 40 CTests/snapshots réussis sur Qt 6.9.2. Extension aux autres cibles/compilateurs encore à valider. Boucle : build Debug `/W4` sans warning sur la lib, `buttons`+`density_widgets`+`contracts` verts en Debug Qt 6.9.2.
-  - Nettoyer les warnings existants par cible.
-  - Activer `/WX`/`-Werror` en CI de façon progressive, avec exceptions locales justifiées uniquement si nécessaire.
-- [ ] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)**
-  - Séparer les chemins QPushButton, QToolButton, CommandLink, checkable/toggle et états disabled.
-  - Préserver le rendu actuel avec tests de non-régression par élément et par thème/densité.
+## P0 — flake et garde-fous
 
-## P0 — intégration et garde-fous
+- [ ] **Fixer `inputModalityFocus` (`tests/tst_winui3interaction.cpp:850`)** — `_winui_focus_visible` ne se pose pas sur `MouseButtonPress`+`FocusIn` synthétiques ; échoue sur stash pristine, bloque chaque gate à 39/40.
+- [ ] **Confirmer un run CI GitHub Actions vert** — `.github/workflows/ci.yml:67-111` existe (matrice Qt × Debug/Release, CTest, snapshots, smoke) mais aucune exécution distante n'est liée ici.
+- [ ] **Ratchet 60 KB** (`tests/check_source_contracts.cmake:76`) : `tst_winui3editors.cpp` 60 199 B, `interaction` 58 967 B, `views` 58 106 B — splitter par domaine avant d'ajouter des tests.
+- [ ] Couvrir l'axe complet Light/Dark/System × Standard/Compact × états dans la matrice (`CMakeLists.txt:64-73`, `winui3style_snapshot_matrix`).
 
-- [ ] Ouvrir une PR depuis la branche de travail ; ne jamais pousser directement sur `main` protégé.
-- [ ] Ajouter une CI propre : configure Debug/Release, build plugin + demo + tests, CTest, snapshots et artefacts de logs/captures.
-  - Matrice Qt × Debug/Release et smoke d'installation ajoutés ; YAML validé localement, exécution GitHub Actions encore à confirmer. Boucle : 40/40 CTests verts en Release Qt 6.9.2 local (natif exclu), snapshot matrix incluse.
-- [x] Tester l'installation dans un répertoire propre : plugin QStyle, headers publics et éventuelles DLL Qt uniquement.
-  - Smokes Release et Debug réussis via `tools/install_smoke.ps1` avec Qt 6.9.2 local : installation temporaire, client lié uniquement à Qt Widgets, chargement isolé des deux clés du plugin.
-- [x] Ajouter une note de release distinguant API publique, propriétés Designer et comportements expérimentaux : `RELEASE_NOTES.md`.
-- [x] Vérifier que la DLL du style est autonome vis-à-vis du code de la galerie et qu'aucun header `WinUI3::*` n'est nécessaire à une application cliente standard.
-  - Client Qt-only compilé et exécuté contre les installations Release et Debug ; aucune dépendance à la galerie ni inclusion WinUI3 requise pour charger le plugin.
-- [ ] Bloquer les régressions visuelles avec une matrice Light/Dark/System × Standard/Compact × enabled/hover/pressed/disabled/focus.
+## P1 — backdrop, repaint et surfaces
 
-## P1 — régressions et fidélité visuelle à traiter en premier
+- [ ] Stratégie backdrop unique AutoSuggestBox/ComboBox/menus/popups (aujourd'hui : `eraseForBackdrop` par contrôle, pas de comparaison unifiée).
+- [ ] Repaint Light ↔ Dark ↔ System au-delà des îlots (`src/winui3style.cpp:1317` ne rebase que les îlots ; `backdropThemeSwitchRebasesIslandPalette` OK) : fond principal, menu, panneau gauche, contour.
+- [ ] Backdrop resize/occlusion/déplacement (toggle on/off + scroll couverts : `backdropLifecycleContract`, `backdropToggleOffRestoresShellSurfaces`, `islandScrollPostsFullViewportRepaint`).
+- [ ] Dialogs persistants + `QMessageBox`/`QDialogButtonBox`/`QWizard` à travers un changement de thème (couvert : ouverture + switch ; persistant : ouvert).
 
-### Backdrop, repaint et surfaces
+## P1 — navigation, champs, états
 
-- [x] Diagnostiquer les ghostings Mica/Acrylic lors du hover des boutons. Merge `draft/mica-ghost-glyphs` dans `main` (`ecb5f0b`) + fix hover-vanish live 2026-09-10 (user) : `eraseForBackdrop` remplaçait le clip dirty-region (`ReplaceClip`), le clear `Source` élargi au rect complet effaçait le contenu sibling (backpanel par-dessus les widgets) → `IntersectClip` (`b0dfb0d`). Test mécanisme : `materialEraseRespectsDirtyRegionClip` (échoue pré-fix, passe post-fix) ; suite 40/40 verte + snapshot matrix. Worktree/branches de revue nettoyés 2026-09-10 (worktree `win11style-mica-review` + branche `codex/mica-draft-test-repair` supprimés, distants déjà purgés).
-- [ ] Comparer le backdrop des AutoSuggestBox, ComboBox, menus et popups ; appliquer une seule stratégie de surface/blur/repaint.
-- [ ] Corriger le repaint lors du passage Light ↔ Dark ↔ System (fond principal, menu, panneau gauche, contour de fenêtre).
-- [ ] Tester activation/désactivation du backdrop, redimensionnement, occlusion et déplacement de fenêtre.
+- [ ] NavigationView : revalidation métriques WinUI + contraste hover/pressed/selected trois thèmes (comportement testé : `navigationTransition`, `navigationInteractiveFrames`, `renderCommonStates`).
+- [ ] AutoSuggestBox : clavier, hit-test, stratégie backdrop (couvert : sous-chaînes, palette popup, thème ouvert).
+- [ ] Démos Compact galerie manquantes : PasswordBox, AutoSuggestBox, TimePicker, ListView, TreeView, NavigationView, MenuBar (métriques+tests OK pour les 10 via `OfficialCompactWidgets` ; `.ui` n'a que TextBox/ComboBox/DatePicker/CheckBox/Radio/NumberBox).
 
-### Dialogues et Wizard
+## P2 — architecture, accessibilité, robustesse, tests
 
-- [x] Corriger les deux surfaces WinUI des dialogs (contenu et command area), sans rectangle blanc résiduel. Validé live 2026-09-09 (user) : fix OK. Causes : ClassicStyle (bannière bleue + titre #003399 + fonds blancs forcés) → `SH_WizardStyle=ModernStyle` + `setWizardStyle` explicite galerie ; labels internes forcés à l'encre contenue ; footer repeint même à couleurs identiques ; relink plugin garanti (`d681ce5`). Tests : `wizardSurfaceContract`, `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle` ; captures `light/dark-wizard.png` dans la matrice.
-- [x] Corriger couleurs de titre, texte et boutons en Light/Dark/System.
-- [x] Corriger centrage vertical indépendant de la partie haute et de la barre de commandes.
-- [x] Réparer le Wizard en Dark : fond, pages, titre, boutons, disabled et navigation.
-- [ ] Tester QMessageBox, QDialogButtonBox, QWizard et les dialogs persistants avec changement de thème.
+- [ ] Remplacer `WinUI3::SettingsCard` promu par `QFrame` + `winuiSettingsCard=true` (`demo/gallerywindow.ui:119-139`, `check_designer_gallery.cmake:27-44` verrouille le promu).
+- [ ] Focus/Tab/Space/Enter/popups : passer le live keyboard (offscreen partiel, `inputModalityFocus` flake).
+- [ ] Contrastes Light/Dark (pas de test de ratio dédié) + `prefers-reduced-motion` OS (seul `WINUI3STYLE_DISABLE_ANIMATIONS` existe).
+- [ ] Coût polish/drawControl/animations sur grandes listes + audit allocs `QPixmap`/`QIcon`/`QPainterPath` chemins chauds (bench `benchmarks/render_benchmark.cpp:48` existe, pas de verdict).
+- [ ] Restaurer les tests d'activation au relâchement + marker click-and-hold des ComboBox.
+- [ ] Assertions géométrie restantes : séparateurs, insets de popup.
+- [ ] `CHANGELOG.md` (projet 0.1.0 + `RELEASE_NOTES.md` existent) + page matrice compat Windows/Qt (manifest `spec/winui-2.4/manifest.json` + CI Qt 6.8.3/6.11.1 + Qt5.12-mingw : builds OK, page publiée manquante).
 
-### Navigation, arborescences et onglets
+## P2 — couverture QWidget restante (`spec/WIDGET_BACKLOG.md`)
 
-- [ ] Revalider NavigationView selon les métriques WinUI (sélection, compact/expanded, recherche, clavier, focus).
-- [x] Réduire le padding gauche cumulatif de QTreeView/QTreeWidget à chaque niveau ; couvrir arbre normal et arbre avec cases à cocher dans la galerie. Validation live 2026-09-09 (user) : OK.
-- [ ] Corriger les séparateurs de QTabBar/TabView adjacents à l'onglet sélectionné.
-- [ ] Vérifier les états hover/pressed/selected et le contraste en trois thèmes.
-
-### Champs, listes déroulantes et sélecteurs
-
-- [ ] AutoSuggestBox : modèle de suggestions, ouverture/fermeture, clavier, sélection, hit-test, thème et backdrop ; ajouter une interaction réellement testée.
-- [ ] ComboBox : ouverture au relâchement, animation du glyph, marker animé au click-and-hold, padding haut/bas, icône de l'item sélectionné et recalcul de taille.
-- [ ] ComboBox : texte fermé élidé car la largeur par défaut ne correspond pas au contenu (user 2026-09-10, à investiguer : repro + fix sizeHint). Boucle : garde `themeComboSizingContract` étendue (AdjustToContents + politique par défaut 120 px, pas d'élision) — verte ; mécanisme exact du rapport à reproduire avec le texte fautif.
-- [ ] Corriger le chevron ComboBox et son centrage sans modifier la hauteur de ligne WinUI.
-- [ ] LineEdit/TextBox : clear button visible uniquement quand le champ a le focus, glyph X correctement centré et hover centré.
-- [ ] Corriger le décalage gauche de l'editable ComboBox et les largeurs de NumberBox en Compact.
-- [ ] DatePicker/TimePicker : texte visible, calendrier lisible, hover Light/Dark, en-tête et cellules correctement contrastés.
-
-### États et animations des contrôles
-
-- [ ] Vérifier les rôles de couleur Accent en Light et Dark (l'accent Dark n'est pas une copie brute de Light).
-- [ ] Corriger couleurs des checkmarks, radio rings, toggle thumb et indicateurs indeterminate dans chaque thème.
-- [ ] Comparer les vitesses d'animation CheckBox, QPushButton, ToggleSwitch et QRadioButton ; supprimer le « rate » des clics radio.
-- [ ] Ajouter les transitions de texte/foreground des boutons pendant pressed et click-and-hold.
-- [ ] Corriger coins/rayon des boutons de toolbar dans tous les états, y compris pressed et groupes contigus.
-- [ ] Corriger le bouton ToggleSwitch pressé (thumb, marge et rayon conformes à WinUI).
-- [ ] Vérifier glyphes, taille et alignement des sous-menus, clear buttons et contrôles numériques.
-
-### Géométrie restante
-
-- [x] Corriger le splitter mal centré. Validation live 2026-09-09 (user) : OK. Couvert par `splitterHandleContract` + `splitterGripPixelAlignment` (DPR 100/125/150/200) ; le décalage 1px backlog (`spec/WIDGET_BACKLOG.md`) reste couvert par le snapping testé.
-- [ ] Auditer l'ascenseur/scrollbar (épaisseur, hit area, hover, dark/light).
-- [x] Vérifier les menus tronqués en Compact et la largeur minimale de tous les combos de la galerie. Validation live 2026-09-09 (user) : compact plus tronqué — OK.
-
-## P1 — protocole de validation WinUI obligatoire
-
-- [ ] Pour chaque contrôle, documenter la source Microsoft dans `spec/` et les métriques retenues.
-- [ ] Tester les états au repos, hover, pressed, click-and-hold, focus clavier, disabled, indeterminate et RTL si pertinent.
-- [ ] Capturer Light et Dark côte à côte avec mêmes dimensions et même contenu.
-- [ ] Valider les popups sur première frame, frame intermédiaire et état stabilisé.
-- [ ] Ne pas considérer une capture statique comme preuve d'une animation ou d'un hit-test.
-- [ ] Rejouer les interactions avec souris pressée, maintenue puis relâchée ; couvrir les clics rapides répétés.
-
-## P1 — mode Compact
-
-Le mode Compact doit être explicite, héritable et réversible, et couvrir les contrôles WinUI suivants :
-
-- [ ] ListView
-- [ ] TextBox
-- [ ] PasswordBox
-- [ ] AutoSuggestBox
-- [ ] ComboBox
-- [ ] DatePicker
-- [ ] TimePicker
-- [ ] TreeView
-- [ ] NavigationView
-- [ ] MenuBar
-
-Pour chacun : métriques de hauteur/padding, popup, focus, disabled, accessibilité, changement de densité à chaud et test galerie Standard ↔ Compact.
-
-## P2 — couverture QWidget à compléter
-
-La liste ci-dessous reprend `spec/WIDGET_BACKLOG.md` et doit être traitée par lots avec démo et tests :
-
-- [ ] QGraphicsView et QRubberBand.
-- [ ] QKeySequenceEdit et QFontComboBox.
-- [ ] QToolBox.
-- [ ] QColumnView et QUndoView.
-- [ ] QMdiArea/QMdiSubWindow.
-- [ ] QLCDNumber et QDial.
-- [ ] QFileDialog, QColorDialog, QFontDialog, QInputDialog et QProgressDialog non natifs.
-- [ ] Revalider QCommandLinkButton, QStatusBar, QSizeGrip et QWizard dans les trois thèmes.
-- [ ] Ajouter dans la galerie tous les widgets déjà gérés mais encore absents, avec variantes normale/Compact et états disabled/RTL lorsque pertinents.
-- [ ] Remplacer à terme le widget promu `WinUI3::SettingsCard` par un QFrame/QGroupBox standard avec propriété `winuiSettingsCard=true` si cela reste compatible Designer.
-
-## P2 — architecture et API publique
-
-- [ ] Garder la galerie découplée du style : privilégier widgets Qt standards, propriétés dynamiques et Designer.
-- [ ] Réduire les appels `WinUI3::*` à l'API nécessaire (helpers de composition uniquement).
-- [ ] Garantir que les propriétés inconnues sont ignorées sans crash et que le polish/unpolish est symétrique. Boucle : garde `styleMutationRestoration` étendue (rôle typo/out-of-range → Standard, densité inconnue → Standard, surface inconnue polish/unpolish sans crash) — verte.
-- [ ] Centraliser les rôles de palette (accent, texte, glyphes, surfaces, borders) et bannir les couleurs ad hoc.
-- [ ] Définir le contrat des propriétés publiques : `ThemeMode`, `DensityMode`, `ControlRole`, `winuiDensity`, `winuiControlRole`, `winuiBackdrop`, `winuiSurface`, `winuiToggleSwitch`, `winuiSettingsCard`, `winuiNavigationView`, etc.
-- [ ] Garantir que les propriétés inconnues sont ignorées sans crash et que le polish/unpolish est symétrique.
-- [ ] Documenter la compatibilité Qt 6.5+ et le chemin de repli Qt 5 si maintenu.
-
-## P2 — accessibilité, clavier et RTL
-
-- [ ] Vérifier focus ring, ordre Tab, activation Space/Enter et navigation des popups.
-- [ ] Vérifier les rôles accessibles et états checked/indeterminate/expanded/selected.
-- [ ] Vérifier RTL, hit-test miroir, chevrons et icônes.
-- [ ] Vérifier contrastes Light/Dark et réduction des animations.
-
-## P2 — performance et robustesse
-
-- [ ] Mesurer le coût de polish, drawControl et des animations sur grandes listes/tableaux.
-- [ ] Éviter les allocations répétées de QPixmap/QIcon/QPainterPath dans les chemins chauds.
-- [ ] Tester changement de palette/thème/densité pendant animation et pendant popup ouvert.
-- [ ] Ajouter tests de durée de vie : destruction/recréation de popup, changement de modèle, changement de style à chaud.
-- [ ] Nettoyer warnings puis activer `/WX`/`-Werror` (issue #2).
-
-## P2 — qualité des tests
-
-- [ ] Restaurer/maintenir les tests d'activation au relâchement et de marker click-and-hold des ComboBox.
-- [ ] Ajouter les tests manquants signalés dans `spec/coverage.md` : slider input, progress indeterminate, fallback boundary, palette runtime, dialog lifecycle, navigation lifecycle, RTL.
-- [ ] Ajouter assertions de géométrie pour padding, slot/glyph, surfaces et séparateurs.
-- [ ] Garder les snapshots déterministes et documenter toute tolérance de pixels.
-- [ ] Ajouter au moins un test d'intégration de la galerie en `.ui` pour éviter les régressions de layout après migration.
-
-## P3 — distribution et maintenance
-
-- [ ] Tester installation/désinstallation du plugin dans une application Qt vierge.
-- [ ] Publier headers, CMake package/config et exemples Designer minimaux.
-- [ ] Documenter dépendances runtime (Qt, DLL du style, éventuel backend Windows) et absence de dépendance à la galerie.
-- [ ] Préparer changelog, versionnement et artefacts Windows x64.
-- [ ] Ajouter une matrice de compatibilité Windows/Qt et une procédure de reproduction des captures.
+- [ ] QGraphicsView + QRubberBand, QKeySequenceEdit + QFontComboBox, QToolBox, QColumnView + QUndoView, QMdiArea/QMdiSubWindow, QLCDNumber + QDial, QFileDialog/QColorDialog/QFontDialog/QInputDialog/QProgressDialog non natifs.
 
 ## Ordre recommandé
 
-1. ~~Fermer les issues #6 et #5 avec tests popup/animation et validation live.~~ Fait 2026-09-10 : #6 fermée comme déviation délibérée documentée (slide 12 px + OutCubic), #5 fermée by-design (lignes 36 px Compact conformes, effet Compact = MenuBar).
-2. Corriger backdrop/repaint, dialogs/Wizard et palette/indicateurs Dark.
-3. Stabiliser AutoSuggestBox, ComboBox, TextBox clear button et DatePicker.
-4. Corriger NavigationView, TreeView, TabView, toolbar, splitter et scrollbar.
-5. Finaliser Compact sur les dix contrôles WinUI et compléter la galerie.
-6. Séparer `drawButtonControl`, retirer les couleurs codées en dur et activer les warnings en erreurs (#1, #4, #2).
-7. Étendre la couverture QWidget, accessibilité, performance et packaging.
+1. ~~Issues #6/#5~~ Fait 2026-09-10. Reste le suivi relayout #5 ci-dessus.
+2. Flake `inputModalityFocus` + ratchet 60 KB (débloque la gate), puis run CI vert lié.
+3. Repaint thème complet + resize/occlusion backdrop + dialogs persistants.
+4. NavigationView métriques/contrastes + AutoSuggestBox clavier/hit-test + démos Compact manquantes.
+5. `drawButtonControl` split (#1) + `/WX` étendu (#2).
+6. QWidget restants, `CHANGELOG.md`, matrice compat publiée.
 
 ## Définition de terminé
 
