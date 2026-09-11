@@ -1,7 +1,7 @@
 # WinUI3Style — feuille de route
 
-> État de référence : 11 septembre 2026, `main` @ `fa28570` (toggle toolbar mica + contrats combo icône).
-> Suite : 39/40 — seul échec `inputModalityFocus`, flake pré-existant prouvé sur stash pristine (échoue sans nos changements).
+> État de référence : 11 septembre 2026, `main` @ `611cfb2` (restore keyboard focus-visible après refactor Alt-reveal).
+> Suite : 40/40 verte ; `inputModalityFocus` fixé (5 runs interaction + full suite exit 0).
 > Gates `winui3style_source_contracts` et `winui3style_designer_gallery_contract` vertes.
 > Boucle de travail : chaque lot met à jour ce fichier, est relu, commité sur `main` puis poussé (workflow actuel : `main` direct).
 > Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct (`spec/coverage.md` reste « source-audited » partout, comparaison live obligatoire).
@@ -13,7 +13,7 @@
 - Ghosting Mica/Acrylic + hover-vanish (`IntersectClip`, `materialEraseRespectsDirtyRegionClip`), branches `codex/treeview-wizard-rebase` et `draft/mica-ghost-glyphs` mergées et supprimées.
 - Wizard/dialogs Dark, deux surfaces, centrage (`wizardSurfaceContract`, `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle`, baselines `light/dark-wizard.png`).
 - Combo texte fermé élidé + chrome icône 16+8 (`comboClosedTextContracts`, `themeComboSizingContract`), spin affixe (`spinBoxPrefixSuffixSizingContract`), toggle toolbar mica (`checkedToolbarToggleKeepsFillOverBackdrop`, `fa28570`).
-- TreeView padding cumulatif, séparateurs QTabBar adjacent sélectionné, splitter centré, scrollbar offscreen, chevron/clear/editable/NumberBox, DatePicker lisible, rôles Accent, vitesses 83/167/250 ms, `toolbarButtonCornerSymmetry`, `styleMutationRestoration`, install smoke Release+Debug, `RELEASE_NOTES.md`.
+- `inputModalityFocus` (`611cfb2`) : `f29d2e9` avait supprimé le `set(focusVisible)+update()` du `KeyPress` — `keyboardInput=true` seul ne suffit pas sans `FocusIn` suivant ; restauré (`src/winui3interactions_p.cpp:636-637`).
 
 ## Issues GitHub encore ouvertes
 
@@ -21,11 +21,10 @@
 - [ ] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)** — `src/winui3buttons_p.cpp:381` monolithique (QPushButton/QToolButton/CommandLink/checkable/disabled) ; prévoir non-régression par élément × thème/densité.
 - [ ] **P1 — [#5 (suivi) relayout popup ouvert au switch de densité** — le verdict by-design est clos ; le repositionnement d'un popup déjà ouvert reste à reproduire séparément.
 
-## P0 — flake et garde-fous
+## P0 — garde-fous
 
-- [ ] **Fixer `inputModalityFocus` (`tests/tst_winui3interaction.cpp:850`)** — `_winui_focus_visible` ne se pose pas sur `MouseButtonPress`+`FocusIn` synthétiques ; échoue sur stash pristine, bloque chaque gate à 39/40.
-- [ ] **Confirmer un run CI GitHub Actions vert** — `.github/workflows/ci.yml:67-111` existe (matrice Qt × Debug/Release, CTest, snapshots, smoke) mais aucune exécution distante n'est liée ici.
 - [ ] **Ratchet 60 KB** (`tests/check_source_contracts.cmake:76`) : `tst_winui3editors.cpp` 60 199 B, `interaction` 58 967 B, `views` 58 106 B — splitter par domaine avant d'ajouter des tests.
+- [ ] **Confirmer un run CI GitHub Actions vert** — `.github/workflows/ci.yml:67-111` existe (matrice Qt × Debug/Release, CTest, snapshots, smoke) mais aucune exécution distante n'est liée ici.
 - [ ] Couvrir l'axe complet Light/Dark/System × Standard/Compact × états dans la matrice (`CMakeLists.txt:64-73`, `winui3style_snapshot_matrix`).
 
 ## P1 — backdrop, repaint et surfaces
