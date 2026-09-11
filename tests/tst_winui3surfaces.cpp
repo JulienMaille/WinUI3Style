@@ -109,6 +109,8 @@ private slots:
     void wizardSurfaceContract();
     void wizardUsesModernStyleHint();
     void wizardOpenThemeSwitchLifecycle();
+    void themeSwitchRebasesChromeShell();
+    void persistentDialogSurvivesThemeSwitch();
     void contentDialogScrimLifecycle();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
@@ -700,6 +702,64 @@ void WinUI3SurfacesTest::wizardOpenThemeSwitchLifecycle()
 }
 
 
+void WinUI3SurfacesTest::themeSwitchRebasesChromeShell()
+{
+    // Switch Light->Dark : le chrome (menu, toolbar, status) et la fenetre
+    // doivent suivre le theme. Meme etat, deux assertions : les roles
+    // Window suivent la palette standard, et aucun ne garde son RGB clair.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QMainWindow window;
+    auto *menuBar = new QMenuBar(&window);
+    menuBar->addAction(QStringLiteral("File"));
+    window.setMenuBar(menuBar);
+    auto *toolbar = new QToolBar(&window);
+    toolbar->addAction(QStringLiteral("Action"));
+    window.addToolBar(toolbar);
+    window.setStatusBar(new QStatusBar(&window));
+    window.resize(400, 200);
+    window.show();
+    (void)QTest::qWaitForWindowExposed(&window);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    const QColor darkWindow = style->standardPalette().color(QPalette::Window);
+    const QColor darkChrome = WinUI3::Private::popupSurfaceColor(style->standardPalette());
+    QTRY_COMPARE(window.palette().color(QPalette::Window), darkWindow);
+    QTRY_COMPARE(menuBar->palette().color(QPalette::Window), darkWindow);
+    QTRY_COMPARE(toolbar->palette().color(QPalette::Window), darkWindow);
+    QTRY_COMPARE(window.statusBar()->palette().color(QPalette::Window), darkChrome);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+void WinUI3SurfacesTest::persistentDialogSurvivesThemeSwitch()
+{
+    // Dialog persistant : ouvert en Light, switch Dark, puis retour Light.
+    // Meme etat, deux assertions : contenu et footer suivent le theme,
+    // sans garder le fill clair.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    QDialog dialog;
+    WinUI3::Style::setContentDialog(&dialog);
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(QStringLiteral("Persistent")));
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    layout->addWidget(buttons);
+    dialog.show();
+    QTRY_VERIFY(dialog.isVisible());
+    QWidget *footer = dialog.findChild<QWidget *>(QStringLiteral("_winui_content_dialog_footer_surface"),
+                                                 Qt::FindDirectChildrenOnly);
+    QVERIFY(footer);
+    const QColor lightContent = style->standardPalette().color(QPalette::Window);
+    QTRY_COMPARE(dialog.palette().color(QPalette::Window),
+                 WinUI3::Private::popupSurfaceColor(style->standardPalette()));
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    const QColor darkDialog = WinUI3::Private::popupSurfaceColor(style->standardPalette());
+    const QColor darkCommand(32, 32, 32);
+    QTRY_COMPARE(dialog.palette().color(QPalette::Window), darkDialog);
+    QTRY_COMPARE(footer->palette().color(QPalette::Window), darkCommand);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    QTRY_COMPARE(dialog.palette().color(QPalette::Window),
+                 WinUI3::Private::popupSurfaceColor(style->standardPalette()));
+}
 void WinUI3SurfacesTest::contentDialogScrimLifecycle()
 {
     QWidget parent;
