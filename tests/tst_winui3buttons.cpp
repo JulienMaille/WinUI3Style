@@ -113,6 +113,7 @@ private slots:
     void toolButtonIconVerticalCenter();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
+    void checkedToolbarToggleKeepsFillOverBackdrop();
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
     void buttonTextAntialiasesGrayscale();
@@ -913,6 +914,49 @@ void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
     QCOMPARE(composed, isolated);
 }
 
+void WinUI3ButtonsTest::checkedToolbarToggleKeepsFillOverBackdrop()
+{
+    // Gallery command-bar repro (user 2026-09-11): Pin/Preview stay flat in
+    // mica mode. Same state, two assertions: the selected fill token is
+    // opaque, and the painted panel center matches it rather than the
+    // material showing through.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QMainWindow window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    auto *toolbar = new QToolBar(&window);
+    toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    QAction *preview = toolbar->addAction(QStringLiteral("Preview"));
+    preview->setCheckable(true);
+    preview->setChecked(true);
+    window.resize(360, 120);
+    window.show();
+    (void)QTest::qWaitForWindowExposed(&window);
+    auto *button = qobject_cast<QToolButton *>(toolbar->widgetForAction(preview));
+    QVERIFY(button);
+    QVERIFY(button->isChecked());
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(button));
+    const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(button->palette());
+    const QColor expected = WinUI3::Private::mix(tokens.subtleHover, tokens.accentFill, 0.14);
+    QVERIFY2(expected.alpha() > 20,
+             qPrintable(QStringLiteral("checked fill alpha %1").arg(expected.alpha())));
+    QStyleOptionToolButton option;
+    option.initFrom(button);
+    option.rect = QRect(QPoint(), button->size());
+    option.state |= QStyle::State_Enabled | QStyle::State_On;
+    QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    {
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelButtonTool, &option, &painter, button);
+    }
+    const QColor center = image.pixelColor(image.width() / 2, image.height() / 2);
+    QVERIFY2(center.alpha() > 20,
+             qPrintable(QStringLiteral("center alpha %1").arg(center.alpha())));
+    QVERIFY2(colorDistance(center, expected) < 100,
+             qPrintable(QStringLiteral("center #%1 vs fill #%2").arg(center.name()).arg(expected.name())));
+}
 void WinUI3ButtonsTest::controlRoles()
 {
     QPushButton button;

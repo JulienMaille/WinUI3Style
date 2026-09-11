@@ -126,7 +126,7 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         if ((Style::controlRole(widget) == ControlRole::Subtle
              || Style::controlRole(widget) == ControlRole::Navigation)
             && paintsDirectlyOnBackdrop(widget)
-            && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken))
+            && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
             && progress(widget, hoverProperty, 0.0) < 0.01
             && progress(widget, pressProperty, 0.0) < 0.01) {
             eraseForBackdrop(painter, widget, option->rect, ControlRadius);
