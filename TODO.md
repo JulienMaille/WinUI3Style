@@ -1,7 +1,7 @@
 # WinUI3Style — feuille de route
 
-> État de référence : 11 septembre 2026, `main` @ `611cfb2` (restore keyboard focus-visible après refactor Alt-reveal).
-> Suite : 40/40 verte ; `inputModalityFocus` fixé (5 runs interaction + full suite exit 0).
+> État de référence : 11 septembre 2026, `main` @ `b696887` (split combo hors editors pour ratchet 60 KB).
+> Suite : 41/41 verte (natif exclu) ; `inputModalityFocus` fixé en `611cfb2` (5 runs interaction + full suite exit 0).
 > Gates `winui3style_source_contracts` et `winui3style_designer_gallery_contract` vertes.
 > Boucle de travail : chaque lot met à jour ce fichier, est relu, commité sur `main` puis poussé (workflow actuel : `main` direct).
 > Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct (`spec/coverage.md` reste « source-audited » partout, comparaison live obligatoire).
@@ -13,7 +13,7 @@
 - Ghosting Mica/Acrylic + hover-vanish (`IntersectClip`, `materialEraseRespectsDirtyRegionClip`), branches `codex/treeview-wizard-rebase` et `draft/mica-ghost-glyphs` mergées et supprimées.
 - Wizard/dialogs Dark, deux surfaces, centrage (`wizardSurfaceContract`, `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle`, baselines `light/dark-wizard.png`).
 - Combo texte fermé élidé + chrome icône 16+8 (`comboClosedTextContracts`, `themeComboSizingContract`), spin affixe (`spinBoxPrefixSuffixSizingContract`), toggle toolbar mica (`checkedToolbarToggleKeepsFillOverBackdrop`, `fa28570`).
-- `inputModalityFocus` (`611cfb2`) : `f29d2e9` avait supprimé le `set(focusVisible)+update()` du `KeyPress` — `keyboardInput=true` seul ne suffit pas sans `FocusIn` suivant ; restauré (`src/winui3interactions_p.cpp:636-637`).
+- `tst_winui3editors.cpp` 60 199 B → `editors` 33 411 B + `tst_winui3combobox.cpp` 30 095 B (`b696887`, `winui3style_combobox_unit`) ; `interaction` 58 967 B et `views` 58 106 B restent sous 61 440 B.
 
 ## Issues GitHub encore ouvertes
 
@@ -23,8 +23,7 @@
 
 ## P0 — garde-fous
 
-- [ ] **Ratchet 60 KB** (`tests/check_source_contracts.cmake:76`) : `tst_winui3editors.cpp` 60 199 B, `interaction` 58 967 B, `views` 58 106 B — splitter par domaine avant d'ajouter des tests.
-- [ ] **Confirmer un run CI GitHub Actions vert** — `.github/workflows/ci.yml:67-111` existe (matrice Qt × Debug/Release, CTest, snapshots, smoke) mais aucune exécution distante n'est liée ici.
+- [ ] **Run CI GitHub Actions vert à lier** — `.github/workflows/ci.yml` existe (matrice Qt 6.8.3/6.11.1 × Debug/Release + job Qt5.12-MinGW, CTest, snapshots, smoke) mais aucune exécution distante n'est liée ici : ouvrir `https://github.com/JulienMaille/WinUI3Style/actions`, vérifier le run du push `b696887`, coller son URL dans cette ligne ; si rouge, diagnostiquer depuis les artefacts (`snapshot-debug-*`, `ctest-verbose.log`).
 - [ ] Couvrir l'axe complet Light/Dark/System × Standard/Compact × états dans la matrice (`CMakeLists.txt:64-73`, `winui3style_snapshot_matrix`).
 
 ## P1 — backdrop, repaint et surfaces
