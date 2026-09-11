@@ -432,6 +432,32 @@ void invalidateDensityTree(QWidget *root)
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(combo, &styleChange);
             combo->updateGeometry();
+            // Open popup: rows and geometry follow density. Rows are already
+            // re-laid out (doItemsLayout below), but Qt never re-lays out a
+            // visible popup on its own: its height keeps the Standard rows
+            // (fail-first openComboPopupFollowsDensitySwitch: 220x120 instead
+            // of 220x96 for 3 rows 40 -> 32). Re-prepare the frame, then
+            // resize the popup to the new rows.
+            if (combo->view() && combo->view()->isVisible()) {
+                combo->view()->doItemsLayout();
+                Private::prepareComboPopupFirstFrameImpl(combo);
+                if (QWidget *popup = combo->view()->window()) {
+                    // Measure through the delegate (sizeHint exposes the
+                    // comboPopupItemHeight metric), not through visualRect:
+                    // the viewport layout has not picked up the new rows
+                    // yet at switch time.
+                    const QModelIndex first =
+                            combo->model()->index(0, combo->modelColumn(), combo->rootModelIndex());
+                    QStyleOptionViewItem itemOption;
+                    itemOption.initFrom(combo->view()->viewport());
+                    itemOption.index = first;
+                    const QSize rowSize = combo->style()->sizeFromContents(
+                            QStyle::CT_ItemViewItem, &itemOption, QSize(), combo->view());
+                    const int margins = popup->contentsMargins().top()
+                            + popup->contentsMargins().bottom();
+                    popup->resize(popup->width(), combo->count() * rowSize.height() + margins);
+                }
+            }
         } else if (auto *spinBox = qobject_cast<QAbstractSpinBox *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(spinBox, &styleChange);
@@ -447,9 +473,9 @@ void invalidateDensityTree(QWidget *root)
                 view->viewport()->update();
         }
     };
-    // Enfants (feuilles) d'abord : findChildren rend les parents avant les
-    // enfants, donc parcours inverse. Chaque niveau est repositionne puis
-    // repeint avant que son parent ne fige ses propres lignes.
+    // Bottom-up: leaves first. findChildren returns parents before children,
+    // so walk in reverse. Each level is repositioned and repainted before
+    // its parent freezes its own rows.
     const auto descendants = root->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
     for (auto it = descendants.crbegin(); it != descendants.crend(); ++it)
         invalidateWidget(*it);

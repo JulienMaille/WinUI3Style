@@ -127,6 +127,7 @@ private slots:
     void autoSuggestMatchesCaseInsensitiveSubstrings();
     void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
     void runtimeThemeChangeRefreshesOpenComboPopup();
+    void openComboPopupFollowsDensitySwitch();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
     void compactNumberBoxAndUnlistedControlGeometry();
     void menuDensityPreservesPopupGeometry_data();
@@ -464,6 +465,38 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
     QCoreApplication::processEvents();
 }
 
+void WinUI3DensityWidgetsTest::openComboPopupFollowsDensitySwitch()
+{
+    // Popup open in Standard, switch to Compact: rows go 40 -> 32 and the
+    // popup repositions. Same state, two assertions: row height and popup
+    // geometry both follow density.
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(WinUI3::DensityMode::Standard);
+    QWidget root;
+    root.setStyle(&style);
+    QComboBox combo(&root);
+    combo.addItems({ QStringLiteral("First item"), QStringLiteral("Second item"),
+                     QStringLiteral("Third item") });
+    combo.setCurrentIndex(1);
+    root.resize(420, 240);
+    combo.setGeometry(40, 40, 220, 36);
+    root.show();
+    QCoreApplication::processEvents();
+    combo.showPopup();
+    QTRY_VERIFY(combo.view()->isVisible());
+    QWidget *popup = combo.view()->window();
+    QVERIFY(popup && popup->isVisible());
+    QCOMPARE(rowHeight(*combo.view()), 40);
+    const QRect standardPopup = popup->geometry();
+    style.setDensityMode(WinUI3::DensityMode::Compact);
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    QTRY_COMPARE(rowHeight(*combo.view()), 32);
+    QVERIFY(popup->geometry() != standardPopup);
+    combo.hidePopup();
+    QCoreApplication::processEvents();
+}
+
 void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
 {
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
@@ -502,7 +535,6 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
     QVERIFY(popup->isVisible());
     QVERIFY(qGray(popupView->viewport()->palette().color(QPalette::Base).rgb()) < 128);
     QCOMPARE(popup->geometry(), initialGeometry);
-
     style.setThemeMode(WinUI3::ThemeMode::System);
     QCoreApplication::processEvents();
     QVERIFY(popup->isVisible());
