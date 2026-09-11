@@ -47,6 +47,7 @@ private slots:
     void runtimeInvalidatesLayout();
     void geometryContractsAndInvariants();
     void navigationViewRelayoutsAtRuntime();
+    void spinBoxPrefixSuffixSizingContract();
     void pluginAliases();
 };
 
@@ -230,6 +231,48 @@ void WinUI3DensityApiTest::navigationViewRelayoutsAtRuntime()
     navigation.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
     QCoreApplication::processEvents();
     QCOMPARE(navigation.navigationList()->sizeHintForRow(0), 32);
+}
+
+void WinUI3DensityApiTest::spinBoxPrefixSuffixSizingContract()
+{
+    // Gallery affix rows (user 2026-09-11): "Distance remaining: 42" etc.
+    // render truncated — the closed text elides inside the edit field.
+    // Qt offers CT_SpinBox only the value-digit extent; prefix/suffix are
+    // extra ink the style hint must cover. Same state, two assertions:
+    // hint width covers prefix + max value + suffix, and the shown text
+    // fits the edit slot unelided.
+    WinUI3::Style style(WinUI3::ThemeMode::Light);
+    struct Case
+    {
+        QString prefix;
+        QString suffix;
+    };
+    for (const Case &affix : { Case{ QStringLiteral("Distance remaining: "), QString() },
+                               Case{ QString(), QStringLiteral(" kilometers per hour") },
+                               Case{ QStringLiteral("Estimated total: "),
+                                     QStringLiteral(" megabytes remaining") } }) {
+        QSpinBox spin;
+        spin.setStyle(&style);
+        spin.setRange(0, 9999);
+        spin.setPrefix(affix.prefix);
+        spin.setSuffix(affix.suffix);
+        spin.setValue(9999);
+        spin.ensurePolished();
+        const QString shown = spin.text();
+        const int textWidth = spin.fontMetrics().horizontalAdvance(shown);
+        const int hint = spin.sizeHint().width();
+        QVERIFY2(hint >= textWidth,
+                 qPrintable(QStringLiteral("hint %1 < shown '%2' %3").arg(hint).arg(shown).arg(
+                         textWidth)));
+        spin.resize(hint, 32);
+        QStyleOptionSpinBox option;
+        option.initFrom(&spin);
+        option.frame = true;
+        option.buttonSymbols = spin.buttonSymbols();
+        const QRect slot = style.subControlRect(QStyle::CC_SpinBox, &option,
+                                                QStyle::SC_SpinBoxEditField, &spin);
+        QCOMPARE(spin.fontMetrics().elidedText(shown, Qt::ElideRight, slot.width()), shown);
+    }
 }
 
 void WinUI3DensityApiTest::pluginAliases()
