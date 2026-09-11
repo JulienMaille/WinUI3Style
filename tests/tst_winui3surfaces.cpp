@@ -50,6 +50,8 @@
 #include <QRadioButton>
 #include <QScrollBar>
 #include <QScrollArea>
+#include <QMoveEvent>
+#include <QResizeEvent>
 #include <QSplitter>
 #include <QSignalSpy>
 #include <QSizeGrip>
@@ -100,6 +102,9 @@ private slots:
     void backdropButtonRepaintDoesNotAccumulate();
     void backdropComboRepaintDoesNotAccumulate();
     void islandScrollPostsFullViewportRepaint();
+    void backdropResizeKeepsTransparentRecipe();
+    void backdropExposeRepaintsShellHierarchy();
+    void backdropMoveKeepsTransparentRecipe();
     void materialEraseKeepsCornersTransparent();
     void materialEraseRespectsDirtyRegionClip();
     void backdropToggleOffRestoresShellSurfaces();
@@ -324,6 +329,113 @@ void WinUI3SurfacesTest::islandScrollPostsFullViewportRepaint()
     QCOMPARE(probeDeliveries, 1);
     QCOMPARE(window.property("_winui_backdrop_effective").isValid(), false);
     QVERIFY(area.viewport() != nullptr);
+}
+
+void WinUI3SurfacesTest::backdropResizeKeepsTransparentRecipe()
+{
+    // Resize realloue le backing-store : le chemin de repeinture (gate +
+    // erase Source) doit rester intact apres le geste. Meme etat, deux
+    // assertions : la gate reste vraie et le frame repeint est identique.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2);
+    QPushButton button(QStringLiteral("Mica"), &window);
+    button.resize(96, 32);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&button));
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    const auto paintFrame = [&](QImage &image) {
+        option.state = QStyle::State_Enabled;
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+    };
+    QImage before(button.size(), QImage::Format_ARGB32_Premultiplied);
+    before.fill(Qt::transparent);
+    paintFrame(before);
+    window.resize(400, 300);
+    window.show();
+    (void)QTest::qWaitForWindowExposed(&window);
+    window.resize(640, 480);
+    qApp->processEvents();
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&button));
+    QImage after(button.size(), QImage::Format_ARGB32_Premultiplied);
+    after.fill(Qt::transparent);
+    paintFrame(after);
+    QCOMPARE(after, before);
+}
+
+void WinUI3SurfacesTest::backdropExposeRepaintsShellHierarchy()
+{
+    // Apres occlusion, toggle off/on restaure puis re-applique la recette :
+    // la hierarchie shell repeint a l'identique. Meme etat, deux
+    // assertions : gate vraie et frame egale avant/apres le cycle.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2);
+    QPushButton button(QStringLiteral("Mica"), &window);
+    button.resize(96, 32);
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    const auto paintFrame = [&](QImage &image) {
+        option.state = QStyle::State_Enabled;
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+    };
+    QImage before(button.size(), QImage::Format_ARGB32_Premultiplied);
+    before.fill(Qt::transparent);
+    paintFrame(before);
+    window.resize(400, 300);
+    window.show();
+    (void)QTest::qWaitForWindowExposed(&window);
+    QVERIFY(WinUI3::applyBackdrop(&window, WinUI3::Backdrop::None));
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&button));
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2);
+    window.update();
+    button.update();
+    qApp->processEvents();
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&button));
+    QImage after(button.size(), QImage::Format_ARGB32_Premultiplied);
+    after.fill(Qt::transparent);
+    paintFrame(after);
+    QCOMPARE(after, before);
+}
+
+void WinUI3SurfacesTest::backdropMoveKeepsTransparentRecipe()
+{
+    // Deplacement : aucun handler Move ne touche aux surfaces ; la gate et
+    // le frame doivent survivre au geste. Meme etat, deux assertions.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2);
+    QPushButton button(QStringLiteral("Mica"), &window);
+    button.resize(96, 32);
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    window.resize(400, 300);
+    window.show();
+    (void)QTest::qWaitForWindowExposed(&window);
+    QMoveEvent moveEvent(QPoint(120, 120), QPoint(0, 0));
+    QCoreApplication::sendEvent(&window, &moveEvent);
+    window.move(120, 120);
+    qApp->processEvents();
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&button));
+    QImage image(button.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    option.state = QStyle::State_Enabled;
+    QPainter painter(&image);
+    style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+    painter.end();
+    QVERIFY(image.pixelColor(image.width() / 2, image.height() / 2).alpha() > 0);
 }
 
 void WinUI3SurfacesTest::materialEraseKeepsCornersTransparent()
