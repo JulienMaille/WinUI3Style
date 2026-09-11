@@ -154,14 +154,22 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
             // the text extent Qt offers: live rasterization of the same
             // item can exceed that extent ("Standard densi..."). Guarantee
             // the slot covers the longest item: grow the hint when the
-            // offered text plus chrome exceeds it. First-open popup tests
-            // still guard the mapped metric after any sizeFromContents
-            // change (METHODOLOGY §1).
+            // offered text plus chrome exceeds it. An icon on any row
+            // reserves a 16 px slot plus an 8 px gap in the paint path
+            // (CE_ComboBoxLabel), so icon combos need that chrome too
+            // ("Docum..." live). First-open popup tests still guard the
+            // mapped metric after any sizeFromContents change
+            // (METHODOLOGY §1).
             const QFontMetrics metrics(option->fontMetrics);
             int longest = 0;
-            for (int row = 0; row < combo->count(); ++row)
+            bool anyIcon = false;
+            for (int row = 0; row < combo->count(); ++row) {
                 longest = qMax(longest, metrics.horizontalAdvance(combo->itemText(row)));
-            const int need = longest + density.comboEditLeftPadding + density.comboArrowWidth;
+                anyIcon = anyIcon || !combo->itemIcon(row).isNull();
+            }
+            int need = longest + density.comboEditLeftPadding + density.comboArrowWidth;
+            if (anyIcon)
+                need += 16 + 8;
             size.setWidth(qMax(size.width(), need));
         }
         size.setWidth(qMax(size.width(), 120));

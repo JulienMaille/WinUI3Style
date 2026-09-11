@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QMetaProperty>
 #include <QComboBox>
+#include <QIcon>
 #include <QDateEdit>
 #include <QHeaderView>
 #include <QLineEdit>
@@ -47,6 +48,7 @@ private slots:
     void runtimeInvalidatesLayout();
     void geometryContractsAndInvariants();
     void navigationViewRelayoutsAtRuntime();
+    void comboClosedTextContracts();
     void spinBoxPrefixSuffixSizingContract();
     void pluginAliases();
 };
@@ -273,6 +275,70 @@ void WinUI3DensityApiTest::spinBoxPrefixSuffixSizingContract()
                                                 QStyle::SC_SpinBoxEditField, &spin);
         QCOMPARE(spin.fontMetrics().elidedText(shown, Qt::ElideRight, slot.width()), shown);
     }
+}
+
+void WinUI3DensityApiTest::comboClosedTextContracts()
+{
+{
+    // Closed-label slot must cover the longest item (moved from interaction binary).
+    WinUI3::Style comboStyle(WinUI3::ThemeMode::Light);
+    QComboBox combo;
+    combo.setStyle(&comboStyle);
+    combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
+    combo.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QFont liveFont(QStringLiteral("Segoe UI"));
+    liveFont.setPixelSize(14);
+    combo.setFont(liveFont);
+    combo.ensurePolished();
+    const int longest =
+            combo.fontMetrics().horizontalAdvance(QStringLiteral("Standard density"));
+    QStyleOptionComboBox offer;
+    offer.initFrom(&combo);
+    const QSize hint = combo.style()->sizeFromContents(QStyle::CT_ComboBox, &offer,
+                                                       QSize(longest - 4, 16), &combo);
+    combo.resize(hint.width(), 32);
+    QStyleOptionComboBox option;
+    option.initFrom(&combo);
+    option.rect = combo.rect();
+    option.currentText = combo.currentText();
+    const QRect slot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                     QStyle::SC_ComboBoxEditField, &combo);
+    QVERIFY2(slot.width() >= longest,
+             qPrintable(QStringLiteral("slot %1 < text %2").arg(slot.width()).arg(longest)));
+    QCOMPARE(combo.fontMetrics().elidedText(combo.currentText(), Qt::ElideRight, slot.width()),
+             combo.currentText());
+}
+    {
+        // Icon rows reserve 16 px + 8 px gap in CE_ComboBoxLabel; the hint must cover it.
+        WinUI3::Style comboStyle(WinUI3::ThemeMode::Light);
+        QComboBox combo;
+        combo.setStyle(&comboStyle);
+        combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+        combo.addItem(QIcon(), QStringLiteral("Document"));
+        combo.addItem(QIcon(), QStringLiteral("Folder"));
+        combo.setItemIcon(0, comboStyle.standardIcon(QStyle::SP_FileIcon));
+        combo.setItemIcon(1, comboStyle.standardIcon(QStyle::SP_DirIcon));
+        combo.setCurrentIndex(0);
+        combo.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        combo.ensurePolished();
+        combo.resize(combo.sizeHint().width(), 32);
+        QStyleOptionComboBox option;
+        option.initFrom(&combo);
+        option.rect = combo.rect();
+        option.currentText = combo.currentText();
+        option.currentIcon = combo.itemIcon(combo.currentIndex());
+        option.iconSize = QSize(16, 16);
+        const QRect slot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                         QStyle::SC_ComboBoxEditField, &combo);
+        const int textWidth = combo.fontMetrics().horizontalAdvance(combo.currentText());
+        const int textSlot = slot.width() - 16 - 8;
+        QVERIFY2(textSlot >= textWidth,
+                 qPrintable(QStringLiteral("text slot %1 < text %2 (slot %3)").arg(textSlot).arg(textWidth).arg(slot.width())));
+        QCOMPARE(combo.fontMetrics().elidedText(combo.currentText(), Qt::ElideRight, textSlot),
+                 combo.currentText());
+    }
+
 }
 
 void WinUI3DensityApiTest::pluginAliases()

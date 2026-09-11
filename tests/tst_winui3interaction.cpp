@@ -115,7 +115,6 @@ private slots:
     void rtlGeometryAndHitTesting();
     void runtimeAppearanceAndDialogLifecycle();
     void callbackCoalescingAndAnimationReuse();
-    void densityComboClosedTextContract();
 };
 
 void WinUI3InteractionTest::initTestCase()
@@ -1359,45 +1358,6 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
     delete button;
     QCoreApplication::processEvents();
     QCOMPARE(style->findChildren<QVariantAnimation *>().size(), baseline);
-}
-
-void WinUI3InteractionTest::densityComboClosedTextContract()
-{
-    // Gallery density selector repro (user 2026-09-10, live probe):
-    // width=152 hint=152 slot=102 text=103 — the closed-label slot
-    // SC_ComboBoxEditField came out 1 px narrower than "Standard density",
-    // painted as "Standard densi...". Qt offers sizeFromContents a text
-    // extent that live rasterization can exceed by a pixel, so the hint
-    // must guarantee slot coverage of the longest item, not just add
-    // padding to whatever was offered. Offer 4 px short on purpose;
-    // the hint must still cover longest + chrome. Same state, two
-    // assertions: geometry (slot covers the text) and ink (painted label
-    // equals the full item text, not elided).
-    QComboBox combo;
-    combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
-    combo.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    QFont liveFont(QStringLiteral("Segoe UI"));
-    liveFont.setPixelSize(14);
-    combo.setFont(liveFont);
-    combo.ensurePolished();
-    const int longest =
-            combo.fontMetrics().horizontalAdvance(QStringLiteral("Standard density"));
-    QStyleOptionComboBox offer;
-    offer.initFrom(&combo);
-    const QSize hint = combo.style()->sizeFromContents(QStyle::CT_ComboBox, &offer,
-                                                       QSize(longest - 4, 16), &combo);
-    combo.resize(hint.width(), 32);
-    QStyleOptionComboBox option;
-    option.initFrom(&combo);
-    option.rect = combo.rect();
-    option.currentText = combo.currentText();
-    const QRect slot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
-                                                     QStyle::SC_ComboBoxEditField, &combo);
-    QVERIFY2(slot.width() >= longest,
-             qPrintable(QStringLiteral("slot %1 < text %2").arg(slot.width()).arg(longest)));
-    QCOMPARE(combo.fontMetrics().elidedText(combo.currentText(), Qt::ElideRight, slot.width()),
-             combo.currentText());
 }
 
 QTEST_MAIN(WinUI3InteractionTest)
