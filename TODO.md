@@ -1,7 +1,7 @@
 # WinUI3Style — feuille de route
 
-> État de référence : 11 septembre 2026, `main` @ `b696887` (split combo hors editors pour ratchet 60 KB).
-> Suite : 41/41 verte (natif exclu) ; `inputModalityFocus` fixé en `611cfb2` (5 runs interaction + full suite exit 0).
+> État de référence : 11 septembre 2026, `main` @ `948e018` (contrats chrome shell + dialog persistant au switch de thème).
+> Suite : 41/41 verte (natif exclu) ; `inputModalityFocus` fixé en `611cfb2`, split combo en `b696887`.
 > Gates `winui3style_source_contracts` et `winui3style_designer_gallery_contract` vertes.
 > Boucle de travail : chaque lot met à jour ce fichier, est relu, commité sur `main` puis poussé (workflow actuel : `main` direct).
 > Les cases cochées correspondent à des éléments présents dans le dépôt ; elles ne remplacent pas une validation visuelle WinUI en direct (`spec/coverage.md` reste « source-audited » partout, comparaison live obligatoire).
@@ -14,6 +14,7 @@
 - Wizard/dialogs Dark, deux surfaces, centrage (`wizardSurfaceContract`, `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle`, baselines `light/dark-wizard.png`).
 - Combo texte fermé élidé + chrome icône 16+8 (`comboClosedTextContracts`, `themeComboSizingContract`), spin affixe (`spinBoxPrefixSuffixSizingContract`), toggle toolbar mica (`checkedToolbarToggleKeepsFillOverBackdrop`, `fa28570`).
 - `tst_winui3editors.cpp` 60 199 B → `editors` 33 411 B + `tst_winui3combobox.cpp` 30 095 B (`b696887`, `winui3style_combobox_unit`) ; `interaction` 58 967 B et `views` 58 106 B restent sous 61 440 B.
+- Repaint thème sans bug (`948e018`, contrats seuls) : `themeSwitchRebasesChromeShell` (fenêtre+menu+toolbar+status), `persistentDialogSurvivesThemeSwitch` (contenu+footer Light→Dark→Light) ; popups/wizard persistants déjà couverts. Les 2 fail-first n'étaient pas des bugs (statusbar=`popupSurfaceColor`, footer=fill commande).
 
 ## Issues GitHub encore ouvertes
 
@@ -29,9 +30,7 @@
 ## P1 — backdrop, repaint et surfaces
 
 - [ ] Stratégie backdrop unique AutoSuggestBox/ComboBox/menus/popups (aujourd'hui : `eraseForBackdrop` par contrôle, pas de comparaison unifiée).
-- [ ] Repaint Light ↔ Dark ↔ System au-delà des îlots (`src/winui3style.cpp:1317` ne rebase que les îlots ; `backdropThemeSwitchRebasesIslandPalette` OK) : fond principal, menu, panneau gauche, contour.
 - [ ] Backdrop resize/occlusion/déplacement (toggle on/off + scroll couverts : `backdropLifecycleContract`, `backdropToggleOffRestoresShellSurfaces`, `islandScrollPostsFullViewportRepaint`).
-- [ ] Dialogs persistants + `QMessageBox`/`QDialogButtonBox`/`QWizard` à travers un changement de thème (couvert : ouverture + switch ; persistant : ouvert).
 
 ## P1 — navigation, champs, états
 
