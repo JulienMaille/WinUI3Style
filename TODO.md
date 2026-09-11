@@ -1,13 +1,12 @@
 # WinUI3Style — feuille de route
 
-> État : 11 septembre 2026, `main` @ `497bdff`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 11 septembre 2026, `main` @ `91cbd67`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## Issues GitHub ouvertes
 
 - [ ] **P2 — [#2 Promote warnings to errors](https://github.com/JulienMaille/WinUI3Style/issues/2)** — `WINUI3STYLE_WARNINGS_AS_ERRORS` limité à la lib (`src/CMakeLists.txt:87-90`, ON en CI) ; reste : autres cibles/compilateurs, build Debug `/W4` complet.
 - [ ] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)** — `src/winui3buttons_p.cpp:381` monolithique (QPushButton/QToolButton/CommandLink/checkable/disabled) ; prévoir non-régression par élément × thème/densité.
-- [ ] **P1 — [#5 (suivi)](https://github.com/JulienMaille/WinUI3Style/issues/5) relayout popup ouvert au switch de densité** — verdict by-design clos ; le repositionnement d'un popup déjà ouvert reste à reproduire séparément.
 
 ## P0 — garde-fous
 
