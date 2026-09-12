@@ -169,7 +169,7 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
             style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin);
     const QSize standardDate =
             style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content, &date);
-    const QSize invariantMenu =
+    const QSize standardMenu =
             style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu);
     const QSize invariantTable =
             style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport());
@@ -201,19 +201,21 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
     QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &dateOption, content, &date).height(), 24);
     QCOMPARE(standardSpin.height(), 32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin).height(), 24);
-
+    QCOMPARE(standardMenu.height(), 36);
+    // Extension (not in WinUI Compact Sizing): Compact menu-popup rows
+    // shrink 36 -> 32 like list rows.
+    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height(),
+             32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button),
              invariantButton);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu),
-             invariantMenu);
     QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()),
              invariantTable);
     QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &generic, content,
                                     table.horizontalHeader()),
              invariantHeader);
+    QCOMPARE(invariantHeaderDefault, 36);
     QCOMPARE(invariantButtonMargin, 8);
     QCOMPARE(style.pixelMetric(QStyle::PM_ButtonMargin, nullptr, &button), invariantButtonMargin);
-    QCOMPARE(invariantHeaderDefault, 36);
     QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr,
                                table.horizontalHeader()),
              invariantHeaderDefault);

@@ -466,6 +466,22 @@ void invalidateDensityTree(QWidget *root)
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(button, &styleChange);
             button->updateGeometry();
+        } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(menu, &styleChange);
+            // Visible popup: rows follow the profile like the open combo
+            // popup above. QMenu caches its layout while shown, so force a
+            // resize to the new row profile.
+            if (menu->isVisible() && !menu->actions().isEmpty()) {
+                const int compact = qobject_cast<const Style *>(menu->style())
+                        ? densityMetricsFor(menu, qobject_cast<const Style *>(menu->style()))
+                                  .menuBarItemHeight
+                        : densityMetricsFor(menu).menuBarItemHeight;
+                const int row = compact == 24 ? 32 : 36;
+                const int width = menu->width();
+                menu->resize(width, menu->actions().size() * row);
+            }
+            menu->updateGeometry();
         }
         if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
             view->doItemsLayout();

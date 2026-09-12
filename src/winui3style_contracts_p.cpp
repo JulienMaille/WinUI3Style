@@ -277,6 +277,11 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
                     + (shortcutWidth > 0 ? density.menuItemShortcutGap + shortcutWidth : 0);
             size.setWidth(qMax(size.width(), qMax(requiredWidth, 120)));
             size.setHeight(comboItem ? density.menuItemHeightInComboBox : density.menuItemHeight);
+            // Extension (not in WinUI Compact Sizing): Compact menu-popup rows
+            // shrink 36 -> 32 like list rows. Visible popups are resized to
+            // the new profile by the density invalidation below.
+            if (!comboItem && densityMetricsFor(widget, style).menuBarItemHeight == 24)
+                size.setHeight(32);
         }
         break;
     case QStyle::CT_ItemViewItem:

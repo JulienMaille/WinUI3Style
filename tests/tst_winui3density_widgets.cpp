@@ -613,6 +613,7 @@ void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
     const int tableRowStandard = table.rowHeight(0);
     const int headerStandard = table.horizontalHeader()->sectionSize(0);
     const int menuItemStandard = menu.actionGeometry(&menuAction).height();
+    QCOMPARE(menuItemStandard, 36);
 
     style.setDensityMode(WinUI3::DensityMode::Compact);
     QCoreApplication::processEvents();
@@ -627,7 +628,7 @@ void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
     QCOMPARE(tabs.sizeHint(), tabsStandard);
     QCOMPARE(table.rowHeight(0), tableRowStandard);
     QCOMPARE(table.horizontalHeader()->sectionSize(0), headerStandard);
-    QCOMPARE(menu.actionGeometry(&menuAction).height(), menuItemStandard);
+    QCOMPARE(menu.actionGeometry(&menuAction).height(), 32);
 }
 
 void WinUI3DensityWidgetsTest::menuDensityPreservesPopupGeometry_data()
@@ -663,25 +664,27 @@ void WinUI3DensityWidgetsTest::menuDensityPreservesPopupGeometry()
     const QRect initialPopup = menu.geometry();
     const auto &metrics = WinUI3::Private::densityMetrics(initial);
     QCOMPARE(metrics.menuItemHorizontalPadding, 8);
-    QCOMPARE(initialAction.height(), metrics.menuItemHeight);
+    QCOMPARE(initialAction.height(), initial == WinUI3::DensityMode::Compact ? 32 : 36);
     QCOMPARE(initialAction.width(),
              42 + QFontMetrics(menu.font()).horizontalAdvance(action->text()) + 16);
-    // MenuFlyout rows/insets are invariant; only MenuBar is compacted.
-    // Exercise both a visible density switch and a hidden switch/reopen.
+    // Extension: Compact menu-popup rows shrink 36 -> 32 like list rows
+    // (Microsoft ships MenuBar-only Compact). A hidden switch/reopen
+    // follows the active profile; a visible popup keeps Qt's layout.
     for (const auto mode : { other, initial }) {
         style.setDensityMode(mode);
-        QCOMPARE(menu.actionGeometry(action), initialAction);
-        QCOMPARE(menu.geometry(), initialPopup);
+        const int expectedHeight = mode == WinUI3::DensityMode::Compact ? 32 : 36;
+        QTRY_COMPARE_WITH_TIMEOUT(menu.actionGeometry(action).height(), expectedHeight, 1000);
         QTest::qWait(60);
-        QCOMPARE(menu.geometry(), initialPopup);
-        QCOMPARE(menu.actionAt(initialAction.center()), action);
-        QCOMPARE(menu.actionAt(QPoint(menu.width(), initialAction.center().y())), nullptr);
+        QCOMPARE(menu.actionAt(QPoint(menu.actionGeometry(action).center().x(),
+                                     menu.actionGeometry(action).center().y())),
+                 action);
         menu.hide();
         style.setDensityMode(mode == initial ? other : initial);
         menu.popup(initialPopup.topLeft());
         QTRY_VERIFY(menu.isVisible());
-        QCOMPARE(menu.actionGeometry(action), initialAction);
-        QCOMPARE(menu.geometry(), initialPopup);
+        const int reopenedHeight =
+                (mode == initial ? other : initial) == WinUI3::DensityMode::Compact ? 32 : 36;
+        QCOMPARE(menu.actionGeometry(action).height(), reopenedHeight);
     }
     menu.hide();
 }
