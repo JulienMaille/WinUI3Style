@@ -378,310 +378,328 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
     return false;
 }
 
+static bool drawPushButtonControl(const Style *style, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
+        style->drawPrimitive(QStyle::PE_PanelButtonCommand, button, painter, widget);
+        style->drawControl(QStyle::CE_PushButtonLabel, button, painter, widget);
+        if (button->features & QStyleOptionButton::HasMenu) {
+            paintDropdownChevron(
+                    painter, WinUI3::icon(Icon::ChevronDown), button->rect, button->direction,
+                    button->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
+                    button->state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled,
+                    button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
+        }
+        return true;
+    }
+    return false;
+}
+
+static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
+        const bool radio = element == QStyle::CE_RadioButton;
+        QStyleOptionButton indicator = *button;
+        indicator.rect = style->subElementRect(radio ? QStyle::SE_RadioButtonIndicator
+                                                     : QStyle::SE_CheckBoxIndicator,
+                                               button, widget);
+        style->drawPrimitive(radio ? QStyle::PE_IndicatorRadioButton
+                                   : QStyle::PE_IndicatorCheckBox,
+                             &indicator, painter, widget);
+
+        QRect contents = style->subElementRect(radio ? QStyle::SE_RadioButtonContents
+                                                     : QStyle::SE_CheckBoxContents,
+                                               button, widget);
+        const bool enabled = button->state & QStyle::State_Enabled;
+        if (!button->icon.isNull()) {
+            const QSize iconSize =
+                    button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
+            const QRect logical(contents.left(), contents.center().y() - iconSize.height() / 2,
+                                iconSize.width(), iconSize.height());
+            const QRect iconRect = QStyle::visualRect(button->direction, contents, logical);
+            paintThemedIcon(painter, button->icon, iconRect, Qt::AlignCenter,
+                            enabled ? t.textPrimary : t.textDisabled,
+                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
+            if (button->direction == Qt::RightToLeft)
+                contents.setRight(iconRect.left() - 6);
+            else
+                contents.setLeft(iconRect.right() + 6);
+        }
+        paintGrayscaleText(painter, contents,
+                           QStyle::visualAlignment(button->direction,
+                                                   Qt::AlignLeft | Qt::AlignVCenter)
+                                   | Qt::TextShowMnemonic,
+                           widget ? widget->font() : QApplication::font(),
+                           enabled ? t.textPrimary : t.textDisabled, button->text);
+        painter->save();
+        if ((button->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
+            paintFocusRing(painter, QRectF(button->rect), t.focusOuter, t.focusInner, 1, 3, 5,
+                           3);
+        }
+        painter->restore();
+        return true;
+    }
+    return false;
+}
+
+static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    if (const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option)) {
+        const bool enabled = check->state & QStyle::State_Enabled;
+        const bool checked = check->state & (QStyle::State_On | QStyle::State_NoChange);
+        const qreal hover = progress(widget, hoverProperty,
+                                     check->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+        const qreal press = progress(widget, pressProperty,
+                                     check->state & QStyle::State_Sunken ? 1.0 : 0.0);
+        const qreal position = progress(widget, togglePositionProperty, checked ? 1.0 : 0.0);
+        const bool dragging =
+                framePropertyRegistry().value(widget, toggleDraggingProperty).toBool();
+
+        // WinUI's template owns a 40 x 20 track. Snap the slot to whole
+        // device pixels so the pill's flat top/bottom edges render as one
+        // solid pixel row instead of splitting ~50/50 across two rows.
+        QRectF track = toggleTrackRect(check->rect, check->direction);
+        track = snappedRect(track, painter);
+        QColor trackFill;
+        QColor trackStroke;
+        QColor knob;
+        if (!enabled) {
+            trackFill = checked ? t.accentFillDisabled : Qt::transparent;
+            trackStroke = withAlpha(t.strokeStrong, 40);
+            knob = withAlpha(checked ? t.controlOnAccentDisabled : t.textDisabled, 150);
+        } else if (dragging) {
+            trackFill = mix(t.toggleOff, t.accentFillPressed, position);
+            trackStroke = mix(t.strokeStrong, t.accentFillPressed, position);
+            knob = mix(t.textSecondary, t.controlOnAccentPrimary, position);
+        } else if (checked) {
+            trackFill = mix(t.accentFill, t.accentFillHover, hover * (1.0 - press));
+            trackFill = mix(trackFill, t.accentFillPressed, press);
+            trackStroke = trackFill;
+            knob = t.controlOnAccentPrimary;
+        } else {
+            trackFill = mix(t.toggleOff, t.toggleOffHover, hover * (1.0 - press));
+            trackFill = mix(trackFill, t.toggleOffPressed, press);
+            trackStroke = t.strokeStrong;
+            knob = t.textSecondary;
+        }
+        roundedRect(painter, track, trackFill, trackStroke, 10.0);
+
+        const QRectF knobRect = toggleKnobRect(track, position, hover, press, check->direction);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(knob);
+        painter->drawEllipse(knobRect);
+        painter->restore();
+
+        const QVariant stateText =
+                widget->property(checked ? Style::ToggleSwitchOnTextProperty
+                                         : Style::ToggleSwitchOffTextProperty);
+        const QString label = stateText.isValid() ? stateText.toString() : check->text;
+        if (!label.isEmpty()) {
+            painter->setFont(widget->font());
+            painter->setPen(enabled ? t.textPrimary : t.textDisabled);
+            const QRect labelRect = check->direction == Qt::RightToLeft
+                    ? check->rect.adjusted(0, 0, -50, 0)
+                    : check->rect.adjusted(50, 0, 0, 0);
+            const Qt::Alignment horizontal =
+                    check->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
+            paintGrayscaleText(painter, labelRect,
+                               horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic,
+                               widget->font(), enabled ? t.textPrimary : t.textDisabled, label);
+        }
+        if (keyboardFocusVisible(widget))
+            paintFocusRing(painter, track, t.focusOuter, t.focusInner, -3, -1, 12, 11);
+        return true;
+    }
+    return false;
+}
+
+static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
+        const bool enabled = button->state & QStyle::State_Enabled;
+        const ControlRole role = Style::controlRole(widget);
+        const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
+                || ((button->state & QStyle::State_On) && role == ControlRole::Standard);
+        const bool pressed = enabled && (button->state & QStyle::State_Sunken);
+        const QColor textColor = !enabled ? t.textDisabled
+                : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
+                         : (pressed ? t.textSecondary : t.textPrimary);
+        QRect content =
+                style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
+        if (qobject_cast<const QCommandLinkButton *>(widget)) {
+            // QCommandLinkButton paints its title and description
+            // after asking the style for CE_PushButtonLabel. Drawing
+            // its icon or either string here duplicates the
+            // widget-owned command-link contents. The surrounding
+            // Fluent surface remains entirely style-owned.
+            return true;
+        }
+        if (button->features & QStyleOptionButton::HasMenu) {
+            const QRect logical = content.adjusted(0, 0, -22, 0);
+            content = QStyle::visualRect(button->direction, button->rect, logical);
+        }
+        const QFontMetrics metrics(button->fontMetrics);
+        const int textWidth =
+                button->text.isEmpty() ? 0 : metrics.horizontalAdvance(button->text);
+        const QSize iconSize =
+                button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
+        const bool hasIcon = !button->icon.isNull();
+        const int gap = hasIcon && textWidth > 0 ? 8 : 0;
+        const int totalWidth = (hasIcon ? iconSize.width() : 0) + gap + textWidth;
+        const int logicalStart =
+                content.left() + qMax(0, (content.width() - totalWidth) / 2);
+        if (hasIcon) {
+            const QRect iconRect = QStyle::visualRect(
+                    button->direction, content,
+                    QRect(logicalStart, content.center().y() - iconSize.height() / 2,
+                          iconSize.width(), iconSize.height()));
+            paintThemedIcon(painter, button->icon, iconRect, Qt::AlignCenter, textColor,
+                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
+        }
+        if (textWidth > 0) {
+            const QRect textRect = QStyle::visualRect(
+                    button->direction, content,
+                    QRect(logicalStart + (hasIcon ? iconSize.width() + gap : 0),
+                          content.top(), textWidth, content.height()));
+            paintGrayscaleText(painter, textRect, Qt::AlignCenter | Qt::TextShowMnemonic,
+                               widget ? widget->font() : QApplication::font(), textColor,
+                               button->text);
+        }
+        return true;
+    }
+    return false;
+}
+
+static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
+        const bool enabled = tool->state & QStyle::State_Enabled;
+        const ControlRole role = Style::controlRole(widget);
+        const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
+                || ((tool->state & QStyle::State_On) && role == ControlRole::Standard);
+        const bool textHelper = textBoxHelperButton(widget);
+        const auto *helperEditor =
+                widget ? qobject_cast<const QLineEdit *>(widget->parentWidget()) : nullptr;
+        const bool clearHelper = helperEditor && lineEditClearButton(helperEditor) == widget;
+        const bool pressed = tool->state & QStyle::State_Sunken;
+        const QColor textColor = !enabled ? t.textDisabled
+                : textHelper              ? (pressed ? t.textTertiary : t.textSecondary)
+                : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
+                         : (pressed ? t.textSecondary : t.textPrimary);
+        const QRectF buttonRect(style->subControlRect(QStyle::CC_ToolButton, tool,
+                                                      QStyle::SC_ToolButton, widget));
+        // WinUI's 30 px DeleteButton contains a 12 px E894 glyph inside
+        // TextBoxInnerButtonMargin 0,4,4,4. Mirror that asymmetric margin
+        // in RTL instead of centring Qt's default 16 px icon in the slot.
+        const QRectF content = clearHelper
+                ? visualRectF(tool->direction, buttonRect,
+                              buttonRect.adjusted(0.0, 4.0, -4.0, -4.0))
+                : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
+        Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
+        if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
+            buttonStyle = toolButton->toolButtonStyle();
+        if (buttonStyle == Qt::ToolButtonFollowStyle)
+            buttonStyle = Qt::ToolButtonIconOnly;
+        const bool hasIcon = !tool->icon.isNull();
+        const QSize iconSize = clearHelper
+                ? QSize(12, 12)
+                : (tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16));
+        const QFontMetrics metrics(tool->fontMetrics);
+        const int textWidth = tool->text.isEmpty() ? 0 : metrics.horizontalAdvance(tool->text);
+        if (buttonStyle == Qt::ToolButtonTextOnly || !hasIcon) {
+            paintGrayscaleText(painter, content.toRect(), Qt::AlignCenter | Qt::TextShowMnemonic,
+                               tool->font, textColor, tool->text);
+        } else if (buttonStyle == Qt::ToolButtonTextBesideIcon && textWidth > 0) {
+            const qreal total = iconSize.width() + 6.0 + textWidth;
+            const qreal logicalStart =
+                    content.left() + qMax<qreal>(0.0, (content.width() - total) / 2.0);
+            const QRectF iconRect = visualRectF(
+                    tool->direction, content,
+                    QRectF(logicalStart, content.center().y() - iconSize.height() / 2.0,
+                           iconSize.width(), iconSize.height()));
+            paintThemedIcon(painter, tool->icon, iconRect, Qt::AlignCenter, textColor,
+                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
+            const QRectF textRect =
+                    visualRectF(tool->direction, content,
+                                QRectF(logicalStart + iconSize.width() + 6.0, content.top(),
+                                       textWidth, content.height()));
+            paintGrayscaleText(painter, textRect.toRect(),
+                               Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
+                               tool->text);
+        } else if (buttonStyle == Qt::ToolButtonTextUnderIcon && textWidth > 0) {
+            paintThemedIcon(painter, tool->icon,
+                            QRectF(content.center().x() - iconSize.width() / 2.0, content.top(),
+                                   iconSize.width(), iconSize.height()),
+                            Qt::AlignCenter, textColor,
+                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
+            paintGrayscaleText(painter, content.adjusted(0, iconSize.height(), 0, 0).toRect(),
+                               Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
+                               tool->text);
+        } else if (hasIcon) {
+            QRectF iconRect(content.center().x() - iconSize.width() / 2.0,
+                            content.center().y() - iconSize.height() / 2.0, iconSize.width(),
+                            iconSize.height());
+            // Segoe Fluent's E894 ink sits three pixels above/left of its
+            // nominal 12 px advance box in Qt. WinUI's GlyphElement
+            // compensates through its text layout; match the visible ink
+            // centre explicitly in the private QLineEdit button.
+            if (clearHelper) {
+                // The private Qt button is not centred in the editor-scoped
+                // DeleteButton surface.  WinUI's asymmetric 0,4,4,4 inner
+                // margin requires a small trailing/down compensation, but
+                // the previous 3 px shift put the X visibly low and right.
+                iconRect.translate(2.0, 1.0);
+            }
+            paintThemedIcon(painter, tool->icon, iconRect, Qt::AlignCenter, textColor,
+                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
+        }
+        if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
+            // Center the shared chevron in the dropdown half (official
+            // SplitButton: centered, right padding 0), never on the
+            // divider line.
+            const QRect menuZone = style->subControlRect(QStyle::CC_ToolButton, tool,
+                                                         QStyle::SC_ToolButtonMenu, widget);
+            paintDropdownChevron(painter, WinUI3::icon(Icon::ChevronDown), menuZone,
+                                 tool->direction, textColor,
+                                 enabled ? QIcon::Normal : QIcon::Disabled,
+                                 tool->state & QStyle::State_On ? QIcon::On : QIcon::Off, true);
+        }
+        return true;
+    }
+    return false;
+}
+
 bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                        const QStyleOption *option, QPainter *painter, const QWidget *widget)
 {
-    if (element != QStyle::CE_PushButton && element != QStyle::CE_CheckBox
-        && element != QStyle::CE_RadioButton && element != QStyle::CE_PushButtonLabel
-        && element != QStyle::CE_ToolButtonLabel) {
+    switch (element) {
+    case QStyle::CE_PushButton:
+        return drawPushButtonControl(style, option, painter, widget);
+    case QStyle::CE_CheckBox:
+        if (toggleSwitch(widget))
+            return drawToggleSwitchControl(style, option, painter, widget);
+        return drawCheckRadioControl(style, element, option, painter, widget);
+    case QStyle::CE_RadioButton:
+        return drawCheckRadioControl(style, element, option, painter, widget);
+    case QStyle::CE_PushButtonLabel:
+        return drawPushButtonLabelControl(style, option, painter, widget);
+    case QStyle::CE_ToolButtonLabel:
+        return drawToolButtonLabelControl(style, option, painter, widget);
+    default:
         return false;
     }
-
-    const Tokens t = tokens(option->palette);
-
-    if (element == QStyle::CE_PushButton) {
-        if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
-            style->drawPrimitive(QStyle::PE_PanelButtonCommand, button, painter, widget);
-            style->drawControl(QStyle::CE_PushButtonLabel, button, painter, widget);
-            if (button->features & QStyleOptionButton::HasMenu) {
-                paintDropdownChevron(
-                        painter, WinUI3::icon(Icon::ChevronDown), button->rect, button->direction,
-                        button->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
-                        button->state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled,
-                        button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    if ((element == QStyle::CE_CheckBox && !toggleSwitch(widget))
-        || element == QStyle::CE_RadioButton) {
-        if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
-            const bool radio = element == QStyle::CE_RadioButton;
-            QStyleOptionButton indicator = *button;
-            indicator.rect = style->subElementRect(radio ? QStyle::SE_RadioButtonIndicator
-                                                         : QStyle::SE_CheckBoxIndicator,
-                                                   button, widget);
-            style->drawPrimitive(radio ? QStyle::PE_IndicatorRadioButton
-                                       : QStyle::PE_IndicatorCheckBox,
-                                 &indicator, painter, widget);
-
-            QRect contents = style->subElementRect(radio ? QStyle::SE_RadioButtonContents
-                                                         : QStyle::SE_CheckBoxContents,
-                                                   button, widget);
-            const bool enabled = button->state & QStyle::State_Enabled;
-            if (!button->icon.isNull()) {
-                const QSize iconSize =
-                        button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
-                const QRect logical(contents.left(), contents.center().y() - iconSize.height() / 2,
-                                    iconSize.width(), iconSize.height());
-                const QRect iconRect = QStyle::visualRect(button->direction, contents, logical);
-                paintThemedIcon(painter, button->icon, iconRect, Qt::AlignCenter,
-                                enabled ? t.textPrimary : t.textDisabled,
-                                enabled ? QIcon::Normal : QIcon::Disabled,
-                                button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-                if (button->direction == Qt::RightToLeft)
-                    contents.setRight(iconRect.left() - 6);
-                else
-                    contents.setLeft(iconRect.right() + 6);
-            }
-            paintGrayscaleText(painter, contents,
-                               QStyle::visualAlignment(button->direction,
-                                                       Qt::AlignLeft | Qt::AlignVCenter)
-                                       | Qt::TextShowMnemonic,
-                               widget ? widget->font() : QApplication::font(),
-                               enabled ? t.textPrimary : t.textDisabled, button->text);
-            painter->save();
-            if ((button->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
-                paintFocusRing(painter, QRectF(button->rect), t.focusOuter, t.focusInner, 1, 3, 5,
-                               3);
-            }
-            painter->restore();
-            return true;
-        }
-        return false;
-    }
-
-    if (element == QStyle::CE_CheckBox && toggleSwitch(widget)) {
-        if (const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option)) {
-            const bool enabled = check->state & QStyle::State_Enabled;
-            const bool checked = check->state & (QStyle::State_On | QStyle::State_NoChange);
-            const qreal hover = progress(widget, hoverProperty,
-                                         check->state & QStyle::State_MouseOver ? 1.0 : 0.0);
-            const qreal press = progress(widget, pressProperty,
-                                         check->state & QStyle::State_Sunken ? 1.0 : 0.0);
-            const qreal position = progress(widget, togglePositionProperty, checked ? 1.0 : 0.0);
-            const bool dragging =
-                    framePropertyRegistry().value(widget, toggleDraggingProperty).toBool();
-
-            // WinUI's template owns a 40 x 20 track. Snap the slot to whole
-            // device pixels so the pill's flat top/bottom edges render as one
-            // solid pixel row instead of splitting ~50/50 across two rows.
-            QRectF track = toggleTrackRect(check->rect, check->direction);
-            track = snappedRect(track, painter);
-            QColor trackFill;
-            QColor trackStroke;
-            QColor knob;
-            if (!enabled) {
-                trackFill = checked ? t.accentFillDisabled : Qt::transparent;
-                trackStroke = withAlpha(t.strokeStrong, 40);
-                knob = withAlpha(checked ? t.controlOnAccentDisabled : t.textDisabled, 150);
-            } else if (dragging) {
-                trackFill = mix(t.toggleOff, t.accentFillPressed, position);
-                trackStroke = mix(t.strokeStrong, t.accentFillPressed, position);
-                knob = mix(t.textSecondary, t.controlOnAccentPrimary, position);
-            } else if (checked) {
-                trackFill = mix(t.accentFill, t.accentFillHover, hover * (1.0 - press));
-                trackFill = mix(trackFill, t.accentFillPressed, press);
-                trackStroke = trackFill;
-                knob = t.controlOnAccentPrimary;
-            } else {
-                trackFill = mix(t.toggleOff, t.toggleOffHover, hover * (1.0 - press));
-                trackFill = mix(trackFill, t.toggleOffPressed, press);
-                trackStroke = t.strokeStrong;
-                knob = t.textSecondary;
-            }
-            roundedRect(painter, track, trackFill, trackStroke, 10.0);
-
-            const QRectF knobRect = toggleKnobRect(track, position, hover, press, check->direction);
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(knob);
-            painter->drawEllipse(knobRect);
-            painter->restore();
-
-            const QVariant stateText =
-                    widget->property(checked ? Style::ToggleSwitchOnTextProperty
-                                             : Style::ToggleSwitchOffTextProperty);
-            const QString label = stateText.isValid() ? stateText.toString() : check->text;
-            if (!label.isEmpty()) {
-                painter->setFont(widget->font());
-                painter->setPen(enabled ? t.textPrimary : t.textDisabled);
-                const QRect labelRect = check->direction == Qt::RightToLeft
-                        ? check->rect.adjusted(0, 0, -50, 0)
-                        : check->rect.adjusted(50, 0, 0, 0);
-                const Qt::Alignment horizontal =
-                        check->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
-                paintGrayscaleText(painter, labelRect,
-                                   horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic,
-                                   widget->font(), enabled ? t.textPrimary : t.textDisabled, label);
-            }
-            if (keyboardFocusVisible(widget))
-                paintFocusRing(painter, track, t.focusOuter, t.focusInner, -3, -1, 12, 11);
-            return true;
-        }
-        return false;
-    }
-
-    if (element == QStyle::CE_PushButtonLabel || element == QStyle::CE_ToolButtonLabel) {
-        if (element == QStyle::CE_PushButtonLabel) {
-            if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
-                const bool enabled = button->state & QStyle::State_Enabled;
-                const ControlRole role = Style::controlRole(widget);
-                const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
-                        || ((button->state & QStyle::State_On) && role == ControlRole::Standard);
-                const bool pressed = enabled && (button->state & QStyle::State_Sunken);
-                const QColor textColor = !enabled ? t.textDisabled
-                        : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
-                                 : (pressed ? t.textSecondary : t.textPrimary);
-                QRect content =
-                        style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
-                if (qobject_cast<const QCommandLinkButton *>(widget)) {
-                    // QCommandLinkButton paints its title and description
-                    // after asking the style for CE_PushButtonLabel. Drawing
-                    // its icon or either string here duplicates the
-                    // widget-owned command-link contents. The surrounding
-                    // Fluent surface remains entirely style-owned.
-                    return true;
-                }
-                if (button->features & QStyleOptionButton::HasMenu) {
-                    const QRect logical = content.adjusted(0, 0, -22, 0);
-                    content = QStyle::visualRect(button->direction, button->rect, logical);
-                }
-                const QFontMetrics metrics(button->fontMetrics);
-                const int textWidth =
-                        button->text.isEmpty() ? 0 : metrics.horizontalAdvance(button->text);
-                const QSize iconSize =
-                        button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
-                const bool hasIcon = !button->icon.isNull();
-                const int gap = hasIcon && textWidth > 0 ? 8 : 0;
-                const int totalWidth = (hasIcon ? iconSize.width() : 0) + gap + textWidth;
-                const int logicalStart =
-                        content.left() + qMax(0, (content.width() - totalWidth) / 2);
-                if (hasIcon) {
-                    const QRect iconRect = QStyle::visualRect(
-                            button->direction, content,
-                            QRect(logicalStart, content.center().y() - iconSize.height() / 2,
-                                  iconSize.width(), iconSize.height()));
-                    paintThemedIcon(painter, button->icon, iconRect, Qt::AlignCenter, textColor,
-                                    enabled ? QIcon::Normal : QIcon::Disabled,
-                                    button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-                }
-                if (textWidth > 0) {
-                    const QRect textRect = QStyle::visualRect(
-                            button->direction, content,
-                            QRect(logicalStart + (hasIcon ? iconSize.width() + gap : 0),
-                                  content.top(), textWidth, content.height()));
-                    paintGrayscaleText(painter, textRect, Qt::AlignCenter | Qt::TextShowMnemonic,
-                                       widget ? widget->font() : QApplication::font(), textColor,
-                                       button->text);
-                }
-                return true;
-            }
-            return false;
-        } else if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
-            const bool enabled = tool->state & QStyle::State_Enabled;
-            const ControlRole role = Style::controlRole(widget);
-            const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
-                    || ((tool->state & QStyle::State_On) && role == ControlRole::Standard);
-            const bool textHelper = textBoxHelperButton(widget);
-            const auto *helperEditor =
-                    widget ? qobject_cast<const QLineEdit *>(widget->parentWidget()) : nullptr;
-            const bool clearHelper = helperEditor && lineEditClearButton(helperEditor) == widget;
-            const bool pressed = tool->state & QStyle::State_Sunken;
-            const QColor textColor = !enabled ? t.textDisabled
-                    : textHelper              ? (pressed ? t.textTertiary : t.textSecondary)
-                    : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
-                             : (pressed ? t.textSecondary : t.textPrimary);
-            const QRectF buttonRect(style->subControlRect(QStyle::CC_ToolButton, tool,
-                                                          QStyle::SC_ToolButton, widget));
-            // WinUI's 30 px DeleteButton contains a 12 px E894 glyph inside
-            // TextBoxInnerButtonMargin 0,4,4,4. Mirror that asymmetric margin
-            // in RTL instead of centring Qt's default 16 px icon in the slot.
-            const QRectF content = clearHelper
-                    ? visualRectF(tool->direction, buttonRect,
-                                  buttonRect.adjusted(0.0, 4.0, -4.0, -4.0))
-                    : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
-            Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
-            if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
-                buttonStyle = toolButton->toolButtonStyle();
-            if (buttonStyle == Qt::ToolButtonFollowStyle)
-                buttonStyle = Qt::ToolButtonIconOnly;
-            const bool hasIcon = !tool->icon.isNull();
-            const QSize iconSize = clearHelper
-                    ? QSize(12, 12)
-                    : (tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16));
-            const QFontMetrics metrics(tool->fontMetrics);
-            const int textWidth = tool->text.isEmpty() ? 0 : metrics.horizontalAdvance(tool->text);
-            if (buttonStyle == Qt::ToolButtonTextOnly || !hasIcon) {
-                paintGrayscaleText(painter, content.toRect(), Qt::AlignCenter | Qt::TextShowMnemonic,
-                                   tool->font, textColor, tool->text);
-            } else if (buttonStyle == Qt::ToolButtonTextBesideIcon && textWidth > 0) {
-                const qreal total = iconSize.width() + 6.0 + textWidth;
-                const qreal logicalStart =
-                        content.left() + qMax<qreal>(0.0, (content.width() - total) / 2.0);
-                const QRectF iconRect = visualRectF(
-                        tool->direction, content,
-                        QRectF(logicalStart, content.center().y() - iconSize.height() / 2.0,
-                               iconSize.width(), iconSize.height()));
-                paintThemedIcon(painter, tool->icon, iconRect, Qt::AlignCenter, textColor,
-                                enabled ? QIcon::Normal : QIcon::Disabled,
-                                tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-                const QRectF textRect =
-                        visualRectF(tool->direction, content,
-                                    QRectF(logicalStart + iconSize.width() + 6.0, content.top(),
-                                           textWidth, content.height()));
-                paintGrayscaleText(painter, textRect.toRect(),
-                                   Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
-                                   tool->text);
-            } else if (buttonStyle == Qt::ToolButtonTextUnderIcon && textWidth > 0) {
-                paintThemedIcon(painter, tool->icon,
-                                QRectF(content.center().x() - iconSize.width() / 2.0, content.top(),
-                                       iconSize.width(), iconSize.height()),
-                                Qt::AlignCenter, textColor,
-                                enabled ? QIcon::Normal : QIcon::Disabled,
-                                tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-                paintGrayscaleText(painter, content.adjusted(0, iconSize.height(), 0, 0).toRect(),
-                                   Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
-                                   tool->text);
-            } else if (hasIcon) {
-                QRectF iconRect(content.center().x() - iconSize.width() / 2.0,
-                                content.center().y() - iconSize.height() / 2.0, iconSize.width(),
-                                iconSize.height());
-                // Segoe Fluent's E894 ink sits three pixels above/left of its
-                // nominal 12 px advance box in Qt. WinUI's GlyphElement
-                // compensates through its text layout; match the visible ink
-                // centre explicitly in the private QLineEdit button.
-                if (clearHelper) {
-                    // The private Qt button is not centred in the editor-scoped
-                    // DeleteButton surface.  WinUI's asymmetric 0,4,4,4 inner
-                    // margin requires a small trailing/down compensation, but
-                    // the previous 3 px shift put the X visibly low and right.
-                    iconRect.translate(2.0, 1.0);
-                }
-                paintThemedIcon(painter, tool->icon, iconRect, Qt::AlignCenter, textColor,
-                                enabled ? QIcon::Normal : QIcon::Disabled,
-                                tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-            }
-            if (tool->features & QStyleOptionToolButton::MenuButtonPopup) {
-                // Center the shared chevron in the dropdown half (official
-                // SplitButton: centered, right padding 0), never on the
-                // divider line.
-                const QRect menuZone = style->subControlRect(QStyle::CC_ToolButton, tool,
-                                                             QStyle::SC_ToolButtonMenu, widget);
-                paintDropdownChevron(painter, WinUI3::icon(Icon::ChevronDown), menuZone,
-                                     tool->direction, textColor,
-                                     enabled ? QIcon::Normal : QIcon::Disabled,
-                                     tool->state & QStyle::State_On ? QIcon::On : QIcon::Off, true);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    return false;
 }
 
 } // namespace WinUI3::Private

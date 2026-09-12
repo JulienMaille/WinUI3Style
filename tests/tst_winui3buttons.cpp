@@ -118,6 +118,7 @@ private slots:
     void buttonBorderStaysInsideOuterPixel();
     void buttonTextAntialiasesGrayscale();
     void standardControlHeightsAre32px();
+    void buttonControlOwnershipByElement();
 };
 
 void WinUI3ButtonsTest::initTestCase()
@@ -1120,6 +1121,64 @@ void WinUI3ButtonsTest::standardControlHeightsAre32px()
     QCOMPARE(button.sizeHint().height(), 32);
     QCOMPARE(combo.sizeHint().height(), 32);
     QCOMPARE(edit.sizeHint().height(), 32);
+}
+
+void WinUI3ButtonsTest::buttonControlOwnershipByElement()
+{
+    // Split-guard for the per-element drawButtonControl refactor (#1):
+    // every covered element stays owned through the dispatcher, across
+    // themes and densities. Same state per cell: non-null ink.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const QList<QStyle::ControlElement> owned = {
+        QStyle::CE_PushButton, QStyle::CE_CheckBox, QStyle::CE_RadioButton,
+        QStyle::CE_PushButtonLabel, QStyle::CE_ToolButtonLabel
+    };
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
+        style->setThemeMode(mode);
+        for (const WinUI3::DensityMode density :
+             { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+            style->setDensityMode(density);
+            for (QStyle::ControlElement element : owned) {
+                QWidget widget;
+                widget.setStyle(style);
+                widget.resize(120, 32);
+                QStyleOptionButton buttonOption;
+                buttonOption.initFrom(&widget);
+                buttonOption.rect = widget.rect();
+                buttonOption.state |= QStyle::State_Enabled | QStyle::State_On;
+                buttonOption.text = QStringLiteral("Option");
+                QStyleOptionToolButton toolOption;
+                toolOption.initFrom(&widget);
+                toolOption.rect = widget.rect();
+                toolOption.state |= QStyle::State_Enabled;
+                toolOption.text = QStringLiteral("Tool");
+                const QStyleOption *option = element == QStyle::CE_ToolButtonLabel
+                        ? static_cast<const QStyleOption *>(&toolOption)
+                        : static_cast<const QStyleOption *>(&buttonOption);
+                QImage image(widget.size(), QImage::Format_ARGB32_Premultiplied);
+                image.fill(Qt::transparent);
+                QPainter painter(&image);
+                style->drawControl(element, option, &painter, &widget);
+                painter.end();
+                bool ink = false;
+                for (int y = 0; y < image.height() && !ink; ++y) {
+                    for (int x = 0; x < image.width(); ++x) {
+                        if (image.pixelColor(x, y).alpha() > 0) {
+                            ink = true;
+                            break;
+                        }
+                    }
+                }
+                QVERIFY2(ink, qPrintable(QStringLiteral("no ink for element=%1 mode=%2 density=%3")
+                                                 .arg(int(element))
+                                                 .arg(int(mode))
+                                                 .arg(int(density))));
+            }
+        }
+    }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    style->setDensityMode(WinUI3::DensityMode::Standard);
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)
