@@ -1,6 +1,6 @@
 # WinUI3Style — feuille de route
 
-> État : 11 septembre 2026, `main` @ `91cbd67`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 12 septembre 2026, `main` @ `ed0987c`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## Issues GitHub ouvertes
@@ -20,7 +20,7 @@
 
 - [ ] NavigationView : revalidation métriques WinUI + contraste hover/pressed/selected trois thèmes (comportement testé : `navigationTransition`, `navigationInteractiveFrames`, `renderCommonStates`).
 - [ ] AutoSuggestBox : clavier, hit-test, stratégie backdrop (couvert : sous-chaînes, palette popup, thème ouvert).
-- [ ] Démos Compact galerie manquantes : PasswordBox, AutoSuggestBox, TimePicker, ListView, TreeView, NavigationView, MenuBar (métriques+tests OK pour les 10 via `OfficialCompactWidgets` ; `.ui` n'a que TextBox/ComboBox/DatePicker/CheckBox/Radio/NumberBox).
+- [ ] Démos Compact galerie manquantes : NavigationView, MenuBar (`ed0987c` : PasswordBox, AutoSuggestBox, TimePicker, ListView, TreeView ajoutés ; métriques+tests OK via `OfficialCompactWidgets`).
 
 ## P2 — architecture, accessibilité, robustesse, tests
 
