@@ -1,12 +1,12 @@
 # WinUI3Style — feuille de route
 
-> État : 12 septembre 2026, `main` @ `ed0987c`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 12 septembre 2026, `main` @ `90d54b7`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## Issues GitHub ouvertes
 
 - [ ] **P2 — [#2 Promote warnings to errors](https://github.com/JulienMaille/WinUI3Style/issues/2)** — `WINUI3STYLE_WARNINGS_AS_ERRORS` limité à la lib (`src/CMakeLists.txt:87-90`, ON en CI) ; reste : autres cibles/compilateurs, build Debug `/W4` complet.
-- [ ] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)** — `src/winui3buttons_p.cpp:381` monolithique (QPushButton/QToolButton/CommandLink/checkable/disabled) ; prévoir non-régression par élément × thème/densité.
+- [x] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)** — clos en `90d54b7` : 5 helpers `static` + dispatcher `switch`, corps à l'identique, garde `buttonControlOwnershipByElement` (5 éléments × Light/Dark × Standard/Compact).
 
 ## P0 — garde-fous
 
