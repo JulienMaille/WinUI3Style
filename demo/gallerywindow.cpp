@@ -99,7 +99,13 @@ void GalleryWindow::configureGallery()
     autoSuggestCompleter->setFilterMode(Qt::MatchContains);
     autoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
     ui->autoSuggestEdit->setCompleter(autoSuggestCompleter);
-    ui->selectedEdit->selectAll();
+    auto *compactAutoSuggestCompleter = new QCompleter(
+            { tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"), tr("Settings"), tr("Controls") },
+            ui->compactDensityAutoSuggest);
+    compactAutoSuggestCompleter->setCaseSensitivity(Qt::CaseInsensitive);
+    compactAutoSuggestCompleter->setFilterMode(Qt::MatchContains);
+    compactAutoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
+    ui->compactDensityAutoSuggest->setCompleter(compactAutoSuggestCompleter);
 
     const auto icon = [this](QStyle::StandardPixmap pixmap) {
         return style()->standardIcon(pixmap, nullptr, this);
@@ -133,7 +139,6 @@ void GalleryWindow::configureGallery()
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
-
     ui->themeCombo->setCurrentIndex(qApp->style()->property("themeMode").toInt());
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &GalleryWindow::setTheme);
@@ -191,6 +196,18 @@ void GalleryWindow::populateCollections()
     for (const QString &text : { tr("Documents"), tr("Pictures"), tr("Downloads") })
         new QListWidgetItem(folder, text, ui->listViewTab);
     new QListWidgetItem(file, tr("Readme.txt"), ui->listViewTab);
+    for (QListWidget *nav : { ui->standardDensityNav, ui->compactDensityNav }) {
+        for (const QString &text : { tr("Home"), tr("Collections") })
+            new QListWidgetItem(text, nav);
+    }
+    for (const QString &text : { tr("Documents"), tr("Pictures"), tr("Downloads") })
+        new QListWidgetItem(folder, text, ui->compactListView);
+    new QListWidgetItem(file, tr("Readme.txt"), ui->compactListView);
+    auto *compactRoot = new QTreeWidgetItem(ui->compactTreeView, { tr("Example album") });
+    compactRoot->setIcon(0, folder);
+    for (const QString &text : { tr("01 — First track"), tr("02 — Second track") })
+        new QTreeWidgetItem(compactRoot, { text });
+    compactRoot->setExpanded(true);
     for (const QString &text : { tr("Disabled document"), tr("Disabled folder") })
         new QListWidgetItem(text, ui->disabledListView);
     auto *rtlRoot = new QTreeWidgetItem(ui->rtlTreeView, { tr("RTL collection") });
