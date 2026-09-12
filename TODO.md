@@ -1,6 +1,6 @@
 # WinUI3Style — feuille de route
 
-> État : 12 septembre 2026, `main` @ `90d54b7`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 12 septembre 2026, `main` @ `897b01e`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## Issues GitHub ouvertes
@@ -14,7 +14,7 @@
 
 ## P1 — backdrop et surfaces
 
-- [ ] Stratégie backdrop unique AutoSuggestBox/ComboBox/menus/popups (aujourd'hui : `eraseForBackdrop` par contrôle, pas de comparaison unifiée).
+- [x] Stratégie backdrop unique — clos en `897b01e` : politique 3 recettes dans `winui3helpers_p.h` (gate partagée, `clearForBackdropFill` pour pills acrylic), `winui3menus_p.cpp` routé, doc croisée `winui3surfaces_p.h` + `coverage.md:37`.
 
 ## P1 — navigation, champs, états
 
