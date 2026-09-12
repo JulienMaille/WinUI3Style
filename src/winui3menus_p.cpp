@@ -230,12 +230,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                 // erase is a no-op (WA_StyledBackground): Source-blend the
                 // already translucent surface roles explicitly so the
                 // pill composites exactly one SubtleFill layer.
-                if (paintsDirectlyOnBackdrop(widget)) {
-                    painter->save();
-                    painter->setCompositionMode(QPainter::CompositionMode_Source);
-                    painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
-                    painter->restore();
-                } else {
+                if (!clearForBackdropFill(painter, widget, menu->rect,
+                                          option->palette.color(QPalette::Window))) {
                     painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
                 }
                 roundedRect(painter, QRectF(menu->rect).adjusted(4, 2, -4, -2),

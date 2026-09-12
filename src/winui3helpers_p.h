@@ -56,6 +56,22 @@ inline bool buttonPressPulse(const QWidget *widget)
                 || qobject_cast<const QRadioButton *>(widget));
 }
 
+// Backdrop erase policy (single strategy; mapping first per METHODOLOGY section 1).
+// Every painter that covers a live material with a fill follows one recipe below.
+// The gate (paintsDirectlyOnBackdrop) is shared; only the recipe differs by
+// surface kind. New painters must pick a recipe here, never hand-roll a
+// CompositionMode_Source path at the call site.
+//
+// Recipe 1, erase-then-fill (default): eraseForBackdrop, then paint the fill.
+//   Buttons, combo/spin/slider/scrollbar frames, PE_Widget islands, CE labels,
+//   CC_ToolButton/CC_GroupBox, item rows, dock panels, navigation rows.
+// Recipe 2, erase-means-transparent: eraseForBackdrop, then return with no
+//   fill. Menu-bar rest state, subtle-at-rest buttons outside group cards.
+// Recipe 3, Source-composite of the translucent surface (acrylic popups only):
+//   clearForBackdropFill. Menu item hover/pressed pills over a composited
+//   acrylic presenter: the native erase is a no-op there, so the already
+//   translucent surface roles are Source-blended explicitly and the pill
+//   composites exactly one SubtleFill layer.
 // Focus visuals only appear after actual keyboard interaction.
 inline bool keyboardFocusVisible(const QWidget *widget)
 {
@@ -130,6 +146,21 @@ inline bool eraseForBackdrop(QPainter *painter, const QWidget *widget, const QRe
     }
     painter->setCompositionMode(QPainter::CompositionMode_Source);
     painter->fillRect(rect, Qt::transparent);
+    painter->restore();
+    return true;
+}
+
+// Recipe 3 implementation: Source-blend the translucent popup surface so a
+// state pill composites exactly one layer over acrylic. Gated the same way
+// as eraseForBackdrop; returns true when the fill ran.
+inline bool clearForBackdropFill(QPainter *painter, const QWidget *widget, const QRect &rect,
+                                 const QColor &fill)
+{
+    if (!painter || !paintsDirectlyOnBackdrop(widget))
+        return false;
+    painter->save();
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
+    painter->fillRect(rect, fill);
     painter->restore();
     return true;
 }

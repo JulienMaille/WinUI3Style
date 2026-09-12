@@ -57,7 +57,8 @@ void restoreContentSurfacesForBackdrop(QWidget *window);
 // The no-fill recipe for any widget that paints straight onto the live
 // material through a translucent island: transparent Window role, no
 // autofill, StyledBackground so Qt leaves the erase to the style's
-// Source-clear branch. State is remembered so toggle-off restores exactly.
+// Source-clear branch (backdrop erase policy, recipe 1: see
+// winui3helpers_p.h). State is remembered so toggle-off restores exactly.
 void transparentizeForBackdrop(QWidget *surface);
 void restoreTransparentizedForBackdrop(QWidget *surface);
 // Small-delta scrolls inside a translucent content/layer island smear: Qt
