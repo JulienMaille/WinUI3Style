@@ -1,11 +1,11 @@
 # WinUI3Style — feuille de route
 
-> État : 12 septembre 2026, `main` @ `897b01e`. Suite 41/41 verte (natif exclu) ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 12 septembre 2026, `main` @ `e683d53`. Suite 41/41 verte (natif exclu) ; Release `/WX` + Debug `/W4` propres ; gates `source_contracts` et `designer_gallery` vertes.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## Issues GitHub ouvertes
 
-- [ ] **P2 — [#2 Promote warnings to errors](https://github.com/JulienMaille/WinUI3Style/issues/2)** — `WINUI3STYLE_WARNINGS_AS_ERRORS` limité à la lib (`src/CMakeLists.txt:87-90`, ON en CI) ; reste : autres cibles/compilateurs, build Debug `/W4` complet.
+- [x] **P2 — [#2 Promote warnings to errors](https://github.com/JulienMaille/WinUI3Style/issues/2)** — clos en `e683d53` : `winui3style_warnings` INTERFACE (`/W4`+`/WX`, `-Wall -Wextra -Wpedantic`+`-Werror`) routée lib/plugin/gallery/tests/benchmark ; 13 `QMouseEvent` Qt6.9 migrés + `[[maybe_unused]]` helpers.
 - [x] **P2 — [#1 Split `drawButtonControl` per element](https://github.com/JulienMaille/WinUI3Style/issues/1)** — clos en `90d54b7` : 5 helpers `static` + dispatcher `switch`, corps à l'identique, garde `buttonControlOwnershipByElement` (5 éléments × Light/Dark × Standard/Compact).
 
 ## P0 — garde-fous
@@ -29,7 +29,7 @@
 - [ ] Contrastes Light/Dark (pas de test de ratio dédié) + `prefers-reduced-motion` OS (seul `WINUI3STYLE_DISABLE_ANIMATIONS` existe).
 - [ ] Coût polish/drawControl/animations sur grandes listes + audit allocs `QPixmap`/`QIcon`/`QPainterPath` chemins chauds (bench `benchmarks/render_benchmark.cpp:48` existe, pas de verdict).
 - [ ] Restaurer les tests d'activation au relâchement + marker click-and-hold des ComboBox.
-- [ ] Assertions géométrie restantes : séparateurs, insets de popup.
+- [x] Assertions géométrie : séparateurs + insets popup (`e683d53`, `menuSeparatorGeometryContract` : slot 7 px les 2 densités, ligne 12 px de chaque bord).
 - [ ] `CHANGELOG.md` (projet 0.1.0 + `RELEASE_NOTES.md` existent) + page matrice compat Windows/Qt (manifest `spec/winui-2.4/manifest.json`, CI Qt 6.8.3/6.11.1 + Qt5.12-mingw).
 
 ## P2 — couverture QWidget restante (`spec/WIDGET_BACKLOG.md`)
