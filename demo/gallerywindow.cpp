@@ -569,7 +569,9 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         // Sizing resource rather than blindly doubling the whole matrix.
         activeStyle->setProperty("densityMode", 1);
         ui->densityCombo->setCurrentIndex(1);
-        for (int page : { 0, 1 }) {
+        for (int page = 0; page < ui->pages->count(); ++page) {
+            if (ui->pages->widget(page) == ui->paletteLabPage)
+                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();
