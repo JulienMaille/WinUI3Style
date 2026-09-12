@@ -18,7 +18,7 @@
 - [ ] Remplacer `WinUI3::SettingsCard` promu par `QFrame` + `winuiSettingsCard=true` (`demo/gallerywindow.ui:119-139`, `check_designer_gallery.cmake:27-44` verrouille le promu).
 - [ ] Live keyboard : focus/Tab/Space/Enter/popups (offscreen partiel via `inputModalityFocus`).
 - [ ] Contrastes Light/Dark (pas de test de ratio dédié) + `prefers-reduced-motion` OS (seul `WINUI3STYLE_DISABLE_ANIMATIONS` existe).
-- [ ] `CHANGELOG.md` (projet 0.1.0 + `RELEASE_NOTES.md` existent) + page matrice compat Windows/Qt (manifest `spec/winui-2.4/manifest.json`, CI Qt 6.8.3/6.11.1 + Qt5.12-mingw).
+- [x] `CHANGELOG.md` + matrice compat Windows/Qt (`86c063b`, `spec/compatibility.md` : Qt 6.8.3/6.11.1 MSVC + Qt 5.12.12 MinGW, repro captures).
 
 ## P2 — couverture QWidget restante (`spec/WIDGET_BACKLOG.md`)
 
