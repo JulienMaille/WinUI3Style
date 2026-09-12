@@ -5,6 +5,7 @@ add_library(winui3styleplugin MODULE
 )
 
 target_link_libraries(winui3styleplugin PRIVATE WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(winui3styleplugin PRIVATE winui3style_warnings)
 if(NOT WINUI3STYLE_STATIC)
     # Link the import library explicitly (not just the alias): MSVC then
     # tracks the .lib timestamp and relinks the plugin on every style

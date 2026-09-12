@@ -253,13 +253,13 @@ public:
     QByteArray previous;
 };
 
-static int colorDistance(const QColor &a, const QColor &b)
+[[maybe_unused]] static int colorDistance(const QColor &a, const QColor &b)
 {
     return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue())
             + qAbs(a.alpha() - b.alpha());
 }
 
-static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control,
+[[maybe_unused]] static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control,
                              const QStyleOptionComplex *option, const QWidget *widget,
                              const QRect &interactiveRect = {},
                              const QList<QRect> &additionalHitRegions = {})
@@ -313,7 +313,7 @@ static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control
     }
 }
 
-static QImage renderComplex(const QStyle *style, QStyle::ComplexControl control,
+[[maybe_unused]] static QImage renderComplex(const QStyle *style, QStyle::ComplexControl control,
                             const QStyleOptionComplex *option, const QWidget *widget, qreal dpr)
 {
     const QSize physical(qRound(option->rect.width() * dpr), qRound(option->rect.height() * dpr));
@@ -325,7 +325,7 @@ static QImage renderComplex(const QStyle *style, QStyle::ComplexControl control,
     return image;
 }
 
-static int inkPixels(const QImage &image, const QRect &logicalRect, qreal dpr,
+[[maybe_unused]] static int inkPixels(const QImage &image, const QRect &logicalRect, qreal dpr,
                      const QColor &background)
 {
     const QRect physical(qFloor(logicalRect.left() * dpr), qFloor(logicalRect.top() * dpr),
@@ -342,23 +342,23 @@ static int inkPixels(const QImage &image, const QRect &logicalRect, qreal dpr,
     return count;
 }
 
-static qreal frameReal(const QObject *object, const char *name, qreal fallback = 0.0)
+[[maybe_unused]] static qreal frameReal(const QObject *object, const char *name, qreal fallback = 0.0)
 {
     return WinUI3::Private::framePropertyRegistry().real(object, name, fallback);
 }
 
-static bool frameBool(const QObject *object, const char *name, bool fallback = false)
+[[maybe_unused]] static bool frameBool(const QObject *object, const char *name, bool fallback = false)
 {
     const QVariant value = WinUI3::Private::framePropertyRegistry().value(object, name);
     return value.isValid() ? value.toBool() : fallback;
 }
 
-static QVariant frameValue(const QObject *object, const char *name)
+[[maybe_unused]] static QVariant frameValue(const QObject *object, const char *name)
 {
     return WinUI3::Private::framePropertyRegistry().value(object, name);
 }
 
-static void setFrame(QObject *object, const char *name, const QVariant &value)
+[[maybe_unused]] static void setFrame(QObject *object, const char *name, const QVariant &value)
 {
     WinUI3::Private::framePropertyRegistry().set(object, name, value);
 }

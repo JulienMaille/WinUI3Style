@@ -13,7 +13,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 option(WINUI3STYLE_BUILD_PLUGIN "Build the Qt style plugin" ON)
-option(WINUI3STYLE_WARNINGS_AS_ERRORS "Treat style library compiler warnings as errors" OFF)
+option(WINUI3STYLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(WINUI3STYLE_BUILD_DEMO "Build the widget gallery" ON)
 option(WINUI3STYLE_BUILD_TESTS "Build tests" ON)
 option(WINUI3STYLE_BUILD_NATIVE_TESTS
@@ -29,6 +29,21 @@ if(NOT Qt6_FOUND)
     set(QT_VERSION_MAJOR 5)
 else()
     set(WINUI3STYLE_QT Qt6)
+endif()
+
+# Shared warning policy: /W4 (MSVC) or -Wall -Wextra -Wpedantic (GCC/Clang)
+# on every first-party target via this interface; WINUI3STYLE_WARNINGS_AS_ERRORS
+# adds /WX or -Werror on top. Linked PRIVATE so consumers never inherit it.
+add_library(winui3style_warnings INTERFACE)
+target_compile_options(winui3style_warnings INTERFACE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /external:W0>
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wall -Wextra -Wpedantic>
+)
+if(WINUI3STYLE_WARNINGS_AS_ERRORS)
+    target_compile_options(winui3style_warnings INTERFACE
+        $<$<CXX_COMPILER_ID:MSVC>:/WX>
+        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Werror>
+    )
 endif()
 
 add_subdirectory(src)

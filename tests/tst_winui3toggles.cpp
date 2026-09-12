@@ -265,14 +265,12 @@ void WinUI3TogglesTest::toggleDragInteraction()
 
     QSignalSpy clicked(&toggle, &QAbstractButton::clicked);
     QTest::mousePress(&toggle, Qt::LeftButton, Qt::NoModifier, QPoint(10, 20));
-    QMouseEvent move(QEvent::MouseMove, QPointF(32, 20), Qt::NoButton, Qt::LeftButton,
-                     Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(32, 20), QPointF(32, 20), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &move);
     QVERIFY(frameBool(&toggle, "_winui_toggle_dragging"));
     QVERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.9);
 
-    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(32, 20), Qt::LeftButton, Qt::NoButton,
-                        Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(32, 20), QPointF(32, 20), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &release);
     QVERIFY(toggle.isChecked());
     QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
@@ -337,12 +335,10 @@ void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()
     const QPoint offKnob(expectedTrack.right() - 10, expectedTrack.center().y());
     const QPoint onKnob(expectedTrack.left() + 10, expectedTrack.center().y());
     QTest::mousePress(&toggle, Qt::LeftButton, Qt::NoModifier, offKnob);
-    QMouseEvent move(QEvent::MouseMove, QPointF(onKnob), Qt::NoButton, Qt::LeftButton,
-                     Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(onKnob), QPointF(onKnob), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &move);
     QVERIFY(frameBool(&toggle, "_winui_toggle_dragging"));
-    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(onKnob), Qt::LeftButton, Qt::NoButton,
-                        Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(onKnob), QPointF(onKnob), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&toggle, &release);
     QVERIFY(toggle.isChecked());
     QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));

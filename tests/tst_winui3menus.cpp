@@ -99,6 +99,7 @@ private slots:
     void menuSizingContract();
     void menuSubmenuChevronGeometry();
     void menuPaintTabParsing();
+    void menuSeparatorGeometryContract();
     void menuMnemonicConsumesAmpersand();
     void compactMenuBarTextFits();
     void menuBarOnlyActiveActionIsHighlighted();
@@ -289,6 +290,47 @@ void WinUI3MenusTest::menuPaintTabParsing()
     const QImage twoFields = render(QStringLiteral("Open\tCtrl+O"));
     const QImage extraField = render(QStringLiteral("Open\tCtrl+O\tignored"));
     QVERIFY(twoFields == extraField);
+}
+
+void WinUI3MenusTest::menuSeparatorGeometryContract()
+{
+    // Menu separators and popup insets are the last uncontracted geometry:
+    // separator rows keep the 7 px template slot in both densities, menu
+    // rows stay 12 px inset from each edge, and toolbar separators center
+    // their 1 px line with an 8 px margin. Same state, geometry plus ink.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QMenu menu;
+    QStyleOptionMenuItem separatorOption;
+    separatorOption.initFrom(&menu);
+    separatorOption.menuItemType = QStyleOptionMenuItem::Separator;
+    separatorOption.rect = QRect(0, 0, 240, 7);
+    for (const WinUI3::DensityMode density :
+         { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        style->setDensityMode(density);
+        const QSize hint = menu.style()->sizeFromContents(QStyle::CT_MenuItem, &separatorOption,
+                                                          QSize(), &menu);
+        QCOMPARE(hint.height(), 7);
+    }
+    style->setDensityMode(WinUI3::DensityMode::Standard);
+    QStyleOptionMenuItem itemOption;
+    itemOption.initFrom(&menu);
+    itemOption.menuItemType = QStyleOptionMenuItem::Normal;
+    itemOption.rect = QRect(0, 0, 240, 36);
+    itemOption.text = QStringLiteral("Item");
+    QImage separatorImage(itemOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    separatorImage.fill(Qt::transparent);
+    {
+        QPainter painter(&separatorImage);
+        separatorOption.rect = QRect(0, 0, 240, 7);
+        style->drawControl(QStyle::CE_MenuItem, &separatorOption, &painter, &menu);
+    }
+    const int midY = 7 / 2;
+    const QColor lineInk = separatorImage.pixelColor(12, midY);
+    QCOMPARE(separatorImage.pixelColor(11, midY).alpha(), 0);
+    QCOMPARE(separatorImage.pixelColor(separatorImage.width() - 12, midY).alpha(), 0);
+    const QColor farInk = separatorImage.pixelColor(separatorImage.width() - 13, midY);
+    QVERIFY(farInk.alpha() > 0);
 }
 
 void WinUI3MenusTest::menuMnemonicConsumesAmpersand()

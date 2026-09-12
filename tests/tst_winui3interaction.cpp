@@ -852,8 +852,7 @@ void WinUI3InteractionTest::inputModalityFocus()
     QPushButton button(QStringLiteral("Focus"));
     button.resize(button.sizeHint());
     button.show();
-    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(4, 4), Qt::LeftButton, Qt::LeftButton,
-                           Qt::NoModifier);
+    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(4, 4), QPointF(4, 4), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&button, &mousePress);
     QFocusEvent mouseFocus(QEvent::FocusIn, Qt::MouseFocusReason);
     QCoreApplication::sendEvent(&button, &mouseFocus);
@@ -1296,8 +1295,7 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
         QSignalSpy callbacks(timer, &QTimer::timeout);
         for (int i = 0; i < 1000; ++i) {
             slider.setValue(i % 100);
-            QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
-                             Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), QPointF(slider.rect().center()), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(&slider, &move);
         }
         slider.setValue(77);

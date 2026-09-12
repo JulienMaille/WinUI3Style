@@ -79,17 +79,7 @@ target_include_directories(winui3style
 target_link_libraries(winui3style PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
 
 # Keep warning policy private to the library; consumers do not inherit it.
-target_compile_options(winui3style PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /external:W0>
-    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wall -Wextra -Wpedantic>
-)
-
-if(WINUI3STYLE_WARNINGS_AS_ERRORS)
-    target_compile_options(winui3style PRIVATE
-        $<$<CXX_COMPILER_ID:MSVC>:/WX>
-        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Werror>
-    )
-endif()
+target_link_libraries(winui3style PRIVATE winui3style_warnings)
 
 if(WIN32)
     target_link_libraries(winui3style PRIVATE advapi32 dwmapi user32)

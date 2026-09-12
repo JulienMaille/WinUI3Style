@@ -154,8 +154,7 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     // and repainting the native popup for every mouse event.
     for (int i = 0; i < 200; ++i) {
         slider.setValue(i % 100);
-        QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
-                         Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), QPointF(slider.rect().center()), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(&slider, &move);
     }
     QCoreApplication::processEvents();
@@ -168,8 +167,7 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
     QSignalSpy callbacks(timer, &QTimer::timeout);
     for (int i = 0; i < 200; ++i) {
         slider.setValue((i + 37) % 100);
-        QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
-                         Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), QPointF(slider.rect().center()), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(&slider, &move);
     }
     QCoreApplication::processEvents();
@@ -190,8 +188,7 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
                                      .value(&slider, "_winui_slider_tooltip_visible")
                                      .toBool(),
                              500);
-    QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), Qt::NoButton,
-                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), QPointF(slider.rect().center()), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&slider, &move);
     QCoreApplication::processEvents();
     QVERIFY(timer->isActive());

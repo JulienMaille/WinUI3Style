@@ -727,8 +727,7 @@ void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()
 
             QEvent enter(QEvent::Enter);
             QCoreApplication::sendEvent(&button, &enter);
-            QMouseEvent press(QEvent::MouseButtonPress, QPointF(button.rect().center()),
-                              Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent press(QEvent::MouseButtonPress, QPointF(button.rect().center()), QPointF(button.rect().center()), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(&button, &press);
             QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
             QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);

@@ -256,8 +256,7 @@ void WinUI3ViewsTest::sliderDragInteraction()
     const QRect handle = slider.style()->subControlRect(QStyle::CC_Slider, &option,
                                                         QStyle::SC_SliderHandle, &slider);
     QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
-    QMouseEvent move(QEvent::MouseMove, QPointF(handle.center() + QPoint(120, 0)), Qt::NoButton,
-                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(handle.center() + QPoint(120, 0)), QPointF(handle.center() + QPoint(120, 0)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&slider, &move);
     QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, handle.center() + QPoint(120, 0));
     QVERIFY(slider.value() > 20);
@@ -289,8 +288,7 @@ void WinUI3ViewsTest::sliderValueToolTipAndFocus()
         QTRY_VERIFY(slider.findChild<QWidget *>(QStringLiteral("_winui_slider_value_tip"))
                             ->isVisible());
     }
-    QMouseEvent move(QEvent::MouseMove, QPointF(handle.center() + QPoint(90, 0)), Qt::NoButton,
-                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(handle.center() + QPoint(90, 0)), QPointF(handle.center() + QPoint(90, 0)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&slider, &move);
     QTRY_VERIFY(slider.value() > 42);
     QTRY_COMPARE(frameValue(&slider, "_winui_slider_tooltip_value").toString(),
@@ -400,8 +398,7 @@ void WinUI3ViewsTest::scrollBarContract()
                                                          QStyle::SC_ScrollBarSlider, &bar);
     const int beforeDrag = bar.value();
     QTest::mousePress(&bar, Qt::LeftButton, Qt::NoModifier, movedThumb.center());
-    QMouseEvent move(QEvent::MouseMove, QPointF(movedThumb.center() + QPoint(0, 45)), Qt::NoButton,
-                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(movedThumb.center() + QPoint(0, 45)), QPointF(movedThumb.center() + QPoint(0, 45)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&bar, &move);
     QTest::mouseRelease(&bar, Qt::LeftButton, Qt::NoModifier, movedThumb.center() + QPoint(0, 45));
     QVERIFY(bar.value() > beforeDrag);
