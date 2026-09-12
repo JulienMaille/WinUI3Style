@@ -1,6 +1,6 @@
 # WinUI3Style — feuille de route
 
-> État : 12 septembre 2026, `main` @ `b15e706`. Suite 41/41 verte (natif exclu) ; Release `/WX` + Debug `/W4` propres ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 12 septembre 2026, `main` @ `d8d26d1`. Suite 41/41 verte (natif exclu) ; Release `/WX` + Debug `/W4` propres ; gates `source_contracts` et `designer_gallery` vertes.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## P0 — garde-fous
@@ -18,7 +18,7 @@
 - [ ] Remplacer `WinUI3::SettingsCard` promu par `QFrame` + `winuiSettingsCard=true` (`demo/gallerywindow.ui:119-139`, `check_designer_gallery.cmake:27-44` verrouille le promu).
 - [ ] Live keyboard : focus/Tab/Space/Enter/popups (offscreen partiel via `inputModalityFocus`).
 - [ ] Contrastes Light/Dark (pas de test de ratio dédié) + `prefers-reduced-motion` OS (seul `WINUI3STYLE_DISABLE_ANIMATIONS` existe).
-- [x] `CHANGELOG.md` + matrice compat Windows/Qt (`86c063b`, `spec/compatibility.md` : Qt 6.8.3/6.11.1 MSVC + Qt 5.12.12 MinGW, repro captures).
+- [ ] `CHANGELOG.md` : tenu à jour (`86c063b`) + matrice compat (`spec/compatibility.md`) ; à maintenir à chaque release.
 
 ## P2 — couverture QWidget restante (`spec/WIDGET_BACKLOG.md`)
 
