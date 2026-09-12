@@ -126,6 +126,7 @@ private slots:
     void inheritedDensityWorksForRealWidgets();
     void autoSuggestMatchesCaseInsensitiveSubstrings();
     void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
+    void autoSuggestKeyboardSelectsCurrentRow();
     void runtimeThemeChangeRefreshesOpenComboPopup();
     void openComboPopupFollowsDensitySwitch();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
@@ -407,6 +408,34 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
         QCoreApplication::processEvents();
     }
     QCOMPARE(popup->viewport()->grab().toImage(), firstFrame);
+}
+
+void WinUI3DensityWidgetsTest::autoSuggestKeyboardSelectsCurrentRow()
+{
+    // QCompleter activation contract: the activated signal carries the
+    // selected row's text to the editor. Same state, row plus text.
+    QLineEdit editor;
+    auto *completer = new QCompleter(
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"), QStringLiteral("Gamma") },
+            &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(280, 36);
+    editor.show();
+    editor.setFocus();
+    QTest::keyClicks(&editor, QStringLiteral("a"));
+    completer->setCompletionPrefix(QStringLiteral("a"));
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QCOMPARE(completer->currentRow(), 0);
+    QObject::connect(completer, QOverload<const QString &>::of(&QCompleter::activated), &editor,
+                     [&](const QString &text) { editor.setText(text); });
+    completer->setCurrentRow(1);
+    QCOMPARE(completer->currentRow(), 1);
+    Q_EMIT completer->activated(QStringLiteral("Beta"));
+    QTRY_COMPARE(editor.text(), QStringLiteral("Beta"));
 }
 
 void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
