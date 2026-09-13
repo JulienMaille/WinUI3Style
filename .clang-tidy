@@ -1,15 +1,10 @@
-# Advisory only (plan step 5): bugprone-* + readability-identifier-naming run
-# via CMAKE_CXX_CLANG_TIDY on the library, warnings not errors. Maximal check
-# sets are avoided: full readability-* on the 100KB dispatcher produces
-# unactionable noise.
-Checks: 'bugprone-*,readability-identifier-naming'
-WarningsAsErrors: ''
-CheckOptions:
-  - key: readability-identifier-naming.ClassCase
-    value: CamelCase
-  - key: readability-identifier-naming.FunctionCase
-    value: camelCase
-  - key: readability-identifier-naming.VariableCase
-    value: camelBack
-  - key: readability-identifier-naming.PrivateMemberPrefix
-    value: ''
+# Minimal enforced gate: 5 mechanical checks, warnings are errors.
+# Runs on ubuntu CI (clang-tidy job) via -DWINUI3STYLE_CLANG_TIDY=ON, which
+# sets CXX_CLANG_TIDY on the library target. Deliberately NOT bugprone-* or
+# readability-*: the full sets drown the 100KB dispatcher in unactionable
+# noise, and readability-identifier-naming contradicts the tree's m_ member
+# convention. Tests/benchmarks are excluded (QtTest idioms); first-party
+# shipped code (src, include, plugin, demo) is covered.
+Checks: 'bugprone-macro-parentheses,bugprone-sizeof-expression,bugprone-use-after-move,modernize-use-nullptr,modernize-use-override'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(src|include|plugin|demo)/.*'

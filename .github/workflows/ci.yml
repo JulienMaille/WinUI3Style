@@ -56,6 +56,29 @@ jobs:
           pip install "clang-format==18.1.8"
           clang-format --dry-run --Werror $(git ls-files src include tests demo plugin benchmarks | grep -E '\.(cpp|h)$')
 
+  clang-tidy:
+    # Minimal mechanical gate (5 checks, warnings are errors): runs on
+    # ubuntu where apt's clang-tidy + Qt6 are available. MSVC stays the
+    # compiler gate above; this job only lints shipped code (library,
+    # plugin, gallery) via -DWINUI3STYLE_CLANG_TIDY=ON. Tests/benchmarks
+    # are excluded from tidy by design (QtTest idioms).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt6 + clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy-18 qt6-base-dev qt6-base-dev-tools
+      - name: Configure (tidy on, tests/benchmarks off)
+        run: >
+          cmake -S . -B build-tidy
+          -DWINUI3STYLE_BUILD_PLUGIN=ON
+          -DWINUI3STYLE_BUILD_DEMO=ON
+          -DWINUI3STYLE_BUILD_TESTS=OFF
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+          -DWINUI3STYLE_CLANG_TIDY=ON
+      - name: Build (tidy runs as errors)
+        run: cmake --build build-tidy -j"$(nproc)"
   msvc-gate:
     # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
     # CMake's "Visual Studio 17 2022" generator can no longer find VS there.

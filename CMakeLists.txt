@@ -14,6 +14,7 @@ set(CMAKE_AUTOUIC ON)
 
 option(WINUI3STYLE_BUILD_PLUGIN "Build the Qt style plugin" ON)
 option(WINUI3STYLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(WINUI3STYLE_CLANG_TIDY "Run clang-tidy during the build (uses .clang-tidy at the tree root)" OFF)
 option(WINUI3STYLE_BUILD_DEMO "Build the widget gallery" ON)
 option(WINUI3STYLE_BUILD_TESTS "Build tests" ON)
 option(WINUI3STYLE_BUILD_NATIVE_TESTS
@@ -44,6 +45,22 @@ if(WINUI3STYLE_WARNINGS_AS_ERRORS)
         $<$<CXX_COMPILER_ID:MSVC>:/WX>
         $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Werror>
     )
+endif()
+
+# Minimal clang-tidy gate: opt-in via -DWINUI3STYLE_CLANG_TIDY=ON. Applies
+# only to shipped targets (library, plugin, gallery); tests/benchmarks keep
+# QtTest idioms and stay out. Checks live in .clang-tidy at the tree root
+# with WarningsAsErrors '*'. Set before any add_subdirectory so every
+# shipped target below inherits it.
+if(WINUI3STYLE_CLANG_TIDY)
+    find_program(WINUI3STYLE_CLANG_TIDY_EXE NAMES clang-tidy clang-tidy-18 clang-tidy-19)
+    if(NOT WINUI3STYLE_CLANG_TIDY_EXE)
+        message(FATAL_ERROR
+            "WINUI3STYLE_CLANG_TIDY=ON but no clang-tidy in PATH. Install it "
+            "(ubuntu: apt install clang-tidy-18) or pass "
+            "-DWINUI3STYLE_CLANG_TIDY_EXE=<path-to-clang-tidy>.")
+    endif()
+    set(CMAKE_CXX_CLANG_TIDY ${WINUI3STYLE_CLANG_TIDY_EXE})
 endif()
 
 add_subdirectory(src)
