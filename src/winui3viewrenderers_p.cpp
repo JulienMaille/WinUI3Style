@@ -71,7 +71,6 @@ bool calendarPopupView(const QWidget *widget)
     return false;
 }
 
-constexpr int itemSelectionGutter = 12;
 constexpr int itemSelectionMarkerWidth = 3;
 constexpr int itemSelectionMarkerInset = 2;
 constexpr int treeBranchMarkerClearance = 4;

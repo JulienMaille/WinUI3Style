@@ -77,7 +77,7 @@ void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirect
 
 } // namespace
 
-void Private::paintPopupRowPill(QPainter *painter, const QRectF &itemRect, const QColor &fill)
+void paintPopupRowPill(QPainter *painter, const QRectF &itemRect, const QColor &fill)
 {
     roundedRect(painter, itemRect, fill, Qt::transparent, 3.0);
 }
