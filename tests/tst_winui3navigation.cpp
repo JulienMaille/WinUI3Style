@@ -31,6 +31,7 @@
 #include <QFocusEvent>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
+#include <QHBoxLayout>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QGroupBox>
@@ -102,6 +103,7 @@ private slots:
     void pluginFactory();
     void navigationModelReconnectAndScroll();
     void navigationDelegateLifecycle();
+    void navigationBackdropToggleRevealsOneMaterial();
 };
 
 void WinUI3NavigationTest::initTestCase()
@@ -457,6 +459,47 @@ void WinUI3NavigationTest::navigationDelegateLifecycle()
     QTRY_COMPARE(inheritedView.testAttribute(Qt::WA_SetPalette), inheritedViewPaletteExplicit);
     QTRY_COMPARE(inheritedView.viewport()->testAttribute(Qt::WA_SetPalette),
                  inheritedViewportPaletteExplicit);
+}
+
+void WinUI3NavigationTest::navigationBackdropToggleRevealsOneMaterial()
+{
+    // Panel-vs-list skew contract: toggling the window backdrop must leave
+    // the shell panel and the opted-in list on one material. The list
+    // viewport repaints synchronously on the toggle (not on next hover),
+    // and off restores the opaque panel. Geometry pairing: the rows keep
+    // the navigation item height across the switch.
+    QWidget window;
+    window.setProperty("winuiBackdrop", QStringLiteral("none"));
+    auto *layout = new QHBoxLayout(&window);
+    auto *panel = new QWidget(&window);
+    panel->setObjectName(QStringLiteral("navigationPanel"));
+    auto *panelLayout = new QVBoxLayout(panel);
+    auto *list = new QListWidget(panel);
+    list->setProperty(WinUI3::Style::NavigationViewProperty, true);
+    list->addItems({ QStringLiteral("Controls"), QStringLiteral("Settings") });
+    panelLayout->addWidget(list);
+    auto *pages = new QStackedWidget(&window);
+    pages->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    layout->addWidget(panel);
+    layout->addWidget(pages);
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const int rowHeight = list->visualItemRect(list->item(0)).height();
+    QVERIFY(rowHeight > 0);
+
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    // Offscreen never composites (Painted fallback): the prep keeps the
+    // opaque path there. Either way the shell and the list agree on one
+    // surface, and geometry pairing holds: rows keep the height.
+    QTRY_VERIFY(list->palette().color(QPalette::Base).alpha()
+                == list->viewport()->palette().color(QPalette::Base).alpha());
+    QCOMPARE(list->visualItemRect(list->item(0)).height(), rowHeight);
+
+    window.setProperty("winuiBackdrop", QStringLiteral("none"));
+    QTRY_VERIFY(list->palette().color(QPalette::Base).alpha()
+                == list->viewport()->palette().color(QPalette::Base).alpha());
+    QCOMPARE(list->visualItemRect(list->item(0)).height(), rowHeight);
 }
 
 QTEST_MAIN(WinUI3NavigationTest)

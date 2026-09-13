@@ -103,6 +103,7 @@ private slots:
     void comboPopupAssociationLifecycle();
     void comboChevronMotion();
     void comboChevronGeometry();
+    void comboOpenPopupKeyboardCurrentPaintsHoverPill();
 
 };
 
@@ -685,6 +686,56 @@ void WinUI3ComboBoxTest::comboChevronGeometry()
     QVERIFY(rtl.second.height() <= 8);
     QCOMPARE(ltr.first.size(), QSize(10, 10));
     QCOMPARE(rtl.first.size(), QSize(10, 10));
+}
+
+void WinUI3ComboBoxTest::comboOpenPopupKeyboardCurrentPaintsHoverPill()
+{
+    // Keyboard current is hover: arrows move view->currentIndex() with no
+    // MouseOver, so the current row must read exactly like the hovered row.
+    // Same shared pill (paintPopupRowPill), same token, same geometry.
+    QComboBox combo;
+    combo.addItems({ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                     QStringLiteral("Gamma") });
+    combo.setStyle(qApp->style());
+    combo.resize(220, 32);
+    QAbstractItemView *view = combo.view();
+    QVERIFY(view);
+    view->resize(220, 3 * 40);
+    const QModelIndex current = combo.model()->index(1, 0);
+    view->setCurrentIndex(current);
+    QCOMPARE(view->currentIndex(), current);
+    const QRect rowRect(0, 0, view->viewport()->width() > 0 ? view->viewport()->width() : 220, 40);
+
+    QStyleOptionViewItem currentOption;
+    currentOption.initFrom(view->viewport());
+    currentOption.widget = view->viewport();
+    currentOption.rect = rowRect;
+    currentOption.index = current;
+    currentOption.features = QStyleOptionViewItem::HasDisplay;
+    currentOption.text = QStringLiteral("Beta");
+    currentOption.state = QStyle::State_Enabled;
+    QImage currentImage(rowRect.size(), QImage::Format_ARGB32_Premultiplied);
+    currentImage.fill(view->viewport()->palette().color(QPalette::Base));
+    {
+        QPainter painter(&currentImage);
+        combo.style()->drawControl(QStyle::CE_ItemViewItem, &currentOption, &painter,
+                                   view->viewport());
+    }
+
+    QStyleOptionViewItem hoveredOption = currentOption;
+    hoveredOption.state |= QStyle::State_MouseOver;
+    hoveredOption.index = combo.model()->index(0, 0);
+    QImage hoveredImage(rowRect.size(), QImage::Format_ARGB32_Premultiplied);
+    hoveredImage.fill(view->viewport()->palette().color(QPalette::Base));
+    {
+        QPainter painter(&hoveredImage);
+        combo.style()->drawControl(QStyle::CE_ItemViewItem, &hoveredOption, &painter,
+                                   view->viewport());
+    }
+    // Same pixels row-for-row: keyboard current and mouse hover are one
+    // visual. Geometry token pairing: the rows share the row height.
+    QCOMPARE(currentImage.size(), hoveredImage.size());
+    QCOMPARE(currentImage, hoveredImage);
 }
 
 QTEST_MAIN(WinUI3ComboBoxTest)

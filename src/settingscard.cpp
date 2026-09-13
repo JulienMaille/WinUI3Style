@@ -275,11 +275,13 @@ void SettingsCard::refreshChevronPixmap()
 {
     if (!m_chevronLabel)
         return;
-    // Any card WITH an expandable widget points down, collapsed or expanded.
-    // RTL/LTR variants survive only for hidden non-expandable chevrons.
-    const Icon glyph = m_expandableWidget           ? Icon::ChevronDown
-            : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
-                                                   : Icon::ChevronRight;
+    // WinUI expander contract: collapsed Down, expanded Up. The chevron
+    // rotates with the state (the prior Down-always choice failed the
+    // user's live check: no visible rotation on expand).
+    const Icon glyph = m_expanded                      ? Icon::ChevronUp
+            : m_expandableWidget                       ? Icon::ChevronDown
+            : layoutDirection() == Qt::RightToLeft     ? Icon::ChevronLeft
+                                                       : Icon::ChevronRight;
     const Private::Tokens t = Private::tokens(palette());
     const bool enabled = isEnabled();
     const QColor foreground = enabled ? t.textSecondary : t.textDisabled;

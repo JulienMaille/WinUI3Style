@@ -77,6 +77,11 @@ void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirect
 
 } // namespace
 
+void Private::paintPopupRowPill(QPainter *painter, const QRectF &itemRect, const QColor &fill)
+{
+    roundedRect(painter, itemRect, fill, Qt::transparent, 3.0);
+}
+
 bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QStyleOption *option,
                        QPainter *painter, const QWidget *widget)
 {
@@ -234,9 +239,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                                           option->palette.color(QPalette::Window))) {
                     painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
                 }
-                roundedRect(painter, QRectF(menu->rect).adjusted(4, 2, -4, -2),
-                            showPressed ? t.subtlePressed : t.subtleHover, Qt::transparent,
-                            ControlRadius);
+                paintPopupRowPill(painter, QRectF(menu->rect).adjusted(4, 2, -4, -2),
+                                  showPressed ? t.subtlePressed : t.subtleHover);
             }
 
             const bool enabled = menu->state & QStyle::State_Enabled;

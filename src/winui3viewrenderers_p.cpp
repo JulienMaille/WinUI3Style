@@ -2,6 +2,7 @@
 #include "winui3viewrenderers_p.h"
 
 #include "winui3paint_p.h"
+#include "winui3menus_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
@@ -146,6 +147,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const bool selected = option->state & QStyle::State_Selected;
         const bool hovered = option->state & QStyle::State_MouseOver;
         const bool pressedItem = hovered && (option->state & QStyle::State_Sunken);
+        // Keyboard current is hover: arrows move view->currentIndex() with no
+        // MouseOver, and QCompleter drives selection the same way. The
+        const bool keyboardCurrent = popup && view && viewOption && viewOption->index.isValid()
+                && viewOption->index == view->currentIndex();
         const bool calendarHeader = calendar && viewOption && viewOption->index.isValid()
                 && viewOption->index.row() == 0;
         if (calendar) {
@@ -172,7 +177,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
             fill = t.subtlePressed;
         else if (selected && hovered)
             fill = t.subtlePressed;
-        else if (selected || hovered)
+        else if (selected || hovered || keyboardCurrent)
             fill = t.subtleHover;
 
         // Pointer events and animation invalidation belong to the viewport.
@@ -197,11 +202,11 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         if (fill.alpha() > 0) {
             // Same accumulation contract as menu items: on a translucent
             // (acrylic) popup, rebuild the row frame from transparent first.
+            // The pill itself is the shared menu/combo shape (see
+            // paintPopupRowPill): identical insets, identical radius, so
+            // hover edges match everywhere.
             eraseForBackdrop(painter, widget, option->rect);
-            roundedRect(painter, itemRect, fill, Qt::transparent,
-                        popup           ? 3.0
-                                : table ? 0.0
-                                        : ControlRadius);
+            paintPopupRowPill(painter, itemRect, fill);
         }
         const bool firstColumn =
                 !viewOption || !viewOption->index.isValid() || viewOption->index.column() == 0;

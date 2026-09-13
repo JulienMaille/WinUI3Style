@@ -28,7 +28,7 @@ private slots:
     void init();
     void cleanup();
     void settingsCardTrailingOnlyCardsAreNotInteractive();
-    void settingsCardExpandableCollapsedGlyphIsDown();
+    void settingsCardExpanderGlyphRotatesWithState();
     void settingsCardExpandedHostSharesCardSurface();
 };
 
@@ -88,7 +88,7 @@ void WinUI3SettingsTest::settingsCardTrailingOnlyCardsAreNotInteractive()
              WinUI3::Private::tokens(card.palette()).control);
 }
 
-void WinUI3SettingsTest::settingsCardExpandableCollapsedGlyphIsDown()
+void WinUI3SettingsTest::settingsCardExpanderGlyphRotatesWithState()
 {
     WinUI3::SettingsCard card;
     card.setTitle(QStringLiteral("Advanced options"));
@@ -98,6 +98,12 @@ void WinUI3SettingsTest::settingsCardExpandableCollapsedGlyphIsDown()
     QVERIFY(QTest::qWaitForWindowExposed(&card));
     auto *chevron = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_chevron"));
     QVERIFY(chevron && chevron->isVisible());
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    card.setExpanded(true);
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronUp));
+    card.setExpanded(false);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     card.setLayoutDirection(Qt::RightToLeft);

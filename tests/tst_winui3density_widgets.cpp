@@ -410,6 +410,44 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
         QCoreApplication::processEvents();
     }
     QCOMPARE(popup->viewport()->grab().toImage(), firstFrame);
+
+    // Shared pill contract: the hovered suggestion paints the same inset
+    // 4,2 pill with the same 3px rounding as a menu row (see
+    // paintPopupRowPill). Same fill token, same geometry, no check glyph.
+    auto *suggestView = qobject_cast<QAbstractItemView *>(popup);
+    QVERIFY(suggestView);
+    const QModelIndex hoverIndex = popup->model()->index(1, 0);
+    QRect hoverRect = popup->visualRect(hoverIndex);
+    QVERIFY(hoverRect.isValid());
+    QStyleOptionViewItem hovered;
+    hovered.initFrom(popup->viewport());
+    hovered.widget = popup->viewport();
+    hovered.rect = QRect(0, 0, popup->viewport()->width(), hoverRect.height());
+    hovered.index = hoverIndex;
+    hovered.features = QStyleOptionViewItem::HasDisplay;
+    hovered.text = QStringLiteral("Beta");
+    hovered.state = QStyle::State_Enabled | QStyle::State_MouseOver;
+    QImage hoveredImage(hovered.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    hoveredImage.fill(palette.color(QPalette::Base));
+    {
+        QPainter painter(&hoveredImage);
+        popup->style()->drawControl(QStyle::CE_ItemViewItem, &hovered, &painter,
+                                    popup->viewport());
+    }
+    const QRect pill(hovered.rect.left() + 4, hovered.rect.top() + 2,
+                     hovered.rect.width() - 8, hovered.rect.height() - 4);
+    const QColor pillCenter = hoveredImage.pixelColor(pill.center());
+    QVERIFY2(colorDistance(pillCenter, palette.color(QPalette::Base)) > 8,
+             "hovered suggestion must paint the shared hover pill");
+    const QColor pillEdge = hoveredImage.pixelColor(pill.left() - 2, pill.center().y());
+    QCOMPARE(pillEdge, palette.color(QPalette::Base));
+    // Top edge of the 3px rounding: the corner pixel stays Base, the pixel
+    // two rows in carries the pill. Same shape a menu row paints.
+    QCOMPARE(hoveredImage.pixelColor(pill.left(), pill.top()), palette.color(QPalette::Base));
+    QVERIFY2(colorDistance(hoveredImage.pixelColor(pill.left() + 2, pill.top() + 2),
+                                                  palette.color(QPalette::Base))
+                     > 8,
+             "hovered suggestion must round the shared pill like a menu row");
 }
 
 void WinUI3DensityWidgetsTest::autoSuggestKeyboardSelectsCurrentRow()
@@ -967,6 +1005,12 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
                 QStringLiteral("qt_calendar_navigationbar"));
         QVERIFY(inlineNav);
         QCOMPARE(inlineNav->backgroundRole(), QPalette::Window);
+        // Mica contract: the header is the content surface, never the
+        // flyout tint and never translucent. Same Window-role surface in
+        // mica and non-mica; only DWM behind it changes.
+        QCOMPARE(inlineNav->palette().color(QPalette::Window).alpha(), 255);
+        QCOMPARE(inlineNav->palette().color(QPalette::Window),
+                 inlineCalendar.palette().color(QPalette::Window));
         const QModelIndex inlineDayIndex = inlineView->model()->index(2, 3);
         QVERIFY(inlineDayIndex.isValid());
         QStyleOptionViewItem inlineDayOption;

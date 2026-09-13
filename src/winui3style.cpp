@@ -1036,9 +1036,7 @@ public:
                 return;
             }
             framePropertyRegistry().set(guardedWidget, buttonPressReleasePendingProperty, false);
-            animate(guardedWidget, pressProperty, 0.0,
-                    qobject_cast<QRadioButton *>(guardedWidget.data()) ? Private::NormalDuration
-                                                                       : Private::FasterDuration);
+            animate(guardedWidget, pressProperty, 0.0, Private::FasterDuration);
         });
     }
 
@@ -1052,9 +1050,7 @@ public:
         framePropertyRegistry().set(widget, buttonPressGenerationProperty,
                                     QVariant::fromValue(generation));
         framePropertyRegistry().set(widget, buttonPressReleasePendingProperty, false);
-        animate(widget, pressProperty, 0.0,
-                qobject_cast<QRadioButton *>(widget) ? Private::NormalDuration
-                                                     : Private::FasterDuration);
+        animate(widget, pressProperty, 0.0, Private::FasterDuration);
     }
 
     void clearPointerInteraction(QWidget *widget)
@@ -1461,6 +1457,14 @@ void Style::refreshApplicationAppearance()
                        editor && itemView(editor)) {
                 palette.setColor(QPalette::Highlight, applicationAccent);
                 palette.setColor(QPalette::HighlightedText, applicationTokens.textOnAccentPrimary);
+            } else if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
+                       && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
+                // Mica contract: the header bar stays the opaque content
+                // surface across theme and backdrop switches, never the
+                // flyout tint and never translucent.
+                QColor navigationWindow = widget->parentWidget()->palette().color(QPalette::Window);
+                navigationWindow.setAlpha(255);
+                palette.setColor(QPalette::Window, navigationWindow);
             } else if (qobject_cast<QDialog *>(widget)) {
                 palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             }
@@ -2431,6 +2435,18 @@ void Style::polish(QWidget *widget)
     if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
         && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
         widget->setBackgroundRole(QPalette::Window);
+        // Mica contract: the header bar is the opaque content surface, the
+        // same Window role the day grid sits on. Never the translucent
+        // flyout tint and never translucent itself, in mica or not; only
+        // the DWM material behind the window changes. Claim the palette so
+        // the appearance refresh keeps it on the content surface.
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        QPalette navigationPalette = standardPalette();
+        QColor navigationWindow = widget->parentWidget()->palette().color(QPalette::Window);
+        navigationWindow.setAlpha(255);
+        navigationPalette.setColor(QPalette::Window, navigationWindow);
+        widget->setPalette(navigationPalette);
         widget->update();
     }
 
@@ -2678,16 +2694,19 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 // Navigation surfaces are transparent only while a real
                 // backdrop is active. Refresh just the opted-in views when a
                 // window changes backdrop so offscreen/opaque windows never
-                // retain transparent backing-store rows.
-                if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-                    if (view->property(NavigationViewProperty).toBool())
-                        NavigationPrivate::prepareNavigationView(view);
-                }
-                const auto views = widget->findChildren<QAbstractItemView *>();
-                for (QAbstractItemView *view : views) {
-                    if (view->property(NavigationViewProperty).toBool())
-                        NavigationPrivate::prepareNavigationView(view);
-                }
+                // retain transparent backing-store rows. The list viewport
+                // repaints synchronously: its delegate rows otherwise keep
+                // the previous surface's pixels until the next hover (the
+                // mica panel-vs-list skew).
+                const auto refreshNavigationView = [](QAbstractItemView *candidate) {
+                    if (candidate && candidate->property(NavigationViewProperty).toBool()) {
+                        NavigationPrivate::prepareNavigationView(candidate);
+                        candidate->viewport()->repaint();
+                    }
+                };
+                refreshNavigationView(qobject_cast<QAbstractItemView *>(widget));
+                for (QAbstractItemView *view : widget->findChildren<QAbstractItemView *>())
+                    refreshNavigationView(view);
             }
         }
     }

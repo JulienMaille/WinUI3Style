@@ -526,12 +526,11 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
 
     card.setLayoutDirection(Qt::RightToLeft);
     QTRY_COMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-                 static_cast<int>(WinUI3::Icon::ChevronDown));
+                 static_cast<int>(WinUI3::Icon::ChevronUp));
     QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
     card.setExpanded(false);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.99);
-    // Expandable cards keep ChevronDown in every direction, collapsed or
-    // expanded. RTL/LTR arrows belong only to hidden non-expandable chevrons.
+    // WinUI expander contract: collapsed Down, expanded Up (rotates).
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
 }
@@ -691,7 +690,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, header->geometry().center());
     QCOMPARE(card.isExpanded(), true);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronDown));
+             static_cast<int>(WinUI3::Icon::ChevronUp));
     const QImage first = card.grab().toImage();
     QCOMPARE(header->geometry(), headerGeometry);
     QCOMPARE(title->geometry(), titleGeometry);
@@ -706,7 +705,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronDown));
+             static_cast<int>(WinUI3::Icon::ChevronUp));
 
     QPalette palette = card.palette();
     palette.setColor(QPalette::WindowText, QColor(210, 40, 70));
@@ -719,7 +718,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
 #endif
     QVERIFY(!labelPixmap(chevron).isNull());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronDown));
+             static_cast<int>(WinUI3::Icon::ChevronUp));
 
     // Reversing and expanding again must reuse the current progress without
     // losing the header or leaving the chevron in the collapsed state.
@@ -727,7 +726,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     card.setExpanded(true);
     QCOMPARE(card.isExpanded(), true);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronDown));
+             static_cast<int>(WinUI3::Icon::ChevronUp));
     card.hide();
     QVERIFY(animation->state() == QAbstractAnimation::Stopped);
     card.show();
@@ -739,7 +738,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronDown));
+             static_cast<int>(WinUI3::Icon::ChevronUp));
 }
 
 void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
