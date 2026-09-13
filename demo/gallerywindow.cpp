@@ -62,6 +62,15 @@ void setHeadingFont(QLabel *heading)
     font.setWeight(QFont::DemiBold);
     heading->setFont(font);
 }
+
+QCompleter *makeAutoSuggestCompleter(const QStringList &words, QWidget *parent)
+{
+    auto *completer = new QCompleter(words, parent);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    return completer;
+}
 } // namespace
 
 GalleryWindow::GalleryWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::GalleryWindow)
@@ -92,20 +101,13 @@ void GalleryWindow::configureGallery()
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
-    auto *autoSuggestCompleter = new QCompleter(
-            { tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"), tr("Settings"), tr("Controls") },
-            ui->autoSuggestEdit);
-    autoSuggestCompleter->setCaseSensitivity(Qt::CaseInsensitive);
-    autoSuggestCompleter->setFilterMode(Qt::MatchContains);
-    autoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
-    ui->autoSuggestEdit->setCompleter(autoSuggestCompleter);
-    auto *compactAutoSuggestCompleter = new QCompleter(
-            { tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"), tr("Settings"), tr("Controls") },
-            ui->compactDensityAutoSuggest);
-    compactAutoSuggestCompleter->setCaseSensitivity(Qt::CaseInsensitive);
-    compactAutoSuggestCompleter->setFilterMode(Qt::MatchContains);
-    compactAutoSuggestCompleter->setCompletionMode(QCompleter::PopupCompletion);
-    ui->compactDensityAutoSuggest->setCompleter(compactAutoSuggestCompleter);
+    const QStringList autoSuggestWords = { tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"),
+                                           tr("Settings"), tr("Controls") };
+    ui->autoSuggestEdit->setCompleter(makeAutoSuggestCompleter(autoSuggestWords, ui->autoSuggestEdit));
+    ui->standardDensityAutoSuggest->setCompleter(
+            makeAutoSuggestCompleter(autoSuggestWords, ui->standardDensityAutoSuggest));
+    ui->compactDensityAutoSuggest->setCompleter(
+            makeAutoSuggestCompleter(autoSuggestWords, ui->compactDensityAutoSuggest));
 
     const auto icon = [this](QStyle::StandardPixmap pixmap) {
         return style()->standardIcon(pixmap, nullptr, this);

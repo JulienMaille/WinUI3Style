@@ -748,15 +748,23 @@ void WinUI3TogglesTest::checkboxAndRadioUncheckMotion()
     one->setChecked(true);
     host.show();
     QTRY_VERIFY(frameReal(one, "_winui_check_progress") > 0.99);
+    QCOMPARE(frameReal(one, "_winui_check_progress"), 1.0);
     const QImage radioChecked = one->grab().toImage();
     two->setChecked(true);
-    QVERIFY(frameReal(one, "_winui_check_progress") > 0.99);
-    QTRY_VERIFY(frameReal(one, "_winui_check_progress") < 0.01);
+    // Discrete switch: lands instantly, no 167ms fade.
+    QCOMPARE(frameReal(one, "_winui_check_progress"), 0.0);
+    QCOMPARE(frameReal(two, "_winui_check_progress"), 1.0);
     const QImage radioUnchecked = one->grab().toImage();
     setFrame(one, "_winui_check_progress", 0.5);
     const QImage radioMidpoint = one->grab().toImage();
     QVERIFY(radioMidpoint != radioChecked);
     QVERIFY(radioMidpoint != radioUnchecked);
+    // Rapid reversal resolves to the final state instantly.
+    one->setChecked(true);
+    QCOMPARE(frameReal(one, "_winui_check_progress"), 1.0);
+    QCOMPARE(frameReal(two, "_winui_check_progress"), 0.0);
+    two->setChecked(true);
+    QCOMPARE(frameReal(one, "_winui_check_progress"), 0.0);
 }
 
 QTEST_MAIN(WinUI3TogglesTest)

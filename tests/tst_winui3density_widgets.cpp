@@ -127,6 +127,8 @@ private slots:
     void autoSuggestMatchesCaseInsensitiveSubstrings();
     void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
     void autoSuggestKeyboardSelectsCurrentRow();
+    void hiddenCompleterPopupFollowsDensitySwitch();
+    void suggestersCompleteAndActivateInBothDensities();
     void runtimeThemeChangeRefreshesOpenComboPopup();
     void openComboPopupFollowsDensitySwitch();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
@@ -438,6 +440,110 @@ void WinUI3DensityWidgetsTest::autoSuggestKeyboardSelectsCurrentRow()
     QTRY_COMPARE(editor.text(), QStringLiteral("Beta"));
 }
 
+void WinUI3DensityWidgetsTest::hiddenCompleterPopupFollowsDensitySwitch()
+{
+    // Global density switch must reach hidden completer popups: the popup
+    // carries a stale winuiDensity plus the private delegate caches its
+    // sizeHint, so reopening without a re-sync keeps the old rows.
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(WinUI3::DensityMode::Standard);
+    QLineEdit editor;
+    auto *completer =
+            new QCompleter(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                                       QStringLiteral("Gamma"), QStringLiteral("Delta") },
+                           &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(280, 32);
+    editor.show();
+    editor.setFocus();
+    completer->setCompletionPrefix(QStringLiteral("a"));
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QCOMPARE(WinUI3::Style::densityMode(completer->popup()), WinUI3::DensityMode::Standard);
+    QCOMPARE(rowHeight(*completer->popup()), 40);
+    completer->popup()->hide();
+    QTRY_VERIFY(!completer->popup()->isVisible());
+
+    // Hidden switch: rows must follow without reopening first.
+    style.setDensityMode(WinUI3::DensityMode::Compact);
+    QCoreApplication::processEvents();
+    QCOMPARE(WinUI3::Style::densityMode(completer->popup()), WinUI3::DensityMode::Compact);
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QCOMPARE(WinUI3::Style::densityMode(completer->popup()), WinUI3::DensityMode::Compact);
+    QCOMPARE(rowHeight(*completer->popup()), 32);
+    completer->popup()->hide();
+
+    style.setDensityMode(WinUI3::DensityMode::Standard);
+    QCoreApplication::processEvents();
+    QCOMPARE(WinUI3::Style::densityMode(completer->popup()), WinUI3::DensityMode::Standard);
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QCOMPARE(rowHeight(*completer->popup()), 40);
+    completer->popup()->hide();
+}
+
+void WinUI3DensityWidgetsTest::suggestersCompleteAndActivateInBothDensities()
+{
+    // All three gallery suggesters share one wiring contract: case
+    // insensitive, contains match, popup completion, then activation
+    // carries the current row text to the editor.
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    for (const WinUI3::DensityMode mode :
+         { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        style.setDensityMode(mode);
+        const int expectedRow = mode == WinUI3::DensityMode::Compact ? 32 : 40;
+        for (int suggester = 0; suggester < 3; ++suggester) {
+            QLineEdit editor;
+            auto *completer = new QCompleter(
+                    QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                                QStringLiteral("Gamma"), QStringLiteral("Delta"),
+                                QStringLiteral("Settings"), QStringLiteral("Controls") },
+                    &editor);
+            completer->setCaseSensitivity(Qt::CaseInsensitive);
+            completer->setFilterMode(Qt::MatchContains);
+            completer->setCompletionMode(QCompleter::PopupCompletion);
+            editor.setCompleter(completer);
+            editor.resize(280, expectedRow == 32 ? 24 : 32);
+            editor.show();
+            editor.setFocus();
+            QCOMPARE(completer->caseSensitivity(), Qt::CaseInsensitive);
+            QCOMPARE(completer->filterMode(), Qt::MatchContains);
+            QCOMPARE(completer->completionMode(), QCompleter::PopupCompletion);
+            QTest::keyClicks(&editor, QStringLiteral("ET"));
+            QTRY_COMPARE(completer->completionCount(), 2);
+            QTRY_VERIFY(completer->popup()->isVisible());
+            QCOMPARE(WinUI3::Style::densityMode(completer->popup()), mode);
+            QCOMPARE(rowHeight(*completer->popup()), expectedRow);
+            // Geometry assert pairs the activation pixels: rows follow the
+            // active profile through the same CT_ItemViewItem contract as
+            // menu/combo rows (menuItemHeightInComboBox family).
+            QStyleOptionViewItem rowOption;
+            rowOption.initFrom(completer->popup()->viewport());
+            rowOption.index = completer->popup()->model()->index(0, 0);
+            QCOMPARE(editor.style()
+                             ->sizeFromContents(QStyle::CT_ItemViewItem, &rowOption, QSize(),
+                                                completer->popup())
+                             .height(),
+                     expectedRow);
+            QCOMPARE(completer->currentRow(), 0);
+            QObject::connect(completer, QOverload<const QString &>::of(&QCompleter::activated),
+                             &editor, [&](const QString &text) { editor.setText(text); });
+            completer->setCurrentRow(1);
+            QCOMPARE(completer->currentRow(), 1);
+            QCOMPARE(completer->currentCompletion(), QStringLiteral("Settings"));
+            Q_EMIT completer->activated(completer->currentCompletion());
+            QTRY_COMPARE(editor.text(), QStringLiteral("Settings"));
+            completer->popup()->hide();
+            QCoreApplication::processEvents();
+        }
+    }
+    style.setDensityMode(WinUI3::DensityMode::Standard);
+}
+
 void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenComboPopup()
 {
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
@@ -737,7 +843,16 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
     date.setCalendarPopup(true);
     date.setDate(QDate(2026, 8, 15));
     date.resize(200, 40);
+    // Dialogs-page persistentCalendar: the inline grid keeps the content
+    // surface and must share the popup's circle-select day chrome. Same
+    // calendarPopupView day chrome, different surfaces: only the tint
+    // (flyout vs content) may differ by design.
+    QCalendarWidget inlineCalendar;
+    inlineCalendar.setStyle(&style);
+    inlineCalendar.setSelectedDate(QDate(2026, 8, 15));
+    inlineCalendar.resize(360, 240);
     root.show();
+    inlineCalendar.show();
     QCoreApplication::processEvents();
     for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         if (style.themeMode() != mode)
@@ -765,6 +880,13 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
                 calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
         QVERIFY(navigation);
         QCOMPARE(navigation->backgroundRole(), QPalette::Window);
+        // Mechanism first: no native Highlight rect/strip may survive on any
+        QCOMPARE(view->palette().color(QPalette::Highlight), QColor(Qt::transparent));
+        const WinUI3::Private::Tokens modeTokens =
+                WinUI3::Private::buildTokens(style.standardPalette());
+        QCOMPARE(view->palette().color(QPalette::HighlightedText), modeTokens.textPrimary);
+        QCOMPARE(view->palette().color(QPalette::Base),
+                 WinUI3::Private::popupSurfaceColor(style.standardPalette()));
         auto *monthButton =
                 calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_monthbutton"));
         QVERIFY(monthButton);
@@ -796,6 +918,8 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         const QColor selectedCenter = selectedImage.pixelColor(selectedImage.rect().center());
         QVERIFY2(selectedCenter.alpha() > 0,
                  "calendar selection must render a visible WinUI item surface");
+        QVERIFY2(colorDistance(selectedCenter, modeTokens.accentFill) < 64,
+                 "calendar selected day must render the accent circle");
         const QColor selectedCorner = selectedImage.pixelColor(0, 0);
         QVERIFY2(selectedCorner.alpha() > 0, "calendar cells must paint an opaque popup surface");
         QVERIFY2(selectedCorner.rgba() != selectedCenter.rgba(),
@@ -831,6 +955,43 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
             }
         }
         QVERIFY2(readablePixels > 10, "calendar day cells must contain visible date glyphs");
+        // Inline grid: same neutralized Highlight, same circle chrome, but
+        // the content-surface Base (tokens.layer), never the flyout tint.
+        auto *inlineView = inlineCalendar.findChild<QAbstractItemView *>(
+                QStringLiteral("qt_calendar_calendarview"));
+        QVERIFY(inlineView);
+        QCOMPARE(inlineView->palette().color(QPalette::Highlight), QColor(Qt::transparent));
+        QCOMPARE(inlineView->palette().color(QPalette::HighlightedText), modeTokens.textPrimary);
+        QCOMPARE(inlineView->palette().color(QPalette::Base), modeTokens.layer);
+        auto *inlineNav = inlineCalendar.findChild<QWidget *>(
+                QStringLiteral("qt_calendar_navigationbar"));
+        QVERIFY(inlineNav);
+        QCOMPARE(inlineNav->backgroundRole(), QPalette::Window);
+        const QModelIndex inlineDayIndex = inlineView->model()->index(2, 3);
+        QVERIFY(inlineDayIndex.isValid());
+        QStyleOptionViewItem inlineDayOption;
+        inlineDayOption.initFrom(inlineView->viewport());
+        inlineDayOption.rect = inlineView->visualRect(inlineDayIndex);
+        QVERIFY(!inlineDayOption.rect.isEmpty());
+        inlineDayOption.index = inlineDayIndex;
+        inlineDayOption.text = inlineDayIndex.data(Qt::DisplayRole).toString();
+        inlineDayOption.features = QStyleOptionViewItem::HasDisplay;
+        inlineDayOption.state |= QStyle::State_Selected;
+        QImage inlineSelected(inlineDayOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        inlineSelected.fill(Qt::transparent);
+        inlineDayOption.rect.moveTopLeft(QPoint());
+        {
+            QPainter painter(&inlineSelected);
+            style.drawControl(QStyle::CE_ItemViewItem, &inlineDayOption, &painter,
+                              inlineView->viewport());
+        }
+        const QColor inlineCenter = inlineSelected.pixelColor(inlineSelected.rect().center());
+        QVERIFY2(inlineCenter.alpha() > 0,
+                 "inline calendar selection must render a visible WinUI item surface");
+        QVERIFY2(colorDistance(inlineCenter, modeTokens.accentFill) < 64,
+                 "inline selected day must render the same accent circle as the popup");
+        QVERIFY2(inlineSelected.pixelColor(0, 0).rgba() != inlineCenter.rgba(),
+                 "inline selection must not fill the complete Qt table cell");
         calendar->hide();
         QCoreApplication::processEvents();
     }

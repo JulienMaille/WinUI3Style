@@ -60,7 +60,10 @@ public:
     void setExpandableWidget(QWidget *widget);
 
     bool isExpanded() const;
-
+    // Card-interactive iff an expandable widget is set. Trailing-only cards
+    // (toggle/combo) are not card-interactive: no hover/press fill, no
+    // header-click activation, no StrongFocus/click cursor.
+    bool isCardInteractive() const;
 public slots:
     void setExpanded(bool expanded);
 
@@ -90,10 +93,10 @@ private:
     void refreshChevronPixmap();
     void invalidateExpandableHeight();
     void scheduleExpandableHeightRefresh();
+    void updateInteractivity();
     void refreshHeaderGeometry();
     int expandableContentHeight();
     void resetExpansionState(bool notify);
-
     QGridLayout *m_headerLayout = nullptr;
     QVBoxLayout *m_rootLayout = nullptr;
     QWidget *m_headerHost = nullptr;

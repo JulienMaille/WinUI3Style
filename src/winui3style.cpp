@@ -291,6 +291,15 @@ const QAbstractItemView *itemView(const QWidget *widget)
     return nullptr;
 }
 
+bool insideCalendarWidget(const QWidget *widget)
+{
+    for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
+        if (qobject_cast<const QCalendarWidget *>(candidate))
+            return true;
+    }
+    return false;
+}
+
 const QWidget *richTextEditor(const QWidget *widget)
 {
     for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
@@ -425,6 +434,22 @@ void invalidateDensityTree(QWidget *root)
         widget->repaint();
         if (auto *editor = qobject_cast<QLineEdit *>(widget))
             syncCompleterPopupDensity(editor);
+        if (auto *completerView = qobject_cast<QAbstractItemView *>(widget)) {
+            // Hidden completer popups are top-level native popups: no density
+            // ancestor reaches them from the editor tree, and the delegate
+            // caches its sizeHint. Re-sync any completer view (claimed or
+            // fresh from QCompleter::popup()) through the same editor path
+            // so a hidden switch lands before the next show.
+            const bool completerViewClaimed =
+                    completerView->property(completerOwnerProperty).isValid()
+                    || qobject_cast<QCompleter *>(completerView->parent());
+            if (completerViewClaimed) {
+                if (auto *completer = qobject_cast<QCompleter *>(completerView->parent())) {
+                    if (auto *reanchor = qobject_cast<QLineEdit *>(completer->widget()))
+                        syncCompleterPopupDensity(reanchor);
+                }
+            }
+        }
         if (qobject_cast<QMenuBar *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(widget, &styleChange);
@@ -1409,6 +1434,18 @@ void Style::refreshApplicationAppearance()
                 palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             } else if (qobject_cast<QWizardPage *>(widget)) {
                 palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
+            } else if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
+                       calendarGrid && insideCalendarWidget(widget)) {
+                // Transient pickers spawn a QCalendarWidget in Qt::Popup (gets
+                // the preparePopupSurface palette rebase) while the Dialogs
+                // persistentCalendar is inline (keeps the app palette). The
+                // shared calendarPopupView day chrome paints its own accent
+                // circle, so neutralize the native Highlight role for ALL
+                // calendar grids here, not only popups. Keep Base on the
+                // content surface (only real popups get the flyout tint) and
+                // kill just the native blue rect/strip.
+                palette.setColor(QPalette::Highlight, Qt::transparent);
+                palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
             } else if (widget->property(SurfaceProperty)
                                .toString()
                                .compare(QLatin1String("layer"), Qt::CaseInsensitive)
@@ -1839,10 +1876,20 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     }
 
     if (element == CE_ShapedFrame && widget && widget->property(SettingsCardProperty).toBool()) {
-        const qreal hover =
-                progress(widget, hoverProperty, option->state & State_MouseOver ? 1.0 : 0.0);
-        const qreal press =
-                progress(widget, pressProperty, option->state & State_Sunken ? 1.0 : 0.0);
+        // Card-interactive iff an expandable child is bound: trailing-only
+        // cards (Notifications/Updates) keep the resting control fill and
+        // never show hover/press. The expandable child lives under the
+        // _winui_settings_card_expandableHost, so presence of that host's
+        // layout marks interactivity without including settingscard.h here.
+        const QWidget *host =
+                widget->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
+        const bool interactive = host && host->layout() && host->layout()->count() > 0;
+        const qreal hover = interactive
+                ? progress(widget, hoverProperty, option->state & State_MouseOver ? 1.0 : 0.0)
+                : 0.0;
+        const qreal press = interactive
+                ? progress(widget, pressProperty, option->state & State_Sunken ? 1.0 : 0.0)
+                : 0.0;
         QColor fill = mix(t.control, t.controlHover, hover * (1.0 - press));
         fill = mix(fill, t.controlPressed, press);
         controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
@@ -2303,7 +2350,11 @@ void Style::polish(QWidget *widget)
         framePropertyRegistry().set(widget, checkProperty, radio->isChecked() ? 1.0 : 0.0);
         d->radioConnections.insert(
                 radio, connect(radio, &QAbstractButton::toggled, this, [this, radio](bool checked) {
-                    d->animate(radio, checkProperty, checked ? 1.0 : 0.0, Private::FastDuration);
+                    // RadioButton checked-state switch is discrete: only the dot
+                    // hover/press sizes animate (Normal 250ms via pressProperty).
+                    // Duration 0 lands instantly from current progress, so rapid
+                    // reversals track state exactly like checkbox uncheck.
+                    d->animate(radio, checkProperty, checked ? 1.0 : 0.0, 0);
                 }));
     } else if (auto *groupBox = qobject_cast<QGroupBox *>(widget);
                groupBox && groupBox->isCheckable()) {
@@ -2381,6 +2432,52 @@ void Style::polish(QWidget *widget)
         && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
         widget->setBackgroundRole(QPalette::Window);
         widget->update();
+    }
+
+    // The day grid qt_calendar_calendarview is itself a QTableView, so the
+    // generic table branch above claimed it with a subtleHover Highlight.
+    // That leaves a native full-cell rect behind the CalendarView accent
+    // circle, and an un-rebased inline grid keeps the app Highlight blue.
+    // The day chrome itself (circle-select, text/disabled/outside-month
+    // colors) is already shared for popup and inline grids by the calendar
+    // branches in winui3viewrenderers_p.cpp; only the palette is
+    // neutralized here. Keep Base on the content surface (no flyout tint
+    // inline) and kill just the native rect/strip. Single tableConnections
+    // slot per widget: taking the generic entry first keeps the symmetry
+    // gate, and generic unpolish (remembered-palette restore +
+    // tableConnections.take) covers both palette and connection.
+    if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
+        calendarGrid && insideCalendarWidget(widget)) {
+        if (const auto previous = d->tableConnections.take(widget))
+            disconnect(previous);
+        const auto applyCalendarSelectionPalette = [this, calendarGrid] {
+            QPalette palette = calendarGrid->palette();
+            const Private::Tokens calendarTokens = Private::tokens(standardPalette());
+            palette.setColor(QPalette::Highlight, Qt::transparent);
+            palette.setColor(QPalette::HighlightedText, calendarTokens.textPrimary);
+            calendarGrid->setPalette(palette);
+        };
+        applyCalendarSelectionPalette();
+        d->tableConnections.insert(
+                widget,
+                connect(this, &Style::themeChanged, widget,
+                        [applyCalendarSelectionPalette](ThemeMode) {
+                            applyCalendarSelectionPalette();
+                        }));
+    }
+
+    // The native selection rect reads the viewport option palette, so the
+    // grid's viewport neutralizes itself in its own polish. Each widget's
+    // rememberPalette runs in its own polish, so generic unpolish restores
+    // the exact remembered state; no poke-across from the grid's polish.
+    if (auto *calendarTable = qobject_cast<QTableView *>(widget->parentWidget());
+        calendarTable && widget == calendarTable->viewport()
+        && insideCalendarWidget(calendarTable)) {
+        QPalette viewportPalette = widget->palette();
+        const Private::Tokens viewportTokens = Private::tokens(standardPalette());
+        viewportPalette.setColor(QPalette::Highlight, Qt::transparent);
+        viewportPalette.setColor(QPalette::HighlightedText, viewportTokens.textPrimary);
+        widget->setPalette(viewportPalette);
     }
 
     if (qobject_cast<QComboBox *>(widget))

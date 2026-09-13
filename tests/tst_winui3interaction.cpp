@@ -513,7 +513,7 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
     QVERIFY(chevron);
     QVERIFY(chevron->isVisible());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronRight));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
     const QRect chevronInCard(chevron->mapTo(&card, chevron->rect().topLeft()), chevron->size());
     const QRect trailingInCard(trailing->mapTo(&card, trailing->rect().topLeft()),
                                trailing->size());
@@ -530,8 +530,10 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
     QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
     card.setExpanded(false);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.99);
+    // Expandable cards keep ChevronDown in every direction, collapsed or
+    // expanded. RTL/LTR arrows belong only to hidden non-expandable chevrons.
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronLeft));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
 }
 
 void WinUI3InteractionTest::settingsCardExpansionLoad()
@@ -679,20 +681,18 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QVERIFY(chevron->isVisible());
     QVERIFY(!labelPixmap(chevron).isNull());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronRight));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
 
     const QRect headerGeometry = header->geometry();
     const QRect titleGeometry = title->geometry();
     const QRect descriptionGeometry = description->geometry();
     const QImage collapsed = card.grab().toImage();
-    const QPixmap collapsedChevron = labelPixmap(chevron);
 
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, header->geometry().center());
     QCOMPARE(card.isExpanded(), true);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     const QImage first = card.grab().toImage();
-    QTRY_VERIFY(labelPixmap(chevron).toImage() != collapsedChevron.toImage());
     QCOMPARE(header->geometry(), headerGeometry);
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);

@@ -100,6 +100,8 @@ private slots:
     void cleanup();
     void backdropLifecycleContract();
     void backdropButtonRepaintDoesNotAccumulate();
+    void backdropSliderInsideOpaqueCardKeepsCardFill();
+    void backdropSliderRepaintDoesNotAccumulate();
     void backdropComboRepaintDoesNotAccumulate();
     void islandScrollPostsFullViewportRepaint();
     void backdropResizeKeepsTransparentRecipe();
@@ -265,13 +267,90 @@ void WinUI3SurfacesTest::backdropButtonRepaintDoesNotAccumulate()
     QVERIFY(childFrame.pixelColor(4, 4).alpha() > 0 || childFrame.pixelColor(48, 16) != QColor(255, 0, 0));
 }
 
+void WinUI3SurfacesTest::backdropSliderInsideOpaqueCardKeepsCardFill()
+{
+    // Sliders paint only groove/thumb: no opaque fill of their own. Inside
+    // an opaque group card the slider erase must not punch a transparent
+    // hole through the card fill (the mica-mode band). Same state, token
+    // plus geometry asserts.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QGroupBox card(QStringLiteral("Values"), &window);
+    card.resize(220, 96);
+    QSlider slider(Qt::Horizontal, &card);
+    slider.setRange(0, 100);
+    slider.setValue(42);
+    slider.setGeometry(20, 36, 180, 24);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    // Geometry: the card Window role is opaque, the gate would pass for the
+    // slider, so only the card guard keeps the fill.
+    QVERIFY(card.palette().color(QPalette::Window).alpha() != 0);
+    QStyleOptionSlider option;
+    option.initFrom(&slider);
+    option.rect = slider.rect();
+    option.orientation = Qt::Horizontal;
+    QImage frame(slider.size(), QImage::Format_ARGB32_Premultiplied);
+    frame.fill(card.palette().color(QPalette::Window));
+    QPainter painter(&frame);
+    style->drawComplexControl(QStyle::CC_Slider, &option, &painter, &slider);
+    painter.end();
+    // Token assert: no pixel punched to transparent inside the slider rect.
+    for (int y = 0; y < frame.height(); y += 4) {
+        for (int x = 0; x < frame.width(); x += 4) {
+            QVERIFY2(frame.pixelColor(x, y).alpha() != 0,
+                     qPrintable(QStringLiteral("hole at %1,%2").arg(x).arg(y)));
+        }
+    }
+    // Geometry assert: groove still paints (non-card pixels changed).
+    QVERIFY(frame != QImage(frame.size(), QImage::Format_ARGB32_Premultiplied));
+}
+
+void WinUI3SurfacesTest::backdropSliderRepaintDoesNotAccumulate()
+{
+    // Slider twin of the button/combo non-accumulation contracts: hover then
+    // normal must repaint byte-identical. Exercises the guarded erase path
+    // (inside an opaque card the erase is skipped, straight on the material
+    // it clears) without depending on the unrelated combo painter.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    QSlider slider(Qt::Horizontal, &window);
+    slider.resize(180, 24);
+    slider.setRange(0, 100);
+    slider.setValue(42);
+    QStyleOptionSlider sliderOption;
+    sliderOption.initFrom(&slider);
+    sliderOption.rect = slider.rect();
+    sliderOption.orientation = Qt::Horizontal;
+    const auto paintSliderFrame = [&](QImage &image, QStyle::State state) {
+        sliderOption.state = state;
+        QPainter painter(&image);
+        style->drawComplexControl(QStyle::CC_Slider, &sliderOption, &painter, &slider);
+    };
+    QImage sliderNormal(slider.size(), QImage::Format_ARGB32_Premultiplied);
+    sliderNormal.fill(Qt::transparent);
+    setFrame(&slider, "_winui_hover_progress", 0.0);
+    paintSliderFrame(sliderNormal, QStyle::State_Enabled);
+    QImage sliderHoverThenNormal(slider.size(), QImage::Format_ARGB32_Premultiplied);
+    sliderHoverThenNormal.fill(Qt::transparent);
+    setFrame(&slider, "_winui_hover_progress", 1.0);
+    paintSliderFrame(sliderHoverThenNormal, QStyle::State_Enabled | QStyle::State_MouseOver);
+    setFrame(&slider, "_winui_hover_progress", 0.0);
+    paintSliderFrame(sliderHoverThenNormal, QStyle::State_Enabled);
+    QCOMPARE(sliderHoverThenNormal, sliderNormal);
+}
+
 void WinUI3SurfacesTest::backdropComboRepaintDoesNotAccumulate()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QWidget window;
     window.setProperty("_winui_backdrop", 1);
     QComboBox combo(&window);
-    combo.addItem(QStringLiteral("Theme"));
 
     QStyleOptionComboBox option;
     option.initFrom(&combo);

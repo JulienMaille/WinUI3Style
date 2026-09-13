@@ -8,6 +8,7 @@
 
 #include <QGridLayout>
 #include <QCoreApplication>
+#include <QCursor>
 #include <QEvent>
 #include <QHideEvent>
 #include <QKeyEvent>
@@ -33,7 +34,8 @@ SettingsCard::SettingsCard(QWidget *parent)
       m_expansionAnimation(new QVariantAnimation(this))
 {
     Style::setSettingsCard(this);
-    setFocusPolicy(Qt::StrongFocus);
+    // Card-interactivity (focus/cursor) is owned by updateInteractivity():
+    // only cards with an expandable widget are card-interactive.
     setMouseTracking(true);
     // A SettingsCard owns its vertical rhythm.  QSizePolicy::Minimum carries
     // GrowFlag, so Designer layouts used to distribute every spare pixel
@@ -46,6 +48,9 @@ SettingsCard::SettingsCard(QWidget *parent)
 
     m_rootLayout->setContentsMargins(16, 0, 16, 0);
     m_rootLayout->setSpacing(0);
+    // Expanded content shares the card surface: plain host, no fill,
+    // no frame/border of its own.
+    m_expandableHost->setAutoFillBackground(false);
     m_headerHost->setObjectName(QStringLiteral("_winui_settings_card_headerHost"));
     m_expandableHost->setObjectName(QStringLiteral("_winui_settings_card_expandableHost"));
     m_headerHost->setMouseTracking(true);
@@ -98,6 +103,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     connect(m_expansionAnimation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) { setExpansionProgress(value.toReal()); });
     m_expansionAnimation->setObjectName(QStringLiteral("_winui_settings_card_expansion_animation"));
+    updateInteractivity();
     refreshChevronPixmap();
     refreshHeaderGeometry();
 }
@@ -269,7 +275,9 @@ void SettingsCard::refreshChevronPixmap()
 {
     if (!m_chevronLabel)
         return;
-    const Icon glyph = m_expanded                  ? Icon::ChevronDown
+    // Any card WITH an expandable widget points down, collapsed or expanded.
+    // RTL/LTR variants survive only for hidden non-expandable chevrons.
+    const Icon glyph = m_expandableWidget           ? Icon::ChevronDown
             : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
                                                    : Icon::ChevronRight;
     const Private::Tokens t = Private::tokens(palette());
@@ -283,6 +291,23 @@ void SettingsCard::refreshChevronPixmap()
                                 enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off));
     m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", static_cast<int>(glyph));
     m_chevronLabel->setVisible(m_expandableWidget != nullptr);
+}
+
+bool SettingsCard::isCardInteractive() const
+{
+    return m_expandableWidget != nullptr;
+}
+
+void SettingsCard::updateInteractivity()
+{
+    const bool interactive = isCardInteractive();
+    if (!interactive)
+        m_pressed = false;
+    setFocusPolicy(interactive ? Qt::StrongFocus : Qt::NoFocus);
+    if (!interactive)
+        clearFocus();
+    setCursor(interactive ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    update();
 }
 
 QWidget *SettingsCard::trailingWidget() const
@@ -337,6 +362,7 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
                     if (m_expandableWidget == guarded) {
                         m_expandableWidget = nullptr;
                         resetExpansionState(true);
+                        updateInteractivity();
                         refreshChevronPixmap();
                         updateGeometry();
                     }
@@ -344,6 +370,7 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
         widget->show();
     }
     invalidateExpandableHeight();
+    updateInteractivity();
     refreshChevronPixmap();
     m_headerWidth = -1;
     refreshHeaderGeometry();
@@ -596,7 +623,10 @@ void SettingsCard::leaveEvent(QEvent *event)
 
 void SettingsCard::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && headerContains(Private::mousePositionPoint(event))) {
+    // Trailing-only cards are dead to header presses: inner toggle/combo
+    // widgets still receive their own clicks; the card never arms.
+    if (isCardInteractive() && event->button() == Qt::LeftButton
+        && headerContains(Private::mousePositionPoint(event))) {
         m_pressed = true;
         update();
         event->accept();
@@ -607,7 +637,7 @@ void SettingsCard::mousePressEvent(QMouseEvent *event)
 
 void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
 {
-    const bool activate = m_pressed && event->button() == Qt::LeftButton
+    const bool activate = isCardInteractive() && m_pressed && event->button() == Qt::LeftButton
             && headerContains(Private::mousePositionPoint(event));
     m_pressed = false;
     update();
@@ -623,7 +653,8 @@ void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
 
 void SettingsCard::keyPressEvent(QKeyEvent *event)
 {
-    if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
+    if (isCardInteractive()
+        && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
         && !event->isAutoRepeat()) {
         emit activated();
         if (m_expandableWidget)

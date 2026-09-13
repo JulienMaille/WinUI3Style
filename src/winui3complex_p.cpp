@@ -228,7 +228,24 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
 
     if (control == QStyle::CC_Slider) {
         if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
-            eraseForBackdrop(painter, widget, option->rect);
+            // Sliders paint only groove/thumb/focus: no opaque fill of their
+            // own. Erasing to transparent is correct straight onto the live
+            // material, but inside an opaque group card it would punch a hole
+            // through the card fill (the mica-mode band). Group cards carry
+            // no SurfaceProperty, so the gate cannot see them: skip the erase
+            // when an opaque QGroupBox ancestor intervenes and keep the card
+            // fill the parent already painted.
+            bool insideOpaqueCard = false;
+            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
+                 ancestor = ancestor->parentWidget()) {
+                if (qobject_cast<const QGroupBox *>(ancestor)
+                    && ancestor->palette().color(QPalette::Window).alpha() != 0) {
+                    insideOpaqueCard = true;
+                    break;
+                }
+            }
+            if (!insideOpaqueCard)
+                eraseForBackdrop(painter, widget, option->rect);
             const bool horizontal = slider->orientation == Qt::Horizontal;
             QRect groove = style->subControlRect(QStyle::CC_Slider, slider, QStyle::SC_SliderGroove,
                                                  widget);
