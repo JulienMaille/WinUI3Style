@@ -89,8 +89,7 @@ BackdropReadback readBackdropGrant(WId windowId)
     if (!hwnd)
         return result;
     DWORD raw = 0;
-    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWORD(dwmSystemBackdropType), &raw,
-                                        sizeof(raw)))) {
+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWORD(dwmSystemBackdropType), &raw, sizeof(raw)))) {
         result.readable = true;
         result.value = int(raw);
     }
@@ -275,7 +274,8 @@ void WinUI3PopupCornersTest::menuSubmenuGrantConverges()
     if (parentComp && submenuComp) {
         QCOMPARE(submenu.windowRole, parent.windowRole);
         QCOMPARE(submenu.baseRole, parent.baseRole);
-        const int greyDelta = qAbs(submenu.grab.pixelColor(2, 2).red() - parent.grab.pixelColor(2, 2).red())
+        const int greyDelta =
+                qAbs(submenu.grab.pixelColor(2, 2).red() - parent.grab.pixelColor(2, 2).red())
                 + qAbs(submenu.grab.pixelColor(2, 2).green() - parent.grab.pixelColor(2, 2).green())
                 + qAbs(submenu.grab.pixelColor(2, 2).blue() - parent.grab.pixelColor(2, 2).blue());
         QVERIFY2(greyDelta <= 4,
@@ -431,7 +431,8 @@ void WinUI3PopupCornersTest::menuReopenGrantParityNative()
         return false;
     };
 
-    QVERIFY2(openOnce(true), "could not open File menu by Alt+F, setActiveAction+Down, or popup fallback");
+    QVERIFY2(openOnce(true),
+             "could not open File menu by Alt+F, setActiveAction+Down, or popup fallback");
 
     // Epoch 1: expose + ~500 ms QTRY window (covers rearm retries
     // 0/32/96/200 ms). HWND via windowHandle()->winId() only.
@@ -442,12 +443,14 @@ void WinUI3PopupCornersTest::menuReopenGrantParityNative()
     QMenu *ptr1 = fileMenu;
     const WId hwnd1 = handle1->winId();
     DWORD raw1 = 0;
-    const HRESULT hr1 =
-            DwmGetWindowAttribute(reinterpret_cast<HWND>(hwnd1), DWORD(dwmSystemBackdropType),
-                                  &raw1, sizeof(raw1));
+    const HRESULT hr1 = DwmGetWindowAttribute(reinterpret_cast<HWND>(hwnd1),
+                                              DWORD(dwmSystemBackdropType), &raw1, sizeof(raw1));
     const QRect rect1 = fileMenu->geometry();
-    const QString rectText1 =
-            QStringLiteral("(%1,%2 %3x%4)").arg(rect1.x()).arg(rect1.y()).arg(rect1.width()).arg(rect1.height());
+    const QString rectText1 = QStringLiteral("(%1,%2 %3x%4)")
+                                      .arg(rect1.x())
+                                      .arg(rect1.y())
+                                      .arg(rect1.width())
+                                      .arg(rect1.height());
 
     // Close via hide() + processEvents (recorded method).
     fileMenu->hide();
@@ -464,12 +467,14 @@ void WinUI3PopupCornersTest::menuReopenGrantParityNative()
     QMenu *ptr2 = fileMenu;
     const WId hwnd2 = handle2->winId();
     DWORD raw2 = 0;
-    const HRESULT hr2 =
-            DwmGetWindowAttribute(reinterpret_cast<HWND>(hwnd2), DWORD(dwmSystemBackdropType),
-                                  &raw2, sizeof(raw2));
+    const HRESULT hr2 = DwmGetWindowAttribute(reinterpret_cast<HWND>(hwnd2),
+                                              DWORD(dwmSystemBackdropType), &raw2, sizeof(raw2));
     const QRect rect2 = fileMenu->geometry();
-    const QString rectText2 =
-            QStringLiteral("(%1,%2 %3x%4)").arg(rect2.x()).arg(rect2.y()).arg(rect2.width()).arg(rect2.height());
+    const QString rectText2 = QStringLiteral("(%1,%2 %3x%4)")
+                                      .arg(rect2.x())
+                                      .arg(rect2.y())
+                                      .arg(rect2.width())
+                                      .arg(rect2.height());
     fileMenu->hide();
     QCoreApplication::processEvents();
 
@@ -483,8 +488,9 @@ void WinUI3PopupCornersTest::menuReopenGrantParityNative()
     const int value2 = int(raw2);
     // Expected RED: first popup granted (3), reopen silently AUTO (0).
     QVERIFY2(!(value1 == 3 && value2 != 3),
-             qPrintable(QStringLiteral("reopen grant lost: e1 hwnd=0x%1 value=%2, e2 hwnd=0x%3 value=%4 "
-                                        "(openMethod=%5 sameQMenu=%6 sameHWND=%7)")
+             qPrintable(QStringLiteral(
+                                "reopen grant lost: e1 hwnd=0x%1 value=%2, e2 hwnd=0x%3 value=%4 "
+                                "(openMethod=%5 sameQMenu=%6 sameHWND=%7)")
                                 .arg(static_cast<quintptr>(hwnd1), 0, 16)
                                 .arg(value1)
                                 .arg(static_cast<quintptr>(hwnd2), 0, 16)
@@ -530,7 +536,8 @@ void WinUI3PopupCornersTest::menuReopenGrantParityGalleryShape()
     // Use the public API, never a manually toggled translucent attribute.
     const bool applied = requestMica && WinUI3::applyBackdrop(&host, WinUI3::Backdrop::Mica);
 
-    struct Sample {
+    struct Sample
+    {
         quintptr menu = 0;
         WId hwnd = 0;
         HRESULT hr = E_HANDLE;
@@ -548,14 +555,17 @@ void WinUI3PopupCornersTest::menuReopenGrantParityGalleryShape()
         sample.hwnd = fileMenu->internalWinId();
         const WId hostId = host.internalWinId();
         sample.hr = DwmGetWindowAttribute(reinterpret_cast<HWND>(sample.hwnd),
-                DWORD(dwmSystemBackdropType), &sample.value, sizeof(sample.value));
-        sample.hostHr = DwmGetWindowAttribute(reinterpret_cast<HWND>(hostId),
-                DWORD(dwmSystemBackdropType), &sample.hostValue, sizeof(sample.hostValue));
+                                          DWORD(dwmSystemBackdropType), &sample.value,
+                                          sizeof(sample.value));
+        sample.hostHr =
+                DwmGetWindowAttribute(reinterpret_cast<HWND>(hostId), DWORD(dwmSystemBackdropType),
+                                      &sample.hostValue, sizeof(sample.hostValue));
         micaVerified = micaVerified && sample.hostHr == S_OK && sample.hostValue == 2;
         return sample;
     };
     // Task-local, read-only Show observer; no custom widget or shared helper.
-    struct ShowObserver final : QObject {
+    struct ShowObserver final : QObject
+    {
         std::function<void()> onShow;
         bool eventFilter(QObject *, QEvent *event) override
         {
@@ -564,7 +574,10 @@ void WinUI3PopupCornersTest::menuReopenGrantParityGalleryShape()
             return false;
         }
     } observer;
-    observer.onShow = [&] { ++showCount; record("Show"); };
+    observer.onShow = [&] {
+        ++showCount;
+        record("Show");
+    };
     fileMenu->installEventFilter(&observer);
     const auto waitUntil = [&](qint64 deadline) {
         while (timeline.elapsed() < deadline)
@@ -572,8 +585,9 @@ void WinUI3PopupCornersTest::menuReopenGrantParityGalleryShape()
     };
     for (epoch = 0; epoch < 2; ++epoch) {
         waitUntil(epoch == 0 ? 1500 : 8500);
-        const QPoint anchor = host.menuBar()->mapToGlobal(QPoint(
-                host.menuBar()->actionGeometry(fileMenu->menuAction()).left(), host.menuBar()->height()));
+        const QPoint anchor = host.menuBar()->mapToGlobal(
+                QPoint(host.menuBar()->actionGeometry(fileMenu->menuAction()).left(),
+                       host.menuBar()->height()));
         fileMenu->popup(anchor);
         QTRY_VERIFY(fileMenu->isVisible());
         QVERIFY(fileMenu->windowHandle());
@@ -601,9 +615,12 @@ void WinUI3PopupCornersTest::menuReopenGrantParityGalleryShape()
     QVERIFY2(second.hr == S_OK && second.value == 3,
              qPrintable(QStringLiteral("close/reopen grant lost: first HWND=0x%1 hr=0x%2 value=%3; "
                                        "reopen HWND=0x%4 hr=0x%5 value=%6")
-                     .arg(quintptr(first.hwnd), 0, 16).arg(quint32(first.hr), 8, 16, QLatin1Char('0'))
-                     .arg(qint32(first.value)).arg(quintptr(second.hwnd), 0, 16)
-                     .arg(quint32(second.hr), 8, 16, QLatin1Char('0')).arg(qint32(second.value))));
+                                .arg(quintptr(first.hwnd), 0, 16)
+                                .arg(quint32(first.hr), 8, 16, QLatin1Char('0'))
+                                .arg(qint32(first.value))
+                                .arg(quintptr(second.hwnd), 0, 16)
+                                .arg(quint32(second.hr), 8, 16, QLatin1Char('0'))
+                                .arg(qint32(second.value))));
     QCOMPARE(second.value, first.value);
 #endif
 }

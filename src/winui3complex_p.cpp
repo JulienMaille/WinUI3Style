@@ -116,7 +116,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             // radius clip: the fill below repaints the full frame every pass.
             eraseForBackdrop(painter, widget, combo->rect);
             if (!paintsDirectlyOnBackdrop(widget) && widget && widget->parentWidget()
-                       && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+                && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
                                   widget->parentWidget()->palette().color(QPalette::Window));
             }

@@ -27,10 +27,9 @@ void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill, cons
     if (stroke.alpha() > 0) {
         painter->setBrush(Qt::NoBrush);
         painter->setPen(QPen(stroke, strokeWidth));
-        painter->drawRoundedRect(
-                rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
-                              -strokeWidth / 2.0),
-                radius, radius);
+        painter->drawRoundedRect(rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0,
+                                               -strokeWidth / 2.0, -strokeWidth / 2.0),
+                                 radius, radius);
     }
     painter->restore();
 }
@@ -115,10 +114,9 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
     borderPen.setCosmetic(true);
     painter->setBrush(Qt::NoBrush);
     painter->setPen(borderPen);
-    painter->drawRoundedRect(
-            rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
-                          -strokeWidth / 2.0),
-            radius, radius);
+    painter->drawRoundedRect(rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
+                                           -strokeWidth / 2.0),
+                             radius, radius);
     painter->restore();
 }
 
@@ -169,8 +167,8 @@ void paintGrayscaleText(QPainter *painter, const QRect &rect, int flags, const Q
     // coverage: no LCD-stripe R/B fringes. Lives on the font copy used for
     // this paint only; the widget font is never mutated.
     QFont grayFont = font;
-    grayFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(
-            grayFont.styleStrategy() | QFont::NoSubpixelAntialias));
+    grayFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(grayFont.styleStrategy()
+                                                                | QFont::NoSubpixelAntialias));
     painter->setFont(grayFont);
     painter->setPen(color);
     painter->setRenderHint(QPainter::TextAntialiasing, true);

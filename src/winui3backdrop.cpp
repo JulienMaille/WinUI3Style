@@ -126,8 +126,7 @@ bool popupBackdropGrantAlive(QWidget *window)
         || !IsWindow(reinterpret_cast<HWND>(window->internalWinId())))
         return false;
     const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
-    return IsWindow(hwnd)
-            && backdropEffectiveSurface(window) == BackdropSurface::Composited;
+    return IsWindow(hwnd) && backdropEffectiveSurface(window) == BackdropSurface::Composited;
 #else
     Q_UNUSED(window)
     return false;
@@ -365,8 +364,8 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     // QWidget cache. Preserve first-time creation for the public API only
     // when there is no platform window yet.
     QWindow *nativeWindow = window->windowHandle();
-    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow && nativeWindow->handle()
-            ? nativeWindow->winId() : window->winId());
+    const HWND hwnd = reinterpret_cast<HWND>(
+            nativeWindow && nativeWindow->handle() ? nativeWindow->winId() : window->winId());
     const BOOL dark = qGray(themedWindowColor.rgb()) < 128;
     DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute, &dark, sizeof(dark));
     const COLORREF caption = backdrop == Backdrop::None

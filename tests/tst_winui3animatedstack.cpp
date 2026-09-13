@@ -211,8 +211,10 @@ void WinUI3AnimatedStackTest::animatedStackFinishRetrigger()
     stack.resize(240, 80);
     stack.show();
     stack.setDuration(60);
-    connect(&stack, &WinUI3::AnimatedStack::transitionFinished,
-            [&](int index) { if (index == 1) stack.setCurrentIndex(2); });
+    connect(&stack, &WinUI3::AnimatedStack::transitionFinished, [&](int index) {
+        if (index == 1)
+            stack.setCurrentIndex(2);
+    });
     stack.setCurrentIndex(1);
     const QPointer<QParallelAnimationGroup> first(stack.findChild<QParallelAnimationGroup *>());
     QVERIFY(first);

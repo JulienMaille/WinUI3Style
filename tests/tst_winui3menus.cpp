@@ -87,9 +87,9 @@
 #include <QLibrary>
 #include <QScreen>
 #if defined(Q_OS_WIN)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
 #endif
 
 #include <cmath>
@@ -731,7 +731,8 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
     QVERIFY(style);
     style->setThemeMode(WinUI3::ThemeMode::Light);
     style->setDensityMode(WinUI3::DensityMode::Standard);
-    struct Snap {
+    struct Snap
+    {
         QImage img;
         QRect geo;
         QMargins mg;
@@ -748,8 +749,7 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
         while (!t.hasExpired(3000)) {
             bool run = false;
             for (const auto *g : m->findChildren<QParallelAnimationGroup *>(
-                         QStringLiteral("_winui_popup_open_animation"),
-                         Qt::FindDirectChildrenOnly))
+                         QStringLiteral("_winui_popup_open_animation"), Qt::FindDirectChildrenOnly))
                 run = run || g->state() == QAbstractAnimation::Running;
             if (m->windowOpacity() == 1.0 && !run)
                 break;
@@ -877,10 +877,9 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
                     const QRect sg = sc->geometry();
                     const qreal kx = qreal(d.width()) / qMax(1, sg.width());
                     auto avg = [&](const QRect &r) -> int {
-                        const QRect n(qRound((r.x() - sg.left()) * kx),
-                                      qRound((r.y() - sg.top()) * kx),
-                                      qMax(1, qRound(r.width() * kx)),
-                                      qMax(1, qRound(r.height() * kx)));
+                        const QRect n(
+                                qRound((r.x() - sg.left()) * kx), qRound((r.y() - sg.top()) * kx),
+                                qMax(1, qRound(r.width() * kx)), qMax(1, qRound(r.height() * kx)));
                         if (!d.rect().contains(n))
                             return -1;
                         int g = 0, npx = 0;
@@ -920,7 +919,8 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
         QCOMPARE(b.top, a.top);
         QCOMPARE(b.ch, a.ch);
         QVERIFY2(menu->findChildren<QParallelAnimationGroup *>(
-                         QStringLiteral("_winui_popup_open_animation"), Qt::FindDirectChildrenOnly)
+                             QStringLiteral("_winui_popup_open_animation"),
+                             Qt::FindDirectChildrenOnly)
                                  .size()
                          <= 1,
                  qPrintable(tag + " sweep>1"));
@@ -976,10 +976,9 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
                  qPrintable(tag + " drift maxDelta=" + QByteArray::number(maxDelta) + " "
                             + a.eff.toLatin1() + "/" + b.eff.toLatin1()));
         const QColor black = Qt::black;
-        const int hostDelta = a.hst.isValid() && b.hst.isValid()
-                ? qAbs(a.hst.red() - b.hst.red()) + qAbs(a.hst.green() - b.hst.green())
-                        + qAbs(a.hst.blue() - b.hst.blue())
-                : 999;
+        const int hostDelta = a.hst.isValid() && b.hst.isValid() ? qAbs(a.hst.red() - b.hst.red())
+                        + qAbs(a.hst.green() - b.hst.green()) + qAbs(a.hst.blue() - b.hst.blue())
+                                                                 : 999;
         if (a.dwm != -2 && b.dwm != -2 && a.hst.isValid() && b.hst.isValid() && a.hst != black
             && b.hst != black && hostDelta <= 12 && a.shSide > 0 && b.shSide > 0 && c1 == c2
             && a.scr.isValid() && b.scr.isValid()) {

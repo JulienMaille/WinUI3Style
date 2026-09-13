@@ -107,7 +107,6 @@ private slots:
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
     void tableEditorTrackerLifetimeContract();
-
 };
 
 void WinUI3EditorsTest::initTestCase()
@@ -135,7 +134,6 @@ void WinUI3EditorsTest::cleanup()
         focus->clearFocus();
     qApp->processEvents();
 }
-
 
 void WinUI3EditorsTest::textBoxInteraction()
 {

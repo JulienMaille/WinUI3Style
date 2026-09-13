@@ -138,10 +138,12 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // parent card tone when inside a group card (directly on the
         // material transparent is correct). Interactive states keep the
         // standard erase-then-fill path below.
-        if (!calendarPopupButton && (Style::controlRole(widget) == ControlRole::Subtle
-             || Style::controlRole(widget) == ControlRole::Navigation)
+        if (!calendarPopupButton
+            && (Style::controlRole(widget) == ControlRole::Subtle
+                || Style::controlRole(widget) == ControlRole::Navigation)
             && paintsDirectlyOnBackdrop(widget)
-            && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
+            && !(option->state
+                 & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
             && progress(widget, hoverProperty, 0.0) < 0.01
             && progress(widget, pressProperty, 0.0) < 0.01) {
             eraseForBackdrop(painter, widget, option->rect, ControlRadius);
@@ -394,7 +396,8 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
     return false;
 }
 
-static bool drawPushButtonControl(const Style *style, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+static bool drawPushButtonControl(const Style *style, const QStyleOption *option, QPainter *painter,
+                                  const QWidget *widget)
 {
     const Tokens t = tokens(option->palette);
     if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
@@ -412,7 +415,9 @@ static bool drawPushButtonControl(const Style *style, const QStyleOption *option
     return false;
 }
 
-static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement element,
+                                  const QStyleOption *option, QPainter *painter,
+                                  const QWidget *widget)
 {
     const Tokens t = tokens(option->palette);
     if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
@@ -421,8 +426,7 @@ static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement ele
         indicator.rect = style->subElementRect(radio ? QStyle::SE_RadioButtonIndicator
                                                      : QStyle::SE_CheckBoxIndicator,
                                                button, widget);
-        style->drawPrimitive(radio ? QStyle::PE_IndicatorRadioButton
-                                   : QStyle::PE_IndicatorCheckBox,
+        style->drawPrimitive(radio ? QStyle::PE_IndicatorRadioButton : QStyle::PE_IndicatorCheckBox,
                              &indicator, painter, widget);
 
         QRect contents = style->subElementRect(radio ? QStyle::SE_RadioButtonContents
@@ -430,8 +434,7 @@ static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement ele
                                                button, widget);
         const bool enabled = button->state & QStyle::State_Enabled;
         if (!button->icon.isNull()) {
-            const QSize iconSize =
-                    button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
+            const QSize iconSize = button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
             const QRect logical(contents.left(), contents.center().y() - iconSize.height() / 2,
                                 iconSize.width(), iconSize.height());
             const QRect iconRect = QStyle::visualRect(button->direction, contents, logical);
@@ -444,16 +447,15 @@ static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement ele
             else
                 contents.setLeft(iconRect.right() + 6);
         }
-        paintGrayscaleText(painter, contents,
-                           QStyle::visualAlignment(button->direction,
-                                                   Qt::AlignLeft | Qt::AlignVCenter)
-                                   | Qt::TextShowMnemonic,
-                           widget ? widget->font() : QApplication::font(),
-                           enabled ? t.textPrimary : t.textDisabled, button->text);
+        paintGrayscaleText(
+                painter, contents,
+                QStyle::visualAlignment(button->direction, Qt::AlignLeft | Qt::AlignVCenter)
+                        | Qt::TextShowMnemonic,
+                widget ? widget->font() : QApplication::font(),
+                enabled ? t.textPrimary : t.textDisabled, button->text);
         painter->save();
         if ((button->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
-            paintFocusRing(painter, QRectF(button->rect), t.focusOuter, t.focusInner, 1, 3, 5,
-                           3);
+            paintFocusRing(painter, QRectF(button->rect), t.focusOuter, t.focusInner, 1, 3, 5, 3);
         }
         painter->restore();
         return true;
@@ -461,16 +463,17 @@ static bool drawCheckRadioControl(const Style *style, QStyle::ControlElement ele
     return false;
 }
 
-static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, QPainter *painter,
+                                    const QWidget *widget)
 {
     const Tokens t = tokens(option->palette);
     if (const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option)) {
         const bool enabled = check->state & QStyle::State_Enabled;
         const bool checked = check->state & (QStyle::State_On | QStyle::State_NoChange);
-        const qreal hover = progress(widget, hoverProperty,
-                                     check->state & QStyle::State_MouseOver ? 1.0 : 0.0);
-        const qreal press = progress(widget, pressProperty,
-                                     check->state & QStyle::State_Sunken ? 1.0 : 0.0);
+        const qreal hover =
+                progress(widget, hoverProperty, check->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+        const qreal press =
+                progress(widget, pressProperty, check->state & QStyle::State_Sunken ? 1.0 : 0.0);
         const qreal position = progress(widget, togglePositionProperty, checked ? 1.0 : 0.0);
         const bool dragging =
                 framePropertyRegistry().value(widget, toggleDraggingProperty).toBool();
@@ -527,8 +530,8 @@ static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, Q
             const Qt::Alignment horizontal =
                     check->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
             paintGrayscaleText(painter, labelRect,
-                               horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic,
-                               labelFont, enabled ? t.textPrimary : t.textDisabled, label);
+                               horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic, labelFont,
+                               enabled ? t.textPrimary : t.textDisabled, label);
         }
         if (keyboardFocusVisible(widget))
             paintFocusRing(painter, track, t.focusOuter, t.focusInner, -3, -1, 12, 11);
@@ -537,7 +540,8 @@ static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, Q
     return false;
 }
 
-static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option,
+                                       QPainter *painter, const QWidget *widget)
 {
     const Tokens t = tokens(option->palette);
     if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
@@ -549,8 +553,7 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
         const QColor textColor = !enabled ? t.textDisabled
                 : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
                          : (pressed ? t.textSecondary : t.textPrimary);
-        QRect content =
-                style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
+        QRect content = style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
         if (qobject_cast<const QCommandLinkButton *>(widget)) {
             // QCommandLinkButton paints its title and description
             // after asking the style for CE_PushButtonLabel. Drawing
@@ -564,15 +567,12 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
             content = QStyle::visualRect(button->direction, button->rect, logical);
         }
         const QFontMetrics metrics(button->fontMetrics);
-        const int textWidth =
-                button->text.isEmpty() ? 0 : metrics.horizontalAdvance(button->text);
-        const QSize iconSize =
-                button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
+        const int textWidth = button->text.isEmpty() ? 0 : metrics.horizontalAdvance(button->text);
+        const QSize iconSize = button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
         const bool hasIcon = !button->icon.isNull();
         const int gap = hasIcon && textWidth > 0 ? 8 : 0;
         const int totalWidth = (hasIcon ? iconSize.width() : 0) + gap + textWidth;
-        const int logicalStart =
-                content.left() + qMax(0, (content.width() - totalWidth) / 2);
+        const int logicalStart = content.left() + qMax(0, (content.width() - totalWidth) / 2);
         if (hasIcon) {
             const QRect iconRect = QStyle::visualRect(
                     button->direction, content,
@@ -583,10 +583,10 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
                             button->state & QStyle::State_On ? QIcon::On : QIcon::Off);
         }
         if (textWidth > 0) {
-            const QRect textRect = QStyle::visualRect(
-                    button->direction, content,
-                    QRect(logicalStart + (hasIcon ? iconSize.width() + gap : 0),
-                          content.top(), textWidth, content.height()));
+            const QRect textRect =
+                    QStyle::visualRect(button->direction, content,
+                                       QRect(logicalStart + (hasIcon ? iconSize.width() + gap : 0),
+                                             content.top(), textWidth, content.height()));
             paintGrayscaleText(painter, textRect, Qt::AlignCenter | Qt::TextShowMnemonic,
                                widget ? widget->font() : QApplication::font(), textColor,
                                button->text);
@@ -596,7 +596,8 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
     return false;
 }
 
-static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *option, QPainter *painter, const QWidget *widget)
+static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *option,
+                                       QPainter *painter, const QWidget *widget)
 {
     const Tokens t = tokens(option->palette);
     if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
@@ -613,15 +614,14 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
                 : textHelper              ? (pressed ? t.textTertiary : t.textSecondary)
                 : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
                          : (pressed ? t.textSecondary : t.textPrimary);
-        const QRectF buttonRect(style->subControlRect(QStyle::CC_ToolButton, tool,
-                                                      QStyle::SC_ToolButton, widget));
+        const QRectF buttonRect(
+                style->subControlRect(QStyle::CC_ToolButton, tool, QStyle::SC_ToolButton, widget));
         // WinUI's 30 px DeleteButton contains a 12 px E894 glyph inside
         // TextBoxInnerButtonMargin 0,4,4,4. Mirror that asymmetric margin
         // in RTL instead of centring Qt's default 16 px icon in the slot.
-        const QRectF content = clearHelper
-                ? visualRectF(tool->direction, buttonRect,
-                              buttonRect.adjusted(0.0, 4.0, -4.0, -4.0))
-                : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
+        const QRectF content = clearHelper ? visualRectF(tool->direction, buttonRect,
+                                                         buttonRect.adjusted(0.0, 4.0, -4.0, -4.0))
+                                           : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
         Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
         if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
             buttonStyle = toolButton->toolButtonStyle();
@@ -640,26 +640,23 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
             const qreal total = iconSize.width() + 6.0 + textWidth;
             const qreal logicalStart =
                     content.left() + qMax<qreal>(0.0, (content.width() - total) / 2.0);
-            const QRectF iconRect = visualRectF(
-                    tool->direction, content,
-                    QRectF(logicalStart, content.center().y() - iconSize.height() / 2.0,
-                           iconSize.width(), iconSize.height()));
+            const QRectF iconRect =
+                    visualRectF(tool->direction, content,
+                                QRectF(logicalStart, content.center().y() - iconSize.height() / 2.0,
+                                       iconSize.width(), iconSize.height()));
             paintThemedIcon(painter, tool->icon, iconRect, Qt::AlignCenter, textColor,
                             enabled ? QIcon::Normal : QIcon::Disabled,
                             tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
-            const QRectF textRect =
-                    visualRectF(tool->direction, content,
-                                QRectF(logicalStart + iconSize.width() + 6.0, content.top(),
-                                       textWidth, content.height()));
-            paintGrayscaleText(painter, textRect.toRect(),
-                               Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,
-                               tool->text);
+            const QRectF textRect = visualRectF(tool->direction, content,
+                                                QRectF(logicalStart + iconSize.width() + 6.0,
+                                                       content.top(), textWidth, content.height()));
+            paintGrayscaleText(painter, textRect.toRect(), Qt::AlignCenter | Qt::TextShowMnemonic,
+                               tool->font, textColor, tool->text);
         } else if (buttonStyle == Qt::ToolButtonTextUnderIcon && textWidth > 0) {
             paintThemedIcon(painter, tool->icon,
                             QRectF(content.center().x() - iconSize.width() / 2.0, content.top(),
                                    iconSize.width(), iconSize.height()),
-                            Qt::AlignCenter, textColor,
-                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            Qt::AlignCenter, textColor, enabled ? QIcon::Normal : QIcon::Disabled,
                             tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);
             paintGrayscaleText(painter, content.adjusted(0, iconSize.height(), 0, 0).toRect(),
                                Qt::AlignCenter | Qt::TextShowMnemonic, tool->font, textColor,

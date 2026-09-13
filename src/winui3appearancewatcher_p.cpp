@@ -133,8 +133,8 @@ void SystemAppearanceWatcher::ensureInstalled()
     // that, repeated activate/deactivate cycles would accumulate one
     // destroyed() handler per cycle on a long-lived application.
     QObject::disconnect(m_hostDestroyedConnection);
-    m_hostDestroyedConnection =
-            connect(application, &QObject::destroyed, this, [this] { onHostApplicationDestroyed(); });
+    m_hostDestroyedConnection = connect(application, &QObject::destroyed, this,
+                                        [this] { onHostApplicationDestroyed(); });
 #endif
 }
 

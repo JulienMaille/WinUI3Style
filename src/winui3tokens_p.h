@@ -111,8 +111,7 @@ inline QColor withAlpha(QColor color, int alpha)
 // ignored: Window roles are opaque by contract.
 inline bool windowIsDark(const QColor &window)
 {
-    const qreal luma =
-            0.2126 * window.red() + 0.7152 * window.green() + 0.0722 * window.blue();
+    const qreal luma = 0.2126 * window.red() + 0.7152 * window.green() + 0.0722 * window.blue();
     return luma < 128.0;
 }
 // Opaque flyout/toolbar surface, derived from the palette Window color with a

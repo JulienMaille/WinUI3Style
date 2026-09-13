@@ -140,7 +140,7 @@ struct DesktopTestFrame
 
     static DesktopTestFrame capture(QScreen *screen)
     {
-        return screen ? DesktopTestFrame{screen->grabWindow(0).toImage(), screen->geometry()}
+        return screen ? DesktopTestFrame{ screen->grabWindow(0).toImage(), screen->geometry() }
                       : DesktopTestFrame{};
     }
     QRect pixels(const QRect &global) const
@@ -156,8 +156,8 @@ struct DesktopTestFrame
     QColor colorAt(const QPoint &global) const
     {
         const QRect local = pixels(QRect(global, QSize(1, 1)));
-        return !local.isEmpty() && image.rect().contains(local)
-                ? image.pixelColor(local.topLeft()) : QColor();
+        return !local.isEmpty() && image.rect().contains(local) ? image.pixelColor(local.topLeft())
+                                                                : QColor();
     }
     bool uniform(const QRect &global, const QColor &expected) const
     {
@@ -192,8 +192,7 @@ inline bool stableOpaqueDesktopBaseline(QWidget &host, const QRect &globalRegion
     const int secondDelta = secondMedian.isValid() ? colorDistance(secondMedian, expected) : 999;
     const bool valid = host.isVisible() && expected.alpha() == 255
             && !host.testAttribute(Qt::WA_TranslucentBackground)
-            && host.geometry().contains(globalRegion)
-            && firstDelta <= 2 && secondDelta <= 2
+            && host.geometry().contains(globalRegion) && firstDelta <= 2 && secondDelta <= 2
             && first.uniform(globalRegion, expected) && second.uniform(globalRegion, expected);
     qWarning().noquote() << "desktop baseline" << (valid ? "ready" : "BLOCKED/unverifiable")
                          << "region=" << globalRegion << "expected=" << expected
@@ -210,8 +209,8 @@ inline bool stableOpaqueDesktopBaseline(QWidget &host, const QRect &globalRegion
 // grab; the debug string always logs per-side near/far greys so an invalid
 // side is visible instead of silently averaged away.
 [[maybe_unused]] static void probeDesktopShadowDepth(const DesktopTestFrame &frame,
-                              const QRect &popupFrame, const QRect &hostRect, qreal *depth,
-                              int *usableSides, QString *debug)
+                                                     const QRect &popupFrame, const QRect &hostRect,
+                                                     qreal *depth, int *usableSides, QString *debug)
 {
     *depth = 0.0;
     *usableSides = 0;
@@ -245,8 +244,7 @@ inline bool stableOpaqueDesktopBaseline(QWidget &host, const QRect &globalRegion
     for (const Side &side : sides) {
         const QRect nearLocal = frame.pixels(side.nearStrip);
         const QRect farLocal = frame.pixels(side.farStrip);
-        if (nearLocal.isEmpty() || farLocal.isEmpty()
-            || !frame.image.rect().contains(nearLocal)
+        if (nearLocal.isEmpty() || farLocal.isEmpty() || !frame.image.rect().contains(nearLocal)
             || !frame.image.rect().contains(farLocal)) {
             notes << QStringLiteral("excluded");
             continue;
@@ -254,10 +252,10 @@ inline bool stableOpaqueDesktopBaseline(QWidget &host, const QRect &globalRegion
         const QColor nearColor = medianStripColor(frame.image, nearLocal);
         const QColor farColor = medianStripColor(frame.image, farLocal);
         notes << QStringLiteral("n=%1,f=%2")
-                        .arg(nearColor.isValid() ? nearColor.name(QColor::HexRgb)
-                                                 : QStringLiteral("?"))
-                        .arg(farColor.isValid() ? farColor.name(QColor::HexRgb)
-                                                : QStringLiteral("?"));
+                         .arg(nearColor.isValid() ? nearColor.name(QColor::HexRgb)
+                                                  : QStringLiteral("?"))
+                         .arg(farColor.isValid() ? farColor.name(QColor::HexRgb)
+                                                 : QStringLiteral("?"));
         if (!nearColor.isValid() || !farColor.isValid())
             continue;
         const int sideDepth = qGray(nearColor.rgb()) - qGray(farColor.rgb());
@@ -434,9 +432,10 @@ public:
 };
 
 [[maybe_unused]] static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control,
-                             const QStyleOptionComplex *option, const QWidget *widget,
-                             const QRect &interactiveRect = {},
-                             const QList<QRect> &additionalHitRegions = {})
+                                              const QStyleOptionComplex *option,
+                                              const QWidget *widget,
+                                              const QRect &interactiveRect = {},
+                                              const QList<QRect> &additionalHitRegions = {})
 {
     const QRect rect =
             interactiveRect.isValid() ? interactiveRect.intersected(option->rect) : option->rect;
@@ -488,7 +487,8 @@ public:
 }
 
 [[maybe_unused]] static QImage renderComplex(const QStyle *style, QStyle::ComplexControl control,
-                            const QStyleOptionComplex *option, const QWidget *widget, qreal dpr)
+                                             const QStyleOptionComplex *option,
+                                             const QWidget *widget, qreal dpr)
 {
     const QSize physical(qRound(option->rect.width() * dpr), qRound(option->rect.height() * dpr));
     QImage image(physical, QImage::Format_ARGB32_Premultiplied);
@@ -500,7 +500,7 @@ public:
 }
 
 [[maybe_unused]] static int inkPixels(const QImage &image, const QRect &logicalRect, qreal dpr,
-                     const QColor &background)
+                                      const QColor &background)
 {
     const QRect physical(qFloor(logicalRect.left() * dpr), qFloor(logicalRect.top() * dpr),
                          qCeil((logicalRect.right() + 1) * dpr) - qFloor(logicalRect.left() * dpr),
@@ -516,12 +516,14 @@ public:
     return count;
 }
 
-[[maybe_unused]] static qreal frameReal(const QObject *object, const char *name, qreal fallback = 0.0)
+[[maybe_unused]] static qreal frameReal(const QObject *object, const char *name,
+                                        qreal fallback = 0.0)
 {
     return WinUI3::Private::framePropertyRegistry().real(object, name, fallback);
 }
 
-[[maybe_unused]] static bool frameBool(const QObject *object, const char *name, bool fallback = false)
+[[maybe_unused]] static bool frameBool(const QObject *object, const char *name,
+                                       bool fallback = false)
 {
     const QVariant value = WinUI3::Private::framePropertyRegistry().value(object, name);
     return value.isValid() ? value.toBool() : fallback;

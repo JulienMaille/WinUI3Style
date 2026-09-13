@@ -727,7 +727,9 @@ void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()
 
             QEvent enter(QEvent::Enter);
             QCoreApplication::sendEvent(&button, &enter);
-            QMouseEvent press(QEvent::MouseButtonPress, QPointF(button.rect().center()), QPointF(button.rect().center()), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent press(QEvent::MouseButtonPress, QPointF(button.rect().center()),
+                              QPointF(button.rect().center()), Qt::LeftButton, Qt::LeftButton,
+                              Qt::NoModifier);
             QCoreApplication::sendEvent(&button, &press);
             QCOMPARE(frameReal(&button, "_winui_hover_progress"), 0.0);
             QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
@@ -955,7 +957,9 @@ void WinUI3ButtonsTest::checkedToolbarToggleKeepsFillOverBackdrop()
     QVERIFY2(center.alpha() > 20,
              qPrintable(QStringLiteral("center alpha %1").arg(center.alpha())));
     QVERIFY2(colorDistance(center, expected) < 100,
-             qPrintable(QStringLiteral("center #%1 vs fill #%2").arg(center.name()).arg(expected.name())));
+             qPrintable(QStringLiteral("center #%1 vs fill #%2")
+                                .arg(center.name())
+                                .arg(expected.name())));
 }
 void WinUI3ButtonsTest::controlRoles()
 {
@@ -1001,8 +1005,7 @@ void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
     // layer) instead of an opaque button fill: the group card shows straight
     // through, never a wiped mica hole.
     QCOMPARE(image.pixelColor(6, 6), QColor::fromRgb(255, 255, 255, 128));
-    QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer,
-             QColor::fromRgb(255, 255, 255, 128));
+    QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer, QColor::fromRgb(255, 255, 255, 128));
 }
 
 void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
@@ -1050,7 +1053,8 @@ void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
     // colorDistance sums RGBA: fill AA leaves 33 here post-fix, the
     // centered stroke halo left 111 pre-fix. Threshold 48 splits measured
     QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 0),
-                          image.pixelColor(image.width() / 2, 2)) < 48);
+                          image.pixelColor(image.width() / 2, 2))
+            < 48);
     QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 1), canvas) > 8);
 }
 
@@ -1095,8 +1099,8 @@ void WinUI3ButtonsTest::buttonTextAntialiasesGrayscale()
     }
     QCOMPARE(fringe, 0);
     QFont gray = button.font();
-    gray.setStyleStrategy(static_cast<QFont::StyleStrategy>(
-            gray.styleStrategy() | QFont::NoSubpixelAntialias));
+    gray.setStyleStrategy(
+            static_cast<QFont::StyleStrategy>(gray.styleStrategy() | QFont::NoSubpixelAntialias));
     QVERIFY(gray.styleStrategy() & QFont::NoSubpixelAntialias);
 }
 
@@ -1129,10 +1133,10 @@ void WinUI3ButtonsTest::buttonControlOwnershipByElement()
     // themes and densities. Same state per cell: non-null ink.
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
-    const QList<QStyle::ControlElement> owned = {
-        QStyle::CE_PushButton, QStyle::CE_CheckBox, QStyle::CE_RadioButton,
-        QStyle::CE_PushButtonLabel, QStyle::CE_ToolButtonLabel
-    };
+    const QList<QStyle::ControlElement> owned = { QStyle::CE_PushButton, QStyle::CE_CheckBox,
+                                                  QStyle::CE_RadioButton,
+                                                  QStyle::CE_PushButtonLabel,
+                                                  QStyle::CE_ToolButtonLabel };
     for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
         style->setThemeMode(mode);
         for (const WinUI3::DensityMode density :
@@ -1169,10 +1173,11 @@ void WinUI3ButtonsTest::buttonControlOwnershipByElement()
                         }
                     }
                 }
-                QVERIFY2(ink, qPrintable(QStringLiteral("no ink for element=%1 mode=%2 density=%3")
-                                                 .arg(int(element))
-                                                 .arg(int(mode))
-                                                 .arg(int(density))));
+                QVERIFY2(ink,
+                         qPrintable(QStringLiteral("no ink for element=%1 mode=%2 density=%3")
+                                            .arg(int(element))
+                                            .arg(int(mode))
+                                            .arg(int(density))));
             }
         }
     }

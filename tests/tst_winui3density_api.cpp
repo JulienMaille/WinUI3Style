@@ -209,8 +209,7 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
     QCOMPARE(standardMenu.height(), 36);
     // Extension (not in WinUI Compact Sizing): Compact menu-popup rows
     // shrink 36 -> 32 like list rows.
-    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height(),
-             32);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height(), 32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button),
              invariantButton);
     QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()),
@@ -256,10 +255,10 @@ void WinUI3DensityApiTest::spinBoxPrefixSuffixSizingContract()
         QString prefix;
         QString suffix;
     };
-    for (const Case &affix : { Case{ QStringLiteral("Distance remaining: "), QString() },
-                               Case{ QString(), QStringLiteral(" kilometers per hour") },
-                               Case{ QStringLiteral("Estimated total: "),
-                                     QStringLiteral(" megabytes remaining") } }) {
+    for (const Case &affix :
+         { Case{ QStringLiteral("Distance remaining: "), QString() },
+           Case{ QString(), QStringLiteral(" kilometers per hour") },
+           Case{ QStringLiteral("Estimated total: "), QStringLiteral(" megabytes remaining") } }) {
         QSpinBox spin;
         spin.setStyle(&style);
         spin.setRange(0, 9999);
@@ -271,8 +270,10 @@ void WinUI3DensityApiTest::spinBoxPrefixSuffixSizingContract()
         const int textWidth = spin.fontMetrics().horizontalAdvance(shown);
         const int hint = spin.sizeHint().width();
         QVERIFY2(hint >= textWidth,
-                 qPrintable(QStringLiteral("hint %1 < shown '%2' %3").arg(hint).arg(shown).arg(
-                         textWidth)));
+                 qPrintable(QStringLiteral("hint %1 < shown '%2' %3")
+                                    .arg(hint)
+                                    .arg(shown)
+                                    .arg(textWidth)));
         spin.resize(hint, 32);
         QStyleOptionSpinBox option;
         option.initFrom(&spin);
@@ -286,36 +287,36 @@ void WinUI3DensityApiTest::spinBoxPrefixSuffixSizingContract()
 
 void WinUI3DensityApiTest::comboClosedTextContracts()
 {
-{
-    // Closed-label slot must cover the longest item (moved from interaction binary).
-    WinUI3::Style comboStyle(WinUI3::ThemeMode::Light);
-    QComboBox combo;
-    combo.setStyle(&comboStyle);
-    combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
-    combo.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    QFont liveFont(QStringLiteral("Segoe UI"));
-    liveFont.setPixelSize(14);
-    combo.setFont(liveFont);
-    combo.ensurePolished();
-    const int longest =
-            combo.fontMetrics().horizontalAdvance(QStringLiteral("Standard density"));
-    QStyleOptionComboBox offer;
-    offer.initFrom(&combo);
-    const QSize hint = combo.style()->sizeFromContents(QStyle::CT_ComboBox, &offer,
-                                                       QSize(longest - 4, 16), &combo);
-    combo.resize(hint.width(), 32);
-    QStyleOptionComboBox option;
-    option.initFrom(&combo);
-    option.rect = combo.rect();
-    option.currentText = combo.currentText();
-    const QRect slot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
-                                                     QStyle::SC_ComboBoxEditField, &combo);
-    QVERIFY2(slot.width() >= longest,
-             qPrintable(QStringLiteral("slot %1 < text %2").arg(slot.width()).arg(longest)));
-    QCOMPARE(combo.fontMetrics().elidedText(combo.currentText(), Qt::ElideRight, slot.width()),
-             combo.currentText());
-}
+    {
+        // Closed-label slot must cover the longest item (moved from interaction binary).
+        WinUI3::Style comboStyle(WinUI3::ThemeMode::Light);
+        QComboBox combo;
+        combo.setStyle(&comboStyle);
+        combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+        combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
+        combo.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        QFont liveFont(QStringLiteral("Segoe UI"));
+        liveFont.setPixelSize(14);
+        combo.setFont(liveFont);
+        combo.ensurePolished();
+        const int longest =
+                combo.fontMetrics().horizontalAdvance(QStringLiteral("Standard density"));
+        QStyleOptionComboBox offer;
+        offer.initFrom(&combo);
+        const QSize hint = combo.style()->sizeFromContents(QStyle::CT_ComboBox, &offer,
+                                                           QSize(longest - 4, 16), &combo);
+        combo.resize(hint.width(), 32);
+        QStyleOptionComboBox option;
+        option.initFrom(&combo);
+        option.rect = combo.rect();
+        option.currentText = combo.currentText();
+        const QRect slot = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                         QStyle::SC_ComboBoxEditField, &combo);
+        QVERIFY2(slot.width() >= longest,
+                 qPrintable(QStringLiteral("slot %1 < text %2").arg(slot.width()).arg(longest)));
+        QCOMPARE(combo.fontMetrics().elidedText(combo.currentText(), Qt::ElideRight, slot.width()),
+                 combo.currentText());
+    }
     {
         // Icon rows reserve 16 px + 8 px gap in CE_ComboBoxLabel; the hint must cover it.
         WinUI3::Style comboStyle(WinUI3::ThemeMode::Light);
@@ -341,11 +342,13 @@ void WinUI3DensityApiTest::comboClosedTextContracts()
         const int textWidth = combo.fontMetrics().horizontalAdvance(combo.currentText());
         const int textSlot = slot.width() - 16 - 8;
         QVERIFY2(textSlot >= textWidth,
-                 qPrintable(QStringLiteral("text slot %1 < text %2 (slot %3)").arg(textSlot).arg(textWidth).arg(slot.width())));
+                 qPrintable(QStringLiteral("text slot %1 < text %2 (slot %3)")
+                                    .arg(textSlot)
+                                    .arg(textWidth)
+                                    .arg(slot.width())));
         QCOMPARE(combo.fontMetrics().elidedText(combo.currentText(), Qt::ElideRight, textSlot),
                  combo.currentText());
     }
-
 }
 
 void WinUI3DensityApiTest::nullOptionGeometryContracts()
@@ -354,15 +357,15 @@ void WinUI3DensityApiTest::nullOptionGeometryContracts()
     // and subControlRect() returns an empty rect instead of dereferencing
     // the option; hit-testing a null option reports SC_None.
     WinUI3::Style style(WinUI3::ThemeMode::Light);
-    QCOMPARE(style.subControlRect(QStyle::CC_ComboBox, nullptr,
-                                  QStyle::SC_ComboBoxEditField, nullptr),
+    QCOMPARE(style.subControlRect(QStyle::CC_ComboBox, nullptr, QStyle::SC_ComboBoxEditField,
+                                  nullptr),
              QRect());
-    QCOMPARE(style.subControlRect(QStyle::CC_ToolButton, nullptr,
-                                  QStyle::SC_ToolButtonMenu, nullptr),
+    QCOMPARE(style.subControlRect(QStyle::CC_ToolButton, nullptr, QStyle::SC_ToolButtonMenu,
+                                  nullptr),
              QRect());
-    QCOMPARE(style.subControlRect(QStyle::CC_SpinBox, nullptr,
-                                  QStyle::SC_SpinBoxEditField, nullptr),
-             QRect());
+    QCOMPARE(
+            style.subControlRect(QStyle::CC_SpinBox, nullptr, QStyle::SC_SpinBoxEditField, nullptr),
+            QRect());
     QCOMPARE(style.hitTestComplexControl(QStyle::CC_ComboBox, nullptr, QPoint(4, 4), nullptr),
              QStyle::SC_None);
     QCOMPARE(style.hitTestComplexControl(QStyle::CC_SpinBox, nullptr, QPoint(4, 4), nullptr),

@@ -108,7 +108,6 @@ private slots:
     void comboOpenPopupKeyboardNavMovesHoverPill();
     void autoSuggestHoverPillMatchesMenuPill();
     void autoSuggestCompositedHoverRebuildsRowFrame();
-
 };
 
 void WinUI3ComboBoxTest::initTestCase()
@@ -136,7 +135,6 @@ void WinUI3ComboBoxTest::cleanup()
         focus->clearFocus();
     qApp->processEvents();
 }
-
 
 void WinUI3ComboBoxTest::themeComboSizingContract()
 {
@@ -183,8 +181,8 @@ void WinUI3ComboBoxTest::themeComboSizingContract()
     plainOption.initFrom(&plain);
     plainOption.rect = plain.rect();
     plainOption.currentText = plain.currentText();
-    const QRect plainEdit = plain.style()->subControlRect(
-            QStyle::CC_ComboBox, &plainOption, QStyle::SC_ComboBoxEditField, &plain);
+    const QRect plainEdit = plain.style()->subControlRect(QStyle::CC_ComboBox, &plainOption,
+                                                          QStyle::SC_ComboBoxEditField, &plain);
     QCOMPARE(plain.fontMetrics().elidedText(plain.currentText(), Qt::ElideRight, plainEdit.width()),
              plain.currentText());
 
@@ -698,8 +696,7 @@ void WinUI3ComboBoxTest::comboOpenPopupKeyboardCurrentPaintsHoverPill()
     // MouseOver, so the current row must read exactly like the hovered row.
     // Same shared pill (paintPopupRowPill), same token, same geometry.
     QComboBox combo;
-    combo.addItems({ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                     QStringLiteral("Gamma") });
+    combo.addItems({ QStringLiteral("Alpha"), QStringLiteral("Beta"), QStringLiteral("Gamma") });
     combo.setStyle(qApp->style());
     combo.resize(220, 32);
     QAbstractItemView *view = combo.view();
@@ -757,8 +754,7 @@ void WinUI3ComboBoxTest::comboOpenPopupKeyboardNavMovesHoverPill()
     QWidget host;
     host.resize(560, 440);
     QComboBox combo(&host);
-    combo.addItems({ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                     QStringLiteral("Gamma") });
+    combo.addItems({ QStringLiteral("Alpha"), QStringLiteral("Beta"), QStringLiteral("Gamma") });
     combo.setCurrentIndex(0);
     combo.resize(220, 32);
     combo.move(120, 180);
@@ -799,10 +795,9 @@ void WinUI3ComboBoxTest::comboOpenPopupKeyboardNavMovesHoverPill()
     // expected state from the running popup: the focused flag below copies
     // the live view focus, the Selected flag copies the live selection, so
     // a stale-Qt fallback cannot silently satisfy the paint contract.
-    const bool liveHasFocus = view->hasFocus()
-            || (view->viewport() && view->viewport()->hasFocus());
-    const bool liveSelected =
-            view->selectionModel()->isSelected(combo.model()->index(1, 0));
+    const bool liveHasFocus =
+            view->hasFocus() || (view->viewport() && view->viewport()->hasFocus());
+    const bool liveSelected = view->selectionModel()->isSelected(combo.model()->index(1, 0));
     QVERIFY2(liveSelected, "live popup must select the keyboard-current row");
     {
         QStyleOptionMenuItem menuOption;
@@ -874,7 +869,7 @@ void WinUI3ComboBoxTest::comboOpenPopupKeyboardNavMovesHoverPill()
     QVERIFY2(colorDistance(grab.pixelColor(row1.right(), row1.center().y()), background) < 48,
              "pill must stay inside the row on the trailing edge");
     QVERIFY2(colorDistance(grab.pixelColor(row1.left() + 12, row1.center().y()), expectedHover)
-                    < 48,
+                     < 48,
              "pill fill must start inside the shared inset");
     // The value row keeps only its accent marker, never the hover fill.
     const QColor row0Fill = pillFillAt(0);
@@ -904,10 +899,10 @@ void WinUI3ComboBoxTest::autoSuggestHoverPillMatchesMenuPill()
     style->setThemeMode(WinUI3::ThemeMode::Light);
 
     QLineEdit editor;
-    auto *completer = new QCompleter(
-            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                         QStringLiteral("Gamma"), QStringLiteral("Delta") },
-            &editor);
+    auto *completer =
+            new QCompleter(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                                        QStringLiteral("Gamma"), QStringLiteral("Delta") },
+                           &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
     completer->setCompletionMode(QCompleter::PopupCompletion);
@@ -941,8 +936,7 @@ void WinUI3ComboBoxTest::autoSuggestHoverPillMatchesMenuPill()
     const QImage live = popup->viewport()->grab().toImage();
     QCOMPARE(live.size(), popup->viewport()->size());
     const QColor base = popup->viewport()->palette().color(QPalette::Base);
-    const WinUI3::Private::Tokens tokens =
-            WinUI3::Private::tokens(popup->viewport()->palette());
+    const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(popup->viewport()->palette());
     QColor expectedHover = tokens.subtleHover;
     {
         QImage mix(1, 1, QImage::Format_ARGB32_Premultiplied);
@@ -1047,10 +1041,10 @@ void WinUI3ComboBoxTest::autoSuggestCompositedHoverRebuildsRowFrame()
     style->setThemeMode(WinUI3::ThemeMode::Light);
 
     QLineEdit editor;
-    auto *completer = new QCompleter(
-            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                         QStringLiteral("Gamma"), QStringLiteral("Delta") },
-            &editor);
+    auto *completer =
+            new QCompleter(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                                        QStringLiteral("Gamma"), QStringLiteral("Delta") },
+                           &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
     completer->setCompletionMode(QCompleter::PopupCompletion);
@@ -1116,8 +1110,8 @@ void WinUI3ComboBoxTest::autoSuggestCompositedHoverRebuildsRowFrame()
         option.index = hoverIdx;
         option.features = QStyleOptionViewItem::HasDisplay;
         option.text = QStringLiteral("Beta");
-        option.state = QStyle::State_Enabled
-                | (hovered ? QStyle::State_MouseOver : QStyle::State_None);
+        option.state =
+                QStyle::State_Enabled | (hovered ? QStyle::State_MouseOver : QStyle::State_None);
         QPainter painter(&canvas);
         style->drawControl(QStyle::CE_ItemViewItem, &option, &painter, viewport);
     };

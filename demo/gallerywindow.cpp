@@ -90,9 +90,9 @@ GalleryWindow::GalleryWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::
         QTimer *firstTimer = new QTimer(this);
         firstTimer->setSingleShot(true);
         QObject::connect(firstTimer, &QTimer::timeout, this, [this] {
-            ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
-                    ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
-                    ui->menuBar->height())));
+            ui->fileMenu->popup(ui->menuBar->mapToGlobal(
+                    QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                           ui->menuBar->height())));
         });
         firstTimer->start(delay);
         if (liveMode == QLatin1String("double")) {
@@ -102,9 +102,9 @@ GalleryWindow::GalleryWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::
             QTimer *secondTimer = new QTimer(this);
             secondTimer->setSingleShot(true);
             QObject::connect(secondTimer, &QTimer::timeout, this, [this] {
-                ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
-                        ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
-                        ui->menuBar->height())));
+                ui->fileMenu->popup(ui->menuBar->mapToGlobal(
+                        QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                               ui->menuBar->height())));
             });
             closeTimer->start(delay + 4000);
             secondTimer->start(delay + 7000);
@@ -132,9 +132,10 @@ void GalleryWindow::configureGallery()
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
-    const QStringList autoSuggestWords = { tr("Alpha"), tr("Beta"), tr("Gamma"), tr("Delta"),
-                                           tr("Settings"), tr("Controls") };
-    ui->autoSuggestEdit->setCompleter(makeAutoSuggestCompleter(autoSuggestWords, ui->autoSuggestEdit));
+    const QStringList autoSuggestWords = { tr("Alpha"), tr("Beta"),     tr("Gamma"),
+                                           tr("Delta"), tr("Settings"), tr("Controls") };
+    ui->autoSuggestEdit->setCompleter(
+            makeAutoSuggestCompleter(autoSuggestWords, ui->autoSuggestEdit));
     ui->standardDensityAutoSuggest->setCompleter(
             makeAutoSuggestCompleter(autoSuggestWords, ui->standardDensityAutoSuggest));
     ui->compactDensityAutoSuggest->setCompleter(
@@ -581,8 +582,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         // exposed so the header/page/footer settle before the grab.
         wizardSnap.resize(521, 341);
         wizardSnap.resize(520, 340);
-        if (QWidget *wizardFooter =
-                    wizardSnap.findChild<QWidget *>(QStringLiteral("_winui_wizard_footer_surface"))) {
+        if (QWidget *wizardFooter = wizardSnap.findChild<QWidget *>(
+                    QStringLiteral("_winui_wizard_footer_surface"))) {
             for (int spin = 0; spin < 50 && !wizardFooter->isVisible(); ++spin) {
                 qApp->processEvents();
                 QEventLoop pause;
@@ -595,8 +596,7 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         qApp->processEvents();
         wizardSnap.repaint();
         qApp->processEvents();
-        success = wizardSnap.grab().save(output.filePath(theme + "-wizard.png"), "PNG")
-                && success;
+        success = wizardSnap.grab().save(output.filePath(theme + "-wizard.png"), "PNG") && success;
         wizardSnap.close();
 
         // Keep all historical Standard captures byte-comparable, then add a

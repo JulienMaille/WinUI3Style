@@ -529,15 +529,13 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
     QTRY_COMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
                  static_cast<int>(WinUI3::Icon::ChevronDown));
     QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
-    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0)
-            < 0.01);
+    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0) < 0.01);
     card.setExpanded(false);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
     // Contract: collapsed 0 deg, expanded 180 deg.
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
-    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0)
-            < 0.01);
+    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0) < 0.01);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.001);
 }
 
@@ -868,7 +866,8 @@ void WinUI3InteractionTest::inputModalityFocus()
     QPushButton button(QStringLiteral("Focus"));
     button.resize(button.sizeHint());
     button.show();
-    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(4, 4), QPointF(4, 4), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(4, 4), QPointF(4, 4), Qt::LeftButton,
+                           Qt::LeftButton, Qt::NoModifier);
     QCoreApplication::sendEvent(&button, &mousePress);
     QFocusEvent mouseFocus(QEvent::FocusIn, Qt::MouseFocusReason);
     QCoreApplication::sendEvent(&button, &mouseFocus);
@@ -1166,7 +1165,9 @@ void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
         QSignalSpy callbacks(timer, &QTimer::timeout);
         for (int i = 0; i < 1000; ++i) {
             slider.setValue(i % 100);
-            QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()), QPointF(slider.rect().center()), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent move(QEvent::MouseMove, QPointF(slider.rect().center()),
+                             QPointF(slider.rect().center()), Qt::NoButton, Qt::LeftButton,
+                             Qt::NoModifier);
             QCoreApplication::sendEvent(&slider, &move);
         }
         slider.setValue(77);

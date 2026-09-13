@@ -182,7 +182,8 @@ static int logTopLevelInventory(const char *phase)
     qWarning() << "topLevels" << phase << "count=" << widgets.size();
     for (const QWidget *widget : widgets) {
         qWarning().noquote()
-                << QStringLiteral("  widget=0x%1 class=%2 name='%3' parent=0x%4 visible=%5 hwnd=0x%6")
+                << QStringLiteral(
+                           "  widget=0x%1 class=%2 name='%3' parent=0x%4 visible=%5 hwnd=0x%6")
                            .arg(quintptr(widget), 0, 16)
                            .arg(QString::fromLatin1(widget->metaObject()->className()))
                            .arg(widget->objectName())
@@ -196,8 +197,7 @@ static int logTopLevelInventory(const char *phase)
 // Returns false (never QVERIFYs) so a hidden or unsettled menu aborts
 // in the test body instead of continuing with a half-filled snapshot:
 // QVERIFY inside a lambda returns from the lambda, not the test.
-static bool snapCycleSnapshot(const char *tag, QMenu &menu, const QWidget &host,
-                              CycleSnapshot *out)
+static bool snapCycleSnapshot(const char *tag, QMenu &menu, const QWidget &host, CycleSnapshot *out)
 {
     if (!menu.isVisible())
         return false;
@@ -237,14 +237,13 @@ static bool snapCycleSnapshot(const char *tag, QMenu &menu, const QWidget &host,
     // strips all sample THIS capture (never three different grabs).
     out->desktop = DesktopTestFrame::capture(menu.screen());
     // Surface band: just inside the popup's top margin (pure fill).
-    out->screenGrey = out->desktop.colorAt(
-            menu.geometry().topLeft() + QPoint(menu.geometry().width() / 2, 2));
+    out->screenGrey = out->desktop.colorAt(menu.geometry().topLeft()
+                                           + QPoint(menu.geometry().width() / 2, 2));
     // Host validity reference: a band well inside the host, clear of the
     // popup. Invalid/black = session refused composited desktop capture.
-    out->hostBandGrey = out->desktop.colorAt(
-            host.geometry().topLeft() + QPoint(12, 8));
-    probeDesktopShadowDepth(out->desktop, menu.geometry(), host.geometry(),
-                            &out->shadowDepth, &out->shadowSides, &out->shadowSidesDebug);
+    out->hostBandGrey = out->desktop.colorAt(host.geometry().topLeft() + QPoint(12, 8));
+    probeDesktopShadowDepth(out->desktop, menu.geometry(), host.geometry(), &out->shadowDepth,
+                            &out->shadowSides, &out->shadowSidesDebug);
     out->geometry = menu.geometry();
     out->margins = menu.contentsMargins();
     return true;
@@ -252,11 +251,10 @@ static bool snapCycleSnapshot(const char *tag, QMenu &menu, const QWidget &host,
 
 static QString describeCycleSnapshot(const CycleSnapshot &s)
 {
-    return QStringLiteral(
-                   "[%1] branch=%2 grey=%3 win=%4 base=%5 eff=%6 opacity=%7 "
-                   "translucent=%8 opaquePaint=%9 styled=%10 autofill=%11 maskEmpty=%12 "
-                   "topLevels=%13 children=%14 geo=%15,%16 %17x%18 margins=%19,%20,%21,%22 "
-                   "dwm=%23 screen=%24 shadow=%25/%26 host=%27")
+    return QStringLiteral("[%1] branch=%2 grey=%3 win=%4 base=%5 eff=%6 opacity=%7 "
+                          "translucent=%8 opaquePaint=%9 styled=%10 autofill=%11 maskEmpty=%12 "
+                          "topLevels=%13 children=%14 geo=%15,%16 %17x%18 margins=%19,%20,%21,%22 "
+                          "dwm=%23 screen=%24 shadow=%25/%26 host=%27")
             .arg(s.tag)
             .arg(s.windowRole.alpha() < 255 || s.effective == QStringLiteral("2")
                          ? QStringLiteral("composited/tinted")
@@ -623,8 +621,8 @@ void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
     fileMenu.addAction(QStringLiteral("E&xit"));
 
     drainDeferredDeletion();
-    const bool shadowBaseline = stableOpaqueDesktopBaseline(
-            window, window.geometry().adjusted(4, 4, -4, -4));
+    const bool shadowBaseline =
+            stableOpaqueDesktopBaseline(window, window.geometry().adjusted(4, 4, -4, -4));
     const QPoint anchor = window.mapToGlobal(QPoint(20, 20));
     fileMenu.popup(anchor);
     QTRY_VERIFY(fileMenu.isVisible());
@@ -735,14 +733,16 @@ void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
     if (open1.dwmBackdrop != -2 && reopen.dwmBackdrop != -2) {
         QCOMPARE(reopen.dwmBackdrop, open1.dwmBackdrop);
     } else {
-        qWarning() << "DWM parity BLOCKED/unverifiable: read refused; first="
-                   << open1.dwmBackdrop << "reopen=" << reopen.dwmBackdrop;
+        qWarning() << "DWM parity BLOCKED/unverifiable: read refused; first=" << open1.dwmBackdrop
+                   << "reopen=" << reopen.dwmBackdrop;
     }
     // Screen parity: recipe + host.
     const bool screenEvidenceUsable = open1.screenGrey.isValid() && reopen.screenGrey.isValid()
             && open1.hostBandGrey.isValid() && reopen.hostBandGrey.isValid()
             && open1.hostBandGrey != QColor(0, 0, 0) && reopen.hostBandGrey != QColor(0, 0, 0);
-    const int hostDelta = qAbs(open1.hostBandGrey.red() - reopen.hostBandGrey.red()) + qAbs(open1.hostBandGrey.green() - reopen.hostBandGrey.green()) + qAbs(open1.hostBandGrey.blue() - reopen.hostBandGrey.blue());
+    const int hostDelta = qAbs(open1.hostBandGrey.red() - reopen.hostBandGrey.red())
+            + qAbs(open1.hostBandGrey.green() - reopen.hostBandGrey.green())
+            + qAbs(open1.hostBandGrey.blue() - reopen.hostBandGrey.blue());
     if (reopenComp && shadowBaseline && hostDelta <= 12 && screenEvidenceUsable) {
         const int screenDelta = qAbs(reopen.screenGrey.red() - open1.screenGrey.red())
                 + qAbs(reopen.screenGrey.green() - open1.screenGrey.green())
@@ -759,8 +759,8 @@ void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
                    << "hostDelta=" << hostDelta;
     }
     // Shadow: same recipe only; missing evidence must not look verified.
-    if (reopenComp && shadowBaseline && screenEvidenceUsable
-        && open1.shadowSides > 0 && reopen.shadowSides > 0) {
+    if (reopenComp && shadowBaseline && screenEvidenceUsable && open1.shadowSides > 0
+        && reopen.shadowSides > 0) {
         QVERIFY2(qAbs(reopen.shadowDepth - open1.shadowDepth) <= 2.0,
                  qPrintable(QStringLiteral("reopen shadow depth drifted (%1 -> %2):\n%3\n%4")
                                     .arg(open1.shadowDepth)
@@ -775,7 +775,8 @@ void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
     qWarning() << "shadow strips (top,bottom,left,right): first=" << open1.shadowSidesDebug
                << "reopen=" << reopen.shadowSidesDebug;
     if (open1.shadowDepth >= 0 || reopen.shadowDepth >= 0)
-        qWarning("shadow existence unverifiable: no darkening in at least one cycle; parity is not existence proof");
+        qWarning("shadow existence unverifiable: no darkening in at least one cycle; parity is not "
+                 "existence proof");
     fileMenu.hide();
 }
 
@@ -796,8 +797,7 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
     QVERIFY(menuBar);
     auto *fileMenu = new QMenu(QStringLiteral("&File"), menuBar);
     fileMenu->addAction(QStringLiteral("&New project"));
-    fileMenu->addAction(
-            QStringLiteral("&Open a recent project with a deliberately long name"));
+    fileMenu->addAction(QStringLiteral("&Open a recent project with a deliberately long name"));
     QAction *autoSave = fileMenu->addAction(QStringLiteral("Save changes &automatically"));
     autoSave->setCheckable(true);
     autoSave->setChecked(true);
@@ -821,7 +821,7 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
     const QRect fileBarRect = menuBar->actionGeometry(fileMenu->menuAction());
     QVERIFY(!fileBarRect.isEmpty());
     QTest::mouseClick(static_cast<QWidget *>(menuBar), Qt::LeftButton, Qt::NoModifier,
-                       fileBarRect.center());
+                      fileBarRect.center());
     QElapsedTimer openWait;
     openWait.start();
     while (!fileMenu->isVisible() && !openWait.hasExpired(4000))
@@ -846,7 +846,7 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
 
     // Reopen.
     QTest::mouseClick(static_cast<QWidget *>(menuBar), Qt::LeftButton, Qt::NoModifier,
-                        fileBarRect.center());
+                      fileBarRect.center());
     QElapsedTimer reopenWait;
     reopenWait.start();
     while (!fileMenu->isVisible() && !reopenWait.hasExpired(4000))
@@ -860,11 +860,12 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
     CycleSnapshot reopen;
     QVERIFY2(snapCycleSnapshot("reopen", *fileMenu, host, &reopen), "reopen snap failed");
     // Close may destroy the HWND; settled DWM parity below is the contract.
-    qWarning().noquote()
-            << QStringLiteral("menuBar identity firstQMenu=0x%1 reopenQMenu=0x%2 firstHWND=0x%3 reopenHWND=0x%4")
-                       .arg(open1Menu, 0, 16).arg(quintptr(fileMenu), 0, 16)
-                       .arg(quintptr(open1WinId), 0, 16)
-                       .arg(quintptr(fileMenu->internalWinId()), 0, 16);
+    qWarning().noquote() << QStringLiteral("menuBar identity firstQMenu=0x%1 reopenQMenu=0x%2 "
+                                           "firstHWND=0x%3 reopenHWND=0x%4")
+                                    .arg(open1Menu, 0, 16)
+                                    .arg(quintptr(fileMenu), 0, 16)
+                                    .arg(quintptr(open1WinId), 0, 16)
+                                    .arg(quintptr(fileMenu->internalWinId()), 0, 16);
     qWarning() << "menuBar input open1=" << (clickOpened ? "BAR-CLICK" : "KEYBOARD fallback")
                << "reopen=" << (reopenClickOpened ? "BAR-CLICK" : "KEYBOARD fallback");
     // Fresh.
@@ -919,14 +920,16 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
     if (open1.dwmBackdrop != -2 && reopen.dwmBackdrop != -2) {
         QCOMPARE(reopen.dwmBackdrop, open1.dwmBackdrop);
     } else {
-        qWarning() << "DWM parity BLOCKED/unverifiable: read refused; first="
-                   << open1.dwmBackdrop << "reopen=" << reopen.dwmBackdrop;
+        qWarning() << "DWM parity BLOCKED/unverifiable: read refused; first=" << open1.dwmBackdrop
+                   << "reopen=" << reopen.dwmBackdrop;
     }
     // Screen.
     const bool screenEvidenceUsable = open1.screenGrey.isValid() && reopen.screenGrey.isValid()
             && open1.hostBandGrey.isValid() && reopen.hostBandGrey.isValid()
             && open1.hostBandGrey != QColor(0, 0, 0) && reopen.hostBandGrey != QColor(0, 0, 0);
-    const int hostDelta = qAbs(open1.hostBandGrey.red() - reopen.hostBandGrey.red()) + qAbs(open1.hostBandGrey.green() - reopen.hostBandGrey.green()) + qAbs(open1.hostBandGrey.blue() - reopen.hostBandGrey.blue());
+    const int hostDelta = qAbs(open1.hostBandGrey.red() - reopen.hostBandGrey.red())
+            + qAbs(open1.hostBandGrey.green() - reopen.hostBandGrey.green())
+            + qAbs(open1.hostBandGrey.blue() - reopen.hostBandGrey.blue());
     if (reopenEff == 2 && shadowBaseline && hostDelta <= 12 && screenEvidenceUsable) {
         const int screenDelta = qAbs(reopen.screenGrey.red() - open1.screenGrey.red())
                 + qAbs(reopen.screenGrey.green() - open1.screenGrey.green())
@@ -941,8 +944,8 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
                    << "baseline=" << shadowBaseline << "capture=" << screenEvidenceUsable
                    << "hostDelta=" << hostDelta;
     }
-    if (reopenEff == 2 && shadowBaseline && screenEvidenceUsable
-        && open1.shadowSides > 0 && reopen.shadowSides > 0) {
+    if (reopenEff == 2 && shadowBaseline && screenEvidenceUsable && open1.shadowSides > 0
+        && reopen.shadowSides > 0) {
         QVERIFY2(qAbs(reopen.shadowDepth - open1.shadowDepth) <= 2.0,
                  qPrintable(QStringLiteral("menuBar shadow drifted (%1 -> %2):\n%3\n%4")
                                     .arg(open1.shadowDepth)
@@ -957,12 +960,13 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
     qWarning() << "shadow strips (top,bottom,left,right): first=" << open1.shadowSidesDebug
                << "reopen=" << reopen.shadowSidesDebug;
     if (open1.shadowDepth >= 0 || reopen.shadowDepth >= 0)
-        qWarning("shadow existence unverifiable: no darkening in at least one cycle; parity is not existence proof");
+        qWarning("shadow existence unverifiable: no darkening in at least one cycle; parity is not "
+                 "existence proof");
     // Sibling parity: pill roles must match.
     fileMenu->hide();
     QTRY_VERIFY(!fileMenu->isVisible());
     QTest::mouseClick(static_cast<QWidget *>(menuBar), Qt::LeftButton, Qt::NoModifier,
-                       fileBarRect.center());
+                      fileBarRect.center());
     QTRY_VERIFY(fileMenu->isVisible());
     const QPalette filePal = fileMenu->palette();
     const QImage fileGrab = fileMenu->grab().toImage();
@@ -971,7 +975,7 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
     const QRect viewBarRect = menuBar->actionGeometry(viewMenu->menuAction());
     QVERIFY(!viewBarRect.isEmpty());
     QTest::mouseClick(static_cast<QWidget *>(menuBar), Qt::LeftButton, Qt::NoModifier,
-                       viewBarRect.center());
+                      viewBarRect.center());
     if (!viewMenu->isVisible()) {
         menuBar->setActiveAction(viewMenu->menuAction());
         QTest::keyClick(static_cast<QWidget *>(menuBar), Qt::Key_Down);
@@ -1174,7 +1178,8 @@ void WinUI3StyleNativeTest::menuParentWashDisambiguatesHoverVsSubmenuVsActivatio
             QTest::qWait(500);
         }
         if (!exportMenu->isVisible()) {
-            qWarning() << "parent wash BLOCKED/unverifiable: submenu undelivered; pass=" << themeTag;
+            qWarning() << "parent wash BLOCKED/unverifiable: submenu undelivered; pass="
+                       << themeTag;
             // Native hover undelivered in this session: a programmatic popup
             // hides the parent (QMenu semantics), so the parent pins cannot
             // run — skip loudly instead of failing on a harness artifact.

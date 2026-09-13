@@ -104,8 +104,7 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
     QFETCH(bool, darkFirst);
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
-    style->setDensityMode(compact ? WinUI3::DensityMode::Compact
-                                  : WinUI3::DensityMode::Standard);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     QWidget root;
     QDateEdit date(&root);
     // Stock galleryDatePicker configuration; no surface/role overrides.
@@ -125,19 +124,19 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
         QCoreApplication::processEvents();
         for (int epoch = 0; epoch != 2; ++epoch) {
             qInfo() << "theme=" << (mode == WinUI3::ThemeMode::Light ? "light" : "dark")
-                    << "density=" << (compact ? "compact" : "standard")
-                    << "open epoch=" << epoch << "platform=" << QGuiApplication::platformName();
+                    << "density=" << (compact ? "compact" : "standard") << "open epoch=" << epoch
+                    << "platform=" << QGuiApplication::platformName();
             // QDateTimeEdit's calendarPopup path uses CC_ComboBox/Arrow,
             // not the numeric spinbox step buttons.
             QStyleOptionComboBox option;
             option.initFrom(&date);
             option.editable = true;
             option.frame = date.hasFrame();
-            const QRect arrow = date.style()->subControlRect(
-                    QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxArrow, &date);
+            const QRect arrow = date.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                             QStyle::SC_ComboBoxArrow, &date);
             QVERIFY(!arrow.isEmpty());
-            QCOMPARE(date.style()->hitTestComplexControl(
-                             QStyle::CC_ComboBox, &option, arrow.center(), &date),
+            QCOMPARE(date.style()->hitTestComplexControl(QStyle::CC_ComboBox, &option,
+                                                         arrow.center(), &date),
                      QStyle::SC_ComboBoxArrow);
             qInfo() << "closed anchor=" << QRect(date.mapToGlobal(QPoint()), date.size())
                     << "arrow=" << arrow << "date=" << date.date();
@@ -160,7 +159,8 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                     == WinUI3::Private::BackdropSurface::Composited;
             QColor expected = WinUI3::Private::popupSurfaceColor(style->standardPalette());
             if (composited)
-                expected.setAlpha(WinUI3::Private::tokens(style->standardPalette()).dark ? 178 : 242);
+                expected.setAlpha(WinUI3::Private::tokens(style->standardPalette()).dark ? 178
+                                                                                         : 242);
             // Read the real published effective recipe; Qt::Popup alone does
             // not grant acrylic. QWidget captures below measure Qt ink, not
             // desktop wallpaper, and cannot establish native blur/alpha.
@@ -169,8 +169,8 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                 QCOMPARE(composited, false);
             auto *view = calendar->findChild<QAbstractItemView *>(
                     QStringLiteral("qt_calendar_calendarview"));
-            auto *navigation = calendar->findChild<QWidget *>(
-                    QStringLiteral("qt_calendar_navigationbar"));
+            auto *navigation =
+                    calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
             QVERIFY(view);
             QVERIFY(navigation);
             QCOMPARE(navigation->backgroundRole(), QPalette::Window);
@@ -186,8 +186,7 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
             QVERIFY(!frame.isNull());
             const qreal dpr = frame.devicePixelRatio();
             const auto pixel = [&](const QPoint &p) {
-                return frame.pixelColor(qFloor((p.x() + 0.5) * dpr),
-                                        qFloor((p.y() + 0.5) * dpr));
+                return frame.pixelColor(qFloor((p.x() + 0.5) * dpr), qFloor((p.y() + 0.5) * dpr));
             };
             // Weekday cell's upper-left interior: no selected day, week number,
             // grid edge or text. Require measured font clearance before sampling.
@@ -196,18 +195,21 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
             QCOMPARE(view->visualRect(view->model()->index(0, 1)), cell);
             const QPoint bodyPoint = view->viewport()->mapTo(popup, cell.topLeft() + QPoint(1, 1));
             const QColor bodyPixel = pixel(bodyPoint);
-            qInfo() << "body patch=" << bodyPoint << "actual=" << bodyPixel << "expected=" << expected;
+            qInfo() << "body patch=" << bodyPoint << "actual=" << bodyPixel
+                    << "expected=" << expected;
             // Premultiplied-alpha conversion can round an RGB channel by one.
             QVERIFY2(colorDistance(bodyPixel, expected) <= 3,
                      qPrintable(QStringLiteral("body pixel actual %1 expected %2")
-                                        .arg(bodyPixel.name(QColor::HexArgb), expected.name(QColor::HexArgb))));
+                                        .arg(bodyPixel.name(QColor::HexArgb),
+                                             expected.name(QColor::HexArgb))));
 
             const QStringList laneNames = { QStringLiteral("qt_calendar_prevmonth"),
                                             QStringLiteral("qt_calendar_monthbutton"),
                                             QStringLiteral("qt_calendar_yearbutton"),
                                             QStringLiteral("qt_calendar_nextmonth") };
             QRegion emptyHeader(navigation->rect());
-            for (QWidget *child : navigation->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+            for (QWidget *child :
+                 navigation->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
                 if (child->isVisible())
                     emptyHeader -= child->geometry();
             }
@@ -222,7 +224,8 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                 // Scan the center of the top edge and the fill just below it,
                 // stopping before the measured font/icon envelope. This avoids
                 // rounded corners, labels, chevrons and the month menu glyph.
-                const int inkHeight = qMax(button->fontMetrics().height(), button->iconSize().height());
+                const int inkHeight =
+                        qMax(button->fontMetrics().height(), button->iconSize().height());
                 const int clearance = (rect.height() - inkHeight) / 2;
                 QVERIFY(clearance >= 2);
                 qInfo() << name << "popup rect=" << popup->rect() << "header rect=" << headerRect
@@ -233,7 +236,8 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                     bool found = false;
                     int distance = navigation->width();
                     for (int x = 0; x < navigation->width(); ++x) {
-                        if (emptyHeader.contains(QPoint(x, y)) && qAbs(x - rect.center().x()) < distance) {
+                        if (emptyHeader.contains(QPoint(x, y))
+                            && qAbs(x - rect.center().x()) < distance) {
                             adjacent = QPoint(x, y);
                             distance = qAbs(x - rect.center().x());
                             found = true;
@@ -243,7 +247,8 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                     const QColor backdrop = pixel(navigation->mapTo(popup, adjacent));
                     QCOMPARE(navigation->palette().color(QPalette::Window), expected);
                     QVERIFY2(colorDistance(backdrop, expected) <= 3,
-                             "Header must match the body recipe, not merely equally transparent buttons");
+                             "Header must match the body recipe, not merely equally transparent "
+                             "buttons");
                     for (int dx = -1; dx <= 1; ++dx) {
                         const QPoint sample(rect.center().x() + dx, y);
                         const QColor actual = pixel(navigation->mapTo(popup, sample));
@@ -252,9 +257,13 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                                     << "actual=" << actual << "adjacent point=" << adjacent
                                     << "adjacent=" << backdrop;
                         if (colorDistance(actual, backdrop) > 3 && mismatch.isEmpty())
-                            mismatch = QStringLiteral("%1 idle edge/fill at %2,%3 actual %4 adjacent %5")
-                                               .arg(name).arg(sample.x()).arg(sample.y())
-                                               .arg(actual.name(QColor::HexArgb), backdrop.name(QColor::HexArgb));
+                            mismatch = QStringLiteral(
+                                               "%1 idle edge/fill at %2,%3 actual %4 adjacent %5")
+                                               .arg(name)
+                                               .arg(sample.x())
+                                               .arg(sample.y())
+                                               .arg(actual.name(QColor::HexArgb),
+                                                    backdrop.name(QColor::HexArgb));
                     }
                 }
                 QVERIFY2(mismatch.isEmpty(), qPrintable(mismatch));
@@ -269,7 +278,8 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
             // Body roles are owned by the popup recipe, not merely 'valid'.
             for (QWidget *surface : { popup, static_cast<QWidget *>(calendar),
                                       static_cast<QWidget *>(view), view->viewport() }) {
-                qInfo() << "body roles" << surface->metaObject()->className() << surface->objectName();
+                qInfo() << "body roles" << surface->metaObject()->className()
+                        << surface->objectName();
                 QCOMPARE(surface->palette().color(QPalette::Window), expected);
                 QCOMPARE(surface->palette().color(QPalette::Base), expected);
             }
@@ -296,7 +306,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface_data()
                 const QByteArray name = QByteArray(compact ? "compact-" : "standard-")
                         + (dark ? "dark-" : "light-") + (body ? "body" : "buttons");
                 QTest::newRow(name.constData()) << compact << dark << body << false;
-                QTest::newRow((name + "-mica-cycle").constData()) << compact << dark << body << true;
+                QTest::newRow((name + "-mica-cycle").constData())
+                        << compact << dark << body << true;
             }
         }
     }
@@ -324,8 +335,7 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
     if (micaCycle && QGuiApplication::platformName() != QStringLiteral("windows"))
         QSKIP("Mica grant needs the native windows QPA; fallback rows cover the opaque contract");
     style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
-    style->setDensityMode(compact ? WinUI3::DensityMode::Compact
-                                  : WinUI3::DensityMode::Standard);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     // Gallery's surface-bearing ancestor chain, with unrelated sections omitted.
     // No calendar palette, formats, role or backdrop overrides.
     QMainWindow host;
@@ -363,7 +373,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
     groupLayout->addWidget(calendar);
     auto *commands = new QVBoxLayout;
     commands->addWidget(new QLabel(QStringLiteral("QDialogButtonBox command surface"), group));
-    commands->addWidget(new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, group));
+    commands->addWidget(
+            new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, group));
     commands->addStretch();
     groupLayout->addLayout(commands);
     bodyLayout->addWidget(group);
@@ -380,23 +391,23 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
         const bool requestMica = micaCycle && (epoch % 2 == 1);
         bool applied = false;
         if (micaCycle)
-            applied = WinUI3::applyBackdrop(&host, requestMica ? WinUI3::Backdrop::Mica
-                                                            : WinUI3::Backdrop::None);
+            applied = WinUI3::applyBackdrop(
+                    &host, requestMica ? WinUI3::Backdrop::Mica : WinUI3::Backdrop::None);
         QCoreApplication::processEvents();
         QTest::qWait(100);
         bool granted = false;
 #ifdef Q_OS_WIN
         if (QGuiApplication::platformName() == QStringLiteral("windows") && micaCycle) {
             QLibrary dwm(QStringLiteral("dwmapi"));
-            using DwmGet = HRESULT (WINAPI *)(HWND, DWORD, PVOID, DWORD);
+            using DwmGet = HRESULT(WINAPI *)(HWND, DWORD, PVOID, DWORD);
             const auto get = reinterpret_cast<DwmGet>(dwm.resolve("DwmGetWindowAttribute"));
             DWORD material = DWORD(-1);
-            const HRESULT hr = get ? get(reinterpret_cast<HWND>(host.internalWinId()),
-                                        38, &material, sizeof(material)) : E_NOTIMPL;
+            const HRESULT hr = get ? get(reinterpret_cast<HWND>(host.internalWinId()), 38,
+                                         &material, sizeof(material))
+                                   : E_NOTIMPL;
             qInfo() << "epoch=" << epoch << "requestMica=" << requestMica
                     << "applyBackdrop=" << applied << "host=" << host.internalWinId()
-                    << "DwmGet38 hr=" << Qt::hex << quint32(hr) << Qt::dec
-                    << "value=" << material;
+                    << "DwmGet38 hr=" << Qt::hex << quint32(hr) << Qt::dec << "value=" << material;
             granted = requestMica && applied && SUCCEEDED(hr) && material == 2;
         }
 #endif
@@ -412,8 +423,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
                 << "density=" << (compact ? "compact" : "standard")
                 << "platform=" << QGuiApplication::platformName();
         const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(style->standardPalette());
-        auto *navigation = calendar->findChild<QWidget *>(
-                QStringLiteral("qt_calendar_navigationbar"));
+        auto *navigation =
+                calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
         auto *view = calendar->findChild<QAbstractItemView *>(
                 QStringLiteral("qt_calendar_calendarview"));
         QVERIFY(navigation);
@@ -434,7 +445,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
         const bool onMaterial = WinUI3::Private::paintsDirectlyOnBackdrop(group);
         QCOMPARE(onMaterial, granted);
         QPainter oraclePainter(&oracle);
-        oraclePainter.fillRect(oracle.rect(), WinUI3::Private::veiledCard(tokens.layer, onMaterial));
+        oraclePainter.fillRect(oracle.rect(),
+                               WinUI3::Private::veiledCard(tokens.layer, onMaterial));
         const QColor expectedCard = oracle.pixelColor(0, 0);
         oraclePainter.fillRect(oracle.rect(), tokens.editorFocusedFill);
         oraclePainter.end();
@@ -481,7 +493,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
         const QColor bodyPixel = pixel(bodyPoint);
         // Header empty stretch between lane children.
         QRegion emptyHeader(navigation->rect());
-        for (QWidget *child : navigation->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+        for (QWidget *child :
+             navigation->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
             if (child->isVisible())
                 emptyHeader -= child->geometry();
         }
@@ -489,8 +502,7 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
         QPoint headerLocal(-1, -1);
         for (int x = 4; x < navigation->width() - 4; ++x) {
             const QPoint candidate(x, 3);
-            if (emptyHeader.contains(candidate)
-                && emptyHeader.contains(candidate - QPoint(2, 1))
+            if (emptyHeader.contains(candidate) && emptyHeader.contains(candidate - QPoint(2, 1))
                 && emptyHeader.contains(candidate + QPoint(2, 1))) {
                 headerLocal = candidate;
                 break;
@@ -502,8 +514,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
         const QPoint headerPoint = navigation->mapTo(&host, headerLocal);
         const QColor headerPixel = pixel(headerPoint);
         const QPoint cardPoint = group->mapTo(&host, QPoint(8, group->height() - 8));
-        qInfo() << "body patch=" << bodyPoint << "actual=" << bodyPixel
-                << "header=" << headerPoint << "inside empty=" << emptyHeader.contains(headerLocal)
+        qInfo() << "body patch=" << bodyPoint << "actual=" << bodyPixel << "header=" << headerPoint
+                << "inside empty=" << emptyHeader.contains(headerLocal)
                 << "header actual=" << headerPixel << "card actual=" << pixel(cardPoint);
         QVERIFY(colorDistance(pixel(cardPoint), expectedCard) <= 3);
         if (bodyContract) {
@@ -513,7 +525,8 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
             // desktop wallpaper pixels; widget grabs are Qt ink.
             if (granted) {
                 QVERIFY2(colorDistance(bodyPixel, expected) <= 3,
-                         qPrintable(QStringLiteral("granted-Mica inline body %1 expected unflattened %2")
+                         qPrintable(QStringLiteral(
+                                            "granted-Mica inline body %1 expected unflattened %2")
                                             .arg(bodyPixel.name(QColor::HexArgb),
                                                  expected.name(QColor::HexArgb))));
                 QVERIFY2(colorDistance(headerPixel, expected) <= 3,
@@ -522,8 +535,10 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
                                                  expected.name(QColor::HexArgb))));
             } else {
                 QVERIFY2(colorDistance(bodyPixel, expected) <= 3,
-                         qPrintable(QStringLiteral("fallback inline body %1 expected resolved InputActive %2; header %3")
-                                            .arg(bodyPixel.name(QColor::HexArgb), expected.name(QColor::HexArgb),
+                         qPrintable(QStringLiteral("fallback inline body %1 expected resolved "
+                                                   "InputActive %2; header %3")
+                                            .arg(bodyPixel.name(QColor::HexArgb),
+                                                 expected.name(QColor::HexArgb),
                                                  headerPixel.name(QColor::HexArgb))));
                 QVERIFY(colorDistance(headerPixel, expected) <= 3);
             }
@@ -573,9 +588,14 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
                     const QPoint sample(rect.center().x() + dx, y);
                     const QColor actual = pixel(sample);
                     if (colorDistance(actual, adjacent) > 3 && mismatch.isEmpty())
-                        mismatch = QStringLiteral("%1 idle fill/stroke at %2,%3 actual %4 expected header %5")
-                                           .arg(name).arg(sample.x()).arg(sample.y())
-                                           .arg(actual.name(QColor::HexArgb), adjacent.name(QColor::HexArgb));
+                        mismatch =
+                                QStringLiteral(
+                                        "%1 idle fill/stroke at %2,%3 actual %4 expected header %5")
+                                        .arg(name)
+                                        .arg(sample.x())
+                                        .arg(sample.y())
+                                        .arg(actual.name(QColor::HexArgb),
+                                             adjacent.name(QColor::HexArgb));
                 }
             }
             QVERIFY2(mismatch.isEmpty(), qPrintable(mismatch));
@@ -689,9 +709,9 @@ void WinUI3CalendarHeaderTest::micaScrollBarsAndNavigationPanelShareMaterial()
         using DwmGet = HRESULT(WINAPI *)(HWND, DWORD, PVOID, DWORD);
         const auto get = reinterpret_cast<DwmGet>(dwm.resolve("DwmGetWindowAttribute"));
         DWORD material = DWORD(-1);
-        const HRESULT hr = get ? get(reinterpret_cast<HWND>(host.internalWinId()), 38, &material,
-                                     sizeof(material))
-                               : E_NOTIMPL;
+        const HRESULT hr = get
+                ? get(reinterpret_cast<HWND>(host.internalWinId()), 38, &material, sizeof(material))
+                : E_NOTIMPL;
         qInfo() << "mica bars/nav epoch theme=" << (dark ? "dark" : "light")
                 << "applied=" << applied << "hr=" << Qt::hex << quint32(hr) << Qt::dec
                 << "attr38=" << material;
@@ -789,7 +809,8 @@ void WinUI3CalendarHeaderTest::micaScrollBarsAndNavigationPanelShareMaterial()
         for (QWidget *child :
              navPanel->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
             if (child->isVisible())
-                QVERIFY(!QRect(child->mapTo(navPanel, QPoint()), child->size()).contains(QPoint(2, 2)));
+                QVERIFY(!QRect(child->mapTo(navPanel, QPoint()), child->size())
+                                 .contains(QPoint(2, 2)));
         }
         const QColor vTrack = pixel(vTrackHost);
         const QColor hTrack = pixel(hTrackHost);

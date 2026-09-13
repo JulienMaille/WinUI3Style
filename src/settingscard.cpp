@@ -313,9 +313,9 @@ void SettingsCard::refreshChevronPixmap()
     // artwork stays ChevronDown for any expandable card (LTR and RTL share
     // the vertical motion); collapsed non-expandable lanes keep the
     // directional Right/Left marker but stay hidden.
-    const Icon glyph = m_expandableWidget                       ? Icon::ChevronDown
-            : layoutDirection() == Qt::RightToLeft               ? Icon::ChevronLeft
-                                                                  : Icon::ChevronRight;
+    const Icon glyph = m_expandableWidget          ? Icon::ChevronDown
+            : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
+                                                   : Icon::ChevronRight;
     const qreal angle = m_expandableWidget ? m_expansionProgress * 180.0 : 0.0;
     const Private::Tokens t = Private::tokens(palette());
     const bool enabled = isEnabled();
@@ -323,10 +323,9 @@ void SettingsCard::refreshChevronPixmap()
     // The glyph is transient while the coloured Fluent icon is cached by
     // glyph and colour. Rendering that stable source directly prevents a
     // stale neutral-mask pixmap from surviving a Right/Down state change.
-    const QPixmap source = Private::iconPixmap(WinUI3::icon(glyph, foreground), QSize(20, 20),
-                                               devicePixelRatioF(),
-                                               enabled ? QIcon::Normal : QIcon::Disabled,
-                                               QIcon::Off);
+    const QPixmap source =
+            Private::iconPixmap(WinUI3::icon(glyph, foreground), QSize(20, 20), devicePixelRatioF(),
+                                enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off);
     m_chevronLabel->setPixmap(rotatedChevronPixmap(source, angle));
     m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", static_cast<int>(glyph));
     m_chevronLabel->setProperty("_winui_settings_card_chevron_rotation", angle);
@@ -703,8 +702,7 @@ void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
 
 void SettingsCard::keyPressEvent(QKeyEvent *event)
 {
-    if (isCardInteractive()
-        && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
+    if (isCardInteractive() && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
         && !event->isAutoRepeat()) {
         // Same re-entrancy guard as mouseReleaseEvent: activated() slots
         // may delete this card or clear the expandable widget.

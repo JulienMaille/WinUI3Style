@@ -261,7 +261,7 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
             labelPalette.setColor(QPalette::Text, contentPalette.color(QPalette::Text));
             labelPalette.setColor(QPalette::Link, contentPalette.color(QPalette::WindowText));
             labelPalette.setColor(QPalette::LinkVisited,
-                                 contentPalette.color(QPalette::WindowText));
+                                  contentPalette.color(QPalette::WindowText));
             label->setPalette(labelPalette);
         }
         if (!internalButton
@@ -323,15 +323,17 @@ QColor inlineCalendarSurface(const QWidget *widget, const QPalette &applicationP
         pixel.fill(t.surface);
     QPainter painter(&pixel);
     QList<const QWidget *> ancestors;
-    for (const QWidget *parent = calendar ? calendar->parentWidget() : nullptr;
-         parent; parent = parent->parentWidget())
+    for (const QWidget *parent = calendar ? calendar->parentWidget() : nullptr; parent;
+         parent = parent->parentWidget())
         ancestors.prepend(parent);
     for (const QWidget *parent : ancestors) {
         if (parent->property(Style::SurfaceProperty).toString() == QLatin1String("layer"))
             painter.fillRect(pixel.rect(), Private::popupSurfaceColor(applicationPalette));
         else if (qobject_cast<const QGroupBox *>(parent))
-            painter.fillRect(pixel.rect(), Private::veiledCard(
-                    t.layer, composited && Private::paintsDirectlyOnBackdrop(parent)));
+            painter.fillRect(
+                    pixel.rect(),
+                    Private::veiledCard(t.layer,
+                                        composited && Private::paintsDirectlyOnBackdrop(parent)));
     }
     painter.fillRect(pixel.rect(), t.editorFocusedFill);
     painter.end();
@@ -347,7 +349,7 @@ bool insideCalendarNavigationBar(const QWidget *widget)
 {
     const QWidget *parent = widget ? widget->parentWidget() : nullptr;
     return parent && parent->objectName() == QStringLiteral("qt_calendar_navigationbar")
-        && insideCalendarWidget(widget);
+            && insideCalendarWidget(widget);
 }
 
 const QWidget *richTextEditor(const QWidget *widget)
@@ -528,8 +530,8 @@ void invalidateDensityTree(QWidget *root)
                     itemOption.index = first;
                     const QSize rowSize = combo->style()->sizeFromContents(
                             QStyle::CT_ItemViewItem, &itemOption, QSize(), combo->view());
-                    const int margins = popup->contentsMargins().top()
-                            + popup->contentsMargins().bottom();
+                    const int margins =
+                            popup->contentsMargins().top() + popup->contentsMargins().bottom();
                     popup->resize(popup->width(), combo->count() * rowSize.height() + margins);
                 }
             }
@@ -960,8 +962,9 @@ public:
         if (const auto previous = scrollBarDestroyConnections.take(scrollBar))
             QObject::disconnect(previous);
         scrollBarDestroyConnections.insert(
-                scrollBar, QObject::connect(scrollBar, &QObject::destroyed, q,
-                                            [this, scrollBar] { unregisterScrollBar(scrollBar); }));
+                scrollBar, QObject::connect(scrollBar, &QObject::destroyed, q, [this, scrollBar] {
+                    unregisterScrollBar(scrollBar);
+                }));
         return timer;
     }
 
@@ -1020,8 +1023,9 @@ public:
         if (const auto previous = sliderToolTipDestroyConnections.take(slider))
             QObject::disconnect(previous);
         sliderToolTipDestroyConnections.insert(
-                slider, QObject::connect(slider, &QObject::destroyed, q,
-                                         [this, slider] { unregisterSlider(slider); }));
+                slider, QObject::connect(slider, &QObject::destroyed, q, [this, slider] {
+                    unregisterSlider(slider);
+                }));
         return timer;
     }
 
@@ -1309,13 +1313,11 @@ Style::Style(ThemeMode mode) : Style(mode, WinUI3::DensityMode::Standard) { }
 
 Style::Style(WinUI3::DensityMode density) : Style(ThemeMode::System, density) { }
 
-Style::Style(ThemeMode mode, WinUI3::DensityMode density)
-    : Style(nullptr, mode, density)
-{
-}
+Style::Style(ThemeMode mode, WinUI3::DensityMode density) : Style(nullptr, mode, density) { }
 
 Style::Style(QStyle *base, ThemeMode mode, WinUI3::DensityMode density)
-    : QProxyStyle(base ? base : new QCommonStyle), d(std::make_unique<StylePrivate>(this, mode, density))
+    : QProxyStyle(base ? base : new QCommonStyle),
+      d(std::make_unique<StylePrivate>(this, mode, density))
 {
     setObjectName(QStringLiteral("winui3"));
     d->progressTimer = new QTimer(this);
@@ -2095,8 +2097,8 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     // scroll-shifted pixels they leave behind smear exactly like the
     // unguarded viewport case. The gate excludes opaque islands and
     // non-Composited fallbacks, so unrelated controls are untouched.
-    if (element == CE_PushButton || element == CE_PushButtonLabel
-        || element == CE_CheckBox || element == CE_CheckBoxLabel || element == CE_RadioButton
+    if (element == CE_PushButton || element == CE_PushButtonLabel || element == CE_CheckBox
+        || element == CE_CheckBoxLabel || element == CE_RadioButton
         || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel)
         Private::eraseForBackdrop(painter, widget, option->rect);
     const Tokens t = tokens(option->palette);
@@ -2686,12 +2688,12 @@ void Style::polish(QWidget *widget)
         widget->setProperty(ownedPaletteProperty, true);
         d->registerPaletteOwner(widget);
         const QPalette navigationSource = standardPalette();
-        const bool popupHeader = widget->window()
-                && widget->window()->windowType() == Qt::Popup;
+        const bool popupHeader = widget->window() && widget->window()->windowType() == Qt::Popup;
         QColor navigationWindow;
         if (popupHeader) {
             navigationWindow = Private::popupSurfaceColor(navigationSource);
-            if (Private::backdropEffectiveSurface(widget->window()) == Private::BackdropSurface::Composited)
+            if (Private::backdropEffectiveSurface(widget->window())
+                == Private::BackdropSurface::Composited)
                 navigationWindow = widget->window()->palette().color(QPalette::Window);
         } else {
             navigationWindow = inlineCalendarSurface(widget, navigationSource);
@@ -2720,8 +2722,7 @@ void Style::polish(QWidget *widget)
     // with the opaque bar (a Subtle rest over an opaque slab would read as
     // a missing fill, and the erase gate is closed there anyway).
     if (insideCalendarNavigationBar(widget)) {
-        const bool popupCalendar = widget->window()
-                && widget->window()->windowType() == Qt::Popup;
+        const bool popupCalendar = widget->window() && widget->window()->windowType() == Qt::Popup;
         if (auto *laneButton = qobject_cast<QAbstractButton *>(widget))
             setControlRole(laneButton, ControlRole::Subtle);
         widget->setBackgroundRole(QPalette::Window);
@@ -2735,7 +2736,8 @@ void Style::polish(QWidget *widget)
         QColor laneWindow;
         if (popupCalendar) {
             laneWindow = Private::popupSurfaceColor(lanePalette);
-            if (Private::backdropEffectiveSurface(widget->window()) == Private::BackdropSurface::Composited)
+            if (Private::backdropEffectiveSurface(widget->window())
+                == Private::BackdropSurface::Composited)
                 laneWindow = widget->window()->palette().color(QPalette::Window);
         } else {
             laneWindow = inlineCalendarSurface(widget, lanePalette);
@@ -2772,21 +2774,19 @@ void Style::polish(QWidget *widget)
             calendarGrid->setPalette(palette);
         };
         applyCalendarSelectionPalette();
-        d->tableConnections.insert(
-                widget,
-                connect(this, &Style::themeChanged, widget,
-                        [applyCalendarSelectionPalette](ThemeMode) {
-                            applyCalendarSelectionPalette();
-                        }));
+        d->tableConnections.insert(widget,
+                                   connect(this, &Style::themeChanged, widget,
+                                           [applyCalendarSelectionPalette](ThemeMode) {
+                                               applyCalendarSelectionPalette();
+                                           }));
     }
 
     // The native selection rect reads the viewport option palette, so the
     // grid's viewport neutralizes itself in its own polish. Each widget's
     // rememberPalette runs in its own polish, so generic unpolish restores
     // the exact remembered state; no poke-across from the grid's polish.
-    if (auto *calendarTable = qobject_cast<QTableView *>(widget->parentWidget());
-        calendarTable && widget == calendarTable->viewport()
-        && insideCalendarWidget(calendarTable)) {
+    if (auto *calendarTable = qobject_cast<QTableView *>(widget->parentWidget()); calendarTable
+        && widget == calendarTable->viewport() && insideCalendarWidget(calendarTable)) {
         QPalette viewportPalette = widget->palette();
         const Private::Tokens viewportTokens = Private::tokens(standardPalette());
         viewportPalette.setColor(QPalette::Highlight, Qt::transparent);

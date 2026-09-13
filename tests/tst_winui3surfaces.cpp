@@ -267,7 +267,8 @@ void WinUI3SurfacesTest::backdropButtonRepaintDoesNotAccumulate()
     style->drawPrimitive(QStyle::PE_Widget, &childOption, &childPainter, &islandChild);
     childPainter.end();
     // The child painted something (not a bare transparent hole).
-    QVERIFY(childFrame.pixelColor(4, 4).alpha() > 0 || childFrame.pixelColor(48, 16) != QColor(255, 0, 0));
+    QVERIFY(childFrame.pixelColor(4, 4).alpha() > 0
+            || childFrame.pixelColor(48, 16) != QColor(255, 0, 0));
 }
 
 void WinUI3SurfacesTest::backdropSliderInsideOpaqueCardKeepsCardFill()
@@ -563,9 +564,9 @@ void WinUI3SurfacesTest::materialEraseKeepsCornersTransparent()
         const QColor px = image.pixelColor(corner);
         QVERIFY2(px.alpha() == 0 || px == QColor(255, 0, 0, 255),
                  qPrintable(QStringLiteral("corner %1,%2 = %3 (black fringe!)")
-                                .arg(corner.x())
-                                .arg(corner.y())
-                                .arg(px.name(QColor::HexArgb))));
+                                    .arg(corner.x())
+                                    .arg(corner.y())
+                                    .arg(px.name(QColor::HexArgb))));
     }
     QVERIFY(image.pixelColor(image.rect().center()).alpha() > 0);
 }
@@ -836,8 +837,7 @@ void WinUI3SurfacesTest::wizardUsesModernStyleHint()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
     QWizard wizard;
-    QCOMPARE(style->styleHint(QStyle::SH_WizardStyle, nullptr, &wizard),
-             int(QWizard::ModernStyle));
+    QCOMPARE(style->styleHint(QStyle::SH_WizardStyle, nullptr, &wizard), int(QWizard::ModernStyle));
     QCOMPARE(wizard.wizardStyle(), QWizard::ModernStyle);
 }
 
@@ -877,8 +877,7 @@ void WinUI3SurfacesTest::wizardOpenThemeSwitchLifecycle()
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
-    QCOMPARE(wizard.grab().toImage().pixelColor(
-                     wizard.width() / 2, footer->geometry().top() + 2),
+    QCOMPARE(wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
              darkCommand);
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_COMPARE(page->palette().color(QPalette::Window), lightContent);
@@ -890,11 +889,10 @@ void WinUI3SurfacesTest::wizardOpenThemeSwitchLifecycle()
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
-    QTRY_COMPARE(wizard.grab().toImage().pixelColor(
-                         wizard.width() / 2, footer->geometry().top() + 2),
-                 darkCommand);
+    QTRY_COMPARE(
+            wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
+            darkCommand);
 }
-
 
 void WinUI3SurfacesTest::themeSwitchRebasesChromeShell()
 {
@@ -939,8 +937,8 @@ void WinUI3SurfacesTest::persistentDialogSurvivesThemeSwitch()
     layout->addWidget(buttons);
     dialog.show();
     QTRY_VERIFY(dialog.isVisible());
-    QWidget *footer = dialog.findChild<QWidget *>(QStringLiteral("_winui_content_dialog_footer_surface"),
-                                                 Qt::FindDirectChildrenOnly);
+    QWidget *footer = dialog.findChild<QWidget *>(
+            QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
     QVERIFY(footer);
     const QColor lightContent = style->standardPalette().color(QPalette::Window);
     QTRY_COMPARE(dialog.palette().color(QPalette::Window),
@@ -1056,9 +1054,9 @@ void WinUI3SurfacesTest::contentDialogScrimOwnershipCleared()
         WinUI3::Style::setContentDialog(dialog);
         dialog->show();
         QTRY_VERIFY(dialog->isVisible());
-        QCOMPARE(owner.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"))
-                         .size(),
-                 1);
+        QCOMPARE(
+                owner.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim")).size(),
+                1);
         const QImage withScrim = owner.grab().toImage();
         QVERIFY(!withScrim.isNull());
         QCOMPARE(withScrim.size(), owner.size());
@@ -1131,8 +1129,9 @@ void WinUI3SurfacesTest::menuMaskRetrySettles()
     QVERIFY2(attempts >= 1 && attempts <= 5,
              qPrintable(QStringLiteral("retry chain out of bounds: %1 attempts").arg(attempts)));
     QVERIFY2(probe.events < 30,
-             qPrintable(QStringLiteral("retry chain never settles: %1 timer/metacall events in 200ms")
-                                .arg(probe.events)));
+             qPrintable(
+                     QStringLiteral("retry chain never settles: %1 timer/metacall events in 200ms")
+                             .arg(probe.events)));
     QVERIFY(menu.isVisible());
     QVERIFY(menu.mask().isEmpty());
     // The chain must have settled: waiting longer schedules nothing new.

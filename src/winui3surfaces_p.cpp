@@ -144,7 +144,7 @@ private:
                 progressed = true;
             }
             const QSize minWanted(qMax(320, m_dialog->minimumWidth()),
-                                 qMax(184, m_dialog->minimumHeight()));
+                                  qMax(184, m_dialog->minimumHeight()));
             if (m_dialog->minimumSize() != minWanted) {
                 m_dialog->setMinimumSize(minWanted.width(), minWanted.height());
                 progressed = true;
@@ -272,8 +272,7 @@ void applyMenuRoundedMask(QMenu *menu)
     // mask coincide at the half-coverage line — no dark fringe inside
     // over the composited material, no backdrop hairline outside.
     QPainterPath path;
-    path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), OverlayRadius,
-                        OverlayRadius);
+    path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), OverlayRadius, OverlayRadius);
     QImage raster(size, QImage::Format_ARGB32_Premultiplied);
     raster.fill(Qt::transparent);
     QPainter rasterPainter(&raster);
@@ -1058,8 +1057,7 @@ bool popupBackdropReadbackGranted(QWidget *popup)
     if (!hwnd)
         return false;
     DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value,
-                                           sizeof(value)))
+    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
             && value == popupBackdropTransientValue;
 #else
     Q_UNUSED(popup);
@@ -1081,8 +1079,7 @@ bool popupBackdropReadbackRefused(QWidget *popup)
     if (!hwnd)
         return false;
     DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value,
-                                           sizeof(value)))
+    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
             && value != popupBackdropTransientValue;
 #else
     Q_UNUSED(popup);
@@ -1115,8 +1112,7 @@ void preparePopupSurface(QWidget *widget)
     // cleared the opaque claim cannot leak into the next cycle: the opaque
     // branch below then restores the full recipe instead of inheriting the
     // composited one (square corners, washed veil, lost shadow).
-    remember(popup, originalOpaquePaintProperty,
-             popup->testAttribute(Qt::WA_OpaquePaintEvent));
+    remember(popup, originalOpaquePaintProperty, popup->testAttribute(Qt::WA_OpaquePaintEvent));
     remember(popup, originalStyledBackgroundProperty,
              popup->testAttribute(Qt::WA_StyledBackground));
     // Popup widgets keep an explicit palette after their first polish. Rebase
@@ -1151,8 +1147,7 @@ void preparePopupSurface(QWidget *widget)
         rebased.setColor(QPalette::WindowText, popupPalette.color(QPalette::WindowText));
         rebased.setColor(QPalette::Text, popupPalette.color(QPalette::Text));
         rebased.setColor(QPalette::ButtonText, popupPalette.color(QPalette::ButtonText));
-        rebased.setColor(QPalette::HighlightedText,
-                         popupPalette.color(QPalette::HighlightedText));
+        rebased.setColor(QPalette::HighlightedText, popupPalette.color(QPalette::HighlightedText));
         popup->setPalette(rebased);
     }
     if (!keepComposited) {
@@ -1226,8 +1221,8 @@ void preparePopupSurface(QWidget *widget)
                 // keeps the HRESULT-based acceptance. Unverified success
                 // skips the translucent re-tint below so the opaque
                 // fallback stands until truly granted.
-                const bool keepPath = backdropEffectiveSurface(popup)
-                        == BackdropSurface::Composited;
+                const bool keepPath =
+                        backdropEffectiveSurface(popup) == BackdropSurface::Composited;
                 bool granted = false;
                 if (keepPath) {
                     granted = WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic);
@@ -1240,7 +1235,7 @@ void preparePopupSurface(QWidget *widget)
                         granted = false;
                     popup->update();
                 } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
-                    && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
+                           && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
                     if (!popupBackdropReadbackGranted(popup)
                         && popupBackdropReadbackRefused(popup)) {
                         // Definitive refusal: leave the opaque fallback the
@@ -1348,8 +1343,8 @@ void preparePopupSurface(QWidget *widget)
                 // autofill would SourceOver a second tint onto the popup.
                 bar->setAutoFillBackground(false);
                 bar->setAttribute(Qt::WA_StyledBackground, true);
-                for (QWidget *lane : bar->findChildren<QWidget *>(
-                             QString(), Qt::FindDirectChildrenOnly)) {
+                for (QWidget *lane :
+                     bar->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
                     rememberPalette(lane);
                     lane->setPalette(headerPalette);
                 }

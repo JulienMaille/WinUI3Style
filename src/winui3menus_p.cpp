@@ -125,7 +125,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         painter->setBrush(Qt::NoBrush);
         painter->setPen(QPen(stroke, 1.0));
         painter->drawRoundedRect(QRectF(surface).adjusted(0.5, 0.5, -0.5, -0.5),
-                                  OverlayRadius - 0.5, OverlayRadius - 0.5);
+                                 OverlayRadius - 0.5, OverlayRadius - 0.5);
         painter->restore();
         return true;
     }
@@ -173,8 +173,7 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             // (which reserves 8 px) clipped four pixels from tight labels.
             const int textInset = qMin(10, densityMetricsFor(widget).menuBarHorizontalPadding);
             int barFlags = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextSingleLine;
-            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget)
-                == 0)
+            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget) == 0)
                 barFlags |= Qt::TextHideMnemonic;
             painter->drawText(item->rect.adjusted(textInset, 0, -textInset, 0), barFlags,
                               item->text);
@@ -219,8 +218,7 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                                           menu->rect.size());
                     showHover = rowGlobal.contains(QCursor::pos());
                 }
-                if (!showHover && !menu->checked
-                    && (menu->state & QStyle::State_Selected)) {
+                if (!showHover && !menu->checked && (menu->state & QStyle::State_Selected)) {
                     showHover = true;
                 }
             }
@@ -244,8 +242,7 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                 // already translucent surface roles explicitly so the
                 // pill composites exactly one SubtleFill layer.
                 if (!clearForBackdropFill(painter, widget, menu->rect,
-                                          option->palette.color(QPalette::Window),
-                                          OverlayRadius)) {
+                                          option->palette.color(QPalette::Window), OverlayRadius)) {
                     painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
                 }
                 paintPopupRowPill(painter, popupRowPillRect(menu->rect, comboItem),
@@ -330,12 +327,10 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             int itemFlags =
                     QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
                     | Qt::TextShowMnemonic;
-            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget)
-                == 0)
+            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget) == 0)
                 itemFlags |= Qt::TextHideMnemonic;
-            painter->drawText(
-                    textRect, itemFlags,
-                    metrics.elidedText(itemText, Qt::ElideRight, textRect.width()));
+            painter->drawText(textRect, itemFlags,
+                              metrics.elidedText(itemText, Qt::ElideRight, textRect.width()));
             if (hasShortcut) {
                 painter->setPen(enabled ? t.textSecondary : t.textDisabled);
                 const QRect shortcutRect = QStyle::visualRect(

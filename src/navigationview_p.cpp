@@ -56,20 +56,20 @@ public:
         : QStyledItemDelegate(view), m_view(view), m_original(original), m_indicatorAnimation(this)
     {
         QObject::connect(&m_indicatorAnimation, &QVariantAnimation::valueChanged, this,
-                          [this](const QVariant &value) {
-                              m_indicatorY = value.toReal();
-                              if (!m_view)
-                                  return;
-                              // The viewport can be torn down while an
-                              // indicator animation is still running (window
-                              // close / view destructor, Finding B).
-                              QWidget *viewport = m_view->viewport();
-                              if (!viewport)
-                                  return;
-                              WinUI3::Private::framePropertyRegistry().set(
-                                      viewport, navigationIndicatorProperty, m_indicatorY);
-                              viewport->update();
-                          });
+                         [this](const QVariant &value) {
+                             m_indicatorY = value.toReal();
+                             if (!m_view)
+                                 return;
+                             // The viewport can be torn down while an
+                             // indicator animation is still running (window
+                             // close / view destructor, Finding B).
+                             QWidget *viewport = m_view->viewport();
+                             if (!viewport)
+                                 return;
+                             WinUI3::Private::framePropertyRegistry().set(
+                                     viewport, navigationIndicatorProperty, m_indicatorY);
+                             viewport->update();
+                         });
         attachSelectionModel();
         // Custom views may return null scrollbars; guard them (Finding B).
         if (QScrollBar *vertical = view->verticalScrollBar()) {

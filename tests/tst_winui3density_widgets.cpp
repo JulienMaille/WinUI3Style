@@ -443,11 +443,10 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     hoveredImage.fill(palette.color(QPalette::Base));
     {
         QPainter painter(&hoveredImage);
-        popup->style()->drawControl(QStyle::CE_ItemViewItem, &hovered, &painter,
-                                    popup->viewport());
+        popup->style()->drawControl(QStyle::CE_ItemViewItem, &hovered, &painter, popup->viewport());
     }
-    const QRect pill(hovered.rect.left() + 4, hovered.rect.top() + 2,
-                     hovered.rect.width() - 8, hovered.rect.height() - 4);
+    const QRect pill(hovered.rect.left() + 4, hovered.rect.top() + 2, hovered.rect.width() - 8,
+                     hovered.rect.height() - 4);
     const QColor pillCenter = hoveredImage.pixelColor(pill.center());
     QVERIFY2(colorDistance(pillCenter, palette.color(QPalette::Base)) > 8,
              "hovered suggestion must paint the shared hover pill");
@@ -467,7 +466,7 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
                      <= 3,
              "pill corner must stay Base");
     QVERIFY2(colorDistance(hoveredImage.pixelColor(pill.left() + 2, pill.top() + 2),
-                                                  palette.color(QPalette::Base))
+                           palette.color(QPalette::Base))
                      > 8,
              "hovered suggestion must round the shared pill like a menu row");
 }
@@ -510,7 +509,7 @@ void WinUI3DensityWidgetsTest::hiddenCompleterPopupFollowsDensitySwitch()
     QLineEdit editor;
     auto *completer =
             new QCompleter(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                                       QStringLiteral("Gamma"), QStringLiteral("Delta") },
+                                        QStringLiteral("Gamma"), QStringLiteral("Delta") },
                            &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
@@ -560,8 +559,8 @@ void WinUI3DensityWidgetsTest::suggestersCompleteAndActivateInBothDensities()
             QLineEdit editor;
             auto *completer = new QCompleter(
                     QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                                QStringLiteral("Gamma"), QStringLiteral("Delta"),
-                                QStringLiteral("Settings"), QStringLiteral("Controls") },
+                                 QStringLiteral("Gamma"), QStringLiteral("Delta"),
+                                 QStringLiteral("Settings"), QStringLiteral("Controls") },
                     &editor);
             completer->setCaseSensitivity(Qt::CaseInsensitive);
             completer->setFilterMode(Qt::MatchContains);
@@ -842,7 +841,7 @@ void WinUI3DensityWidgetsTest::menuDensityPreservesPopupGeometry()
         QTRY_COMPARE_WITH_TIMEOUT(menu.actionGeometry(action).height(), expectedHeight, 1000);
         QTest::qWait(60);
         QCOMPARE(menu.actionAt(QPoint(menu.actionGeometry(action).center().x(),
-                                     menu.actionGeometry(action).center().y())),
+                                      menu.actionGeometry(action).center().y())),
                  action);
         menu.hide();
         style.setDensityMode(mode == initial ? other : initial);
@@ -1042,8 +1041,8 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
             painter.fillRect(inlineSurface.rect(), modeTokens.editorFocusedFill);
         }
         QCOMPARE(inlineView->palette().color(QPalette::Base), inlineSurface.pixelColor(0, 0));
-        auto *inlineNav = inlineCalendar.findChild<QWidget *>(
-                QStringLiteral("qt_calendar_navigationbar"));
+        auto *inlineNav =
+                inlineCalendar.findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
         QVERIFY(inlineNav);
         QCOMPARE(inlineNav->backgroundRole(), QPalette::Window);
         // Mica contract: the header is the content surface, never the
@@ -1090,7 +1089,7 @@ void WinUI3DensityWidgetsTest::calendarNavigationBarLaneSharesOpaqueSurface()
     // share the same opaque content-surface background.
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
     const QList<WinUI3::DensityMode> densities = { WinUI3::DensityMode::Standard,
-                                                  WinUI3::DensityMode::Compact };
+                                                   WinUI3::DensityMode::Compact };
     for (const WinUI3::DensityMode density : densities) {
         for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
             style.setThemeMode(mode);
@@ -1118,14 +1117,13 @@ void WinUI3DensityWidgetsTest::calendarNavigationBarLaneSharesOpaqueSurface()
                 host.show();
                 QVERIFY(QTest::qWaitForWindowExposed(&host));
                 QCoreApplication::processEvents();
-                const bool granted = mica
-                        && WinUI3::applyBackdrop(&host, WinUI3::Backdrop::Mica)
+                const bool granted = mica && WinUI3::applyBackdrop(&host, WinUI3::Backdrop::Mica)
                         && WinUI3::Private::backdropEffectiveSurface(&host)
                                 == WinUI3::Private::BackdropSurface::Composited;
                 QCoreApplication::processEvents();
 
-                auto *navigation = calendar->findChild<QWidget *>(
-                        QStringLiteral("qt_calendar_navigationbar"));
+                auto *navigation =
+                        calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
                 QVERIFY2(navigation, "calendar navigation bar must exist");
                 QCOMPARE(navigation->backgroundRole(), QPalette::Window);
                 // Uniformity, not opacity, is the contract: a genuine grant
@@ -1169,8 +1167,7 @@ void WinUI3DensityWidgetsTest::calendarNavigationBarLaneSharesOpaqueSurface()
                 for (QWidget *child : laneChildren) {
                     if (!qobject_cast<QAbstractButton *>(child))
                         continue;
-                    QCOMPARE(WinUI3::Style::controlRole(child),
-                             WinUI3::ControlRole::Subtle);
+                    QCOMPARE(WinUI3::Style::controlRole(child), WinUI3::ControlRole::Subtle);
                     // Suspect 2: rest/hover fills read the Button role while
                     // the bar reads Window. The lane palette repoints Button
                     // at the same opaque lane surface, so the Standard rest
@@ -1199,8 +1196,7 @@ void WinUI3DensityWidgetsTest::calendarNavigationBarLaneSharesOpaqueSurface()
                 QVERIFY(!laneImage.isNull());
                 auto childContains = [&](const QPoint &pt) {
                     for (const QWidget *child : laneChildren) {
-                        const QRect inBar(child->mapTo(navigation, QPoint(0, 0)),
-                                          child->size());
+                        const QRect inBar(child->mapTo(navigation, QPoint(0, 0)), child->size());
                         if (inBar.contains(pt))
                             return true;
                     }
@@ -1227,14 +1223,15 @@ void WinUI3DensityWidgetsTest::calendarNavigationBarLaneSharesOpaqueSurface()
                                  < 36,
                          qPrintable(QStringLiteral("empty #%1 vs lane #%2")
                                             .arg(emptyColor.name())
-                                            .arg(navigation->palette().color(QPalette::Window).name())));
+                                            .arg(navigation->palette()
+                                                         .color(QPalette::Window)
+                                                         .name())));
                 // Mica parity: the same shared lane surface with and without
                 // the composited material — veiled under a genuine Dark grant
                 // (Light InputActive is opaque by definition), opaque on the
                 // refused/offscreen fallback. Only DWM behind the window may
                 // otherwise change.
-                QCOMPARE(emptyColor.alpha(),
-                         navigation->palette().color(QPalette::Window).alpha());
+                QCOMPARE(emptyColor.alpha(), navigation->palette().color(QPalette::Window).alpha());
                 if (granted && mode == WinUI3::ThemeMode::Dark)
                     QVERIFY2(navigation->palette().color(QPalette::Window).alpha() < 255,
                              "granted Mica must veil the lane surface");
@@ -1296,8 +1293,8 @@ void WinUI3DensityWidgetsTest::calendarKeepPathRebasesTextRolesAcrossThemeSwitch
              fresh.color(QPalette::HighlightedText));
     QVERIFY2(reopened->palette().color(QPalette::Text) != staleText,
              "reopened popup must not keep the pre-flip text role");
-    auto *view = calendar->findChild<QAbstractItemView *>(
-            QStringLiteral("qt_calendar_calendarview"));
+    auto *view =
+            calendar->findChild<QAbstractItemView *>(QStringLiteral("qt_calendar_calendarview"));
     QVERIFY(view);
     const WinUI3::Private::Tokens darkTokens = WinUI3::Private::buildTokens(fresh);
     QCOMPARE(view->palette().color(QPalette::HighlightedText), darkTokens.textPrimary);
