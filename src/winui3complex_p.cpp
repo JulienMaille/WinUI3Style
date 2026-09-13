@@ -357,10 +357,15 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             }
             // Ghost scrollbar: a scrollbar painted straight onto a live
             // backdrop keeps its backing-store head across frames. Rebuild
-            // from transparent first so the rest state never smears.
-            eraseForBackdrop(painter, widget, option->rect);
-            painter->fillRect(option->rect, background);
+            // from transparent first so the rest state never smears. WinUI
+            // keeps the ScrollBar groove transparent at rest: once the
+            // hover track fades out there is no fill left, so erase-only
+            // with no repainted background lets the parent show through
+            // instead of a mismatched Window-role band on live Mica.
+            const bool onBackdrop = eraseForBackdrop(painter, widget, option->rect);
             const bool enabled = option->state & QStyle::State_Enabled;
+            if (!onBackdrop)
+                painter->fillRect(option->rect, background);
             // The WinUI ScrollBarThumb template fades the thumb to zero in its
             // Disabled state; arrows and track are suppressed with it.
             if (!enabled)

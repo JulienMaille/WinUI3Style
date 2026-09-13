@@ -149,6 +149,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const bool pressedItem = hovered && (option->state & QStyle::State_Sunken);
         // Keyboard current is hover: arrows move view->currentIndex() with no
         // MouseOver, and QCompleter drives selection the same way. The
+        // current row must read exactly like the hovered row.
         const bool keyboardCurrent = popup && view && viewOption && viewOption->index.isValid()
                 && viewOption->index == view->currentIndex();
         const bool calendarHeader = calendar && viewOption && viewOption->index.isValid()
