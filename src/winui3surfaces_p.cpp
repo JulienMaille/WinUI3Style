@@ -992,8 +992,9 @@ void preparePopupSurface(QWidget *widget)
     }
     if (view) {
         rememberPalette(view);
-        QPalette viewPalette =
-                (completerPopup || isMenuPopup) ? popupPalette : effectivePopupPalette(view, popupPalette);
+        QPalette viewPalette = (completerPopup || isMenuPopup)
+                ? popupPalette
+                : effectivePopupPalette(view, popupPalette);
         if (calendarView(view)) {
             // QTableView paints its native rectangular selection underneath
             // the delegate. CalendarView uses its own rounded day chrome.

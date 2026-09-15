@@ -77,7 +77,7 @@ void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirect
 
 } // namespace
 
-void Private::paintPopupRowPill(QPainter *painter, const QRectF &itemRect, const QColor &fill)
+void paintPopupRowPill(QPainter *painter, const QRectF &itemRect, const QColor &fill)
 {
     roundedRect(painter, itemRect, fill, Qt::transparent, 3.0);
 }
@@ -173,8 +173,7 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             // (which reserves 8 px) clipped four pixels from tight labels.
             const int textInset = qMin(10, densityMetricsFor(widget).menuBarHorizontalPadding);
             int barFlags = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextSingleLine;
-            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget)
-                == 0)
+            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget) == 0)
                 barFlags |= Qt::TextHideMnemonic;
             painter->drawText(item->rect.adjusted(textInset, 0, -textInset, 0), barFlags,
                               item->text);
@@ -321,12 +320,10 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             int itemFlags =
                     QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
                     | Qt::TextShowMnemonic;
-            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget)
-                == 0)
+            if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget) == 0)
                 itemFlags |= Qt::TextHideMnemonic;
-            painter->drawText(
-                    textRect, itemFlags,
-                    metrics.elidedText(itemText, Qt::ElideRight, textRect.width()));
+            painter->drawText(textRect, itemFlags,
+                              metrics.elidedText(itemText, Qt::ElideRight, textRect.width()));
             if (hasShortcut) {
                 painter->setPen(enabled ? t.textSecondary : t.textDisabled);
                 const QRect shortcutRect = QStyle::visualRect(
