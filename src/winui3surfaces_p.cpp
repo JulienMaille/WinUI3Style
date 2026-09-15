@@ -906,6 +906,7 @@ void preparePopupSurface(QWidget *widget)
     const bool completerPopup = view
             && (view->property(completerOwnerProperty).isValid()
                 || qobject_cast<QCompleter *>(view->parent()));
+    const bool isMenuPopup = qobject_cast<QMenu *>(popup) || qobject_cast<QMenu *>(widget);
     rememberPalette(popup);
     remember(popup, originalAutoFillProperty, popup->autoFillBackground());
     remember(popup, originalTranslucentBackgroundProperty,
@@ -920,9 +921,13 @@ void preparePopupSurface(QWidget *widget)
     // Qt marks that inherited palette as explicit, so preserving it can retain
     // a dark popup after the application switches to light (and vice versa).
     // It is framework-owned rather than an application override: always rebase
-    // it on the current application palette.
-    QPalette popupPalette = completerPopup ? QApplication::palette()
-                                           : effectivePopupPalette(popup, QApplication::palette());
+    // it on the current application palette. QMenu popups are also framework-owned
+    // style surfaces that can be shown/hidden multiple times; rebase them on
+    // QApplication::palette() so clicking an item and reopening does not retain
+    // a stale/modified palette.
+    QPalette popupPalette = (completerPopup || isMenuPopup)
+            ? QApplication::palette()
+            : effectivePopupPalette(popup, QApplication::palette());
     const Private::Tokens popupTokens = Private::tokens(popupPalette);
     const QColor popupSurface = Private::popupSurfaceColor(popupPalette);
     popupPalette.setColor(QPalette::Window, popupSurface);
@@ -988,7 +993,7 @@ void preparePopupSurface(QWidget *widget)
     if (view) {
         rememberPalette(view);
         QPalette viewPalette =
-                completerPopup ? popupPalette : effectivePopupPalette(view, popupPalette);
+                (completerPopup || isMenuPopup) ? popupPalette : effectivePopupPalette(view, popupPalette);
         if (calendarView(view)) {
             // QTableView paints its native rectangular selection underneath
             // the delegate. CalendarView uses its own rounded day chrome.

@@ -118,7 +118,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         if (eraseForBackdrop(painter, widget, surface)) {
             roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
         } else {
-            painter->fillRect(surface, fill);
+            roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
         }
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);

@@ -1460,11 +1460,12 @@ void Style::refreshApplicationAppearance()
             } else if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
                        && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
                 // Mica contract: the header bar stays the opaque content
-                // surface across theme and backdrop switches, never the
-                // flyout tint and never translucent.
-                QColor navigationWindow = widget->parentWidget()->palette().color(QPalette::Window);
+                // surface across theme and backdrop switches, matching WinUI guidelines.
+                QColor navigationWindow = Private::popupSurfaceColor(applicationPalette);
                 navigationWindow.setAlpha(255);
                 palette.setColor(QPalette::Window, navigationWindow);
+            } else if (qobject_cast<QCalendarWidget *>(widget)) {
+                palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             } else if (qobject_cast<QDialog *>(widget)) {
                 palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
             }
@@ -2428,6 +2429,17 @@ void Style::polish(QWidget *widget)
             setControlRole(toolButton, ControlRole::Subtle);
     }
 
+    if (qobject_cast<QCalendarWidget *>(widget)) {
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        QPalette calendarPalette = standardPalette();
+        const QColor surfaceColor = Private::popupSurfaceColor(standardPalette());
+        calendarPalette.setColor(QPalette::Window, surfaceColor);
+        calendarPalette.setColor(QPalette::Base, surfaceColor);
+        widget->setPalette(calendarPalette);
+        widget->update();
+    }
+
     // Qt hard-codes QCalendarWidget's navigation bar to the Highlight role,
     // producing an accent-blue strip unrelated to WinUI's CalendarView. Keep
     // the native calendar implementation but place its navigation controls on
@@ -2443,7 +2455,7 @@ void Style::polish(QWidget *widget)
         widget->setProperty(ownedPaletteProperty, true);
         d->registerPaletteOwner(widget);
         QPalette navigationPalette = standardPalette();
-        QColor navigationWindow = widget->parentWidget()->palette().color(QPalette::Window);
+        QColor navigationWindow = Private::popupSurfaceColor(standardPalette());
         navigationWindow.setAlpha(255);
         navigationPalette.setColor(QPalette::Window, navigationWindow);
         widget->setPalette(navigationPalette);
