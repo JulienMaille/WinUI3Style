@@ -8,6 +8,17 @@ remain `source-audited` until a live WinUI comparison promotes them).
 
 ## Unreleased
 
+- File-menu reopen defect (wrong background + ugly shadow after clicking an
+  item and reopening): the refused DWM acrylic re-attempt on a reused popup
+  HWND now converges the popup `Window`/`Base` roles on the flyout surface
+  and explicitly disarms the stale `SYSTEMBACKDROP_TYPE` + extended frame +
+  redirection-alpha grant, so a refused cycle presents as the plain opaque
+  popup with its standard shadow instead of a half-torn-down frame.
+  Native reopen verdict extended: snapshots settle the 167 ms open sweep
+  first, then pin DWMWA grant parity, screen-level grey parity and shadow
+  depth parity across open/submenu/reopen
+  (`menuBranchConvergesAcrossSubmenuAndToggle`); undelivered native hover
+  skips the wash pass instead of failing it.
 - `drawButtonControl` split per element with a `switch` dispatcher
   (`drawPushButtonControl`, `drawCheckRadioControl`,
   `drawToggleSwitchControl`, `drawPushButtonLabelControl`,

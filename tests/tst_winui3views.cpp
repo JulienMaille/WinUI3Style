@@ -11,6 +11,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
+#include "../src/winui3surfaces_p.h"
 #include "../src/winui3tokens_p.h"
 
 #include <QLabel>
@@ -103,6 +104,7 @@ private slots:
     void scrollBarContract();
     void scrollBarHorizontalAndReentry();
     void scrollAreaScrollBarIntegration();
+    void scrollBarBackdropChainContract();
     void tabViewContract();
     void listViewContract();
     void itemViewGutterContract();
@@ -521,6 +523,62 @@ void WinUI3ViewsTest::scrollAreaScrollBarIntegration()
     QTest::mouseClick(horizontal, Qt::LeftButton, Qt::NoModifier,
                       QPoint(horizontal->width() - 6, horizontal->height() / 2));
     QVERIFY(horizontal->value() > horizontalBefore);
+}
+
+void WinUI3ViewsTest::scrollBarBackdropChainContract()
+{
+    // Scrollbars inside a transparentized scrolled chain join the same
+    // no-fill recipe as the area, viewport, and container: sync arms both
+    // bars (remembered palettes, zero-alpha Window role, no autofill) and
+    // restore returns every link. On an effective-Composited window the
+    // theme refresh already re-runs the shell sync (refreshOwnedPalettes),
+    // so bars arrive armed — zero-alpha Window, no fill, open gate — and the
+    // explicit sync below is idempotent. Toggle-off restore returns every
+    // link to its remembered opaque Window role.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    auto *area = new QScrollArea(&island);
+    auto *content = new QWidget;
+    content->resize(760, 620);
+    area->setWidget(content);
+    area->resize(260, 180);
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    QScrollBar *vertical = area->verticalScrollBar();
+    QScrollBar *horizontal = area->horizontalScrollBar();
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QVERIFY(vertical->testAttribute(Qt::WA_SetPalette));
+    QVERIFY(horizontal->testAttribute(Qt::WA_SetPalette));
+    // The theme refresh on an effective-Composited window already re-syncs
+    // the transparentized chain (refreshOwnedPalettes re-runs the shell
+    // sync), so the bars arrive armed — zero-alpha Window role, no autofill,
+    // open gate — exactly like a themed gallery with Mica on.
+    QCOMPARE(vertical->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(horizontal->palette().color(QPalette::Window).alpha(), 0);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(vertical));
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(horizontal));
+
+    WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+    QCOMPARE(area->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(area->viewport()->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(vertical->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(horizontal->palette().color(QPalette::Window).alpha(), 0);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(vertical));
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(horizontal));
+
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
+    QCOMPARE(vertical->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(horizontal->palette().color(QPalette::Window).alpha(), 255);
+    QVERIFY(!vertical->testAttribute(Qt::WA_StyledBackground));
+    QVERIFY(!horizontal->testAttribute(Qt::WA_StyledBackground));
+    style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 
 void WinUI3ViewsTest::tabViewContract()

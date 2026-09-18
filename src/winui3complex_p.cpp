@@ -362,10 +362,28 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             // hover track fades out there is no fill left, so erase-only
             // with no repainted background lets the parent show through
             // instead of a mismatched Window-role band on live Mica.
+            // Group cards carry no SurfaceProperty, so the gate cannot see
+            // them (same guard as CC_Slider above): inside an opaque group
+            // card the groove is transparent to the card fill, not to the
+            // window material, and a bare erase punches a Mica hole through
+            // the veil. Rebuild the veiled card tone instead (the erase
+            // still clears stale hover/thumb frames); outer bars keep the
+            // erase-only rest. Hover track and thumb below are unchanged.
+            bool insideOpaqueCard = false;
+            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
+                 ancestor = ancestor->parentWidget()) {
+                if (qobject_cast<const QGroupBox *>(ancestor)
+                    && ancestor->palette().color(QPalette::Window).alpha() != 0) {
+                    insideOpaqueCard = true;
+                    break;
+                }
+            }
             const bool onBackdrop = eraseForBackdrop(painter, widget, option->rect);
             const bool enabled = option->state & QStyle::State_Enabled;
             if (!onBackdrop)
                 painter->fillRect(option->rect, background);
+            else if (insideOpaqueCard)
+                painter->fillRect(option->rect, veiledCard(t.layer, true));
             // The WinUI ScrollBarThumb template fades the thumb to zero in its
             // Disabled state; arrows and track are suppressed with it.
             if (!enabled)
