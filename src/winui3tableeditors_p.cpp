@@ -10,8 +10,8 @@
 
 namespace WinUI3::Private {
 
-TableEditorTracker::TableEditorTracker(QObject *connectionContext)
-    : m_context(connectionContext) { }
+TableEditorTracker::TableEditorTracker(QObject *parent)
+    : QObject(parent) { }
 
 QPersistentModelIndex TableEditorTracker::editorIndex(const QTableView *table,
                                                       const QWidget *editor) const
@@ -42,11 +42,11 @@ void TableEditorTracker::connectModel(QTableView *table, TableState &state,
         return;
     const QPointer<QTableView> guardedTable(table);
     state.aboutToResetConnection = QObject::connect(model, &QAbstractItemModel::modelAboutToBeReset,
-                                                    m_context, [this, guardedTable] {
+                                                     this, [this, guardedTable] {
                                                         if (guardedTable)
                                                             clearEditors(guardedTable, false);
                                                     });
-    state.resetConnection = QObject::connect(model, &QAbstractItemModel::modelReset, m_context,
+    state.resetConnection = QObject::connect(model, &QAbstractItemModel::modelReset, this,
                                              [this, guardedTable] {
                                                  if (!guardedTable)
                                                      return;
@@ -55,7 +55,7 @@ void TableEditorTracker::connectModel(QTableView *table, TableState &state,
                                                      guardedTable->viewport()->update();
                                              });
     state.modelDestroyedConnection =
-            QObject::connect(model, &QObject::destroyed, m_context, [this, guardedTable] {
+            QObject::connect(model, &QObject::destroyed, this, [this, guardedTable] {
                 if (guardedTable)
                     clearEditors(guardedTable, true);
             });
@@ -68,9 +68,8 @@ void TableEditorTracker::ensureTable(QTableView *table)
     auto it = m_tables.find(table);
     if (it == m_tables.end()) {
         TableState state;
-        const QPointer<QTableView> guardedTable(table);
         state.tableDestroyedConnection =
-                QObject::connect(table, &QObject::destroyed, m_context,
+                QObject::connect(table, &QObject::destroyed, this,
                                  [this, table] { untrackTable(table, false); });
         it = m_tables.insert(table, state);
         connectModel(table, it.value(), table->model());
@@ -104,7 +103,7 @@ void TableEditorTracker::trackOnce(QTableView *table, QWidget *editor, bool allo
     if (!index.isValid() && allowRetry) {
         const QPointer<QTableView> guardedTable(table);
         const QPointer<QWidget> guardedEditor(editor);
-        QTimer::singleShot(0, m_context, [this, guardedTable, guardedEditor] {
+        QTimer::singleShot(0, this, [this, guardedTable, guardedEditor] {
             if (guardedTable && guardedEditor)
                 trackOnce(guardedTable, guardedEditor, false);
         });
@@ -128,7 +127,7 @@ void TableEditorTracker::trackOnce(QTableView *table, QWidget *editor, bool allo
         return;
     tableIt->editors.insert(index, editor);
     Owner owner{ table, index, {} };
-    owner.destroyedConnection = QObject::connect(editor, &QObject::destroyed, m_context,
+    owner.destroyedConnection = QObject::connect(editor, &QObject::destroyed, this,
                                                  [this, editor] { untrackEditor(editor, false); });
     m_owners.insert(editor, owner);
 }

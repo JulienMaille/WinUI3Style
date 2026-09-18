@@ -11,6 +11,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
+#include "../src/winui3tableeditors_p.h"
 #include "../src/winui3tokens_p.h"
 
 #include <QLabel>
@@ -70,6 +71,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTableView>
 #include <QToolButton>
 #include <QToolBar>
 #include <QTimer>
@@ -104,6 +106,7 @@ private slots:
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
+    void tableEditorTrackerLifetimeContract();
 
 };
 
@@ -759,6 +762,67 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
     verify(false, Qt::RightToLeft);
     verify(true, Qt::LeftToRight);
     verify(true, Qt::RightToLeft);
+}
+
+void WinUI3EditorsTest::tableEditorTrackerLifetimeContract()
+{
+    // Defect protocol (METHODOLOGY §6): TableEditorTracker installed its
+    // model/table/editor cleanup connections (and the index-retry
+    // singleShot) on an external context while capturing raw `this`. The
+    // tracker was not a QObject, so destroying it while tables, models, or
+    // the context were still alive left those functors dangling and the next
+    // emission was a use-after-free. The tracker is now a QObject and its own
+    // connection context, so everything disconnects with it.
+    QObject context;
+    QStandardItemModel model(4, 3);
+    QTableView table;
+    table.setModel(&model);
+    table.resize(320, 240);
+    table.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&table));
+
+    QPointer<WinUI3::Private::TableEditorTracker> tracker =
+            new WinUI3::Private::TableEditorTracker(&context);
+    QLineEdit editor;
+    editor.setParent(table.viewport());
+    const QRect cellRect = table.visualRect(model.index(0, 0));
+    QVERIFY(cellRect.isValid());
+    editor.setGeometry(cellRect);
+    editor.show();
+    tracker->track(&table, &editor);
+    // Mechanism proof: tracking is live, so the emissions below would have
+    // reached the dangling functors before the fix.
+    QVERIFY(tracker->overlaps(&table, model.index(0, 0), cellRect));
+
+    // A pending index-retry singleShot must die with the tracker as well.
+    QLineEdit strayEditor;
+    strayEditor.setParent(table.viewport());
+    strayEditor.move(-table.width(), -table.height());
+    strayEditor.resize(20, 20);
+    strayEditor.show();
+    tracker->track(&table, &strayEditor);
+
+    // A second table/model pair exercises the model/table destroyed paths.
+    auto *doomedModel = new QStandardItemModel(2, 2);
+    QTableView doomedTable;
+    doomedTable.setModel(doomedModel);
+    QVERIFY(!tracker->overlaps(&doomedTable, doomedModel->index(0, 0), QRect(0, 0, 10, 10)));
+
+    delete tracker;
+    QVERIFY(tracker.isNull());
+
+    // Fire the exact signals the tracker used to observe. The QSignalSpy
+    // counts prove the emissions really happened while the tracker is gone:
+    // any surviving connection would be a use-after-free.
+    QSignalSpy aboutToResetSpy(&model, &QAbstractItemModel::modelAboutToBeReset);
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    model.clear();
+    QCOMPARE(aboutToResetSpy.count(), 1);
+    QCOMPARE(resetSpy.count(), 1);
+    delete doomedModel;
+    QCoreApplication::processEvents(); // deliver the orphaned retry singleShot
+    // doomedTable and table are destroyed at scope exit, covering the
+    // table-destroyed path after the tracker's death.
 }
 
 QTEST_MAIN(WinUI3EditorsTest)

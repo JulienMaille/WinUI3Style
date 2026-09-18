@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include <winui3style/winui3global.h>
+
 #include <QHash>
 #include <QMetaObject>
+#include <QObject>
 #include <QPersistentModelIndex>
 #include <QPointer>
 #include <QRect>
 
 class QAbstractItemModel;
-class QObject;
 class QTableView;
 class QWidget;
 
@@ -17,10 +19,15 @@ namespace WinUI3::Private {
 // Tracks live QTableView editors by model index so painting a normal cell is
 // O(1) in the number of open editors. Geometry is deliberately not cached:
 // scrolling and layout changes remain correct without extra signal traffic.
-class TableEditorTracker final
+// Lifetime: the tracker is a QObject and the connection context for every
+// cleanup connection and the pending index-retry singleShot, so destroying
+// the tracker first disconnects/cancels everything (no raw-this functors
+// outliving the tracker on an external context).
+class WINUI3STYLE_EXPORT TableEditorTracker final : public QObject
 {
+    Q_OBJECT
 public:
-    explicit TableEditorTracker(QObject *connectionContext);
+    explicit TableEditorTracker(QObject *parent = nullptr);
 
     void track(QTableView *table, QWidget *editor);
     void untrackEditor(QWidget *editor, bool clearProperty = true);
@@ -52,7 +59,6 @@ private:
     void trackOnce(QTableView *table, QWidget *editor, bool allowRetry);
     QPersistentModelIndex editorIndex(const QTableView *table, const QWidget *editor) const;
 
-    QObject *m_context = nullptr;
     QHash<QTableView *, TableState> m_tables;
     QHash<QWidget *, Owner> m_owners;
 };
