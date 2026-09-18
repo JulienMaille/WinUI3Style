@@ -9,6 +9,7 @@ set(_winui3style_split_tests
     winui3style_combobox_tests tst_winui3combobox.cpp
     winui3style_surfaces_tests tst_winui3surfaces.cpp
     winui3style_interaction_tests tst_winui3interaction.cpp
+    winui3style_animatedstack_tests tst_winui3animatedstack.cpp
     winui3style_settings_tests tst_winui3settings.cpp
     winui3style_navigation_tests tst_winui3navigation.cpp)
 list(LENGTH _winui3style_split_tests _winui3style_split_len)
@@ -42,6 +43,39 @@ target_include_directories(winui3style_appearancewatcher_tests PRIVATE
 target_link_libraries(winui3style_appearancewatcher_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Core)
 
+# Standalone like the appearancewatcher binary: the system-appearance cache
+# is DLL-internal, so the thread-safety mechanism tests compile the private
+# theme source directly. WINUI3STYLE_STATIC keeps the export macros empty
+# for the in-binary copy; advapi32/dwmapi back the registry/DWM probes.
+add_executable(winui3style_theme_tests
+    tst_winui3theme.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3theme_p.cpp)
+target_compile_definitions(winui3style_theme_tests PRIVATE WINUI3STYLE_STATIC)
+target_include_directories(winui3style_theme_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(winui3style_theme_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WIN32)
+    target_link_libraries(winui3style_theme_tests PRIVATE advapi32 dwmapi user32)
+endif()
+
+# Standalone like the appearancewatcher binary: FrameAnimationDriver is a
+# private class, so its implementation (plus the frame registry it drives)
+# is compiled into the test binary instead of linking WinUI3::Widgets.
+add_executable(winui3style_animations_tests
+    tst_winui3animations.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3animations_p.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3frameproperties_p.cpp)
+# WINUI3STYLE_STATIC empties WINUI3STYLE_EXPORT so the registry symbols
+# compiled into this binary are plain statics instead of dllimport stubs.
+target_compile_definitions(winui3style_animations_tests PRIVATE WINUI3STYLE_STATIC)
+target_include_directories(winui3style_animations_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(winui3style_animations_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+
 add_executable(winui3style_density_tests tst_winui3density.cpp)
 target_include_directories(winui3style_density_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src)
@@ -49,6 +83,19 @@ target_link_libraries(winui3style_density_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_density_tests winui3styleplugin)
+endif()
+
+# Fluent icon font-cache mechanism tests (thread isolation + value
+# semantics of the cached QFont). Same shape as winui3style_density_tests:
+# links the public library plus Qt Test/Widgets, resolves the private test
+# seams in src/winui3icons_p.h via the src include directory.
+add_executable(winui3style_icons_tests tst_winui3icons.cpp)
+target_include_directories(winui3style_icons_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_icons_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_icons_tests winui3styleplugin)
 endif()
 
 add_executable(winui3style_density_api_tests tst_winui3density_api.cpp)
@@ -64,6 +111,35 @@ target_link_libraries(winui3style_density_widgets_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_density_widgets_tests winui3styleplugin)
+endif()
+
+# Menu corner convergence (60 KB cap: menus/surfaces/native binaries have no
+# headroom). Same shape as winui3style_density_tests: links the public
+# library plus Qt Test/Widgets, resolves private test seams in the src
+# headers via the src include directory.
+add_executable(winui3style_popupcorners_tests tst_winui3popupcorners.cpp)
+target_include_directories(winui3style_popupcorners_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_popupcorners_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WIN32)
+    target_link_libraries(winui3style_popupcorners_tests PRIVATE dwmapi user32)
+endif()
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_popupcorners_tests winui3styleplugin)
+endif()
+
+# Calendar header ordering (60 KB cap: density_widgets has no headroom).
+# Same shape as winui3style_popupcorners_tests: links the public library
+# plus Qt Test/Widgets, resolves private test seams in the src headers via
+# the src include directory.
+add_executable(winui3style_calendarheader_tests tst_winui3calendarheader.cpp)
+target_include_directories(winui3style_calendarheader_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_calendarheader_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_calendarheader_tests winui3styleplugin)
 endif()
 
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
@@ -90,12 +166,16 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_combobox_tests
         winui3style_surfaces_tests
         winui3style_interaction_tests
+        winui3style_animatedstack_tests
         winui3style_settings_tests
         winui3style_navigation_tests
         winui3style_frameproperties_tests
         winui3style_density_tests
         winui3style_density_api_tests
-        winui3style_density_widgets_tests)
+        winui3style_density_widgets_tests
+        winui3style_icons_tests
+        winui3style_popupcorners_tests
+        winui3style_calendarheader_tests
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
     endif()
@@ -118,6 +198,7 @@ foreach(_split_target IN ITEMS
         winui3style_combobox_tests
         winui3style_surfaces_tests
         winui3style_interaction_tests
+        winui3style_animatedstack_tests
         winui3style_settings_tests
         winui3style_navigation_tests)
     string(REPLACE "winui3style_" "" _suffix "${_split_target}")
@@ -129,14 +210,24 @@ foreach(_split_target IN ITEMS
 endforeach()
 add_test(NAME winui3style_frameproperties_unit
          COMMAND winui3style_frameproperties_tests)
+add_test(NAME winui3style_animations_unit
+         COMMAND winui3style_animations_tests)
 add_test(NAME winui3style_appearancewatcher_unit
          COMMAND winui3style_appearancewatcher_tests)
+add_test(NAME winui3style_theme_unit
+         COMMAND winui3style_theme_tests)
 add_test(NAME winui3style_density_unit
          COMMAND winui3style_density_tests)
 add_test(NAME winui3style_density_api_unit
          COMMAND winui3style_density_api_tests)
 add_test(NAME winui3style_density_widgets_unit
          COMMAND winui3style_density_widgets_tests)
+add_test(NAME winui3style_icons_unit
+         COMMAND winui3style_icons_tests)
+add_test(NAME winui3style_popupcorners_unit
+         COMMAND winui3style_popupcorners_tests)
+add_test(NAME winui3style_calendarheader_unit
+         COMMAND winui3style_calendarheader_tests)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -158,7 +249,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction settings navigation)
+foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction animatedstack settings navigation)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )
@@ -166,7 +257,13 @@ endforeach()
 set_tests_properties(winui3style_frameproperties_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
+set_tests_properties(winui3style_animations_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
 set_tests_properties(winui3style_appearancewatcher_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_theme_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_density_unit PROPERTIES
@@ -177,6 +274,16 @@ set_tests_properties(winui3style_density_api_unit PROPERTIES
 )
 set_tests_properties(winui3style_density_widgets_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_icons_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_popupcorners_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_calendarheader_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
 )
 
 # DPI reruns address tests by function name (names identical after the
