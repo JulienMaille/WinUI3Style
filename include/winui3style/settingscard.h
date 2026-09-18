@@ -11,6 +11,9 @@
 class QLabel;
 class QGridLayout;
 class QHideEvent;
+class QKeyEvent;
+class QMouseEvent;
+class QPoint;
 class QResizeEvent;
 class QShowEvent;
 class QVBoxLayout;
@@ -104,7 +107,7 @@ private:
     QLabel *m_titleLabel = nullptr;
     QLabel *m_descriptionLabel = nullptr;
     QLabel *m_chevronLabel = nullptr;
-    QWidget *m_trailingWidget = nullptr;
+    QPointer<QWidget> m_trailingWidget;
     QPointer<QWidget> m_expandableWidget;
     QWidget *m_expandableHost = nullptr;
     QVariantAnimation *m_expansionAnimation = nullptr;

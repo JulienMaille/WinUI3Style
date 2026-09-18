@@ -14,12 +14,45 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
 
 namespace WinUI3 {
+
+namespace {
+
+// WinUI expander chevron rotates 0 -> 180 deg with expansion progress.
+// Local helper (no shared primitive exists): rotate the ChevronDown source
+// so the lane owns a continuous transform instead of swapping Down/Up
+// pixmaps. Square 20 px logical box keeps the rotated glyph unclipped.
+QPixmap rotatedChevronPixmap(const QPixmap &source, qreal angleDegrees)
+{
+    if (source.isNull() || qFuzzyIsNull(angleDegrees))
+        return source;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const QSizeF logical = source.deviceIndependentSize();
+#else
+    const qreal sourceDpr = qMax<qreal>(source.devicePixelRatioF(), 1.0);
+    const QSizeF logical = QSizeF(source.size()) / sourceDpr;
+#endif
+    QPixmap rotated(source.size());
+    rotated.setDevicePixelRatio(source.devicePixelRatioF());
+    rotated.fill(Qt::transparent);
+    QPainter painter(&rotated);
+    painter.setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+    const QPointF center(logical.width() / 2.0, logical.height() / 2.0);
+    painter.translate(center);
+    painter.rotate(angleDegrees);
+    painter.translate(-center);
+    painter.drawPixmap(QPointF(0.0, 0.0), source);
+    return rotated;
+}
+
+} // namespace
 
 SettingsCard::SettingsCard(QWidget *parent)
     : QFrame(parent),
@@ -275,23 +308,28 @@ void SettingsCard::refreshChevronPixmap()
 {
     if (!m_chevronLabel)
         return;
-    // WinUI expander contract: collapsed Down, expanded Up. The chevron
-    // rotates with the state (the prior Down-always choice failed the
-    // user's live check: no visible rotation on expand).
-    const Icon glyph = m_expanded                      ? Icon::ChevronUp
-            : m_expandableWidget                       ? Icon::ChevronDown
-            : layoutDirection() == Qt::RightToLeft     ? Icon::ChevronLeft
-                                                       : Icon::ChevronRight;
+    // WinUI expander contract: the chevron rotates 0 -> 180 deg with
+    // expansion progress instead of swapping Down/Up pixmaps. The base
+    // artwork stays ChevronDown for any expandable card (LTR and RTL share
+    // the vertical motion); collapsed non-expandable lanes keep the
+    // directional Right/Left marker but stay hidden.
+    const Icon glyph = m_expandableWidget                       ? Icon::ChevronDown
+            : layoutDirection() == Qt::RightToLeft               ? Icon::ChevronLeft
+                                                                  : Icon::ChevronRight;
+    const qreal angle = m_expandableWidget ? m_expansionProgress * 180.0 : 0.0;
     const Private::Tokens t = Private::tokens(palette());
     const bool enabled = isEnabled();
     const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
     // The glyph is transient while the coloured Fluent icon is cached by
     // glyph and colour. Rendering that stable source directly prevents a
     // stale neutral-mask pixmap from surviving a Right/Down state change.
-    m_chevronLabel->setPixmap(
-            Private::iconPixmap(WinUI3::icon(glyph, foreground), QSize(20, 20), devicePixelRatioF(),
-                                enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off));
+    const QPixmap source = Private::iconPixmap(WinUI3::icon(glyph, foreground), QSize(20, 20),
+                                               devicePixelRatioF(),
+                                               enabled ? QIcon::Normal : QIcon::Disabled,
+                                               QIcon::Off);
+    m_chevronLabel->setPixmap(rotatedChevronPixmap(source, angle));
     m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", static_cast<int>(glyph));
+    m_chevronLabel->setProperty("_winui_settings_card_chevron_rotation", angle);
     m_chevronLabel->setVisible(m_expandableWidget != nullptr);
 }
 
@@ -392,9 +430,10 @@ void SettingsCard::setExpanded(bool expanded)
     if (m_expanded == expanded)
         return;
     m_expanded = expanded;
-    refreshChevronPixmap();
     m_expandableHost->setVisible(true);
     m_expansionAnimation->stop();
+    // Reversal continues from the current value: start at the live progress
+    // so a mid-flight toggle does not jump back to an endpoint.
     m_expansionAnimation->setStartValue(m_expansionProgress);
     m_expansionAnimation->setEndValue(expanded ? 1.0 : 0.0);
     m_expansionAnimation->setDuration(Private::NormalDuration);
@@ -427,6 +466,9 @@ void SettingsCard::setExpansionProgress(qreal progress)
     }
     if (qFuzzyIsNull(m_expansionProgress) && !m_expanded)
         m_expandableHost->setVisible(false);
+    // The chevron rotates with the expansion value: every progress tick
+    // re-renders the glyph so start/mid/end frames show continuous motion.
+    refreshChevronPixmap();
     // The header lives in a fixed-size host. The parent may still relayout to
     // accommodate the animated content, but title/description geometry is
     // independent of that changing height.
@@ -644,7 +686,13 @@ void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
     m_pressed = false;
     update();
     if (activate) {
+        // Re-entrant activated(): slots may delete this card or clear the
+        // expandable widget. Guard the tail so the post-emit dereference
+        // of m_expandableWidget/m_expanded never touches freed memory.
+        const QPointer<SettingsCard> guard(this);
         emit activated();
+        if (guard.isNull())
+            return;
         if (m_expandableWidget)
             setExpanded(!m_expanded);
         event->accept();
@@ -658,7 +706,12 @@ void SettingsCard::keyPressEvent(QKeyEvent *event)
     if (isCardInteractive()
         && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
         && !event->isAutoRepeat()) {
+        // Same re-entrancy guard as mouseReleaseEvent: activated() slots
+        // may delete this card or clear the expandable widget.
+        const QPointer<SettingsCard> guard(this);
         emit activated();
+        if (guard.isNull())
+            return;
         if (m_expandableWidget)
             setExpanded(!m_expanded);
         event->accept();
