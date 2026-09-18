@@ -3,11 +3,14 @@
 
 #include "winui3backdrop_p.h"
 
+#include <winui3style/winui3global.h>
+
 #include <QAbstractScrollArea>
 #include <QObject>
 #include <QPalette>
 #include <QPointer>
 #include <QScrollBar>
+#include <QTimer>
 #include <QVariant>
 #include <QWidget>
 
@@ -16,6 +19,7 @@ class QDialog;
 class QLineEdit;
 class QAbstractButton;
 class QSlider;
+class QMenu;
 
 namespace WinUI3 {
 class Style;
@@ -44,6 +48,10 @@ void hideSliderValueToolTip(QSlider *slider);
 void preparePopupSurface(QWidget *widget);
 void prepareComboPopupFirstFrameImpl(QComboBox *combo);
 QComboBox *comboForPopupWidget(QWidget *widget);
+// Qt-mask form of the DWM corner preference for QMenu popups (see the
+// helper in winui3surfaces_p.cpp): rounds submenus whose native HWND
+// materializes after Show, where the Resize re-apply never fires.
+void applyMenuRoundedMask(QMenu *menu);
 
 // Window chrome (menu bar, tool bars, status bar) reveals the live DWM
 // material instead of painting opaque panels over it. Content/layer
@@ -52,8 +60,11 @@ QComboBox *comboForPopupWidget(QWidget *widget);
 // touched widget to its remembered palette, attributes and autofill.
 void makeChromeSurfacesTransparent(QWidget *window);
 void restoreChromeSurfaces(QWidget *window);
-void syncContentSurfacesForBackdrop(QWidget *window);
-void restoreContentSurfacesForBackdrop(QWidget *window);
+// Exported for the offscreen mechanism tests (same seam as the exported
+// FramePropertyRegistry): the DWM-applied branch that calls the chain below
+// never runs offscreen, so tests drive sync/restore directly.
+WINUI3STYLE_EXPORT void syncContentSurfacesForBackdrop(QWidget *window);
+WINUI3STYLE_EXPORT void restoreContentSurfacesForBackdrop(QWidget *window);
 // The no-fill recipe for any widget that paints straight onto the live
 // material through a translucent island: transparent Window role, no
 // autofill, StyledBackground so Qt leaves the erase to the style's
@@ -76,12 +87,27 @@ inline void guardIslandScrollArea(QAbstractScrollArea *area)
     if (area->property(guardProperty).isValid())
         return;
     area->setProperty(guardProperty, true);
-    // Queued, not direct: the bars may emit several valueChanged ticks per
-    // frame, and they must coalesce into one heal. repaint() (not update())
-    // so the blitted rows rebuild before the next present; then heal the
-    // viewport's children too, since a parent repaint clips children out and
-    // each child keeps its own blitted rows.
-    const auto heal = [viewport = QPointer<QWidget>(area->viewport())] {
+    // Heal through the area, not the viewport captured at arm time: the
+    // connect() context below is the area itself, so a setViewport()
+    // replacement keeps the connections alive and the heal resolves the
+    // current viewport on execution. (The previous viewport-context form
+    // auto-disconnected when the old viewport was destroyed while the guard
+    // bit above blocked re-arming, leaving the new viewport unhealed.)
+    // Coalesced, not one queued heal per tick: valueChanged fires on every
+    // wheel/drag tick and Qt::QueuedConnection never coalesces, so N ticks
+    // queued N synchronous viewport-plus-children repaints per frame. The
+    // scheduler below runs direct, sets one pending flag on the area, and
+    // arms a single 0ms shot; the shot clears the flag first (on every path,
+    // including the Composited-gate early returns) so later frames re-arm.
+    // repaint() (not update()) so the blitted rows rebuild before the next
+    // present; then heal the viewport's children too, since a parent repaint
+    // clips children out and each child keeps its own blitted rows.
+    const auto heal = [guardedArea = QPointer<QAbstractScrollArea>(area)] {
+        if (!guardedArea)
+            return;
+        constexpr auto pendingProperty = "_winui_island_scroll_heal_pending";
+        guardedArea->setProperty(pendingProperty, {});
+        QWidget *viewport = guardedArea->viewport();
         if (!viewport || !viewport->isVisible())
             return;
         if (backdropEffectiveSurface(viewport->window()) != BackdropSurface::Composited)
@@ -94,10 +120,15 @@ inline void guardIslandScrollArea(QAbstractScrollArea *area)
                 child->repaint();
         }
     };
-    QObject::connect(area->verticalScrollBar(), &QScrollBar::valueChanged, area->viewport(), heal,
-                     Qt::QueuedConnection);
-    QObject::connect(area->horizontalScrollBar(), &QScrollBar::valueChanged, area->viewport(),
-                     heal, Qt::QueuedConnection);
+    const auto schedule = [guardedArea = QPointer<QAbstractScrollArea>(area), heal] {
+        constexpr auto pendingProperty = "_winui_island_scroll_heal_pending";
+        if (!guardedArea || guardedArea->property(pendingProperty).isValid())
+            return;
+        guardedArea->setProperty(pendingProperty, true);
+        QTimer::singleShot(0, guardedArea.data(), heal);
+    };
+    QObject::connect(area->verticalScrollBar(), &QScrollBar::valueChanged, area, schedule);
+    QObject::connect(area->horizontalScrollBar(), &QScrollBar::valueChanged, area, schedule);
 }
 
 } // namespace Private

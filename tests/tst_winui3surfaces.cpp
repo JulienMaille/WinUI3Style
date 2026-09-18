@@ -119,6 +119,9 @@ private slots:
     void themeSwitchRebasesChromeShell();
     void persistentDialogSurvivesThemeSwitch();
     void contentDialogScrimLifecycle();
+    void contentDialogScrimOwnershipCleared();
+    void menuMaskRetrySettles();
+    void messageBoxSyncGeometryConverges();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
     void progressTimerScalingAndLifecycle();
@@ -973,6 +976,223 @@ void WinUI3SurfacesTest::contentDialogScrimLifecycle()
     qApp->sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(parent.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"))
                     .isEmpty());
+}
+
+void WinUI3SurfacesTest::contentDialogScrimOwnershipCleared()
+{
+    // Finding A mechanism: the scrim is parented to the owner's window while
+    // its lifetime is tracked on the dialog. Both teardown orders must be
+    // safe: owner-first must clear the tracked pointer (no deleteLater() on
+    // freed memory), dialog-first must not orphan the scrim on the owner.
+    // Pair each grab() with a token/geometry assert on the same state.
+    constexpr auto scrimProperty = "_winui_content_dialog_scrim";
+
+    // Scrim destroyed independently (e.g. owner teardown while the dialog
+    // outlives it): the destroyed signal clears the tracked property
+    // synchronously, so a later teardown is a no-op instead of a
+    // deleteLater() on freed memory.
+    {
+        auto *owner = new QWidget;
+        owner->resize(640, 480);
+        owner->show();
+        auto *dialog = new QDialog(owner);
+        WinUI3::Style::setContentDialog(dialog);
+        dialog->show();
+        QTRY_VERIFY(dialog->isVisible());
+        QObject *tracked = dialog->property(scrimProperty).value<QObject *>();
+        QVERIFY(tracked != nullptr);
+        QPointer<QObject> guarded(tracked);
+        QImage withScrim = dialog->grab().toImage();
+        QVERIFY(!withScrim.isNull());
+        QCOMPARE(dialog->property(scrimProperty).value<QObject *>(), tracked);
+        QCOMPARE(static_cast<QWidget *>(tracked)->geometry(), owner->rect());
+        // The dialog outlives the owner from here on, as in the report.
+        dialog->setParent(nullptr);
+        dialog->show();
+        QTRY_VERIFY(dialog->isVisible());
+        delete owner;
+        qApp->processEvents();
+        QVERIFY(guarded.isNull());
+        QVERIFY(!dialog->property(scrimProperty).value<QObject *>());
+        // Public Hide flow after the owner teardown: must be a no-op,
+        // never a deleteLater() on the freed scrim.
+        dialog->hide();
+        qApp->sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        qApp->processEvents();
+        delete dialog;
+    }
+
+    // Scrim destroyed directly (independent teardown path): same contract.
+    {
+        QWidget owner;
+        owner.resize(640, 480);
+        owner.show();
+        QDialog dialog(&owner);
+        WinUI3::Style::setContentDialog(&dialog);
+        dialog.show();
+        QTRY_VERIFY(dialog.isVisible());
+        QObject *tracked = dialog.property(scrimProperty).value<QObject *>();
+        QVERIFY(tracked != nullptr);
+        QImage withScrim = dialog.grab().toImage();
+        QVERIFY(!withScrim.isNull());
+        QCOMPARE(dialog.property(scrimProperty).value<QObject *>(), tracked);
+        delete tracked;
+        qApp->processEvents();
+        QVERIFY(!dialog.property(scrimProperty).value<QObject *>());
+        // Public Hide flow after the independent teardown: must be a
+        // no-op, never a deleteLater() on the freed scrim.
+        dialog.hide();
+        qApp->processEvents();
+        QVERIFY(owner.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"))
+                        .isEmpty());
+    }
+
+    // Dialog dies first: the scrim must not orphan on the owner window.
+    {
+        QWidget owner;
+        owner.resize(640, 480);
+        owner.show();
+        auto *dialog = new QDialog(&owner);
+        WinUI3::Style::setContentDialog(dialog);
+        dialog->show();
+        QTRY_VERIFY(dialog->isVisible());
+        QCOMPARE(owner.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"))
+                         .size(),
+                 1);
+        const QImage withScrim = owner.grab().toImage();
+        QVERIFY(!withScrim.isNull());
+        QCOMPARE(withScrim.size(), owner.size());
+        delete dialog;
+        qApp->sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        qApp->processEvents();
+        QVERIFY(owner.findChildren<QWidget *>(QStringLiteral("_winui_content_dialog_scrim"))
+                        .isEmpty());
+    }
+}
+
+void WinUI3SurfacesTest::menuMaskRetrySettles()
+{
+    // Finding B mechanism: a zero-size popup menu must not schedule an
+    // unbounded 0ms singleShot retry chain. The guard counts attempts, keeps
+    // the count set across retries, and caps the chain at 5, clearing the
+    // marker only on success.
+    // Offscreen premise: popup() of a 0x0 menu never maps, so Show never
+    // fires and isVisible() stays false. Drive the same retry path with a
+    // sized popup plus a test-side Show shim (public API only: the retry
+    // property is observed through QObject::property, never a private
+    // symbol). The shim zeroes the menu during Show delivery, so the
+    // style's Show handler (preparePopupSurface -> applyMenuRoundedMask)
+    // observes the empty size and starts the chain; if the style ran first,
+    // its Resize handler observes it right after. Either order converges on
+    // the bounded retry.
+    // Pair the grab() with a token/geometry assert on the same state.
+    struct ZeroOnShow final : public QObject
+    {
+        bool eventFilter(QObject *watched, QEvent *event) override
+        {
+            if (event->type() == QEvent::Show) {
+                if (auto *menu = qobject_cast<QMenu *>(watched))
+                    menu->setFixedSize(0, 0);
+            }
+            return false;
+        }
+    } zeroer;
+    struct RetryProbe final : public QObject
+    {
+        bool eventFilter(QObject *, QEvent *event) override
+        {
+            if (event->type() == QEvent::Timer || event->type() == QEvent::MetaCall)
+                ++events;
+            return false;
+        }
+        int events = 0;
+    } probe;
+    QMenu menu;
+    menu.addAction(QStringLiteral("&New project"));
+    menu.installEventFilter(&zeroer);
+    menu.popup(QPoint(80, 80));
+    // Sized at popup time, so the popup maps offscreen; the shim zeroes it
+    // during Show and the mask retry chain starts instead of succeeding.
+    QTRY_VERIFY(menu.isVisible());
+    QTRY_VERIFY(menu.size().isEmpty());
+    QTRY_VERIFY(menu.property("_winui_menu_mask_retry").toInt() >= 1);
+    // Drop any success-path mask applied before the shim ran: the retry lane
+    // never clears it, and this phase must observe a permanently zero-size
+    // menu settling unmasked.
+    menu.clearMask();
+    menu.installEventFilter(&probe);
+    // Count only Timer + MetaCall deliveries over a fixed window: each
+    // retry re-arms a 0ms singleShot, so an unbounded chain pumps those
+    // two event types forever while the bounded chain settles after at
+    // most 5 attempts and the loop goes idle.
+    QTest::qWait(200);
+    qApp->processEvents();
+    const int attempts = menu.property("_winui_menu_mask_retry").toInt();
+    QVERIFY2(attempts >= 1 && attempts <= 5,
+             qPrintable(QStringLiteral("retry chain out of bounds: %1 attempts").arg(attempts)));
+    QVERIFY2(probe.events < 30,
+             qPrintable(QStringLiteral("retry chain never settles: %1 timer/metacall events in 200ms")
+                                .arg(probe.events)));
+    QVERIFY(menu.isVisible());
+    QVERIFY(menu.mask().isEmpty());
+    // The chain must have settled: waiting longer schedules nothing new.
+    QTest::qWait(20);
+    qApp->processEvents();
+    QCOMPARE(menu.property("_winui_menu_mask_retry").toInt(), attempts);
+    menu.hide();
+    QTRY_VERIFY(!menu.isVisible());
+    // Success path through the same public popup: a sized menu rounds and
+    // the retry marker clears.
+    menu.removeEventFilter(&zeroer);
+    menu.removeEventFilter(&probe);
+    menu.setMinimumSize(0, 0);
+    menu.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    menu.popup(QPoint(80, 80));
+    QTRY_VERIFY(menu.isVisible());
+    QTRY_VERIFY(!menu.mask().isEmpty());
+    QVERIFY(!menu.property("_winui_menu_mask_retry").isValid());
+    const QImage rendered = menu.grab().toImage();
+    QVERIFY(!rendered.isNull());
+    QCOMPARE(rendered.size(), menu.size());
+    menu.hide();
+}
+
+void WinUI3SurfacesTest::messageBoxSyncGeometryConverges()
+{
+    // Finding C mechanism: syncGeometry() mutates constraint/min/max/size
+    // from inside Resize/LayoutRequest/ChildAdded handling, which re-fires
+    // the filter. Mutators must no-op once converged so an undersized
+    // dialog (<184px) settles instead of ping-ponging forever.
+    // Pair the grab() with a token/geometry assert on the same state.
+    QMessageBox box(QMessageBox::Information, QStringLiteral("WinUI 3 Style"),
+                    QStringLiteral("Undersized sync convergence."),
+                    QMessageBox::Ok | QMessageBox::Cancel);
+    box.show();
+    QTRY_VERIFY(box.isVisible());
+    // Force the undersized state the loop feeds on.
+    box.resize(box.width(), 100);
+    qApp->processEvents();
+    QTest::qWait(50);
+    qApp->processEvents();
+    QTest::qWait(50);
+    qApp->processEvents();
+    QWidget *footer = box.findChild<QWidget *>(
+            QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
+    QVERIFY(footer);
+    // Token assert on the same state: minimum asserted, constraint held.
+    QVERIFY(box.minimumWidth() >= 320);
+    QVERIFY(box.minimumHeight() >= 184);
+    QCOMPARE(box.layout()->sizeConstraint(), QLayout::SetMinimumSize);
+    // Geometry assert: the dialog converged (no shrinking ping-pong).
+    QTRY_VERIFY(box.height() >= 184);
+    const QSize settled = box.size();
+    QTest::qWait(60);
+    qApp->processEvents();
+    QCOMPARE(box.size(), settled);
+    const QImage rendered = box.grab().toImage();
+    QVERIFY(!rendered.isNull());
+    QCOMPARE(rendered.size(), settled);
+    box.hide();
 }
 
 void WinUI3SurfacesTest::progressAnimationAndOrientations()

@@ -98,14 +98,34 @@ inline bool keyboardFocusVisible(const QWidget *widget)
 // of wallpaper tint.
 inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
 {
-    if (!widget || !widget->window())
+    if (!widget)
         return false;
-    if (!widget->window()->property("_winui_backdrop").isValid())
+    const QWidget *win = widget->window();
+    if (!win)
         return false;
-    if (widget->window()->testAttribute(Qt::WA_TranslucentBackground)
-        && backdropEffectiveSurface(widget->window()) != BackdropSurface::Composited)
+    // Explicit enabled check: a present-but-None (0) "_winui_backdrop"
+    // property means the backdrop is disabled and must never enable
+    // Source-clear (isValid alone would still punch holes).
+    const QVariant backdrop = win->property("_winui_backdrop");
+    if (backdrop.toInt() <= static_cast<int>(Backdrop::None))
         return false;
-    for (const QWidget *parent = widget->parentWidget(); parent && parent != widget->window();
+    if (win->testAttribute(Qt::WA_TranslucentBackground)
+        && backdropEffectiveSurface(win) != BackdropSurface::Composited)
+        return false;
+    // Self-check: the ancestor walk below starts at parentWidget(), so
+    // without this an opaque content/layer island reports true for itself
+    // and Source-clears over its own opaque fill (hole punch). Opaque
+    // self never paints directly on the backdrop; a translucent self
+    // (zero-alpha Window role, the island erase) falls through so the
+    // walk above still resolves the backdrop source.
+    const QVariant selfSurface = widget->property(Style::SurfaceProperty);
+    const QString selfName = selfSurface.toString();
+    if (selfSurface.toBool() || selfName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+        || selfName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+        if (widget->palette().color(QPalette::Window).alpha() != 0)
+            return false;
+    }
+    for (const QWidget *parent = widget->parentWidget(); parent && parent != win;
          parent = parent->parentWidget()) {
         const QVariant surface = parent->property(Style::SurfaceProperty);
         const QString name = surface.toString();
@@ -152,13 +172,23 @@ inline bool eraseForBackdrop(QPainter *painter, const QWidget *widget, const QRe
 
 // Recipe 3 implementation: Source-blend the translucent popup surface so a
 // state pill composites exactly one layer over acrylic. Gated the same way
-// as eraseForBackdrop; returns true when the fill ran.
+// as eraseForBackdrop; returns true when the fill ran. Pass the popup
+// surface radius to clip the Source fill inside the rounded surface: the
+// row rect is square, so an unclipped fill overpaints the surface corner
+// cutouts with a square halo. Same intersect-not-replace clip contract as
+// eraseForBackdrop.
 inline bool clearForBackdropFill(QPainter *painter, const QWidget *widget, const QRect &rect,
-                                 const QColor &fill)
+                                 const QColor &fill, qreal radius = 0.0)
 {
     if (!painter || !paintsDirectlyOnBackdrop(widget))
         return false;
     painter->save();
+    if (radius > 0.0) {
+        QPainterPath clip;
+        clip.addRoundedRect(QRectF(rect), radius, radius);
+        // Intersect, never replace: see eraseForBackdrop.
+        painter->setClipPath(clip, Qt::IntersectClip);
+    }
     painter->setCompositionMode(QPainter::CompositionMode_Source);
     painter->fillRect(rect, fill);
     painter->restore();

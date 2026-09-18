@@ -83,6 +83,15 @@
 #include <QtMath>
 #include <QStandardItemModel>
 
+#include <QElapsedTimer>
+#include <QLibrary>
+#include <QScreen>
+#if defined(Q_OS_WIN)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include <cmath>
 #include <limits>
 
@@ -108,6 +117,7 @@ private slots:
     void splitterGripPixelAlignment();
     void dockWidgetContract();
     void statusBarAndSizeGripContract();
+    void menuDoubleOpenKeepsVisualParity();
 };
 
 void WinUI3MenusTest::initTestCase()
@@ -709,6 +719,281 @@ void WinUI3MenusTest::statusBarAndSizeGripContract()
                 break;
             }
     QVERIFY(hasGripInk);
+}
+
+void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
+{
+    // RED-first double-open parity: open1 vs open2 identical settled frames
+    // (standalone popup + InstantPopup tool-button with persistent QMenu
+    // mirroring demo/gallerywindow.cpp:129-136, persistent per-button HWND).
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    style->setDensityMode(WinUI3::DensityMode::Standard);
+    struct Snap {
+        QImage img;
+        QRect geo;
+        QMargins mg;
+        QRegion mask;
+        QString eff;
+        QColor win, base, scr, hst;
+        bool op = false, st = false, af = false;
+        qreal opac = 0;
+        int top = 0, ch = 0, dwm = -2, shSide = 0, shDepth = 0;
+    };
+    auto settled = [](QMenu *m) {
+        QElapsedTimer t;
+        t.start();
+        while (!t.hasExpired(3000)) {
+            bool run = false;
+            for (const auto *g : m->findChildren<QParallelAnimationGroup *>(
+                         QStringLiteral("_winui_popup_open_animation"),
+                         Qt::FindDirectChildrenOnly))
+                run = run || g->state() == QAbstractAnimation::Running;
+            if (m->windowOpacity() == 1.0 && !run)
+                break;
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+            QTest::qWait(20);
+        }
+        QCoreApplication::processEvents();
+        return m->windowOpacity() == 1.0;
+    };
+    auto dwmGrant = [](WId id) {
+        int out = -2;
+#if defined(Q_OS_WIN)
+        QLibrary dwm(QStringLiteral("dwmapi"));
+        using DwmGet_t = HRESULT(WINAPI *)(HWND, DWORD, PVOID, UINT);
+        if (DwmGet_t fn = reinterpret_cast<DwmGet_t>(dwm.resolve("DwmGetWindowAttribute"))) {
+            for (int i = 0; i < 2 && out == -2; ++i) {
+                DWORD v = 0;
+                if (id && SUCCEEDED(fn(reinterpret_cast<HWND>(id), DWORD(38), &v, sizeof(v))))
+                    out = int(v);
+                else
+                    QTest::qSleep(50);
+            }
+        }
+#else
+        Q_UNUSED(id)
+#endif
+        return out;
+    };
+    auto screenPx = [](QScreen *s, const QPoint &g) {
+        if (!s)
+            return QColor();
+        const QImage d = s->grabWindow(0).toImage();
+        if (d.isNull() || d.size().isEmpty())
+            return QColor();
+        const QRect sg = s->geometry();
+        const QPoint p(qRound((g.x() - sg.left()) * qreal(d.width()) / qMax(1, sg.width())),
+                       qRound((g.y() - sg.top()) * qreal(d.height()) / qMax(1, sg.height())));
+        return d.rect().contains(p) ? d.pixelColor(p) : QColor();
+    };
+    QWidget host;
+    host.resize(480, 400);
+    host.show();
+    (void)QTest::qWaitForWindowExposed(&host);
+    for (int variant = 0; variant < 2; ++variant) {
+        const QByteArray tag = variant == 0 ? QByteArray("standalone") : QByteArray("toolbutton");
+        QMenu standalone;
+        QToolButton button;
+        QMenu persistent;
+        QMenu *menu = variant == 0 ? &standalone : &persistent;
+        if (variant == 1) {
+            button.setPopupMode(QToolButton::InstantPopup);
+            button.resize(140, 32);
+            button.show();
+            (void)QTest::qWaitForWindowExposed(&button);
+        }
+        menu->addAction(QStringLiteral("&New project"));
+        QAction *autoSave = menu->addAction(QStringLiteral("Save changes &automatically"));
+        autoSave->setCheckable(true);
+        autoSave->setChecked(true);
+        menu->addSeparator();
+        menu->addAction(QStringLiteral("E&xit"));
+        if (variant == 1)
+            button.setMenu(menu);
+        auto snapOnce = [&](bool first, Snap *s) -> bool {
+            // NOTE: QToolButton::showMenu() and toggle-click are blocking
+            // modal loops (Qt docs: showMenu "does not return until the
+            // popup menu has been closed"), so V2 opens non-modally at the
+            // button anchor: same persistent per-button QMenu (setMenu
+            // association + HWND reuse pinned below), no modal hang.
+            if (variant == 0)
+                menu->popup(QPoint(80, 80));
+            else
+                menu->popup(button.mapToGlobal(QPoint(0, button.height())));
+            QElapsedTimer vis;
+            vis.start();
+            while (!menu->isVisible() && !vis.hasExpired(5000)) {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+                QTest::qWait(20);
+            }
+            if (!menu->isVisible()) {
+                return false;
+            }
+            if (!settled(menu)) {
+                return false;
+            }
+            const QList<QAction *> acts = menu->actions();
+            if (acts.size() >= 3) {
+                const QRect sep = menu->actionGeometry(acts.at(2));
+                if (sep.isValid())
+                    QTest::mouseMove(menu, QPoint(sep.center().x(), sep.top() + 1));
+            }
+            QCoreApplication::processEvents();
+            QTest::qWait(60);
+            QCoreApplication::processEvents();
+            const QPixmap px = menu->grab();
+            if (px.isNull() || px.size() != menu->size())
+                return false;
+            s->img = px.toImage();
+            if (s->img.isNull() || s->img.size() != menu->size())
+                return false;
+            s->geo = menu->geometry();
+            s->mg = menu->contentsMargins();
+            s->mask = menu->mask();
+            const QVariant e = menu->property("_winui_backdrop_effective");
+            s->eff = e.isValid() ? e.toString() : QStringLiteral("invalid(solid)");
+            s->win = menu->palette().color(QPalette::Window);
+            s->base = menu->palette().color(QPalette::Base);
+            if (s->win != s->base)
+                return false;
+            s->op = menu->testAttribute(Qt::WA_OpaquePaintEvent);
+            s->st = menu->testAttribute(Qt::WA_StyledBackground);
+            s->af = menu->autoFillBackground();
+            s->opac = menu->windowOpacity();
+            s->top = qApp->topLevelWidgets().size();
+            s->ch = menu->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly).size();
+            s->dwm = dwmGrant(menu->winId());
+            s->scr = screenPx(menu->screen(), QPoint(s->geo.center().x(), s->geo.top() + 2));
+            s->hst = screenPx(host.screen(),
+                              QPoint(host.geometry().left() + 12, host.geometry().top() + 8));
+            s->shSide = 0;
+            s->shDepth = 0;
+            if (QScreen *sc = menu->screen()) {
+                const QImage d = sc->grabWindow(0).toImage();
+                if (!d.isNull()) {
+                    const QRect sg = sc->geometry();
+                    const qreal kx = qreal(d.width()) / qMax(1, sg.width());
+                    auto avg = [&](const QRect &r) -> int {
+                        const QRect n(qRound((r.x() - sg.left()) * kx),
+                                      qRound((r.y() - sg.top()) * kx),
+                                      qMax(1, qRound(r.width() * kx)),
+                                      qMax(1, qRound(r.height() * kx)));
+                        if (!d.rect().contains(n))
+                            return -1;
+                        int g = 0, npx = 0;
+                        for (int y = n.top(); y <= n.bottom(); ++y)
+                            for (int x = n.left(); x <= n.right(); ++x) {
+                                g += qGray(d.pixel(x, y));
+                                ++npx;
+                            }
+                        return npx ? g / npx : -1;
+                    };
+                    const int cx = s->geo.center().x();
+                    const int nearPx = avg(QRect(cx - 40, s->geo.top() - 5, 80, 4));
+                    const int farPx = avg(QRect(cx - 40, s->geo.top() - 15, 80, 4));
+                    if (nearPx >= 0 && farPx >= 0) {
+                        s->shDepth = nearPx - farPx;
+                        s->shSide = 1;
+                    }
+                }
+            }
+            return true;
+        };
+        Snap a, b;
+        QVERIFY2(snapOnce(true, &a), qPrintable(tag + ": open1 snap failed"));
+        const WId w1 = menu->winId();
+        menu->hide();
+        QTRY_VERIFY(!menu->isVisible());
+        QVERIFY2(snapOnce(false, &b), qPrintable(tag + ": open2 snap failed"));
+        if (variant == 1)
+            QCOMPARE(menu->winId(), w1);
+        QCOMPARE(b.img.size(), a.img.size());
+        QCOMPARE(b.geo, a.geo);
+        QCOMPARE(b.mg, a.mg);
+        QCOMPARE(b.mask, a.mask);
+        QCOMPARE(b.eff, a.eff);
+        QCOMPARE(a.opac, 1.0);
+        QCOMPARE(b.opac, 1.0);
+        QCOMPARE(b.top, a.top);
+        QCOMPARE(b.ch, a.ch);
+        QVERIFY2(menu->findChildren<QParallelAnimationGroup *>(
+                         QStringLiteral("_winui_popup_open_animation"), Qt::FindDirectChildrenOnly)
+                                 .size()
+                         <= 1,
+                 qPrintable(tag + " sweep>1"));
+        const bool c1 = a.eff == QStringLiteral("2");
+        const bool c2 = b.eff == QStringLiteral("2");
+        if (c1 && c2) {
+            QCOMPARE(b.win, a.win);
+            QCOMPARE(b.base, a.base);
+        } else {
+            for (const QColor *c : { &a.win, &a.base, &b.win, &b.base })
+                QCOMPARE(c->alpha(), 255);
+            QCOMPARE(b.op, true);
+            QCOMPARE(b.st, false);
+            QVERIFY(b.af);
+            QCOMPARE(b.win, b.base);
+            QCOMPARE(b.win, a.win);
+            QCOMPARE(b.base, a.base);
+        }
+        QVERIFY(!b.mask.isEmpty());
+        QCOMPARE(b.mask.boundingRect(), QRect(QPoint(0, 0), menu->size()));
+        QVERIFY(!b.mask.contains(QPoint(0, 0)));
+        QVERIFY(b.mask.contains(menu->rect().center()));
+        QCOMPARE(menu->property("_winui_menu_mask_retry").isValid(), false);
+        int maxDelta = 0;
+        int diffCount = 0;
+        QPoint firstDiff(-1, -1);
+        QColor firstA, firstB;
+        for (int y = 0; y < a.img.height(); ++y)
+            for (int x = 0; x < a.img.width(); ++x) {
+                const QColor p = a.img.pixelColor(x, y);
+                const QColor q = b.img.pixelColor(x, y);
+                const int d = qMax(qMax(qAbs(p.red() - q.red()), qAbs(p.green() - q.green())),
+                                   qMax(qAbs(p.blue() - q.blue()), qAbs(p.alpha() - q.alpha())));
+                maxDelta = qMax(maxDelta, d);
+                if (d > 1) {
+                    ++diffCount;
+                    if (firstDiff.x() < 0) {
+                        firstDiff = QPoint(x, y);
+                        firstA = p;
+                        firstB = q;
+                    }
+                }
+            }
+        if (maxDelta > 1) {
+            const int w = a.img.width(), h = a.img.height();
+            const int fx = firstDiff.x(), fy = firstDiff.y();
+            const bool nearL = fx < 2, nearR = fx >= w - 2, nearT = fy < 2, nearB = fy >= h - 2;
+            const bool corner = (nearL || nearR) && (nearT || nearB);
+            const bool edge = !corner && (nearL || nearR || nearT || nearB);
+            const bool cornerR = !corner && !edge && fx < 9 && fy < 9;
+        }
+        QVERIFY2(maxDelta <= 1,
+                 qPrintable(tag + " drift maxDelta=" + QByteArray::number(maxDelta) + " "
+                            + a.eff.toLatin1() + "/" + b.eff.toLatin1()));
+        const QColor black = Qt::black;
+        const int hostDelta = a.hst.isValid() && b.hst.isValid()
+                ? qAbs(a.hst.red() - b.hst.red()) + qAbs(a.hst.green() - b.hst.green())
+                        + qAbs(a.hst.blue() - b.hst.blue())
+                : 999;
+        if (a.dwm != -2 && b.dwm != -2 && a.hst.isValid() && b.hst.isValid() && a.hst != black
+            && b.hst != black && hostDelta <= 12 && a.shSide > 0 && b.shSide > 0 && c1 == c2
+            && a.scr.isValid() && b.scr.isValid()) {
+            QCOMPARE(b.dwm, a.dwm);
+            QVERIFY2(qAbs(b.scr.red() - a.scr.red()) + qAbs(b.scr.green() - a.scr.green())
+                                     + qAbs(b.scr.blue() - a.scr.blue())
+                             <= 12,
+                     qPrintable(tag + " screen drifted"));
+            QVERIFY2(qAbs(b.shDepth - a.shDepth) <= 12, qPrintable(tag + " shadow drifted"));
+        }
+        menu->hide();
+        QTRY_VERIFY(!menu->isVisible());
+    }
+    host.hide();
 }
 
 QTEST_MAIN(WinUI3MenusTest)

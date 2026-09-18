@@ -21,8 +21,10 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFontMetrics>
+#include <QFrame>
 #include <QGuiApplication>
 #include <QHash>
+#include <QImage>
 #include <QLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -44,6 +46,13 @@
 #include <QStyleOptionSlider>
 #include <QTimer>
 #include <QWidget>
+#include <QWindow>
+
+#ifdef Q_OS_WIN
+#  define NOMINMAX
+#  include <windows.h>
+#  include <dwmapi.h>
+#endif
 
 namespace WinUI3::Private {
 using namespace PaintPrivate;
@@ -114,12 +123,33 @@ private:
             // the style's polish pass. Reassert the ContentDialog minimum on
             // the queued, post-show layout pass so the body is not crushed
             // into a single text line above an oversized footer.
-            if (QLayout *layout = m_dialog->layout())
-                layout->setSizeConstraint(QLayout::SetMinimumSize);
-            m_dialog->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-            m_dialog->setMinimumSize(qMax(320, m_dialog->minimumWidth()),
-                                     qMax(184, m_dialog->minimumHeight()));
-            if (m_dialog->height() < 184)
+            // Each mutator below re-triggers Resize/LayoutRequest, which
+            // re-queues this sync via the event filter. Guard every write
+            // by value so a converged dialog settles instead of ping-ponging
+            // (a persistent <184px height would otherwise loop forever).
+            // The explicit resize runs only on a pass that actually raised a
+            // constraint: once the minimum is asserted the layout converges
+            // on its own, and re-requesting the same height while the dialog
+            // reports <184px would re-queue this sync forever.
+            bool progressed = false;
+            if (QLayout *layout = m_dialog->layout()) {
+                if (layout->sizeConstraint() != QLayout::SetMinimumSize) {
+                    layout->setSizeConstraint(QLayout::SetMinimumSize);
+                    progressed = true;
+                }
+            }
+            const QSize maxWanted(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+            if (m_dialog->maximumSize() != maxWanted) {
+                m_dialog->setMaximumSize(maxWanted.width(), maxWanted.height());
+                progressed = true;
+            }
+            const QSize minWanted(qMax(320, m_dialog->minimumWidth()),
+                                 qMax(184, m_dialog->minimumHeight()));
+            if (m_dialog->minimumSize() != minWanted) {
+                m_dialog->setMinimumSize(minWanted.width(), minWanted.height());
+                progressed = true;
+            }
+            if (progressed && m_dialog->height() < 184)
                 m_dialog->resize(m_dialog->width(), 184);
         }
         QDialogButtonBox *buttons = m_dialog->findChild<QDialogButtonBox *>();
@@ -201,6 +231,71 @@ void remember(QWidget *widget, const char *property, const QVariant &value)
 {
     if (widget && !widget->property(property).isValid())
         widget->setProperty(property, value);
+}
+
+// Qt-mask equivalent of the DWM corner preference for QMenu popups:
+// submenus materialize their native HWND after Show (or never resize, so
+// the Resize re-apply never fires), leaving them square while the top
+// level is rounded. A Qt rounded-rect mask clips the same OverlayRadius
+// on every platform, costs no geometry change, and is a no-op under the
+// live DWM preference (the native rounding already clips inside it).
+// Only ever applied to Qt::Popup QMenu windows from preparePopupSurface,
+// so no other surface can pick it up; clearMask() on teardown restores.
+namespace {
+constexpr auto menuMaskRetryProperty = "_winui_menu_mask_retry";
+constexpr int menuMaskMaxRetries = 5;
+} // namespace
+void applyMenuRoundedMask(QMenu *menu)
+{
+    if (!menu || !menu->isWindow() || menu->windowType() != Qt::Popup)
+        return;
+    const QSize size = menu->size();
+    if (size.isEmpty()) {
+        // Show can arrive before QMenu computes its layout size. Retry
+        // queued past the show so the submenu still rounds instead of
+        // staying square. The attempt count stays set across retries and
+        // is cleared only on success below: clearing it before re-entering
+        // would make every retry look like a first attempt and reschedule
+        // forever for a menu that never gains a size (a 0ms singleShot
+        // chain / CPU spin). Bound the chain instead so a permanently
+        // zero-size menu settles unmasked.
+        const int attempts = menu->property(menuMaskRetryProperty).toInt();
+        if (attempts >= menuMaskMaxRetries)
+            return;
+        menu->setProperty(menuMaskRetryProperty, attempts + 1);
+        QTimer::singleShot(0, menu, [menu] { applyMenuRoundedMask(menu); });
+        return;
+    }
+    menu->setProperty(menuMaskRetryProperty, {});
+    // Rasterize the SAME rounded rect paint lays (OverlayRadius) and
+    // threshold at 50% alpha: nominal r8 is preserved while paint and
+    // mask coincide at the half-coverage line — no dark fringe inside
+    // over the composited material, no backdrop hairline outside.
+    QPainterPath path;
+    path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), OverlayRadius,
+                        OverlayRadius);
+    QImage raster(size, QImage::Format_ARGB32_Premultiplied);
+    raster.fill(Qt::transparent);
+    QPainter rasterPainter(&raster);
+    rasterPainter.setRenderHint(QPainter::Antialiasing);
+    rasterPainter.fillPath(path, Qt::white);
+    rasterPainter.end();
+    // Scanline runs: kept pixels (>= 50% alpha) union into the region.
+    QRegion mask;
+    for (int y = 0; y < size.height(); ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(raster.constScanLine(y));
+        int runStart = -1;
+        for (int x = 0; x <= size.width(); ++x) {
+            const bool kept = x < size.width() && qAlpha(line[x]) >= 128;
+            if (kept && runStart < 0)
+                runStart = x;
+            else if (!kept && runStart >= 0) {
+                mask += QRect(runStart, y, x - runStart, 1);
+                runStart = -1;
+            }
+        }
+    }
+    menu->setMask(mask);
 }
 
 void rememberPalette(QWidget *widget)
@@ -344,9 +439,19 @@ void syncContentSurfacesForBackdrop(QWidget *window)
             // (healed only by resize). Scroll areas and viewports are armed,
             // not skipped: the queued guard repaint covers their blit smear,
             // and the toggle-off restore below returns every link.
+            // The scroll bars join the chain too: bars carry style-owned
+            // explicit palettes (polish registers palette owners, the theme
+            // refresh writes them), so they never inherit the island's
+            // transparentized roles. An unarmed bar keeps its opaque Window
+            // role and the CC_ScrollBar painter takes the Window-fill
+            // fallback over the live material.
             transparentizeForBackdrop(area);
             if (QWidget *viewport = area->viewport())
                 transparentizeForBackdrop(viewport);
+            if (QScrollBar *verticalBar = area->verticalScrollBar())
+                transparentizeForBackdrop(verticalBar);
+            if (QScrollBar *horizontalBar = area->horizontalScrollBar())
+                transparentizeForBackdrop(horizontalBar);
             if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
                 if (QWidget *container = scrollArea->widget())
                     transparentizeForBackdrop(container);
@@ -405,6 +510,18 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
                 restoreTransparentizedForBackdrop(viewport);
                 viewport->setAttribute(Qt::WA_StyledBackground, false);
                 viewport->update();
+            }
+            // Every bar armed by the sync above is returned the same way
+            // (each restore is a no-op for bars that were never armed).
+            if (QScrollBar *verticalBar = area->verticalScrollBar()) {
+                restoreTransparentizedForBackdrop(verticalBar);
+                verticalBar->setAttribute(Qt::WA_StyledBackground, false);
+                verticalBar->update();
+            }
+            if (QScrollBar *horizontalBar = area->horizontalScrollBar()) {
+                restoreTransparentizedForBackdrop(horizontalBar);
+                horizontalBar->setAttribute(Qt::WA_StyledBackground, false);
+                horizontalBar->update();
             }
             if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
                 if (QWidget *container = scrollArea->widget()) {
@@ -831,6 +948,19 @@ void showContentDialogScrim(QDialog *dialog)
     auto *scrim = new ContentDialogScrim(owner);
     dialog->setProperty(contentDialogScrimProperty,
                         QVariant::fromValue(static_cast<QObject *>(scrim)));
+    // The scrim is parented to the owner window, not the dialog, so either
+    // side can die first. If the owner (hence the scrim) is destroyed, the
+    // raw property would dangle and a later hideContentDialogScrim() would
+    // deleteLater() freed memory: clear the property synchronously on the
+    // scrim's own destroyed signal. If the dialog dies first, the scrim
+    // would otherwise orphan on the owner: schedule its teardown. The
+    // equality guard keeps a queued destroy of a replaced scrim from
+    // clearing a newer scrim's property.
+    QObject::connect(scrim, &QObject::destroyed, dialog, [dialog, scrim] {
+        if (dialog->property(contentDialogScrimProperty).value<QObject *>() == scrim)
+            dialog->setProperty(contentDialogScrimProperty, {});
+    });
+    QObject::connect(dialog, &QObject::destroyed, scrim, [scrim] { scrim->deleteLater(); });
     scrim->show();
     scrim->raise();
 }
@@ -839,6 +969,10 @@ void hideContentDialogScrim(QDialog *dialog)
 {
     if (!dialog)
         return;
+    // The scrim's destroyed signal clears this property synchronously when
+    // the owner tears down first, so a dangling raw pointer can never reach
+    // the deleteLater() below. The equality-cleared slot above also makes
+    // an independently destroyed scrim a no-op here.
     auto *scrim = dialog->property(contentDialogScrimProperty).value<QObject *>();
     if (!scrim)
         return;
@@ -895,6 +1029,69 @@ void hideSliderValueToolTip(QSlider *slider)
     clearSliderValueToolTip(slider);
 }
 
+namespace {
+
+// DWM readback gate for the popup re-arm loop (reopened-menu refusal):
+// DWM can ACK Set(DWMWA_SYSTEMBACKDROP_TYPE=38) during Show dispatch
+// while ignoring the value — HRESULT S_OK but a later Get(38) still reads
+// 0/AUTO, so HRESULT success alone must not stop the bounded retry. Only
+// S_OK-with-value-!=3 (Refused below) is a definitive refusal. A failed
+// Get itself (E_HANDLE and friends during Show dispatch on some builds)
+// is Unknown, not evidence: the caller then keeps the HRESULT-based
+// acceptance for that attempt.
+#ifdef Q_OS_WIN
+constexpr DWORD popupBackdropTypeAttribute = 38;
+constexpr DWORD popupBackdropTransientValue = 3; // DWMSBT_TRANSIENTWINDOW.
+#endif
+
+bool popupBackdropReadbackGranted(QWidget *popup)
+{
+#ifdef Q_OS_WIN
+    if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
+        return false;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return false;
+    QWindow *nativeWindow = popup->windowHandle();
+    if (!nativeWindow || !nativeWindow->handle())
+        return false;
+    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
+    if (!hwnd)
+        return false;
+    DWORD value = 0;
+    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value,
+                                           sizeof(value)))
+            && value == popupBackdropTransientValue;
+#else
+    Q_UNUSED(popup);
+    return false;
+#endif
+}
+
+bool popupBackdropReadbackRefused(QWidget *popup)
+{
+#ifdef Q_OS_WIN
+    if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
+        return false;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return false;
+    QWindow *nativeWindow = popup->windowHandle();
+    if (!nativeWindow || !nativeWindow->handle())
+        return false;
+    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
+    if (!hwnd)
+        return false;
+    DWORD value = 0;
+    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value,
+                                           sizeof(value)))
+            && value != popupBackdropTransientValue;
+#else
+    Q_UNUSED(popup);
+    return false;
+#endif
+}
+
+} // namespace
+
 void preparePopupSurface(QWidget *widget)
 {
     if (!widget || !widget->window() || widget->window()->windowType() != Qt::Popup)
@@ -912,6 +1109,16 @@ void preparePopupSurface(QWidget *widget)
              popup->testAttribute(Qt::WA_TranslucentBackground));
     remember(popup, originalNoSystemBackgroundProperty,
              popup->testAttribute(Qt::WA_NoSystemBackground));
+    // preparePopupSurface runs on every Show and ends either opaque (the
+    // deterministic fallback) or composited (DWM acrylic). Remember the
+    // pre-show attribute recipe once, so a hide-time DWM teardown that
+    // cleared the opaque claim cannot leak into the next cycle: the opaque
+    // branch below then restores the full recipe instead of inheriting the
+    // composited one (square corners, washed veil, lost shadow).
+    remember(popup, originalOpaquePaintProperty,
+             popup->testAttribute(Qt::WA_OpaquePaintEvent));
+    remember(popup, originalStyledBackgroundProperty,
+             popup->testAttribute(Qt::WA_StyledBackground));
     // Popup widgets keep an explicit palette after their first polish. Rebase
     // every show on the current application palette so runtime theme changes
     // cannot leave stale text or surface roles behind. The surface is opaque;
@@ -925,28 +1132,165 @@ void preparePopupSurface(QWidget *widget)
                                            : effectivePopupPalette(popup, QApplication::palette());
     const Private::Tokens popupTokens = Private::tokens(popupPalette);
     const QColor popupSurface = Private::popupSurfaceColor(popupPalette);
-    popupPalette.setColor(QPalette::Window, popupSurface);
-    popupPalette.setColor(QPalette::Base, popupSurface);
-    popup->setPalette(popupPalette);
-    popup->setAutoFillBackground(true);
-    popup->setAttribute(Qt::WA_TranslucentBackground, false);
-    popup->setAttribute(Qt::WA_NoSystemBackground, false);
-    // Claim the whole popup paint: QMenu's native erase fills the Selected
-    // row background full-bleed behind our inset pill, and nothing Qt-side
-    // insets it. Our CE_MenuItem/PE_PanelMenu cover every pixel.
-    if (qobject_cast<QMenu *>(widget))
+    // Symmetric re-show (branch-flip lane): when the previous cycle's DWM
+    // grant is still live on this same HWND, preserve it — re-assert the
+    // full composited recipe idempotently instead of tearing it down to
+    // opaque and gambling on a fresh grant DWM refuses on reused HWNDs.
+    // The tint is rebased from the current palette, so a theme switch
+    // while hidden still converges. No live grant (first show, revoked
+    // grant, offscreen) takes the existing rebuild + attempt path below.
+    const bool keepComposited = Private::popupBackdropGrantAlive(popup);
+    if (keepComposited) {
+        // Keep-path text rebase: the DWM grant stays live on this reused
+        // HWND, so the full rebuild above is skipped and the translucent
+        // Window/Base tint below is re-asserted from the current palette.
+        // Rebase only the non-background text roles from the fresh
+        // popupPalette; Window/Base/Highlight stay untouched so the tint
+        // and combo/completer contracts below are unaffected.
+        QPalette rebased = popup->palette();
+        rebased.setColor(QPalette::WindowText, popupPalette.color(QPalette::WindowText));
+        rebased.setColor(QPalette::Text, popupPalette.color(QPalette::Text));
+        rebased.setColor(QPalette::ButtonText, popupPalette.color(QPalette::ButtonText));
+        rebased.setColor(QPalette::HighlightedText,
+                         popupPalette.color(QPalette::HighlightedText));
+        popup->setPalette(rebased);
+    }
+    if (!keepComposited) {
+        popupPalette.setColor(QPalette::Window, popupSurface);
+        popupPalette.setColor(QPalette::Base, popupSurface);
+        popup->setPalette(popupPalette);
+        popup->setAutoFillBackground(true);
+        popup->setAttribute(Qt::WA_TranslucentBackground, false);
+        popup->setAttribute(Qt::WA_NoSystemBackground, false);
+        popup->setAttribute(Qt::WA_StyledBackground, false);
+        // Claim the whole popup paint: QMenu's native erase fills the Selected
+        // row background full-bleed behind our inset pill, and nothing Qt-side
+        // insets it. Our CE_MenuItem/PE_PanelMenu cover every pixel. Always
+        // restore the opaque claim on the opaque path (not just for QMenu): a
+        // hide-time DWM teardown clears it, and the next Show must repaint
+        // opaquely again instead of inheriting a composited recipe with square
+        // corners and a washed veil. The composited branch below clears it again
+        // when acrylic actually applies, so this is a no-op there.
         popup->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    }
     applyPopupRoundedCorners(popup);
     // WinUI Desktop Acrylic: on a live compositor the popup reveals a
     // blurred, wallpaper-tinted backdrop instead of the opaque fallback
     // above (ComboBox "Acrylic popup", MenuFlyout "Acrylic presenter" in the
     // acceptance matrix). Offscreen and failed DWM paths keep the opaque
     // surface, and the deterministic snapshots with it.
-    bool compositedPopup = false;
-    if (QGuiApplication::platformName() != QStringLiteral("offscreen")) {
+    bool compositedPopup = keepComposited;
+    if (!keepComposited && QGuiApplication::platformName() != QStringLiteral("offscreen")) {
         if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
             && backdropEffectiveSurface(popup) == BackdropSurface::Composited)
             compositedPopup = true;
+    }
+    // Grant re-assert past Show dispatch (DWM reads refuse there):
+    // same-HWND keep re-applies the live grant; a fresh QMenu whose
+    // sync attempt was refused re-attempts deferred. Coalesced per
+    // popup for submenu storms; combo/completer excluded, native only.
+    // Bounded retries: a reused HWND refusal can be transient (Show
+    // dispatch / modal menu loop), so re-attempt up to N times with
+    // growing delays before settling for the honest opaque fallback.
+    // Without retries the second opening of a persistent menu (File,
+    // split/menu-button popups) sticks opaque while the first holds
+    // acrylic — the good-then-ugly shadow cycle.
+    constexpr auto rearmAttemptsProperty = "_winui_backdrop_rearm_attempts";
+    constexpr int rearmMaxAttempts = 4;
+    if (QGuiApplication::platformName() != QStringLiteral("offscreen")
+        && (keepComposited
+            || (!keepComposited && !compositedPopup && qobject_cast<QMenu *>(widget)))) {
+        if (!popup->property("_winui_backdrop_rearm").toBool()) {
+            popup->setProperty("_winui_backdrop_rearm", true);
+            if (popup->property(rearmAttemptsProperty).isNull())
+                popup->setProperty(rearmAttemptsProperty, 0);
+            const auto rearmStep = [popup, rearmAttemptsProperty] {
+                const int attempt = popup->property(rearmAttemptsProperty).toInt();
+                if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup
+                    || !popup->isVisible() || !popup->windowHandle()) {
+                    popup->setProperty("_winui_backdrop_rearm", {});
+                    popup->setProperty(rearmAttemptsProperty, {});
+                    return;
+                }
+                // Keep-path re-verifies Composited; the fresh path runs
+                // only while still refused, then applies the same
+                // composited tint semantics on success (failure: update).
+                // Readback gate (reopened-menu refusal): DWM can ACK
+                // Set(38) during Show dispatch while ignoring the value
+                // (S_OK but Get(38) still reads 0/AUTO), so HRESULT
+                // success alone must not stop the bounded retry. Only
+                // S_OK-with-value-!=3 is a definitive refusal and clears
+                // the grant for another attempt; a failed Get itself
+                // (E_HANDLE and friends during Show dispatch on some
+                // builds) is unreadable, not evidence, so that attempt
+                // keeps the HRESULT-based acceptance. Unverified success
+                // skips the translucent re-tint below so the opaque
+                // fallback stands until truly granted.
+                const bool keepPath = backdropEffectiveSurface(popup)
+                        == BackdropSurface::Composited;
+                bool granted = false;
+                if (keepPath) {
+                    granted = WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic);
+                    // Definitive refusal (S_OK-with-value-!=3): clear the
+                    // grant and fall through to the retry below. An
+                    // unreadable Get keeps the HRESULT-based acceptance
+                    // above (Refused is false there by construction).
+                    if (granted && !popupBackdropReadbackGranted(popup)
+                        && popupBackdropReadbackRefused(popup))
+                        granted = false;
+                    popup->update();
+                } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
+                    && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
+                    if (!popupBackdropReadbackGranted(popup)
+                        && popupBackdropReadbackRefused(popup)) {
+                        // Definitive refusal: leave the opaque fallback the
+                        // refused branch converged on and retry below. The
+                        // translucent re-tint runs only on a verified grant
+                        // or an unreadable Get (which keeps the HRESULT
+                        // acceptance like the keep path above).
+                        popup->update();
+                    } else {
+                        granted = true;
+                        QPalette translucent = popup->palette();
+                        const Private::Tokens retint = Private::tokens(translucent);
+                        QColor windowTint = Private::popupSurfaceColor(translucent);
+                        windowTint.setAlpha(retint.dark ? 178 : 242);
+                        translucent.setColor(QPalette::Window, windowTint);
+                        QColor baseTint = windowTint;
+                        translucent.setColor(QPalette::Base, baseTint);
+                        popup->setPalette(translucent);
+                        popup->setAutoFillBackground(false);
+                        popup->setAttribute(Qt::WA_OpaquePaintEvent, false);
+                        popup->setAttribute(Qt::WA_StyledBackground, true);
+                        popup->update();
+                    }
+                } else {
+                    popup->update();
+                }
+                if (granted || attempt + 1 >= rearmMaxAttempts) {
+                    popup->setProperty("_winui_backdrop_rearm", {});
+                    popup->setProperty(rearmAttemptsProperty, {});
+                    return;
+                }
+                // Still refused and attempts remain: retry deferred with a
+                // growing delay so a transient dispatch-time refusal can
+                // converge instead of sticking opaque. The refused branch
+                // of applyBackdrop already converged the Qt recipe to the
+                // honest opaque fallback + shadow-only frame meanwhile.
+                popup->setProperty(rearmAttemptsProperty, attempt + 1);
+                const int delayMs = attempt == 0 ? 32 : attempt == 1 ? 96 : 200;
+                QTimer::singleShot(delayMs, popup, [popup] {
+                    if (!popup->property("_winui_backdrop_rearm").toBool()) {
+                        return;
+                    }
+                    popup->setProperty("_winui_backdrop_rearm", false);
+                    // Re-enter through the same Show-time entry so the
+                    // coalesce flag is re-armed for the next attempt.
+                    preparePopupSurface(popup);
+                });
+            };
+            QTimer::singleShot(0, popup, rearmStep);
+        }
     }
     if (compositedPopup) {
         // DWM supplies blur and tint; Qt paints translucent ink over it.
@@ -967,6 +1311,52 @@ void preparePopupSurface(QWidget *widget)
         popup->setAttribute(Qt::WA_OpaquePaintEvent, false);
         popup->setAttribute(Qt::WA_StyledBackground, true);
     }
+    if (!compositedPopup) {
+        // Opaque fallback: demote any leaked Composited publish. A native
+        // acrylic success arms it on the first show, and a hide-time DWM
+        // teardown (or a checkable-toggle hide/show round-trip) can leave
+        // it on the popup while the recipe above was rebuilt opaque. Every
+        // painter gates its Source clear on Composited, so the stale publish
+        // punches holes in the opaque backing and DWM keeps the shadow-less
+        // translucent recipe for the next cycle (the gallery File/autoSave
+        // reopen defect). applyBackdrop re-arms Painted/Composited itself on
+        // the paths that need it, so clearing here is a no-op there.
+        popup->setProperty(effectiveBackdropProperty, {});
+    }
+    // Calendar chrome follows the *effective* body recipe, not Qt::Popup
+    // alone. Reapply on show/reopen as well as appearance refresh, after the
+    // compositor decision. Inline calendars never enter this function.
+    if (view && calendarView(view)) {
+        auto *calendar = popup->findChild<QCalendarWidget *>();
+        if (calendar) {
+            const QColor surface = popup->palette().color(QPalette::Window);
+            QPalette calendarPalette = calendar->palette();
+            calendarPalette.setColor(QPalette::Window, surface);
+            calendarPalette.setColor(QPalette::Base, surface);
+            rememberPalette(calendar);
+            calendar->setPalette(calendarPalette);
+            if (auto *bar = calendar->findChild<QWidget *>(
+                        QStringLiteral("qt_calendar_navigationbar"))) {
+                rememberPalette(bar);
+                remember(bar, originalAutoFillProperty, bar->autoFillBackground());
+                remember(bar, originalStyledBackgroundProperty,
+                         bar->testAttribute(Qt::WA_StyledBackground));
+                QPalette headerPalette = popup->palette();
+                headerPalette.setColor(QPalette::Button, surface);
+                bar->setPalette(headerPalette);
+                // PE_Widget rebuilds exactly one surface layer. Native
+                // autofill would SourceOver a second tint onto the popup.
+                bar->setAutoFillBackground(false);
+                bar->setAttribute(Qt::WA_StyledBackground, true);
+                for (QWidget *lane : bar->findChildren<QWidget *>(
+                             QString(), Qt::FindDirectChildrenOnly)) {
+                    rememberPalette(lane);
+                    lane->setPalette(headerPalette);
+                }
+                bar->update();
+            }
+        }
+    }
     const bool comboPopup = qobject_cast<QComboBox *>(popup->parentWidget());
     if (comboPopup) {
         // WinUI DropdownContentMargin: the popup surface has a four-pixel
@@ -984,9 +1374,32 @@ void preparePopupSurface(QWidget *widget)
     if (auto *menu = qobject_cast<QMenu *>(widget)) {
         remember(popup, originalMarginsProperty, QVariant::fromValue(popup->contentsMargins()));
         menu->setContentsMargins(0, 2, 0, 2);
+        // Submenu HWNDs materialize after Show (or the submenu never
+        // resizes, so the Resize re-apply never fires): the DWM corner
+        // preference above is a no-op for them and they stay square while
+        // the top level rounds. The Qt rounded mask is the same
+        // OverlayRadius on every platform, clips no geometry, and nests
+        // harmlessly inside the live native rounding.
+        applyMenuRoundedMask(menu);
     }
     if (view) {
         rememberPalette(view);
+        // The completer popup IS the view window: its frame is the flyout
+        // border. A styled frame paints a square PE_Frame over the rounded
+        // popup surface prep, so the first/last hovered row's 4,2 pill sits
+        // flush against a square edge — the reported ugly mouseover edges.
+        // NoFrame drops that border (the DWM rounded region from
+        // applyPopupRoundedCorners keeps the corners); the remembered shape
+        // restores the stock frame on unpolish. Non-completer popups keep
+        // their own frames: QMenu draws its stroke via PE_PanelMenu and the
+        // combo container is frameless already.
+        if (completerPopup) {
+            if (auto *frame = qobject_cast<QFrame *>(view)) {
+                remember(popup, originalFrameShapeProperty,
+                         QVariant::fromValue(frame->frameShape()));
+                frame->setFrameShape(QFrame::NoFrame);
+            }
+        }
         QPalette viewPalette =
                 completerPopup ? popupPalette : effectivePopupPalette(view, popupPalette);
         if (calendarView(view)) {

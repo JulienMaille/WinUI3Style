@@ -49,6 +49,13 @@ void applyPopupRoundedCorners(QWidget *window);
 // the given radius using a plain window region.
 void applyWindowRoundedRegion(QWidget *window, int radius);
 
+// Keep-probe for a previous cycle's DWM popup grant. True only when the
+// widget still publishes Composited on an existing native handle: the
+// per-HWND grant is then kept across the re-show instead of torn down
+// and re-requested (DWM refuses fresh grants on reused popup HWNDs — the
+// File/autoSave branch flip). Never true offscreen or handle-less.
+bool popupBackdropGrantAlive(QWidget *window);
+
 // Follows the application theme for a dialog window's native title bar: sets
 // the immersive dark-mode attribute and title text color. No-op until the
 // native handle exists and on platforms without DWM.

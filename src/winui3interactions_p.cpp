@@ -151,6 +151,21 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
     // Short sweep from the anchor edge; keep it subtle like the reference.
     // Same ownership contract as the dialog entrance above: parented to the
     // popup (dies with it), deleted on finish.
+    // A fast close/reopen (or a click that re-shows before the 167 ms sweep
+    // ends) would otherwise nest a second _winui_popup_open_animation group
+    // under the still-running first: two groups then drive pos +
+    // windowOpacity concurrently, and whichever finished-callback runs last
+    // wins — the loser leaves a mid-sweep offset and a windowOpacity < 1.0
+    // behind. On a live compositor each reopened frame then composites a
+    // leftover translucent layer over the previous one, and the shadow
+    // darkens per cycle. Stop + delete any prior popup sweep first so at
+    // most one group ever owns the popup geometry/opacity.
+    for (QParallelAnimationGroup *prior : popup->findChildren<QParallelAnimationGroup *>(
+                 QStringLiteral("_winui_popup_open_animation"), Qt::FindDirectChildrenOnly)) {
+        prior->stop();
+        delete prior;
+    }
+    popup->setWindowOpacity(1.0);
     constexpr int slidePixels = 12;
     const QPoint finalPos = popup->pos();
     const QPoint startPos = finalPos + QPoint(0, aboveAnchor ? slidePixels : -slidePixels);
@@ -631,6 +646,26 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 m_callbacks.prepareComboPopupFirstFrame(combo);
             }
         }
+        if (comboPopupItemView(widget)) {
+            // Arrow traversal moves the popup view's currentIndex (and its
+            // selection follows) while the cursor stays elsewhere. The
+            // CE_MenuItem combo path promotes that Selected, non-value row
+            // to the hover pill, and the delegate path promotes
+            // view->currentIndex() the same way — but only a repaint makes
+            // either visible. This filter runs before Qt moves the index, so
+            // defer the viewport update past the dispatch; Qt's own
+            // currentChanged repaint stays the primary path, this only
+            // guarantees the newly current row is never left stale.
+            const int key = static_cast<QKeyEvent *>(event)->key();
+            if (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home
+                || key == Qt::Key_End || key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
+                if (QComboBox *combo = m_callbacks.comboForPopupWidget(widget)) {
+                    if (QWidget *viewport = combo->view() ? combo->view()->viewport() : nullptr) {
+                        QTimer::singleShot(0, viewport, [viewport] { viewport->update(); });
+                    }
+                }
+            }
+        }
         if (const auto *key = static_cast<QKeyEvent *>(event); revealsKeyboardFocus(key->key())) {
             *m_callbacks.keyboardInput = true;
             framePropertyRegistry().set(widget, focusVisibleProperty, true);
@@ -687,8 +722,20 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
                 animateMenuPopup(widget, combo);
-            } else if (qobject_cast<QMenu *>(widget)) {
+            } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
                 animateMenuPopup(widget, nullptr);
+                // Parent-wash lane: hovering a submenu row open delivers
+                // row-partial repaints to the parent while the rest keeps
+                // the previous backing frame — live that reads as the
+                // parent washing lighter. The submenu Show is where the
+                // open commits, so repaint the FULL parent surface here
+                // (PE_PanelMenu rebuild from its resolved palette; same
+                // pattern as ActionChanged below). update() never resizes
+                // and changes no palette/recipe.
+                if (QMenu *parentMenu = qobject_cast<QMenu *>(menu->parentWidget())) {
+                    if (parentMenu->isVisible())
+                        parentMenu->update();
+                }
             }
         }
         if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
@@ -720,11 +767,17 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         m_callbacks.registerPopupPaletteOwners(widget);
         break;
     case QEvent::WinIdChange:
-        // Re-apply the native DWM material (Mica on the main window) once Qt
-        // has created the HWND. Popups stay opaque and get their rounded
-        // corners from the window corner preference instead of a translucent
-        // surface, which avoids the cleared-backing artifacts of Acrylic.
-        if (widget->isWindow() && widget->property("_winui_backdrop").isValid()) {
+        // WinIdChange also fires while Qt destroys a platform window. Never
+        // call a creating accessor on that path: it can republish the dying
+        // HWND into QWidget's cache before Qt finishes destroying it.
+        if (!widget->internalWinId())
+            break;
+#ifdef Q_OS_WIN
+        if (!IsWindow(reinterpret_cast<HWND>(widget->internalWinId())))
+            break;
+#endif
+        if (widget->isWindow() && widget->isVisible()
+            && widget->property("_winui_backdrop").isValid()) {
             applyBackdrop(widget,
                           static_cast<Backdrop>(widget->property("_winui_backdrop").toInt()));
         }
@@ -740,8 +793,32 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         // edges. Avoid creating a native handle during pre-show layout.
         if (widget->isWindow() && widget->windowType() == Qt::Popup && widget->windowHandle())
             applyPopupRoundedCorners(widget);
+        // The Qt rounded mask is size-built: a post-show resize (actions
+        // added/removed while the submenu is visible) would leave the old
+        // mask clipping the new edges. Rebuild it here; setMask never
+        // resizes, and pre-show resizes are harmless (Show rebuilds the
+        // mask at the final size anyway). No handle guard needed: a Qt
+        // mask never manufactures a native handle.
+        if (auto *menu = qobject_cast<QMenu *>(widget);
+            menu && menu->isWindow() && menu->windowType() == Qt::Popup)
+            applyMenuRoundedMask(menu);
         if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
             applyWindowRoundedRegion(widget, 5);
+        break;
+    case QEvent::ActionChanged:
+        if (auto *menu = qobject_cast<QMenu *>(widget); menu && menu->isVisible()) {
+            // Toggling a checkable action (gallery File/autoSave) repaints
+            // only the toggled row by default, leaving the PE_PanelMenu
+            // stroke region stale; the next reopen then shows a broken
+            // edge/shadow. Repaint the full surface and re-apply the rounded
+            // region. Neither changes geometry: update() never resizes, and
+            // the region call rebuilds the same rounded rect (a no-op
+            // offscreen, guarded by windowHandle so a hidden menu never
+            // manufactures a native handle).
+            menu->update();
+            if (menu->windowHandle())
+                applyPopupRoundedCorners(menu);
+        }
         break;
     case QEvent::Hide:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {

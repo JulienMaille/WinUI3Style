@@ -86,9 +86,189 @@
 #include <QWizardPage>
 #include <QtMath>
 #include <QStandardItemModel>
+#include <QCoreApplication>
+#include <QScreen>
+#include <QDebug>
+#include <QPixmap>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+
+// Drain Qt's deferred-delete queue so top-level inventories/counts measure a
+// settled widget set (previous cycles' deletes land BEFORE measurement).
+[[maybe_unused]] static void drainDeferredDeletion()
+{
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCoreApplication::processEvents();
+}
+
+[[maybe_unused]] static int colorDistance(const QColor &a, const QColor &b)
+{
+    return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue())
+            + qAbs(a.alpha() - b.alpha());
+}
+
+// Median color of a desktop-image strip, opaque pixels only, sorted by
+// perceived grey (desktop shadow tint tracks the median, a stray hardware
+// cursor sprite only contaminates a localized blob).
+[[maybe_unused]] static QColor medianStripColor(const QImage &desktop, const QRect &strip)
+{
+    if (strip.isEmpty() || !desktop.rect().contains(strip))
+        return QColor();
+    QList<QColor> pixels;
+    pixels.reserve(strip.width() * strip.height());
+    for (int y = strip.top(); y <= strip.bottom(); ++y) {
+        for (int x = strip.left(); x <= strip.right(); ++x) {
+            const QColor color = desktop.pixelColor(x, y);
+            if (color.alpha() == 255)
+                pixels.append(color);
+        }
+    }
+    if (pixels.isEmpty())
+        return QColor();
+    std::sort(pixels.begin(), pixels.end(),
+              [](const QColor &a, const QColor &b) { return qGray(a.rgb()) < qGray(b.rgb()); });
+    return pixels.at(pixels.size() / 2);
+}
+
+// One immutable desktop capture for correlated surface/background measurements.
+struct DesktopTestFrame
+{
+    QImage image;
+    QRect screenRect;
+
+    static DesktopTestFrame capture(QScreen *screen)
+    {
+        return screen ? DesktopTestFrame{screen->grabWindow(0).toImage(), screen->geometry()}
+                      : DesktopTestFrame{};
+    }
+    QRect pixels(const QRect &global) const
+    {
+        if (image.isNull() || screenRect.isEmpty() || global.isEmpty())
+            return {};
+        const qreal sx = qreal(image.width()) / screenRect.width();
+        const qreal sy = qreal(image.height()) / screenRect.height();
+        return QRect(qRound((global.x() - screenRect.x()) * sx),
+                     qRound((global.y() - screenRect.y()) * sy),
+                     qMax(1, qRound(global.width() * sx)), qMax(1, qRound(global.height() * sy)));
+    }
+    QColor colorAt(const QPoint &global) const
+    {
+        const QRect local = pixels(QRect(global, QSize(1, 1)));
+        return !local.isEmpty() && image.rect().contains(local)
+                ? image.pixelColor(local.topLeft()) : QColor();
+    }
+    bool uniform(const QRect &global, const QColor &expected) const
+    {
+        const QRect local = pixels(global);
+        if (local.isEmpty() || !image.rect().contains(local))
+            return false;
+        for (int y = local.top(); y <= local.bottom(); ++y)
+            for (int x = local.left(); x <= local.right(); ++x)
+                if (colorDistance(image.pixelColor(x, y), expected) > 2)
+                    return false;
+        return true;
+    }
+};
+
+// Two pre-input frames must match the stock opaque host palette within
+// tolerance 2 throughout the sampled fill region. Occlusion/cursor contamination
+// blocks evidence; matching medians alone cannot establish uniformity.
+inline bool stableOpaqueDesktopBaseline(QWidget &host, const QRect &globalRegion)
+{
+    const QColor expected = host.palette().color(QPalette::Window);
+    QTest::qWait(500);
+    const auto first = DesktopTestFrame::capture(host.screen());
+    QTest::qWait(100);
+    const auto second = DesktopTestFrame::capture(host.screen());
+    const QColor firstMedian = first.image.isNull()
+            ? QColor()
+            : medianStripColor(first.image, first.pixels(globalRegion));
+    const QColor secondMedian = second.image.isNull()
+            ? QColor()
+            : medianStripColor(second.image, second.pixels(globalRegion));
+    const int firstDelta = firstMedian.isValid() ? colorDistance(firstMedian, expected) : 999;
+    const int secondDelta = secondMedian.isValid() ? colorDistance(secondMedian, expected) : 999;
+    const bool valid = host.isVisible() && expected.alpha() == 255
+            && !host.testAttribute(Qt::WA_TranslucentBackground)
+            && host.geometry().contains(globalRegion)
+            && firstDelta <= 2 && secondDelta <= 2
+            && first.uniform(globalRegion, expected) && second.uniform(globalRegion, expected);
+    qWarning().noquote() << "desktop baseline" << (valid ? "ready" : "BLOCKED/unverifiable")
+                         << "region=" << globalRegion << "expected=" << expected
+                         << "firstMedian=" << firstMedian << "secondMedian=" << secondMedian
+                         << "deltas=" << firstDelta << secondDelta;
+    return valid;
+}
+
+// Same-frame DWM shadow probe for a settled popup: median near vs far strip
+// per side, all from ONE desktop capture (host band, surface band and shadow
+// strips must never come from different frames — desktop drift between grabs
+// manufactured phantom depth deltas). Negative depth = near band darker.
+// *usableSides counts sides whose strips stayed inside the host rect and the
+// grab; the debug string always logs per-side near/far greys so an invalid
+// side is visible instead of silently averaged away.
+[[maybe_unused]] static void probeDesktopShadowDepth(const DesktopTestFrame &frame,
+                              const QRect &popupFrame, const QRect &hostRect, qreal *depth,
+                              int *usableSides, QString *debug)
+{
+    *depth = 0.0;
+    *usableSides = 0;
+    if (debug)
+        *debug = QStringLiteral("BLOCKED: missing capture or shadow ring outside host");
+    // The 16px ring around the popup must sit over the host's uniform
+    // opaque fill; over wallpaper the near/far medians are meaningless.
+    if (frame.image.isNull() || popupFrame.isEmpty() || hostRect.isEmpty()
+        || !hostRect.contains(popupFrame.adjusted(-16, -16, 16, 16)))
+        return;
+    struct Side
+    {
+        QRect nearStrip;
+        QRect farStrip;
+    };
+    const int cx = popupFrame.center().x();
+    const int cy = popupFrame.center().y();
+    const Side sides[4] = {
+        { QRect(cx - 40, popupFrame.top() - 5, 80, 4),
+          QRect(cx - 40, popupFrame.top() - 15, 80, 4) },
+        { QRect(cx - 40, popupFrame.bottom() + 2, 80, 4),
+          QRect(cx - 40, popupFrame.bottom() + 12, 80, 4) },
+        { QRect(popupFrame.left() - 5, cy - 40, 4, 80),
+          QRect(popupFrame.left() - 15, cy - 40, 4, 80) },
+        { QRect(popupFrame.right() + 2, cy - 40, 4, 80),
+          QRect(popupFrame.right() + 12, cy - 40, 4, 80) },
+    };
+    qreal total = 0.0;
+    int count = 0;
+    QStringList notes;
+    for (const Side &side : sides) {
+        const QRect nearLocal = frame.pixels(side.nearStrip);
+        const QRect farLocal = frame.pixels(side.farStrip);
+        if (nearLocal.isEmpty() || farLocal.isEmpty()
+            || !frame.image.rect().contains(nearLocal)
+            || !frame.image.rect().contains(farLocal)) {
+            notes << QStringLiteral("excluded");
+            continue;
+        }
+        const QColor nearColor = medianStripColor(frame.image, nearLocal);
+        const QColor farColor = medianStripColor(frame.image, farLocal);
+        notes << QStringLiteral("n=%1,f=%2")
+                        .arg(nearColor.isValid() ? nearColor.name(QColor::HexRgb)
+                                                 : QStringLiteral("?"))
+                        .arg(farColor.isValid() ? farColor.name(QColor::HexRgb)
+                                                : QStringLiteral("?"));
+        if (!nearColor.isValid() || !farColor.isValid())
+            continue;
+        const int sideDepth = qGray(nearColor.rgb()) - qGray(farColor.rgb());
+        total += sideDepth;
+        ++count;
+    }
+    *usableSides = count;
+    *depth = count > 0 ? total / count : 0.0;
+    if (debug)
+        *debug = notes.join(QStringLiteral(";"));
+}
 
 class PopupGeometryProbe final : public QObject
 {
@@ -252,12 +432,6 @@ public:
     bool existed;
     QByteArray previous;
 };
-
-[[maybe_unused]] static int colorDistance(const QColor &a, const QColor &b)
-{
-    return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue())
-            + qAbs(a.alpha() - b.alpha());
-}
 
 [[maybe_unused]] static void verifyHitSurface(const QStyle *style, QStyle::ComplexControl control,
                              const QStyleOptionComplex *option, const QWidget *widget,

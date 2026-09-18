@@ -1,6 +1,8 @@
 #include "gallerywindow.h"
 #include "ui_gallerywindow.h"
 
+#include <memory>
+
 #include <QApplication>
 #include <QColorDialog>
 #include <QCompleter>
@@ -79,6 +81,35 @@ GalleryWindow::GalleryWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::
     configureGallery();
     populateCollections();
     configurePaletteLab();
+    // Opt-in live diagnostic: exercises popup open/close/reopen with real
+    // windows QPA so DWM grant behavior on a reused HWND can be observed.
+    // Driven by WINUI3STYLE_LIVE_MENUS=first|double.
+    const QString liveMode = qEnvironmentVariable("WINUI3STYLE_LIVE_MENUS");
+    if (!liveMode.isEmpty()) {
+        const int delay = 1500;
+        QTimer *firstTimer = new QTimer(this);
+        firstTimer->setSingleShot(true);
+        QObject::connect(firstTimer, &QTimer::timeout, this, [this] {
+            ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
+                    ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                    ui->menuBar->height())));
+        });
+        firstTimer->start(delay);
+        if (liveMode == QLatin1String("double")) {
+            QTimer *closeTimer = new QTimer(this);
+            closeTimer->setSingleShot(true);
+            QObject::connect(closeTimer, &QTimer::timeout, this, [this] { ui->fileMenu->close(); });
+            QTimer *secondTimer = new QTimer(this);
+            secondTimer->setSingleShot(true);
+            QObject::connect(secondTimer, &QTimer::timeout, this, [this] {
+                ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
+                        ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                        ui->menuBar->height())));
+            });
+            closeTimer->start(delay + 4000);
+            secondTimer->start(delay + 7000);
+        }
+    }
 }
 
 GalleryWindow::~GalleryWindow()
@@ -264,8 +295,10 @@ void GalleryWindow::configurePaletteLab()
         QPalette working;
         QList<QLabel *> swatches;
     };
-    auto *state = new PaletteState{ ui->palettePreview->palette(), {} };
-    connect(ui->palettePreview, &QObject::destroyed, [state] { delete state; });
+    // Shared ownership: every capture below holds its own reference, so the
+    // state outlives the last pick button / refresh closure. palettePreview
+    // destruction needs no explicit cleanup (no raw new / destroyed->delete).
+    auto state = std::make_shared<PaletteState>(PaletteState{ ui->palettePreview->palette(), {} });
     const auto refresh = [state] {
         for (qsizetype i = 0; i < state->swatches.size(); ++i) {
             QPixmap pixmap(48, 20);

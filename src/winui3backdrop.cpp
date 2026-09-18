@@ -10,6 +10,7 @@
 #include <QGuiApplication>
 #include <QPalette>
 #include <QWidget>
+#include <QWindow>
 
 #ifdef Q_OS_WIN
 #  define NOMINMAX
@@ -55,6 +56,25 @@ void rememberBackdropState(QWidget *window)
     remember(originalWindowColorProperty, window->palette().color(QPalette::Window));
 }
 
+// Switching the presentation mode rebuilds the whole buffer: stale frames
+// would otherwise linger under the new material. update() alone does not
+// dirty already-clean children, so force a synchronous full repaint of the
+// window hierarchy here. A parent repaint clips children out, so every
+// widget repaints itself. Must run only after the target palettes converged
+// and the effective state was published, or painters rebuild from stale
+// roles (transparent window paint onto a window becoming opaque).
+void repaintBackdropHierarchy(QWidget *window)
+{
+    if (!window)
+        return;
+    window->repaint();
+    const QList<QWidget *> subtree = window->findChildren<QWidget *>();
+    for (QWidget *child : subtree) {
+        if (child->isVisible())
+            child->repaint();
+    }
+}
+
 void restoreBackdropState(QWidget *window)
 {
     window->setProperty(Private::effectiveBackdropProperty,
@@ -91,6 +111,28 @@ void restoreBackdropState(QWidget *window)
 namespace Private {
 
 void applyWindowRoundedRegion(QWidget *window, int radius);
+
+bool popupBackdropGrantAlive(QWidget *window)
+{
+#ifdef Q_OS_WIN
+    if (!window || !window->isWindow() || window->windowType() != Qt::Popup)
+        return false;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return false;
+    // Composited alone can outlive a destroyed HWND. Keep only a live,
+    // existing platform window; never create one to evaluate this predicate.
+    QWindow *nativeWindow = window->windowHandle();
+    if (!nativeWindow || !nativeWindow->handle()
+        || !IsWindow(reinterpret_cast<HWND>(window->internalWinId())))
+        return false;
+    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
+    return IsWindow(hwnd)
+            && backdropEffectiveSurface(window) == BackdropSurface::Composited;
+#else
+    Q_UNUSED(window)
+    return false;
+#endif
+}
 
 void prepareBackdropSurface(QWidget *window, Backdrop backdrop)
 {
@@ -219,12 +261,12 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         window->setAutoFillBackground(true);
         // Disabling is fully native teardown: chrome returns to its
         // remembered opaque palettes. No translucent pixel may survive.
+        // The full-buffer repaint is deferred below until the opaque Window
+        // palette converges and restoreBackdropState publishes Solid: every
+        // paint must rebuild from restored roles, never from the
+        // transparent-era ones still live at this point.
         Private::restoreChromeSurfaces(window);
         Private::restoreContentSurfacesForBackdrop(window);
-        // Same full-buffer rationale as the enable path: every widget must
-        // repaint from its restored opaque palette, or the last composited
-        // frame stays on screen and the toggle looks like a no-op.
-        window->repaint();
     } else {
         // These paint-surface flags are needed even when the platform has no
         // DWM compositor, so the offscreen fallback retains its transparent
@@ -243,10 +285,40 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     windowColor.setAlpha(backdrop == Backdrop::None ? 255 : 0);
     materialPalette.setColor(QPalette::Window, windowColor);
     window->setPalette(materialPalette);
+    if (backdrop != Backdrop::None && nativeSurface && window->windowType() == Qt::Popup) {
+        // Popup convergence (live compositor only; the offscreen fallback
+        // below keeps its opaque painted surface): resolve Window/Base on
+        // that preparePopupSurface's composited branch paints from (popup
+        // surface, alpha 178 dark / 242 light). applyBackdrop is re-entered
+        // from the WinIdChange handler when the Show-time winId() creates
+        // the popup HWND; that re-entry used to leave Window fully
+        // transparent, so the first open settled on a different grey than
+        // the reopen (whose HWND already exists, keeping the Show-time
+        // tint). Converging here makes every entry point — Show-time prep,
+        // WinIdChange re-entry, reopen — resolve identical roles, and the
+        // composited branch in preparePopupSurface re-asserts the same tint
+        // idempotently. The base mirrors preparePopupSurface exactly
+        // (remembered original resolved over the application palette), so
+        // the WinIdChange value is bit-identical to the Show-time value.
+        // Main-window Mica keeps the transparent Window role (the live
+        // material shows through), so this stays popup-only.
+        const QPalette popupBase = Private::effectivePopupPalette(window, QApplication::palette());
+        QColor popupTint = Private::popupSurfaceColor(popupBase);
+        popupTint.setAlpha(qGray(themedWindowColor.rgb()) < 128 ? 178 : 242);
+        materialPalette.setColor(QPalette::Window, popupTint);
+        materialPalette.setColor(QPalette::Base, popupTint);
+        window->setPalette(materialPalette);
+    }
 
     if (!nativeSurface) {
         if (backdrop == Backdrop::None) {
             restoreBackdropState(window);
+            // Deferred disable repaint (same full-buffer rationale as the
+            // enable path): every widget repaints from its restored opaque
+            // palette now that Solid is published. Repainting earlier kept
+            // the last composited frame on screen and rebuilt child backing
+            // stores from transparent-era roles.
+            repaintBackdropHierarchy(window);
         } else {
             // Deterministic offscreen snapshots: opaque painted surface and
             // an explicit Painted state; painters must never clear here.
@@ -289,7 +361,12 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         break;
     }
 
-    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    // Resolve the current platform HWND on each application/rearm, not the
+    // QWidget cache. Preserve first-time creation for the public API only
+    // when there is no platform window yet.
+    QWindow *nativeWindow = window->windowHandle();
+    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow && nativeWindow->handle()
+            ? nativeWindow->winId() : window->winId());
     const BOOL dark = qGray(themedWindowColor.rgb()) < 128;
     DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute, &dark, sizeof(dark));
     const COLORREF caption = backdrop == Backdrop::None
@@ -322,29 +399,26 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     const bool applied = SUCCEEDED(backdropResult) && SUCCEEDED(frameResult);
     if (backdrop == Backdrop::None) {
         restoreBackdropState(window);
+        // Same deferred-repaint contract as the offscreen None path above:
+        // the hierarchy rebuilds only after Solid is published and the
+        // opaque palette converged, so no painter observes stale roles.
+        repaintBackdropHierarchy(window);
     } else if (applied) {
-        // DWM owns the material: publish Composited so painters may clear.
-        window->setProperty(Private::effectiveBackdropProperty,
-                            static_cast<int>(Private::BackdropSurface::Composited));
         // Window chrome (menu bar, tool bars, status bar) reveals the live
         // material instead of painting opaque panels over it. Content islands
         // follow under the full-Mica contract (sync is a no-op for windows
         // without opted-in descendants).
         Private::makeChromeSurfacesTransparent(window);
         Private::syncContentSurfacesForBackdrop(window);
-        // Switching the presentation mode rebuilds the whole buffer: stale
-        // opaque frames would otherwise linger under the new material.
-        // update() alone does not dirty already-clean children, so force a
-        // synchronous full repaint of the window hierarchy here. A parent
-        // repaint clips children out, so every widget repaints itself: the
-        // left pane (navigation panel, labels, combos) keeps no stale rows
-        // and needs no resize to converge (same heal as the scroll guard).
-        window->repaint();
-        const QList<QWidget *> subtree = window->findChildren<QWidget *>();
-        for (QWidget *child : subtree) {
-            if (child->isVisible())
-                child->repaint();
-        }
+        // Publish Composited only once chrome and islands converged: the
+        // publish notifies owned-palette refreshes (notably the inline
+        // calendar surface, which veils through paintsDirectlyOnBackdrop),
+        // and that gate reads the island alphas the sync above just wrote.
+        // Publishing first would refresh against stale opaque islands and
+        // stick the calendar opaque under a granted material.
+        window->setProperty(Private::effectiveBackdropProperty,
+                            static_cast<int>(Private::BackdropSurface::Composited));
+        repaintBackdropHierarchy(window);
     } else {
         // DWM refused the material: opaque painted fallback, explicit
         // Painted state so clears stay off (black/stale pixels otherwise).
@@ -362,6 +436,58 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         QColor fallbackWindowColor = themedWindowColor;
         fallbackWindowColor.setAlpha(255);
         fallback.setColor(QPalette::Window, fallbackWindowColor);
+        if (window->windowType() == Qt::Popup) {
+            // Refused popup re-attempt (reused HWND): converge the pair on
+            // the SAME popup flyout surface the opaque branch of
+            // preparePopupSurface just claimed, not the themed main-window
+            // grey over a stale flyout Base — otherwise a reopened File
+            // menu resolves Window and Base to two different greys (the
+            // live wrong-background reopen defect). Main windows keep the
+            // themed role above; this stays popup-only like the tint block.
+            const QPalette popupBase =
+                    Private::effectivePopupPalette(window, QApplication::palette());
+            QColor popupSurface = Private::popupSurfaceColor(popupBase);
+            popupSurface.setAlpha(255);
+            fallback.setColor(QPalette::Window, popupSurface);
+            fallback.setColor(QPalette::Base, popupSurface);
+            // Second-menu parity: a refused HWND paints the same token pill
+            // (subtleHover over ink) as its granted sibling, so the pill ink
+            // must resolve identically — rebase the text roles from the same
+            // fresh popup resolution as the surface above (mirrors the
+            // keep-path rebase in preparePopupSurface). Stale text roles
+            // from a previous granted cycle would otherwise tint the pill
+            // differently across the two HWNDs. Roles only: no paint
+            // branching, no DWM re-attempt; offscreen never reaches here.
+            fallback.setColor(QPalette::WindowText, popupBase.color(QPalette::WindowText));
+            fallback.setColor(QPalette::Text, popupBase.color(QPalette::Text));
+            fallback.setColor(QPalette::ButtonText, popupBase.color(QPalette::ButtonText));
+            fallback.setColor(QPalette::HighlightedText,
+                              popupBase.color(QPalette::HighlightedText));
+            // A previous cycle's grant (SYSTEMBACKDROP_TYPE =
+            // TransientWindow + extended frame + redirection alpha) can
+            // still be armed on this reused HWND even though DWM refused
+            // to re-issue it: the stale half-torn-down frame is exactly
+            // the ugly reopened-popup edge and shadow. Fall back to a
+            // shadow-only opaque frame so the refused cycle keeps its
+            // standard DWM shadow without re-requesting TransientWindow:
+            // disarm the material, extend a 1px frame (zero would kill
+            // the shadow), keep DWMWCP_ROUND, clear redirection alpha.
+            // On a fresh handle whose first attempt failed this arms
+            // only the shadow frame (the same attributes simply fail or
+            // no-op harmlessly).
+            const int disarmBackdrop = backdropNone;
+            DwmSetWindowAttribute(hwnd, systemBackdropAttribute, &disarmBackdrop,
+                                  sizeof(disarmBackdrop));
+            const MARGINS shadowFrameMargins{ 1, 1, 1, 1 };
+            DwmExtendFrameIntoClientArea(hwnd, &shadowFrameMargins);
+            constexpr DWORD cornerPreferenceAttribute = 33;
+            constexpr int cornerRoundPreference = 2; // DWMWCP_ROUND
+            DwmSetWindowAttribute(hwnd, cornerPreferenceAttribute, &cornerRoundPreference,
+                                  sizeof(cornerRoundPreference));
+            const BOOL noRedirectionAlpha = FALSE;
+            DwmSetWindowAttribute(hwnd, redirectionBitmapAlphaAttribute, &noRedirectionAlpha,
+                                  sizeof(noRedirectionAlpha));
+        }
         window->setPalette(fallback);
     }
     return applied;

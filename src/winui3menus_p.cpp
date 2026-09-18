@@ -115,7 +115,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // its rect, which excludes the contents margins) then draw the
         // stroke on top, centered on device pixels so antialiasing does
         // not flatten it to half-strength grey on two of the four sides.
-        if (eraseForBackdrop(painter, widget, surface)) {
+        if (eraseForBackdrop(painter, widget, surface, OverlayRadius)) {
             roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
         } else {
             painter->fillRect(surface, fill);
@@ -124,8 +124,8 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setBrush(Qt::NoBrush);
         painter->setPen(QPen(stroke, 1.0));
-        painter->drawRoundedRect(QRectF(surface).adjusted(0.5, 0.5, -0.5, -0.5), OverlayRadius,
-                                 OverlayRadius);
+        painter->drawRoundedRect(QRectF(surface).adjusted(0.5, 0.5, -0.5, -0.5),
+                                  OverlayRadius - 0.5, OverlayRadius - 0.5);
         painter->restore();
         return true;
     }
@@ -201,10 +201,14 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             // hover tracking that nothing reliably clears (stuck highlight
             // with the pointer elsewhere). Drive the transient hover fill
             // from the live cursor instead: a row is hovered iff the cursor
-            // is really inside it. The current/checkable marker below keeps
-            // using checked/current state, so selection rendering is
-            // untouched. Offscreen keeps the flag path (no cursor there;
-            // deterministic captures unchanged).
+            // is really inside it. Keyboard traversal is the exception: arrow
+            // keys move the view's current index while the cursor stays
+            // elsewhere, so a Selected row that is not the combo value
+            // (checked) is the keyboard-current row and must read exactly
+            // like the hovered row (the PE_PanelItemViewItem delegate path
+            // already promotes view->currentIndex() the same way). The value
+            // row keeps only its accent marker. Offscreen keeps the flag path
+            // (no cursor there; deterministic captures unchanged).
             bool showHover = false;
             if (comboItem) {
                 if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
@@ -214,6 +218,10 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                     const QRect rowGlobal(viewport->mapToGlobal(menu->rect.topLeft()),
                                           menu->rect.size());
                     showHover = rowGlobal.contains(QCursor::pos());
+                }
+                if (!showHover && !menu->checked
+                    && (menu->state & QStyle::State_Selected)) {
+                    showHover = true;
                 }
             }
             const bool showPressed = menu->state & QStyle::State_Sunken;
@@ -236,10 +244,11 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
                 // already translucent surface roles explicitly so the
                 // pill composites exactly one SubtleFill layer.
                 if (!clearForBackdropFill(painter, widget, menu->rect,
-                                          option->palette.color(QPalette::Window))) {
+                                          option->palette.color(QPalette::Window),
+                                          OverlayRadius)) {
                     painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
                 }
-                paintPopupRowPill(painter, QRectF(menu->rect).adjusted(4, 2, -4, -2),
+                paintPopupRowPill(painter, popupRowPillRect(menu->rect, comboItem),
                                   showPressed ? t.subtlePressed : t.subtleHover);
             }
 

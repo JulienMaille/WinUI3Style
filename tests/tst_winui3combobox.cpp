@@ -24,6 +24,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCommandLinkButton>
+#include <QCompleter>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QEvent>
@@ -104,6 +105,9 @@ private slots:
     void comboChevronMotion();
     void comboChevronGeometry();
     void comboOpenPopupKeyboardCurrentPaintsHoverPill();
+    void comboOpenPopupKeyboardNavMovesHoverPill();
+    void autoSuggestHoverPillMatchesMenuPill();
+    void autoSuggestCompositedHoverRebuildsRowFrame();
 
 };
 
@@ -736,6 +740,413 @@ void WinUI3ComboBoxTest::comboOpenPopupKeyboardCurrentPaintsHoverPill()
     // visual. Geometry token pairing: the rows share the row height.
     QCOMPARE(currentImage.size(), hoveredImage.size());
     QCOMPARE(currentImage, hoveredImage);
+}
+
+void WinUI3ComboBoxTest::comboOpenPopupKeyboardNavMovesHoverPill()
+{
+    // Live defect: arrow keys in an open combo popup moved the view's current
+    // index (and its selection follows), but no row painted the hover pill:
+    // the CE_MenuItem combo path drove hover purely from the live cursor.
+    // Same state, one token/geometry pair: after Down, the new current row
+    // carries the subtleHover pill (4,2 insets, 3px radius) and the value row
+    // keeps only its accent marker.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+
+    QWidget host;
+    host.resize(560, 440);
+    QComboBox combo(&host);
+    combo.addItems({ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                     QStringLiteral("Gamma") });
+    combo.setCurrentIndex(0);
+    combo.resize(220, 32);
+    combo.move(120, 180);
+    host.show();
+    QTRY_VERIFY(host.isVisible());
+    combo.showPopup();
+    QTRY_VERIFY(combo.view()->isVisible());
+
+    QAbstractItemView *view = combo.view();
+    QCOMPARE(view->currentIndex().row(), 0);
+    QTest::keyClick(view, Qt::Key_Down);
+    QTRY_COMPARE(view->currentIndex().row(), 1);
+    QCOMPARE(combo.currentIndex(), 0);
+    QVERIFY(view->selectionModel()->isSelected(combo.model()->index(1, 0)));
+
+    const QImage grab = view->viewport()->grab().toImage();
+    const QColor background = view->viewport()->palette().color(QPalette::Window);
+    const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(view->viewport()->palette());
+    // Native popups composite over DWM acrylic (translucent Window role);
+    // offscreen keeps the opaque fallback. Either way the painter resolves
+    // the hover fill over the same palette roles.
+    QVERIFY(background.alpha() > 0);
+    // The subtleHover fill is translucent ink over the opaque popup surface:
+    // resolve the expected on-screen color the same way the painter does.
+    QColor expectedHover = tokens.subtleHover;
+    {
+        QImage mix(1, 1, QImage::Format_ARGB32_Premultiplied);
+        mix.fill(background);
+        QPainter painter(&mix);
+        painter.fillRect(mix.rect(), expectedHover);
+        painter.end();
+        expectedHover = mix.pixelColor(0, 0);
+    }
+    // Deterministic unit probe of the CE_MenuItem combo path: render the
+    // keyboard-current row exactly as the live delegate describes it after
+    // arrow traversal (Selected, not checked, no MouseOver) and require the
+    // shared hover pill. To keep the probe live-input honest, derive the
+    // expected state from the running popup: the focused flag below copies
+    // the live view focus, the Selected flag copies the live selection, so
+    // a stale-Qt fallback cannot silently satisfy the paint contract.
+    const bool liveHasFocus = view->hasFocus()
+            || (view->viewport() && view->viewport()->hasFocus());
+    const bool liveSelected =
+            view->selectionModel()->isSelected(combo.model()->index(1, 0));
+    QVERIFY2(liveSelected, "live popup must select the keyboard-current row");
+    {
+        QStyleOptionMenuItem menuOption;
+        menuOption.initFrom(view->viewport());
+        menuOption.rect = QRect(0, 0, 220, 40);
+        menuOption.menuItemType = QStyleOptionMenuItem::Normal;
+        menuOption.state = QStyle::State_Enabled
+                | (liveSelected ? QStyle::State_Selected : QStyle::State_None)
+                | (liveHasFocus ? QStyle::State_HasFocus : QStyle::State_None);
+        menuOption.checked = false;
+        menuOption.text = QStringLiteral("Beta");
+        menuOption.font = combo.font();
+        menuOption.fontMetrics = QFontMetrics(combo.font());
+        QImage menuImage(menuOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        menuImage.fill(background);
+        {
+            QPainter painter(&menuImage);
+            style->drawControl(QStyle::CE_MenuItem, &menuOption, &painter, &combo);
+        }
+        QCOMPARE(menuImage.pixelColor(0, menuImage.height() / 2), background);
+        // The subtleHover ink is alpha 9: a row without the pill differs from
+        // the expected composite by ~27, while the painted pill is within
+        // ~2. Require BOTH: the ink is measurably present (distance from the
+        // row background) and it matches the subtleHover composite tightly.
+        // Pre-fix, the CE_MenuItem combo path ignored keyboard current and
+        // left the row at background -> the ink-presence leg fails.
+        const QColor probeCenter =
+                menuImage.pixelColor(menuImage.width() / 2, menuImage.height() / 2);
+        QVERIFY2(colorDistance(probeCenter, background) > 6,
+                 qPrintable(QStringLiteral("no pill ink on keyboard-current row: %1,%2,%3")
+                                    .arg(probeCenter.red())
+                                    .arg(probeCenter.green())
+                                    .arg(probeCenter.blue())));
+        QVERIFY2(colorDistance(probeCenter, expectedHover) < 20,
+                 qPrintable(QStringLiteral("pill color %1,%2,%3 vs expected %4,%5,%6")
+                                    .arg(probeCenter.red())
+                                    .arg(probeCenter.green())
+                                    .arg(probeCenter.blue())
+                                    .arg(expectedHover.red())
+                                    .arg(expectedHover.green())
+                                    .arg(expectedHover.blue())));
+    }
+
+    const auto pillFillAt = [&](int row) -> QColor {
+        const QRect rowRect = view->visualRect(combo.model()->index(row, 0));
+        if (!rowRect.isValid())
+            return QColor();
+        return grab.pixelColor(rowRect.center().x(), rowRect.center().y());
+    };
+    // Mechanism: the keyboard-current row paints the shared hover fill.
+    const QColor row1Fill = pillFillAt(1);
+    QVERIFY2(row1Fill.isValid(), "row 1 rect invalid");
+    QVERIFY2(colorDistance(row1Fill, expectedHover) < 48,
+             qPrintable(QStringLiteral("row1=%1,%2,%3 expected hover %4,%5,%6")
+                                .arg(row1Fill.red())
+                                .arg(row1Fill.green())
+                                .arg(row1Fill.blue())
+                                .arg(expectedHover.red())
+                                .arg(expectedHover.green())
+                                .arg(expectedHover.blue())));
+    // Geometry: the pill keeps the shared combo insets on the same row.
+    // The selected-row accent marker lives in the leading gutter (x=4..10),
+    // so probe the fill just right of it; the row edge itself must stay the
+    // popup surface on both sides.
+    const QRect row1 = view->visualRect(combo.model()->index(1, 0));
+    QVERIFY(row1.width() > 16);
+    QVERIFY2(colorDistance(grab.pixelColor(row1.left(), row1.center().y()), background) < 48,
+             "pill must stay inside the row on the leading edge");
+    QVERIFY2(colorDistance(grab.pixelColor(row1.right(), row1.center().y()), background) < 48,
+             "pill must stay inside the row on the trailing edge");
+    QVERIFY2(colorDistance(grab.pixelColor(row1.left() + 12, row1.center().y()), expectedHover)
+                    < 48,
+             "pill fill must start inside the shared inset");
+    // The value row keeps only its accent marker, never the hover fill.
+    const QColor row0Fill = pillFillAt(0);
+    QVERIFY2(row0Fill.isValid(), "row 0 rect invalid");
+    QVERIFY2(colorDistance(row0Fill, background) < 48,
+             qPrintable(QStringLiteral("value row must not take the hover fill")));
+    const QColor accent = view->viewport()->palette().color(QPalette::Highlight);
+    bool markerInk = false;
+    const QRect row0 = view->visualRect(combo.model()->index(0, 0));
+    for (int x = 4; x <= 10 && !markerInk; ++x) {
+        if (colorDistance(grab.pixelColor(x, row0.center().y()), accent) < 100)
+            markerInk = true;
+    }
+    QVERIFY2(markerInk, "value row must keep its accent marker");
+    combo.hidePopup();
+}
+
+void WinUI3ComboBoxTest::autoSuggestHoverPillMatchesMenuPill()
+{
+    // Unified popup lane: a QCompleter (AutoSuggestBox) hover row must paint
+    // the identical inset pill as a menu row — same helper
+    // (paintPopupRowPill), same 4,2 insets, same 3px radius, same fill
+    // token — with text-gutter parity (16px leading when there is no
+    // icon/check slot, 42px otherwise).
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+
+    QLineEdit editor;
+    auto *completer = new QCompleter(
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                         QStringLiteral("Gamma"), QStringLiteral("Delta") },
+            &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(300, 32);
+    editor.show();
+    editor.setFocus();
+    completer->setCompletionPrefix(QStringLiteral("a"));
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QAbstractItemView *popup = completer->popup();
+    QVERIFY(popup);
+    // The AutoSuggestBox flyout is the view window itself: a styled frame
+    // would paint a square PE_Frame border over the rounded popup surface,
+    // leaving the first/last hovered row's 4,2 pill flush against a square
+    // edge — the reported ugly mouseover edges. The shared popup-surface
+    // prep drops that frame (the DWM rounded region keeps the corners).
+    if (auto *frame = qobject_cast<QFrame *>(popup))
+        QCOMPARE(frame->frameShape(), QFrame::NoFrame);
+
+    // Hover the second row with real pointer input, then grab the live
+    // viewport. QCompleter does not move currentIndex/selection on hover —
+    // the delegate paints the pill from the MouseOver item state — so the
+    // grab assertions below are the hover-landed proof: fill at the hovered
+    // row center, surface at its edges.
+    const QModelIndex hoverIdx = popup->model()->index(1, 0);
+    const QRect hoverRect = popup->visualRect(hoverIdx);
+    QVERIFY(hoverRect.isValid());
+    QTest::mouseMove(popup->viewport(), hoverRect.center());
+    QCoreApplication::processEvents();
+    const QImage live = popup->viewport()->grab().toImage();
+    QCOMPARE(live.size(), popup->viewport()->size());
+    const QColor base = popup->viewport()->palette().color(QPalette::Base);
+    const WinUI3::Private::Tokens tokens =
+            WinUI3::Private::tokens(popup->viewport()->palette());
+    QColor expectedHover = tokens.subtleHover;
+    {
+        QImage mix(1, 1, QImage::Format_ARGB32_Premultiplied);
+        mix.fill(base);
+        QPainter painter(&mix);
+        painter.fillRect(mix.rect(), expectedHover);
+        painter.end();
+        expectedHover = mix.pixelColor(0, 0);
+    }
+    QCOMPARE(colorDistance(live.pixelColor(hoverRect.center()), expectedHover) < 48, true);
+    // subtleHover ink is alpha 9: a non-hovered row is only ~27 away from the
+    // composite, so a loose threshold cannot tell a painted pill from an
+    // unpainted row. Require the ink to be measurably present AND tight.
+    const QColor hoverCenter = live.pixelColor(hoverRect.center());
+    QVERIFY2(colorDistance(hoverCenter, base) > 6,
+             qPrintable(QStringLiteral("no hover ink at row center: %1,%2,%3")
+                                .arg(hoverCenter.red())
+                                .arg(hoverCenter.green())
+                                .arg(hoverCenter.blue())));
+    QVERIFY2(colorDistance(hoverCenter, expectedHover) < 20,
+             qPrintable(QStringLiteral("hover color %1,%2,%3 vs expected %4,%5,%6")
+                                .arg(hoverCenter.red())
+                                .arg(hoverCenter.green())
+                                .arg(hoverCenter.blue())
+                                .arg(expectedHover.red())
+                                .arg(expectedHover.green())
+                                .arg(expectedHover.blue())));
+    // Identical 4,2 insets: surface color at the row corners, fill inside.
+    QCOMPARE(colorDistance(live.pixelColor(hoverRect.left() + 1, hoverRect.center().y()), base)
+                     < 48,
+             true);
+    QCOMPARE(colorDistance(live.pixelColor(hoverRect.left() + 6, hoverRect.center().y()),
+                           expectedHover)
+                     < 48,
+             true);
+
+    // Ghosting guard: sweeping the hover across rows must not accumulate
+    // translucent fills. Move to the next row and require the OLD row to
+    // read as plain surface again — a SourceOver Base rebuild would leave
+    // the previous pill bleeding through (the live mouseover ghost).
+    const QModelIndex nextIdx = popup->model()->index(2, 0);
+    const QRect nextRect = popup->visualRect(nextIdx);
+    QVERIFY(nextRect.isValid());
+    QTest::mouseMove(popup->viewport(), nextRect.center());
+    QCoreApplication::processEvents();
+    const QImage swept = popup->viewport()->grab().toImage();
+    QCOMPARE(swept.size(), popup->viewport()->size());
+    QVERIFY2(colorDistance(swept.pixelColor(hoverRect.center()), base) < 48,
+             qPrintable(QStringLiteral("stale hover ink at old row: %1,%2,%3")
+                                .arg(swept.pixelColor(hoverRect.center()).red())
+                                .arg(swept.pixelColor(hoverRect.center()).green())
+                                .arg(swept.pixelColor(hoverRect.center()).blue())));
+    QVERIFY2(colorDistance(swept.pixelColor(nextRect.center()), expectedHover) < 48,
+             "hover pill must follow to the new row");
+
+    // Same pill through the menu path: CE_MenuItem Selected on a 36px row
+    // must produce the same insets and the same fill token.
+    QMenu menu;
+    QStyleOptionMenuItem menuOption;
+    menuOption.initFrom(&menu);
+    menuOption.rect = QRect(0, 0, hoverRect.width(), 36);
+    menuOption.menuItemType = QStyleOptionMenuItem::Normal;
+    menuOption.state = QStyle::State_Enabled | QStyle::State_Selected;
+    menuOption.text = QStringLiteral("Beta");
+    menuOption.font = menu.font();
+    menuOption.fontMetrics = QFontMetrics(menu.font());
+    const QColor menuSurface = menu.palette().color(QPalette::Window);
+    QImage menuImg(menuOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    menuImg.fill(menuSurface);
+    {
+        QPainter painter(&menuImg);
+        style->drawControl(QStyle::CE_MenuItem, &menuOption, &painter, &menu);
+    }
+    QCOMPARE(menuImg.size(), menuOption.rect.size());
+    QCOMPARE(colorDistance(menuImg.pixelColor(1, menuImg.height() / 2), menuSurface) < 48, true);
+    QColor expectedMenuHover = tokens.subtleHover;
+    {
+        QImage mix(1, 1, QImage::Format_ARGB32_Premultiplied);
+        mix.fill(menuSurface);
+        QPainter painter(&mix);
+        painter.fillRect(mix.rect(), expectedMenuHover);
+        painter.end();
+        expectedMenuHover = mix.pixelColor(0, 0);
+    }
+    QCOMPARE(colorDistance(menuImg.pixelColor(6, menuImg.height() / 2), expectedMenuHover) < 48,
+             true);
+    completer->popup()->hide();
+}
+
+void WinUI3ComboBoxTest::autoSuggestCompositedHoverRebuildsRowFrame()
+{
+    // Live defect (a): gallery Controls-page autoSuggestEdit typing +
+    // mouse-moving across rows smears translucent fills on live mica. The
+    // completer viewport deliberately keeps WA_OpaquePaintEvent off
+    // (claiming it retains old frames as dark ghosts), so CE_ItemViewItem
+    // rebuilds every row from the Base role — but on a composited
+    // presenter that role is a TRANSLUCENT tint, and the PE pill path then
+    // erases the row to transparent first. Row frames must rebuild from
+    // the OPAQUE flyout color instead, so every repaint is idempotent.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+
+    QLineEdit editor;
+    auto *completer = new QCompleter(
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                         QStringLiteral("Gamma"), QStringLiteral("Delta") },
+            &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(300, 32);
+    editor.show();
+    editor.setFocus();
+    completer->setCompletionPrefix(QStringLiteral("a"));
+    completer->complete();
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QAbstractItemView *popup = completer->popup();
+    QVERIFY(popup);
+    QWidget *viewport = popup->viewport();
+    QVERIFY(viewport);
+    // Dark-ghost lock: the viewport stays non-opaque; the fix must not
+    // reclaim the opaque claim to stop the smear.
+    QCOMPARE(viewport->testAttribute(Qt::WA_OpaquePaintEvent), false);
+
+    // Live-input anchor: hover a row for real, then grab the viewport.
+    const QModelIndex hoverIdx = popup->model()->index(1, 0);
+    const QRect hoverRect = popup->visualRect(hoverIdx);
+    QVERIFY(hoverRect.isValid());
+    QTest::mouseMove(viewport, hoverRect.center());
+    QCoreApplication::processEvents();
+    QVERIFY(popup->isVisible());
+    const QPixmap liveGrab = viewport->grab();
+    QVERIFY(!liveGrab.isNull());
+    QCOMPARE(liveGrab.size(), viewport->size());
+
+    // Simulate the live composited recipe offscreen: Composited publish +
+    // translucent Base/Window roles, exactly what the acrylic branch leaves
+    // behind on a working DWM.
+    const QColor opaqueBase = viewport->palette().color(QPalette::Base);
+    QCOMPARE(opaqueBase.alpha(), 255);
+    QWidget *window = popup->window();
+    window->setProperty("_winui_backdrop", 3); // Acrylic
+    window->setProperty("_winui_backdrop_effective", 2); // Composited
+    QColor tint = opaqueBase;
+    tint.setAlpha(242);
+    QPalette poisoned = viewport->palette();
+    poisoned.setColor(QPalette::Base, tint);
+    poisoned.setColor(QPalette::Window, tint);
+    viewport->setPalette(poisoned);
+
+    const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(viewport->palette());
+    QColor expectedHover = tokens.subtleHover;
+    {
+        QImage mix(1, 1, QImage::Format_ARGB32_Premultiplied);
+        mix.fill(opaqueBase);
+        QPainter painter(&mix);
+        painter.fillRect(mix.rect(), expectedHover);
+        painter.end();
+        expectedHover = mix.pixelColor(0, 0);
+    }
+
+    const QRect rowRect(0, 0, hoverRect.width(), hoverRect.height());
+    QVERIFY(rowRect.width() > 16 && rowRect.height() > 8);
+    const auto paintRow = [&](QImage &canvas, bool hovered) {
+        QStyleOptionViewItem option;
+        option.initFrom(viewport);
+        option.widget = viewport;
+        option.rect = rowRect;
+        option.index = hoverIdx;
+        option.features = QStyleOptionViewItem::HasDisplay;
+        option.text = QStringLiteral("Beta");
+        option.state = QStyle::State_Enabled
+                | (hovered ? QStyle::State_MouseOver : QStyle::State_None);
+        QPainter painter(&canvas);
+        style->drawControl(QStyle::CE_ItemViewItem, &option, &painter, viewport);
+    };
+
+    // Mechanism 1: a hovered row keeps an opaque frame. Pre-fix the PE
+    // erase clears the CE rebuild to transparent and the pill floats over
+    // the hole (alpha ~9: the live dark ghost sitting on the hovered row).
+    // Pair each grab/pixelColor assertion with a QCOMPARE on the same
+    // state: center carries the composited hover ink, the row corner reads
+    // the CE row surface between pill and row edge (the autosuggest pill
+    // keeps the shared 4,2 insets, so x=1/2 sit outside the pill).
+    QImage hoveredFrame(rowRect.size(), QImage::Format_ARGB32_Premultiplied);
+    QVERIFY(!hoveredFrame.isNull() && !hoveredFrame.size().isEmpty());
+    hoveredFrame.fill(tint);
+    paintRow(hoveredFrame, true);
+    const QColor hoveredCenter = hoveredFrame.pixelColor(hoveredFrame.rect().center());
+    QCOMPARE(hoveredCenter.alpha(), 255);
+    QCOMPARE(colorDistance(hoveredCenter, expectedHover) < 48, true);
+    QCOMPARE(colorDistance(hoveredFrame.pixelColor(1, 1), opaqueBase) < 48, true);
+
+    // Mechanism 2: hover-leave restores the plain opaque surface. Both
+    // frames share one retained canvas like the Qt backing store; pre-fix
+    // the old row keeps the translucent tint (alpha 242: the smear the
+    // next mouseover blends over).
+    paintRow(hoveredFrame, false);
+    const QColor leftCenter = hoveredFrame.pixelColor(hoveredFrame.rect().center());
+    QCOMPARE(leftCenter.alpha(), 255);
+    QCOMPARE(colorDistance(leftCenter, opaqueBase) < 48, true);
+    completer->popup()->hide();
 }
 
 QTEST_MAIN(WinUI3ComboBoxTest)
