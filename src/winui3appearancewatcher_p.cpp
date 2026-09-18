@@ -2,6 +2,8 @@
 #include "winui3appearancewatcher_p.h"
 
 #include <QCoreApplication>
+#include <QPointer>
+#include <QThread>
 #include <QTimer>
 
 #include <utility>
@@ -58,22 +60,111 @@ SystemAppearanceWatcher::SystemAppearanceWatcher(Callback callback, QObject *con
 
 SystemAppearanceWatcher::~SystemAppearanceWatcher()
 {
-    setActive(false);
+    uninstallNow();
+    m_active = false;
 }
 
 void SystemAppearanceWatcher::setActive(bool active)
 {
     m_active = active;
 #ifdef Q_OS_WIN
+    if (active)
+        ensureInstalled();
+    else
+        uninstallNow();
+#else
+    Q_UNUSED(active);
+#endif
+}
+
+void SystemAppearanceWatcher::ensureInstalled()
+{
+#ifdef Q_OS_WIN
+    if (!m_active || m_installed)
+        return;
+    // Native filters live on the GUI thread. Retrying from a worker thread
+    // would install on the wrong thread, so defer until the GUI thread can
+    // perform the install.
+    if (QCoreApplication *existing = QCoreApplication::instance()) {
+        if (QThread::currentThread() != existing->thread()) {
+            // Guard the watcher lifetime: the functor carries no QObject
+            // context (it must run on the application's thread, not the
+            // watcher's), so a QPointer bails out if the watcher is
+            // destroyed before the queued delivery runs.
+            QPointer<SystemAppearanceWatcher> guard(this);
+            QMetaObject::invokeMethod(
+                    existing,
+                    [guard] {
+                        if (guard)
+                            guard->ensureInstalled();
+                    },
+                    Qt::QueuedConnection);
+            return;
+        }
+    }
     QCoreApplication *application = QCoreApplication::instance();
-    if (active && application && !m_installed) {
-        application->installNativeEventFilter(this);
-        m_installed = true;
-    } else if (!active && application && m_installed) {
-        if (m_debounceTimer)
-            m_debounceTimer->stop();
-        application->removeNativeEventFilter(this);
+    if (!application) {
+        // Constructed before QApplication exists: retry once the application
+        // object's event loop can deliver. This must be a queued invocation,
+        // not a QTimer::singleShot: starting a timer needs an event
+        // dispatcher, which does not exist yet before the first application
+        // object is constructed, so the single-shot would silently die. A
+        // queued call is parked in the thread's posted-event list and runs
+        // after the new application's constructor completes, so instance()
+        // is valid there. Same-thread destruction is safe: QObject's
+        // destructor removes its own posted events.
+        QMetaObject::invokeMethod(this, [this] { ensureInstalled(); }, Qt::QueuedConnection);
+        return;
+    }
+    if (m_hostApplication && m_hostApplication != application) {
+        // A previous host was torn down without uninstalling (see
+        // uninstallNow): never forward that stale filter into the new app.
         m_installed = false;
+        m_hostApplication.clear();
+    }
+    application->installNativeEventFilter(this);
+    m_installed = true;
+    m_hostApplication = application;
+    // If this host application is destroyed while the watcher outlives it,
+    // clear the install state so a later QApplication gets a fresh install
+    // (QObject::destroyed carries the host as sender; this as receiver
+    // keeps delivery on the right thread and auto-disconnects). The
+    // connection is tracked so uninstallNow() can disconnect it: without
+    // that, repeated activate/deactivate cycles would accumulate one
+    // destroyed() handler per cycle on a long-lived application.
+    QObject::disconnect(m_hostDestroyedConnection);
+    m_hostDestroyedConnection =
+            connect(application, &QObject::destroyed, this, [this] { onHostApplicationDestroyed(); });
+#endif
+}
+
+void SystemAppearanceWatcher::onHostApplicationDestroyed()
+{
+    m_installed = false;
+    m_hostApplication.clear();
+    m_hostDestroyedConnection = QMetaObject::Connection{};
+}
+
+void SystemAppearanceWatcher::uninstallNow()
+{
+#ifdef Q_OS_WIN
+    if (m_debounceTimer)
+        m_debounceTimer->stop();
+    // Clear the installed flag even when no application exists anymore: the
+    // host QPointer auto-nulls on QCoreApplication destruction, but an
+    // attempt to remove the filter from a null instance would otherwise
+    // leave m_installed stale and leak the expectation of a filter into a
+    // future QApplication. Disconnecting the tracked teardown handler keeps
+    // activate/deactivate cycles from accumulating duplicate destroyed()
+    // handlers on a long-lived application.
+    m_installed = false;
+    QObject::disconnect(m_hostDestroyedConnection);
+    m_hostDestroyedConnection = QMetaObject::Connection{};
+    if (m_hostApplication) {
+        m_hostApplication->removeNativeEventFilter(this);
+        m_hostApplication.clear();
+    } else if (QCoreApplication *application = QCoreApplication::instance()) {
+        application->removeNativeEventFilter(this);
     }
 #endif
 }
