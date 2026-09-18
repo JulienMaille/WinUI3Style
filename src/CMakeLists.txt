@@ -55,6 +55,7 @@ add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     navigationview_p.cpp
     winui3backdrop_p.h
     winui3backdrop.cpp
+    winui3icons_p.h
     winui3icons.cpp
     toggleswitch.cpp
     settingscard.cpp

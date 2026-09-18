@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/winui3icons.h>
 
+#include "winui3icons_p.h"
 #include "winui3qtcompat_p.h"
 
 #include <QFont>
@@ -148,6 +149,10 @@ public:
         }
     }
 
+    // GUI-thread-only: the QPointer, QString and QCache members below are
+    // mutated here (and cleared by invalidate()). Callers must only reach
+    // this runtime where canUseGuiCache() is true; worker-thread paint uses
+    // offThreadFluentFont() and never touches the runtime.
     QString fluentFontFamily()
     {
         syncApplication();
@@ -169,7 +174,7 @@ public:
         return m_fontFamily;
     }
 
-    const QFont &fluentFont(int pixelSize)
+    QFont fluentFont(int pixelSize)
     {
         syncApplication();
         if (QFont *cached = m_fonts.object(pixelSize))
@@ -180,6 +185,12 @@ public:
         m_fonts.insert(pixelSize, new QFont(font));
         return *m_fonts.object(pixelSize);
     }
+
+    // Test-only seams (see src/winui3icons_p.h): the icons unit test drives
+    // these to prove worker-thread isolation and value semantics. Production
+    // code must not use them.
+    bool fontFamilyResolvedForTest() const { return m_fontFamilyResolved; }
+    void invalidateForTest() { invalidate(); }
 
     QPixmap *findPixmap(const QString &key) { return m_pixmaps.object(key); }
 
@@ -303,12 +314,17 @@ public:
         const int pixelSize = qMax(8, qMin(rect.width(), rect.height()));
         if (canUseGuiCache()) {
             // The cached font is created with the exact same family and
-            // pixel-size operations as the historical per-paint path. Keep
-            // the old construction for non-GUI callers because QCache is
-            // intentionally confined to the application thread.
+            // pixel-size operations as the historical per-paint path.
+            // By-value return: each caller gets its own implicitly-shared
+            // copy, so a later invalidate()/clear() or LRU eviction cannot
+            // delete the object out from under an outstanding reference.
             painter->setFont(iconRuntime().fluentFont(pixelSize));
         } else {
-            QFont font(iconRuntime().fluentFontFamily());
+            // Worker-thread paint: never touch the shared IconRuntime
+            // (GUI-thread-only QPointer/QCache/mutation). Construct the font
+            // directly from the preferred family; Qt performs its normal
+            // fallback if the family is unavailable.
+            QFont font(QStringLiteral("Segoe Fluent Icons"));
             font.setPixelSize(pixelSize);
             painter->setFont(font);
         }
@@ -356,6 +372,40 @@ QIcon icon(Icon glyph)
 {
     return cachedIcon(glyph);
 }
+
+namespace Private {
+
+QFont fluentFontForTest(int pixelSize)
+{
+    // Fixed: by-value return (QFont is implicitly shared, cheap) so callers
+    // never alias the QCache-owned slot that invalidate()/clear() or LRU
+    // eviction can delete.
+    return iconRuntime().fluentFont(pixelSize);
+}
+
+QFont offThreadFluentFontForTest(int pixelSize)
+{
+    // Fixed: mirrors the corrected worker-thread paint path — constructs
+    // the font without touching the shared IconRuntime, so a worker-thread
+    // resolution leaves iconFontCacheResolvedForTest() false.
+    if (canUseGuiCache())
+        return iconRuntime().fluentFont(pixelSize);
+    QFont font(QStringLiteral("Segoe Fluent Icons"));
+    font.setPixelSize(pixelSize);
+    return font;
+}
+
+bool iconFontCacheResolvedForTest()
+{
+    return iconRuntime().fontFamilyResolvedForTest();
+}
+
+void invalidateIconCachesForTest()
+{
+    iconRuntime().invalidateForTest();
+}
+
+} // namespace Private
 
 QIcon icon(Icon glyph, const QColor &color)
 {
