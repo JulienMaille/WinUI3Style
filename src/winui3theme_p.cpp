@@ -5,6 +5,8 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QSettings>
 
 #ifdef Q_OS_WIN
@@ -48,10 +50,17 @@ struct SystemAppearanceCache
 
 SystemAppearanceCache &systemAppearanceCache()
 {
-    // All callers are on Qt's GUI thread. Keeping this cache process-local
-    // also avoids sharing QSettings instances across threads.
+    // Guarded by systemAppearanceCacheMutex(). Callers lock only around
+    // the fast cache read/write below; the slow registry/DWM probes run
+    // outside the lock so paint-path callers never block on I/O.
     static SystemAppearanceCache cache;
     return cache;
+}
+
+QMutex &systemAppearanceCacheMutex()
+{
+    static QMutex mutex;
+    return mutex;
 }
 #endif
 
@@ -60,18 +69,28 @@ SystemAppearanceCache &systemAppearanceCache()
 bool systemUsesDarkTheme()
 {
 #ifdef Q_OS_WIN
-    auto &cache = systemAppearanceCache();
-    if (cache.darkInitialized && cache.darkFresh())
-        return cache.dark;
+    {
+        const QMutexLocker locker(&systemAppearanceCacheMutex());
+        auto &cache = systemAppearanceCache();
+        if (cache.darkInitialized && cache.darkFresh())
+            return cache.dark;
+    }
+    // Slow registry probe runs outside the cache lock so GUI paint-path
+    // callers only hold the mutex for the fast copy above/below.
     QSettings settings(
             QStringLiteral(
                     "HKEY_CURRENT_"
                     "USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
             QSettings::NativeFormat);
-    cache.dark = settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
-    cache.darkInitialized = true;
-    cache.darkAge.start();
-    return cache.dark;
+    const bool dark = settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
+    {
+        const QMutexLocker locker(&systemAppearanceCacheMutex());
+        auto &cache = systemAppearanceCache();
+        cache.dark = dark;
+        cache.darkInitialized = true;
+        cache.darkAge.start();
+    }
+    return dark;
 #else
     return qGray(QApplication::palette().color(QPalette::Window).rgb()) < 128;
 #endif
@@ -80,9 +99,15 @@ bool systemUsesDarkTheme()
 void invalidateSystemAppearanceCache()
 {
 #ifdef Q_OS_WIN
+    const QMutexLocker locker(&systemAppearanceCacheMutex());
     auto &cache = systemAppearanceCache();
     cache.darkInitialized = false;
     cache.accentInitialized = false;
+    // Reset the freshness timers as well: darkFresh()/accentFresh() consult
+    // QElapsedTimer validity, so clearing only the bools would leave a stale
+    // "fresh" window behind if a later write reuses an old timer value.
+    cache.darkAge.invalidate();
+    cache.accentAge.invalidate();
 #endif
 }
 
@@ -90,9 +115,12 @@ SystemAccentRamp systemAccentRamp()
 {
     SystemAccentRamp ramp;
 #ifdef Q_OS_WIN
-    auto &cache = systemAppearanceCache();
-    if (cache.accentInitialized && cache.accentFresh())
-        return cache.accentRamp;
+    {
+        const QMutexLocker locker(&systemAppearanceCacheMutex());
+        auto &cache = systemAppearanceCache();
+        if (cache.accentInitialized && cache.accentFresh())
+            return cache.accentRamp;
+    }
     // Explorer stores the Windows accent ramp as RGBA entries ordered
     // Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, complement.
     // These are the same SystemAccentColor* roles consumed by WinUI's
@@ -138,9 +166,13 @@ SystemAccentRamp systemAccentRamp()
     if (!ramp.dark1.isValid())
         ramp.dark1 = mix(ramp.accent, QColor(Qt::black), 0.18);
 #ifdef Q_OS_WIN
-    cache.accentRamp = ramp;
-    cache.accentInitialized = true;
-    cache.accentAge.start();
+    {
+        const QMutexLocker locker(&systemAppearanceCacheMutex());
+        auto &cache = systemAppearanceCache();
+        cache.accentRamp = ramp;
+        cache.accentInitialized = true;
+        cache.accentAge.start();
+    }
 #endif
     return ramp;
 }
@@ -152,12 +184,15 @@ QColor systemAccentColor()
 
 QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAccent)
 {
-    const SystemAccentRamp systemRamp = explicitAccent ? SystemAccentRamp{} : systemAccentRamp();
+    // An invalid explicit accent degrades to the system-ramp path so the
+    // palette never publishes an invalid Highlight/Link (see header contract).
+    const bool useExplicit = explicitAccent && accent.isValid();
+    const SystemAccentRamp systemRamp = useExplicit ? SystemAccentRamp{} : systemAccentRamp();
     // WinUI AccentFillColorDefaultBrush is theme-specific: Light uses
     // SystemAccentColorDark1, while Dark uses SystemAccentColorLight2.
-    const QColor accentFill = explicitAccent ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
-                                                          : mix(accent, QColor(Qt::black), 0.18))
-                                             : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
+    const QColor accentFill = useExplicit ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
+                                                       : mix(accent, QColor(Qt::black), 0.18))
+                                          : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
     QPalette palette;
 
     if (darkTheme) {
@@ -206,11 +241,15 @@ QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAcce
 
     // TextOnAccentFillColorSelectedText is fixed white in both WinUI theme
     // dictionaries; it is distinct from button text-on-accent roles.
+    // Selection/link roles follow the same rule as the accent fill above:
+    // the explicit accent when one was provided, otherwise the live system
+    // accent, so the palette never mixes a stale argument with a live ramp.
+    const QColor selectionAccent = useExplicit ? accent : systemRamp.accent;
     const QColor textOnAccent(Qt::white);
-    palette.setColor(QPalette::Highlight, accent); // system selection accent
+    palette.setColor(QPalette::Highlight, selectionAccent); // system selection accent
     palette.setColor(QPalette::HighlightedText, textOnAccent);
-    palette.setColor(QPalette::Link, accent);
-    palette.setColor(QPalette::LinkVisited, accent.darker(112));
+    palette.setColor(QPalette::Link, selectionAccent);
+    palette.setColor(QPalette::LinkVisited, selectionAccent.darker(112));
     palette.setColor(QPalette::BrightText, textOnAccent);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     // WinUI uses SystemAccentColor for selection, but Light2 in dark mode and
