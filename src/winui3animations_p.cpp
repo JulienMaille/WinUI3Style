@@ -74,7 +74,14 @@ void FrameAnimationDriver::forget(QWidget *widget, const QByteArray &property,
     }
     if (animation) {
         animation->stop();
-        delete animation;
+        // Deferred: forget() can run while the animation is still emitting
+        // (animate()'s instant path stops a live animation, and stop() may be
+        // re-entered from a valueChanged slot). Deleting the sender here would
+        // free `this` while its emission/stop epilogue is on the stack.
+        // Detached first so style->findChildren() stops counting the zombie
+        // immediately; QPointer/deleteLater still govern the real lifetime.
+        animation->setParent(nullptr);
+        animation->deleteLater();
     }
 }
 
@@ -116,13 +123,25 @@ QVariantAnimation *FrameAnimationDriver::ensure(QWidget *widget, const char *pro
                          const auto propertyIt = widgetIt->find(propertyName);
                          if (propertyIt == widgetIt->end() || propertyIt->data() != animation)
                              return;
+                         // Erase first so a re-animate() in the same event-loop
+                         // turn allocates a fresh animation instead of
+                         // resurrecting this one before deleteLater() runs.
                          widgetIt->erase(propertyIt);
                          if (widgetIt->isEmpty()) {
                              m_animations.erase(widgetIt);
                              if (const auto connection = m_cleanupConnections.take(widget))
                                  QObject::disconnect(connection);
                          }
-                         delete animation;
+                         // Deferred: this slot runs inside the sender's own
+                         // `finished` emission, and on the stop() path inside
+                         // QAbstractAnimation::stop() itself. A synchronous
+                         // delete frees `this` while that emission/epilogue
+                         // may still touch it after slots return. Detached
+                         // first so style->findChildren() stops counting the
+                         // zombie immediately; QPointer/deleteLater still
+                         // govern the real lifetime.
+                         animation->setParent(nullptr);
+                         animation->deleteLater();
                      });
     return animation;
 }
@@ -164,12 +183,19 @@ void FrameAnimationDriver::stop(QWidget *widget)
     if (!widget)
         return;
     if (auto it = m_animations.find(widget); it != m_animations.end()) {
+        // Erase first: stop()/forget() may run re-entrantly from inside an
+        // animation's own emission, and the QObjects below die via
+        // deleteLater, so the map must not reference them in the meantime and
+        // a same-turn re-animate() must create a fresh animation.
         const auto propertyAnimations = std::move(it.value());
         m_animations.erase(it);
         for (const QPointer<QVariantAnimation> &animation : propertyAnimations) {
             if (animation) {
                 animation->stop();
-                delete animation;
+                // Detached so style->findChildren() stops counting the
+                // zombie immediately; see forget() for the rationale.
+                animation->setParent(nullptr);
+                animation->deleteLater();
             }
         }
     }
