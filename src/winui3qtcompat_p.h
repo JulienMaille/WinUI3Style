@@ -55,6 +55,9 @@ inline QPointF mouseGlobalPosition(const QMouseEvent *e)
 
 // QWidget::screen() is Qt 6 only. On Qt 5 resolve the screen from the
 // widget's window handle, falling back to the screen under its center.
+// widget->geometry() is parent-relative for child widgets, but
+// QApplication::screenAt() takes a global point: map to global first so
+// the screen query sees the widget's real position.
 inline QScreen *widgetScreen(const QWidget *widget)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -65,12 +68,16 @@ inline QScreen *widgetScreen(const QWidget *widget)
     if (QWindow *window = widget->windowHandle())
         if (QScreen *screen = window->screen())
             return screen;
-    return QApplication::screenAt(widget->geometry().center());
+    const QPoint globalCenter = widget->mapToGlobal(widget->rect().center());
+    return QApplication::screenAt(globalCenter);
 #endif
 }
 
 // QIcon::pixmap(size, dpr, mode, state) exists from Qt 6. On Qt 5 request
-// the device-resolution pixmap and pin its DPR instead.
+// the device-resolution pixmap and pin its DPR instead. Round the scaled
+// size up (qCeil) so fractional DPRs (125%/150%) keep full requested
+// coverage; truncating would return a pixmap narrower than the layout slot
+// and leave a one-pixel gap or blur.
 inline QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal dpr, QIcon::Mode mode,
                           QIcon::State state)
 {
@@ -78,7 +85,8 @@ inline QPixmap iconPixmap(const QIcon &icon, const QSize &size, qreal dpr, QIcon
     return icon.pixmap(size, dpr, mode, state);
 #else
     const qreal factor = qMax<qreal>(dpr, 1.0);
-    QPixmap pixmap = icon.pixmap(size * factor, mode, state);
+    const QSize deviceSize(qCeil(size.width() * factor), qCeil(size.height() * factor));
+    QPixmap pixmap = icon.pixmap(deviceSize, mode, state);
     pixmap.setDevicePixelRatio(factor);
     return pixmap;
 #endif

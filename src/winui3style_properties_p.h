@@ -37,6 +37,7 @@ inline constexpr auto originalSpacingProperty = "_winui_original_layout_spacing"
 inline constexpr auto originalRoleProperty = "_winui_original_control_role";
 inline constexpr auto originalRoleWasValidProperty = "_winui_original_control_role_valid";
 inline constexpr auto originalOpaquePaintProperty = "_winui_original_opaque_paint";
+inline constexpr auto originalStyledBackgroundProperty = "_winui_original_styled_background";
 inline constexpr auto originalTranslucentBackgroundProperty =
         "_winui_original_translucent_background";
 inline constexpr auto originalNoSystemBackgroundProperty = "_winui_original_no_system_background";

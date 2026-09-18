@@ -6,6 +6,7 @@
 #include <QMetaProperty>
 #include <QComboBox>
 #include <QIcon>
+#include <QImage>
 #include <QDateEdit>
 #include <QHeaderView>
 #include <QLineEdit>
@@ -13,10 +14,12 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSignalSpy>
 #include <QStyleOption>
+#include <QStyleOptionComboBox>
 #include <QStyleFactory>
 #include <QTableView>
 #include <QTest>
@@ -50,6 +53,8 @@ private slots:
     void navigationViewRelayoutsAtRuntime();
     void comboClosedTextContracts();
     void spinBoxPrefixSuffixSizingContract();
+    void nullOptionGeometryContracts();
+    void nullWidgetComplexPaintContracts();
     void pluginAliases();
 };
 
@@ -341,6 +346,82 @@ void WinUI3DensityApiTest::comboClosedTextContracts()
                  combo.currentText());
     }
 
+}
+
+void WinUI3DensityApiTest::nullOptionGeometryContracts()
+{
+    // Null-option entry guards: complexControlRect() returns std::nullopt
+    // and subControlRect() returns an empty rect instead of dereferencing
+    // the option; hit-testing a null option reports SC_None.
+    WinUI3::Style style(WinUI3::ThemeMode::Light);
+    QCOMPARE(style.subControlRect(QStyle::CC_ComboBox, nullptr,
+                                  QStyle::SC_ComboBoxEditField, nullptr),
+             QRect());
+    QCOMPARE(style.subControlRect(QStyle::CC_ToolButton, nullptr,
+                                  QStyle::SC_ToolButtonMenu, nullptr),
+             QRect());
+    QCOMPARE(style.subControlRect(QStyle::CC_SpinBox, nullptr,
+                                  QStyle::SC_SpinBoxEditField, nullptr),
+             QRect());
+    QCOMPARE(style.hitTestComplexControl(QStyle::CC_ComboBox, nullptr, QPoint(4, 4), nullptr),
+             QStyle::SC_None);
+    QCOMPARE(style.hitTestComplexControl(QStyle::CC_SpinBox, nullptr, QPoint(4, 4), nullptr),
+             QStyle::SC_None);
+    // Same-state sanity: a valid option still resolves a non-empty slot
+    // inside the offered rect.
+    QStyleOptionComboBox option;
+    option.rect = QRect(0, 0, 120, 32);
+    const QRect slot = style.subControlRect(QStyle::CC_ComboBox, &option,
+                                            QStyle::SC_ComboBoxEditField, nullptr);
+    QVERIFY(!slot.isEmpty());
+    QVERIFY(option.rect.contains(slot));
+}
+
+void WinUI3DensityApiTest::nullWidgetComplexPaintContracts()
+{
+    // Null-widget paint guards: CC_ComboBox must not dereference the widget
+    // (order-fixed widget check before paintsDirectlyOnBackdrop) and the
+    // CE_CheckBox label path must fall back to QApplication::font(). The
+    // toggle-switch label path shares that same fallback pattern but is
+    // only reachable with a live toggle widget (toggleSwitch(widget)
+    // requires a QCheckBox), so the null-widget render below pins the
+    // shared contract on the reachable check path. Exercise both with a
+    // null widget; pair each render with a geometry QCOMPARE on the same
+    // state.
+    WinUI3::Style style(WinUI3::ThemeMode::Light);
+    QStyleOptionComboBox combo;
+    combo.rect = QRect(0, 0, 120, 32);
+    combo.state |= QStyle::State_Enabled;
+    combo.subControls = QStyle::SC_All;
+    QImage comboImage(combo.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    comboImage.fill(Qt::transparent);
+    {
+        QPainter painter(&comboImage);
+        style.drawComplexControl(QStyle::CC_ComboBox, &combo, &painter, nullptr);
+    }
+    QVERIFY(!comboImage.isNull());
+    QCOMPARE(comboImage.size(), combo.rect.size());
+    const QRect comboSlot = style.subControlRect(QStyle::CC_ComboBox, &combo,
+                                                 QStyle::SC_ComboBoxEditField, nullptr);
+    QVERIFY(!comboSlot.isEmpty());
+    QVERIFY(combo.rect.contains(comboSlot));
+
+    // CE_CheckBox with a null widget takes the check/radio label path,
+    // which already falls back to QApplication::font() for the same
+    // null-widget contract the toggle path now mirrors.
+    QStyleOptionButton check;
+    check.rect = QRect(0, 0, 120, 32);
+    check.state |= QStyle::State_Enabled;
+    check.text = QStringLiteral("Option");
+    QImage checkImage(check.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    checkImage.fill(Qt::transparent);
+    {
+        QPainter painter(&checkImage);
+        style.drawControl(QStyle::CE_CheckBox, &check, &painter, nullptr);
+    }
+    QVERIFY(!checkImage.isNull());
+    QCOMPARE(checkImage.size(), check.rect.size());
+    QCOMPARE(check.text, QStringLiteral("Option"));
 }
 
 void WinUI3DensityApiTest::pluginAliases()

@@ -138,6 +138,15 @@ void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect, const QColo
 void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, const QColor &inner,
                     qreal outerInset, qreal innerInset, qreal outerRadius, qreal innerRadius)
 {
+    Q_ASSERT(painter && painter->isActive());
+    // Per-site contract, see header: the inner ring sits inside the outer
+    // ring with non-negative radii. Clamp in release so uncorrelated doubles
+    // degrade to coincident rings instead of inverted/negative painting.
+    Q_ASSERT(outerRadius >= 0.0 && innerRadius >= 0.0);
+    Q_ASSERT(innerInset >= outerInset && innerRadius <= outerRadius);
+    outerRadius = qMax<qreal>(outerRadius, 0.0);
+    innerRadius = qMin<qreal>(qMax<qreal>(innerRadius, 0.0), outerRadius);
+    innerInset = qMax(innerInset, outerInset);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setBrush(Qt::NoBrush);

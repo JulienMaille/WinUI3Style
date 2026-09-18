@@ -13,6 +13,10 @@ class QWidget;
 
 namespace WinUI3::Private {
 
+// Null contract: option may be null (metric queries commonly arrive with a
+// null or default-constructed option, e.g. QMenuBar geometry). A null option
+// yields std::nullopt / SC_None rather than dereferencing; callers must
+// treat nullopt as "no WinUI override, fall back to base QStyle".
 std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitch,
                                     const QWidget *widget = nullptr);
 
@@ -26,10 +30,14 @@ QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction, Densit
 QRectF toggleKnobRect(const QRectF &track, qreal position, qreal hover, qreal press,
                       Qt::LayoutDirection direction);
 
+// Same null contract as pixelMetricValue: a null option returns nullopt
+// (no WinUI override) without dereferencing.
 std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                                         const QStyleOptionComplex *option,
                                         QStyle::SubControl subControl, const QWidget *widget);
 
+// Null option or a position outside option->rect returns SC_None without
+// dereferencing.
 std::optional<QStyle::SubControl> complexControlHitTest(QStyle::ComplexControl control,
                                                         const QStyleOptionComplex *option,
                                                         const QPoint &position,

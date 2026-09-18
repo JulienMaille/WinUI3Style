@@ -103,6 +103,18 @@ inline QColor withAlpha(QColor color, int alpha)
     return color;
 }
 
+// Dark-theme decision from the Window role. Rec.709 luma weights (the
+// perceptual standard; qGray's 11/16/5 weights overstate red and blue), with
+// the flip at 128: every neutral gray classifies exactly as the previous
+// qGray rule did, so the standard palettes (32,32,32 dark / 243,243,243
+// light) and every gray-based test assertion are unchanged. Alpha is
+// ignored: Window roles are opaque by contract.
+inline bool windowIsDark(const QColor &window)
+{
+    const qreal luma =
+            0.2126 * window.red() + 0.7152 * window.green() + 0.0722 * window.blue();
+    return luma < 128.0;
+}
 // Opaque flyout/toolbar surface, derived from the palette Window color with a
 // fixed per-theme lift so popup and window fills keep their WinUI relationship
 // for any palette rather than only for the default one. Reproduces the
@@ -111,7 +123,7 @@ inline QColor withAlpha(QColor color, int alpha)
 inline QColor popupSurfaceColor(const QPalette &palette)
 {
     const QColor window = palette.color(QPalette::Window);
-    const int lift = qGray(window.rgb()) < 128 ? 12 : 9;
+    const int lift = windowIsDark(window) ? 12 : 9;
     return QColor(qMin(255, window.red() + lift), qMin(255, window.green() + lift),
                   qMin(255, window.blue() + lift));
 }
@@ -158,7 +170,7 @@ inline Tokens buildTokens(const QPalette &palette)
     // hardcoded theme values exactly (guarded by
     // tst_winui3style::paletteDerivedTokensMatchWinUIConstants).
     const QColor ink = palette.color(QPalette::WindowText);
-    t.dark = qGray(palette.color(QPalette::Window).rgb()) < 128;
+    t.dark = windowIsDark(palette.color(QPalette::Window));
     t.textPrimary = ink;
     t.textSecondary = withAlpha(ink, t.dark ? 197 : 158);
     t.textTertiary = withAlpha(ink, t.dark ? 135 : 114);
@@ -251,19 +263,66 @@ inline Tokens tokens(const QPalette &palette)
         qint64 key = 0;
         bool valid = false;
         Tokens value;
+        // Palette inputs actually consumed by buildTokens(): guards against
+        // cacheKey() collisions/wraparound returning stale Tokens for a
+        // different palette. Compared only on a key hit, so the common path
+        // stays a single integer compare.
+        bool dark = false;
+        QColor window;
+        QColor ink;
+        QColor control;
+        QColor controlDisabled;
+        QColor stroke;
+        QColor strokeSecondary;
+        QColor selectionAccent;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        QColor accentFill;
+#endif
     };
     thread_local std::array<CacheEntry, 8> cache;
     thread_local std::size_t next = 0;
 
     const qint64 key = palette.cacheKey();
+    const QColor window = palette.color(QPalette::Window);
+    const QColor ink = palette.color(QPalette::WindowText);
+    const QColor control = palette.color(QPalette::Button);
+    const QColor controlDisabled = palette.color(QPalette::Disabled, QPalette::Button);
+    const QColor stroke = palette.color(QPalette::Mid);
+    const QColor strokeSecondary = palette.color(QPalette::Midlight);
+    const QColor selectionAccent = palette.color(QPalette::Highlight);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    const QColor accentFill = palette.color(QPalette::Accent);
+#endif
+    const bool dark = windowIsDark(window);
     for (const CacheEntry &entry : cache) {
-        if (entry.valid && entry.key == key)
-            return entry.value;
+        if (!entry.valid || entry.key != key)
+            continue;
+        if (entry.dark != dark || entry.window != window || entry.ink != ink
+            || entry.control != control || entry.controlDisabled != controlDisabled
+            || entry.stroke != stroke || entry.strokeSecondary != strokeSecondary
+            || entry.selectionAccent != selectionAccent
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+            || entry.accentFill != accentFill
+#endif
+        )
+            continue; // cacheKey collision: rebuild below instead of reusing.
+        return entry.value;
     }
 
     CacheEntry &entry = cache[next++ % cache.size()];
     entry.value = buildTokens(palette);
     entry.key = key;
+    entry.dark = dark;
+    entry.window = window;
+    entry.ink = ink;
+    entry.control = control;
+    entry.controlDisabled = controlDisabled;
+    entry.stroke = stroke;
+    entry.strokeSecondary = strokeSecondary;
+    entry.selectionAccent = selectionAccent;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    entry.accentFill = accentFill;
+#endif
     entry.valid = true;
     return entry.value;
 }

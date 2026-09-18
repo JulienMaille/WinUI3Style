@@ -86,28 +86,149 @@ struct DensityMetrics
     int treeIndent;
 };
 
-inline constexpr DensityMetrics standardDensityMetrics{
-    // Documented Compact Sizing controls (Default profile).
-    32, 32, 40, 32, 36, 40, 7, 40, 28, 36, 40, 32,
-    // Existing contracts for controls outside that list.
-    32, 32, 32, 36, 32, 38, 24,
-    // Insets.
-    12, 6, 25, 6, 8, 6, 12, 6, 8, 4, 12, 4, 6, 6, 8, 20, 42, 16, 12,
-    // Stable template slots.
-    20, 40, 20, 40, 32, 12, 30, 20, 20, 14, 4, 18, 32, 24, 12, 20
-};
+// All 54 fields are int, so the struct size pins the field count: adding,
+// removing, or reordering a field breaks the static_assert below instead of
+// silently misaligning the positional tables that used to live here.
+static_assert(sizeof(DensityMetrics) == 54 * sizeof(int),
+              "DensityMetrics field count changed: update the builder functions below");
 
-inline constexpr DensityMetrics compactDensityMetrics{
+// The project builds as C++17 (see CMAKE_CXX_STANDARD), so C++20
+// designated initializers are unavailable. These constexpr builders assign
+// every field by name instead, which keeps each value attached to its field
+// across reorders/inserts. Values are pinned evidence-values: do not change
+// a number without updating the pinned WinUI source comment beside it.
+inline constexpr DensityMetrics makeStandardDensityMetrics()
+{
+    DensityMetrics m{};
+    // Documented Compact Sizing controls (Default profile).
+    m.textBoxHeight = 32;
+    m.comboBoxHeight = 32;
+    m.comboPopupItemHeight = 40;
+    m.menuBarItemHeight = 32;
+    m.menuItemHeight = 36;
+    m.menuItemHeightInComboBox = 40;
+    m.menuSeparatorHeight = 7;
+    m.listItemHeight = 40;
+    m.treeItemHeight = 28;
+    m.tableItemHeight = 36;
+    m.navigationItemHeight = 40;
+    m.headerHeight = 32;
+    // Existing contracts for controls outside that list.
+    m.buttonHeight = 32;
+    m.toolButtonHeight = 32;
+    m.tabHeight = 32;
+    m.spinButtonWidth = 36;
+    m.verticalSpinButtonWidth = 32;
+    m.comboArrowWidth = 38;
+    m.toolButtonMenuWidth = 24;
+    // Insets.
+    m.buttonHorizontalPadding = 12;
+    m.buttonVerticalPadding = 6;
+    m.comboHorizontalPadding = 25;
+    m.comboVerticalPadding = 6;
+    m.lineEditHorizontalPadding = 8;
+    m.lineEditVerticalPadding = 6;
+    m.menuBarHorizontalPadding = 12;
+    m.menuBarVerticalPadding = 6;
+    m.tabHorizontalPadding = 8;
+    m.tabVerticalPadding = 4;
+    m.headerHorizontalPadding = 12;
+    m.headerVerticalPadding = 4;
+    m.toolButtonHorizontalPadding = 6;
+    m.toolButtonVerticalPadding = 6;
+    m.menuItemHorizontalPadding = 8;
+    m.menuItemShortcutGap = 20;
+    m.menuItemIconSlot = 42;
+    m.menuItemNoIconSlot = 16;
+    m.comboEditLeftPadding = 12;
+    // Stable template slots.
+    m.indicatorSize = 20;
+    m.toggleTrackWidth = 40;
+    m.toggleTrackHeight = 20;
+    m.toggleSlotWidth = 40;
+    m.toggleSlotHeight = 32;
+    m.scrollBarExtent = 12;
+    m.scrollBarSliderMinimum = 30;
+    m.sliderThickness = 20;
+    m.sliderLength = 20;
+    m.sliderGrooveMargin = 14;
+    m.sliderGrooveThickness = 4;
+    m.sliderHandleSize = 18;
+    m.tabCloseWidth = 32;
+    m.tabCloseHeight = 24;
+    m.itemSelectionGutter = 12;
+    m.treeIndent = 20;
+    return m;
+}
+
+inline constexpr DensityMetrics makeCompactDensityMetrics()
+{
+    DensityMetrics m{};
     // Compact Sizing resource: the editor/menu/list family loses one
     // standard 8px spacing step (32 -> 24 for editors and MenuBar).
-    24, 24, 32, 24, 36, 32, 7, 32, 24, 36, 32, 32,
+    m.textBoxHeight = 24;
+    m.comboBoxHeight = 24;
+    m.comboPopupItemHeight = 32;
+    m.menuBarItemHeight = 24;
+    m.menuItemHeight = 36;
+    m.menuItemHeightInComboBox = 32;
+    m.menuSeparatorHeight = 7;
+    m.listItemHeight = 32;
+    m.treeItemHeight = 24;
+    m.tableItemHeight = 36;
+    m.navigationItemHeight = 32;
+    m.headerHeight = 32;
     // Buttons, tabs, and sliders are not on that resource page; preserve.
-    32, 32, 32, 36, 32, 30, 24,
+    m.buttonHeight = 32;
+    m.toolButtonHeight = 32;
+    m.tabHeight = 32;
+    m.spinButtonWidth = 36;
+    m.verticalSpinButtonWidth = 32;
+    m.comboArrowWidth = 30;
+    m.toolButtonMenuWidth = 24;
     // Insets follow only the controls whose template is compacted.
-    12, 6, 25, 4, 8, 4, 8, 4, 8, 4, 12, 4, 6, 6, 8, 20, 42, 16, 12,
+    m.buttonHorizontalPadding = 12;
+    m.buttonVerticalPadding = 6;
+    m.comboHorizontalPadding = 25;
+    m.comboVerticalPadding = 4;
+    m.lineEditHorizontalPadding = 8;
+    m.lineEditVerticalPadding = 4;
+    m.menuBarHorizontalPadding = 8;
+    m.menuBarVerticalPadding = 4;
+    m.tabHorizontalPadding = 8;
+    m.tabVerticalPadding = 4;
+    m.headerHorizontalPadding = 12;
+    m.headerVerticalPadding = 4;
+    m.toolButtonHorizontalPadding = 6;
+    m.toolButtonVerticalPadding = 6;
+    m.menuItemHorizontalPadding = 8;
+    m.menuItemShortcutGap = 20;
+    m.menuItemIconSlot = 42;
+    m.menuItemNoIconSlot = 16;
+    m.comboEditLeftPadding = 12;
     // Stable template slots.
-    20, 40, 20, 40, 32, 12, 30, 20, 20, 14, 4, 18, 32, 24, 12, 20
-};
+    m.indicatorSize = 20;
+    m.toggleTrackWidth = 40;
+    m.toggleTrackHeight = 20;
+    m.toggleSlotWidth = 40;
+    m.toggleSlotHeight = 32;
+    m.scrollBarExtent = 12;
+    m.scrollBarSliderMinimum = 30;
+    m.sliderThickness = 20;
+    m.sliderLength = 20;
+    m.sliderGrooveMargin = 14;
+    m.sliderGrooveThickness = 4;
+    m.sliderHandleSize = 18;
+    m.tabCloseWidth = 32;
+    m.tabCloseHeight = 24;
+    m.itemSelectionGutter = 12;
+    m.treeIndent = 20;
+    return m;
+}
+
+inline constexpr DensityMetrics standardDensityMetrics = makeStandardDensityMetrics();
+
+inline constexpr DensityMetrics compactDensityMetrics = makeCompactDensityMetrics();
 
 inline constexpr const DensityMetrics &densityMetrics(DensityMode mode)
 {
@@ -162,7 +283,19 @@ inline DensityMode densityModeFor(const QWidget *widget)
     // dynamic densityMode property have exactly the same result.
     const QStyle *style = widget ? widget->style() : (qApp ? qApp->style() : nullptr);
     if (const auto *winui = qobject_cast<const WinUI3::Style *>(style)) {
-        return widget ? winui->effectiveDensityMode(widget) : winui->densityMode();
+        if (widget) {
+            // The winuiDensity ancestor walk above already found nothing, so
+            // effectiveDensityMode(widget) would only re-walk the same
+            // ancestors before returning the global mode. Return it directly.
+            return winui->densityMode();
+        }
+        // Null widget: resolve through the same densityMode property parse
+        // as the generic path below (the Q_PROPERTY exposes the same global
+        // mode), falling back to the concrete accessor.
+        DensityMode mode = winui->densityMode();
+        if (parseDensity(style->property("densityMode"), &mode))
+            return mode;
+        return winui->densityMode();
     }
     if (style) {
         DensityMode mode = DensityMode::Standard;

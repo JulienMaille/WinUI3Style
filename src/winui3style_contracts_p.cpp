@@ -468,6 +468,11 @@ QRect subControlRect(const Style *style, QStyle::ComplexControl control,
                      const QStyleOptionComplex *option, QStyle::SubControl subControl,
                      const QWidget *widget)
 {
+    // Null-option entry guard (mirrors complexControlHitTest): a null
+    // option yields an empty rect instead of falling through into
+    // QProxyStyle with a null dereference.
+    if (!option)
+        return QRect();
     if (const auto rect = complexControlRect(control, option, subControl, widget))
         return *rect;
     return style->QProxyStyle::subControlRect(control, option, subControl, widget);

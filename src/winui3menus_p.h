@@ -28,5 +28,14 @@ bool drawMenuControl(const Style *style, QStyle::ControlElement element, const Q
 // keyboard current read as one shape on every popup.
 void paintPopupRowPill(QPainter *painter, const QRectF &itemRect, const QColor &fill);
 
+// Shared popup-row insets feeding paintPopupRowPill: the 5,2 combo pill and
+// the 4,2 menu/autosuggest pill. One helper so the CE_MenuItem path and the
+// PE_PanelItemViewItem path cannot drift apart again.
+inline QRectF popupRowPillRect(const QRect &rowRect, bool comboPopup)
+{
+    return comboPopup ? QRectF(rowRect).adjusted(5, 2, -5, -2)
+                      : QRectF(rowRect).adjusted(4, 2, -4, -2);
+}
+
 } // namespace Private
 } // namespace WinUI3

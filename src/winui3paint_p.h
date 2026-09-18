@@ -14,6 +14,12 @@ namespace WinUI3::PaintPrivate {
 // Stateless drawing and device-pixel alignment primitives shared by the
 // style facade and private item delegates. Keeping these here avoids each
 // rendering path growing a subtly different copy of the same operation.
+//
+// Pointer contract: every helper taking a QPainter* requires a non-null,
+// active painter. Callers pass the painter they received from Qt's paint
+// dispatch (never null there); the implementations assert rather than
+// silently no-op so a contract violation fails loudly in debug builds
+// instead of producing a silently unpainted frame in release.
 void roundedRect(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
                  qreal radius, qreal strokeWidth = 1.0);
 
@@ -35,7 +41,11 @@ void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect, const QColo
 
 // WinUI keyboard focus ring: 2 px outer + 1 px inner rounded rects. The
 // per-site adjusted() insets and radii are copied into the call args, never
-// unified by judgment; visual diffs hide there.
+// unified by judgment; visual diffs hide there. Per-site contract (checked
+// with Q_ASSERT in debug, clamped in release): non-negative radii, and the
+// inner ring must sit inside the outer ring (innerInset >= outerInset,
+// innerRadius <= outerRadius); uncorrelated doubles would silently invert
+// the rings or paint at negative radius.
 void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, const QColor &inner,
                     qreal outerInset, qreal innerInset, qreal outerRadius, qreal innerRadius);
 
@@ -46,6 +56,10 @@ void paintFocusRing(QPainter *painter, const QRectF &rect, const QColor &outer, 
 // every style-painted label so call sites cannot drift back to ClearType.
 void paintGrayscaleText(QPainter *painter, const QRect &rect, int flags, const QFont &font,
                         const QColor &color, const QString &text);
+// Centers a fixed-diameter circle on the bounds center, snapping only the
+// center to a device pixel. Use for circular glyphs (radio dot, toggle knob)
+// whose size must stay fractional during animated growth. For rects whose
+// flat edges must be crisp on device pixels, use snappedRect below instead.
 QRectF snappedEllipseRect(const QRectF &logicalBounds, qreal logicalDiameter,
                           const QPainter *painter);
 

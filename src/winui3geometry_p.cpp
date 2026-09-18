@@ -133,6 +133,8 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                                         const QStyleOptionComplex *option,
                                         QStyle::SubControl subControl, const QWidget *widget)
 {
+    if (!option)
+        return std::nullopt;
     const DensityMetrics &metrics = densityMetricsFor(widget);
     if (control == QStyle::CC_Slider) {
         if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
