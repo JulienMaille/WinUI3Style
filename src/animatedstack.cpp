@@ -81,6 +81,23 @@ void AnimatedStack::setCurrentIndex(int index)
     setCurrentIndex(index, transition);
 }
 
+void AnimatedStack::setCurrentWidget(QWidget *widget)
+{
+    // QStackedWidget::setCurrentWidget() is not virtual, so it cannot be
+    // overridden to intercept base-class callers holding a QStackedWidget*.
+    // This hiding slot covers callers through AnimatedStack* (and
+    // NavigationView, which owns an AnimatedStack): map widget to its dense
+    // index and forward to the animated path so cancelTransition(),
+    // deferred-queue handling and transitionFinished accounting all apply.
+    // Unknown/null widgets are ignored, matching the base no-op.
+    if (!widget)
+        return;
+    const int index = indexOf(widget);
+    if (index < 0)
+        return;
+    setCurrentIndex(index);
+}
+
 void AnimatedStack::setCurrentIndex(int index, Transition transition)
 {
     if (index < 0 || index >= count())
@@ -165,7 +182,12 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         }
         m_from = m_to = -1;
         m_transitionProgress = 0.0;
-        m_deferredIndex = -1;
+        if (m_deferredIndex >= 0) {
+            const int deferred = m_deferredIndex;
+            const Transition deferredTransition = m_deferredTransition;
+            m_deferredIndex = -1;
+            setCurrentIndex(deferred, deferredTransition);
+        }
         return;
     }
     // Keep the real page at its layout geometry for the entire transition.
@@ -249,6 +271,16 @@ void AnimatedStack::updateOverlayGeometry(qreal progress)
 
 void AnimatedStack::handleWidgetRemoved(int index)
 {
+    // Deferred slot shares the dense indexing of m_from/m_to. A removal
+    // before the deferred request replays retargets it when indices shift,
+    // so adjust it first — including while m_transitionStarting is true and
+    // no group exists yet (the reentrant currentChanged path). A deferred
+    // target that was itself removed no longer exists: drop it instead of
+    // replaying the shifted-in successor.
+    if (m_deferredIndex == index)
+        m_deferredIndex = -1;
+    else if (m_deferredIndex > index)
+        --m_deferredIndex;
     if (!m_group)
         return;
 
@@ -272,11 +304,20 @@ void AnimatedStack::destroyTransitionObjects()
     if (m_group) {
         QParallelAnimationGroup *group = m_group.data();
         m_group = nullptr;
+        m_geometryAnimation = nullptr;
         disconnect(group, nullptr, this, nullptr);
         group->stop();
-        delete group;
+        // Deferred: finishTransition() runs inside the group's own finished
+        // emission, so deleting the sender here frees it while that emission
+        // is still on the stack. Detach first so findChildren() stops
+        // counting the zombie immediately; the reset-first m_group above lets
+        // a new transition start in the same turn. Same class as the
+        // FrameAnimationDriver deleteLater pattern.
+        group->setParent(nullptr);
+        group->deleteLater();
+    } else {
+        m_geometryAnimation = nullptr;
     }
-    m_geometryAnimation = nullptr;
     if (m_overlay) {
         QWidget *overlay = m_overlay.data();
         m_overlay = nullptr;

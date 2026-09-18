@@ -33,6 +33,14 @@ public:
 public slots:
     void setCurrentIndex(int index);
     void setCurrentIndex(int index, Transition transition);
+    // Animated equivalent of QStackedWidget::setCurrentWidget(). The base
+    // implementation is not virtual, so callers holding a QStackedWidget*
+    // still reach the base directly; callers through AnimatedStack* (or
+    // NavigationView, which owns an AnimatedStack) get the animated path
+    // with cancelTransition(), deferred-queue handling and
+    // transitionFinished accounting. Unknown/null widgets are ignored,
+    // matching QStackedWidget's no-op for unknown pages.
+    void setCurrentWidget(QWidget *widget);
 
 signals:
     void transitionFinished(int index);

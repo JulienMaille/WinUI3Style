@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Domain split of tst_winui3style.cpp (plan step 8): test-function names
 // kept identical so the DPI reruns in tests/CMakeLists.txt keep working.
-#include <winui3style/animatedstack.h>
 #include <winui3style/navigationview.h>
 #include <winui3style/settingscard.h>
 #include <winui3style/toggleswitch.h>
@@ -30,7 +29,6 @@
 #include <QDockWidget>
 #include <QFocusEvent>
 #include <QFrame>
-#include <QGraphicsOpacityEffect>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QGroupBox>
@@ -110,8 +108,6 @@ private slots:
     void inputModalityFocus();
     void hoverAnimationProgresses();
     void readOnlyActionRestoration();
-    void animatedStackEffectsAndInterruption();
-    void animatedStackLifecycleStress();
     void rtlGeometryAndHitTesting();
     void runtimeAppearanceAndDialogLifecycle();
     void callbackCoalescingAndAnimationReuse();
@@ -512,8 +508,12 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
     QVERIFY(title);
     QVERIFY(chevron);
     QVERIFY(chevron->isVisible());
+    const auto chevronRotation = [&] {
+        return chevron->property("_winui_settings_card_chevron_rotation").toReal();
+    };
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
+    QCOMPARE(chevronRotation(), 0.0);
     const QRect chevronInCard(chevron->mapTo(&card, chevron->rect().topLeft()), chevron->size());
     const QRect trailingInCard(trailing->mapTo(&card, trailing->rect().topLeft()),
                                trailing->size());
@@ -525,14 +525,20 @@ void WinUI3InteractionTest::settingsCardChevronAndStableHeader()
     QCOMPARE(title->geometry(), titleGeometry);
 
     card.setLayoutDirection(Qt::RightToLeft);
+    // ChevronDown artwork rotates to 180 deg (no Up swap).
     QTRY_COMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-                 static_cast<int>(WinUI3::Icon::ChevronUp));
+                 static_cast<int>(WinUI3::Icon::ChevronDown));
     QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
+    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0)
+            < 0.01);
     card.setExpanded(false);
-    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.99);
-    // WinUI expander contract: collapsed Down, expanded Up (rotates).
+    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
+    // Contract: collapsed 0 deg, expanded 180 deg.
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
+    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0)
+            < 0.01);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.001);
 }
 
 void WinUI3InteractionTest::settingsCardExpansionLoad()
@@ -678,9 +684,13 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QVERIFY(chevron);
     QVERIFY(animation);
     QVERIFY(chevron->isVisible());
+    const auto chevronRotation = [&] {
+        return chevron->property("_winui_settings_card_chevron_rotation").toReal();
+    };
     QVERIFY(!labelPixmap(chevron).isNull());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
+    QCOMPARE(chevronRotation(), 0.0);
 
     const QRect headerGeometry = header->geometry();
     const QRect titleGeometry = title->geometry();
@@ -689,8 +699,11 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
 
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, header->geometry().center());
     QCOMPARE(card.isExpanded(), true);
+    // Glyph angle tracks expansion progress.
+    QTRY_VERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0)
+                < 0.01);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronUp));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
     const QImage first = card.grab().toImage();
     QCOMPARE(header->geometry(), headerGeometry);
     QCOMPARE(title->geometry(), titleGeometry);
@@ -705,7 +718,10 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronUp));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    const qreal mid = card.property("expansionProgress").toReal();
+    QVERIFY(mid > 0.0 && mid < 1.0);
+    QCOMPARE(chevronRotation(), mid * 180.0);
 
     QPalette palette = card.palette();
     palette.setColor(QPalette::WindowText, QColor(210, 40, 70));
@@ -718,7 +734,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
 #endif
     QVERIFY(!labelPixmap(chevron).isNull());
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronUp));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
 
     // Reversing and expanding again must reuse the current progress without
     // losing the header or leaving the chevron in the collapsed state.
@@ -726,7 +742,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     card.setExpanded(true);
     QCOMPARE(card.isExpanded(), true);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronUp));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
     card.hide();
     QVERIFY(animation->state() == QAbstractAnimation::Stopped);
     card.show();
@@ -738,7 +754,8 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     QCOMPARE(title->geometry(), titleGeometry);
     QCOMPARE(description->geometry(), descriptionGeometry);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
-             static_cast<int>(WinUI3::Icon::ChevronUp));
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    QCOMPARE(chevronRotation(), 180.0);
 }
 
 void WinUI3InteractionTest::settingsCardExpansionInScrollingPage()
@@ -931,155 +948,10 @@ void WinUI3InteractionTest::readOnlyActionRestoration()
     QVERIFY(customButtons() >= 2);
 }
 
-void WinUI3InteractionTest::animatedStackEffectsAndInterruption()
-{
-    WinUI3::AnimatedStack stack;
-    auto *first = new QLabel(QStringLiteral("First"));
-    auto *second = new QLabel(QStringLiteral("Second"));
-    auto *effect = new QGraphicsOpacityEffect;
-    effect->setOpacity(0.7);
-    first->setGraphicsEffect(effect);
-    stack.addWidget(first);
-    stack.addWidget(second);
-    stack.setDuration(120);
-    stack.resize(240, 80);
-    stack.show();
-    stack.setCurrentIndex(1);
-    QCOMPARE(second->geometry(), stack.rect());
-    QTest::qWait(25);
-    QVERIFY(stack.isAnimating());
-    stack.setCurrentIndex(0);
-    QTRY_VERIFY(!stack.isAnimating());
-    QCOMPARE(first->graphicsEffect(), effect);
-    stack.setCurrentIndex(1);
-    QTest::qWait(20);
-    stack.removeWidget(second);
-    QTRY_VERIFY(!stack.isAnimating());
-    QCOMPARE(first->graphicsEffect(), effect);
-
-    auto *third = new QLabel(QStringLiteral("Third"));
-    stack.addWidget(third);
-    stack.setCurrentIndex(stack.indexOf(third));
-    QTest::qWait(20);
-    stack.hide();
-    QTRY_VERIFY(!stack.isAnimating());
-    stack.show();
-    QCOMPARE(stack.currentWidget(), third);
-    QCOMPARE(first->graphicsEffect(), effect);
-
-    qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
-    stack.setCurrentIndex(0);
-    QVERIFY(!stack.isAnimating());
-    qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
-
-    WinUI3::AnimatedStack replacementStack;
-    replacementStack.setDuration(100);
-    replacementStack.addWidget(new QLabel(QStringLiteral("Outgoing")));
-    auto *incoming = new QLabel(QStringLiteral("Incoming"));
-    replacementStack.addWidget(incoming);
-    replacementStack.resize(240, 80);
-    replacementStack.show();
-    replacementStack.setCurrentIndex(1);
-    QTRY_VERIFY(replacementStack.isAnimating());
-    auto *applicationEffect = new QGraphicsOpacityEffect;
-    applicationEffect->setOpacity(0.63);
-    incoming->setGraphicsEffect(applicationEffect);
-    QTRY_VERIFY(!replacementStack.isAnimating());
-    QCOMPARE(incoming->graphicsEffect(), applicationEffect);
-    QCOMPARE(applicationEffect->opacity(), 0.63);
-}
-
-void WinUI3InteractionTest::animatedStackLifecycleStress()
-{
-    WinUI3::AnimatedStack stack;
-    stack.setDuration(1000);
-    for (int i = 0; i < 7; ++i)
-        stack.addWidget(new QLabel(QStringLiteral("Page %1").arg(i)));
-    stack.resize(320, 120);
-    stack.show();
-    QCoreApplication::processEvents();
-
-    auto settle = [&stack] {
-        if (auto *group = stack.findChild<QParallelAnimationGroup *>(
-                    QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly)) {
-            group->setCurrentTime(group->duration());
-            QCoreApplication::processEvents();
-        }
-        QCOMPARE(stack.findChildren<QParallelAnimationGroup *>(
-                              QStringLiteral("_winui_animated_stack_group"),
-                              Qt::FindDirectChildrenOnly)
-                         .size(),
-                 0);
-        QCOMPARE(stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
-                                               Qt::FindDirectChildrenOnly)
-                         .size(),
-                 0);
-    };
-
-    stack.setCurrentIndex(1);
-    QVERIFY(stack.isAnimating());
-    stack.resize(480, 160);
-    auto overlays = stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
-                                                  Qt::FindDirectChildrenOnly);
-    QCOMPARE(overlays.size(), 1);
-    QCOMPARE(overlays.constFirst()->geometry(), stack.rect());
-
-    // Remove a non-current page while the source/cible pair is alive. The
-    // target pointer, rather than its old numeric index, must remain final.
-    stack.removeWidget(stack.widget(5));
-    QCOMPARE(stack.currentWidget(), stack.widget(1));
-    settle();
-
-    // Remove the outgoing/source page itself while the target is entering.
-    stack.setCurrentIndex(2);
-    QWidget *outgoing = stack.widget(1);
-    QVERIFY(outgoing);
-    stack.removeWidget(outgoing);
-    QVERIFY(!stack.isAnimating());
-    QCOMPARE(stack.currentWidget(), stack.widget(1));
-    settle();
-
-    // Removing the incoming page must fall back to the guarded outgoing page.
-    stack.setCurrentIndex(2);
-    QVERIFY(stack.isAnimating());
-    QWidget *incoming = stack.currentWidget();
-    stack.removeWidget(incoming);
-    QVERIFY(!stack.isAnimating());
-    QVERIFY(stack.currentWidget());
-    settle();
-
-    // Remove the page currently being displayed, then exercise a long burst
-    // of direction reversals. No iteration may create more than one live
-    // animation group or overlay.
-    QWidget *current = stack.currentWidget();
-    stack.removeWidget(current);
-    QVERIFY(stack.currentWidget());
-    for (int i = 0; i < 100; ++i) {
-        const int target = i % stack.count();
-        stack.setCurrentIndex(target,
-                              i % 3 == 0 ? WinUI3::AnimatedStack::Transition::Backward
-                                         : WinUI3::AnimatedStack::Transition::Forward);
-        QVERIFY(stack.findChildren<QParallelAnimationGroup *>(
-                             QStringLiteral("_winui_animated_stack_group"),
-                             Qt::FindDirectChildrenOnly)
-                        .size()
-                <= 1);
-        QVERIFY(stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
-                                              Qt::FindDirectChildrenOnly)
-                        .size()
-                <= 1);
-        if (i % 10 == 0) {
-            stack.resize(320 + i, 120 + (i % 4) * 10);
-            overlays = stack.findChildren<QWidget *>(
-                    QStringLiteral("_winui_animated_stack_overlay"), Qt::FindDirectChildrenOnly);
-            if (!overlays.isEmpty())
-                QCOMPARE(overlays.constFirst()->geometry(), stack.rect());
-        }
-    }
-    settle();
-    QCOMPARE(stack.currentWidget()->geometry(), stack.rect());
-}
-
+// The AnimatedStack widget-lifetime tests (animatedStackEffectsAndInterruption,
+// animatedStackLifecycleStress, animatedStackFinishRetrigger,
+// animatedStackDeferredReplay) live in tst_winui3animatedstack.cpp — see the
+// domain-split note at tests/CMakeLists.txt.
 void WinUI3InteractionTest::rtlGeometryAndHitTesting()
 {
     QComboBox combo;
