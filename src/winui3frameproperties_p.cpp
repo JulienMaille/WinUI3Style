@@ -21,6 +21,15 @@ bool checkGuiThread(const char *operation)
     return onGuiThread;
 }
 
+bool isGuiThread()
+{
+    // Quiet variant for the destroyed() functor below: checkGuiThread()
+    // asserts in debug builds, but an off-thread destroyed() delivery is an
+    // expected input that must branch to the queued-cleanup path, not abort.
+    const QCoreApplication *application = QCoreApplication::instance();
+    return !application || QThread::currentThread() == application->thread();
+}
+
 } // namespace
 
 FramePropertyRegistry &FramePropertyRegistry::instance()
@@ -102,9 +111,32 @@ FramePropertyRegistry::ObjectState *FramePropertyRegistry::ensureObject(QObject 
         return nullptr;
 
     ObjectState state;
+    // No QObject context is passed on purpose: the registry itself is not a
+    // QObject (it is read from paint paths and must stay a plain value
+    // store), so there is no owning registry object to receive queued
+    // delivery. Instead the functor checks the GUI thread itself and
+    // re-queues off-thread cleanup to the application object, which lives
+    // on the GUI thread. removeObject() below re-checks the thread as
+    // defense in depth, so a worker-thread destroyed() can never mutate
+    // the shared hashes directly.
     state.destroyedConnection =
             QObject::connect(object, &QObject::destroyed, [this](QObject *destroyedObject) {
-                removeObject(destroyedObject, false);
+                // isGuiThread() (not checkGuiThread()): off-thread delivery
+                // is an expected branch here, and the asserting variant
+                // would abort debug builds before the queued cleanup below.
+                if (isGuiThread()) {
+                    removeObject(destroyedObject, false);
+                    return;
+                }
+                // Off-thread QObject destruction: the address is only ever
+                // used as a hash key (never dereferenced), so it is safe to
+                // carry across threads for a deferred GUI-thread removal.
+                if (QCoreApplication *application = QCoreApplication::instance()) {
+                    QMetaObject::invokeMethod(
+                            application,
+                            [this, destroyedObject] { removeObject(destroyedObject, false); },
+                            Qt::QueuedConnection);
+                }
             });
 
     objectIt = m_objects.insert(object, std::move(state));
@@ -128,6 +160,12 @@ void FramePropertyRegistry::set(QObject *object, const QByteArray &name, const Q
 {
     if (!checkGuiThread(Q_FUNC_INFO) || !object || name.isEmpty())
         return;
+    // NOTE: no thread-affinity enforcement on the key here. A pinned test
+    // (tst_winui3frameproperties destroyedOnOwningWorkerThreadCleansUpOnGuiThread)
+    // performs a GUI-thread set() on a worker-affinity object to exercise the
+    // deferred destroyed() cleanup below, so rejecting such keys would break
+    // that contract. Off-thread destroyed() delivery stays safe through the
+    // queued GUI-thread removal in ensureObject().
 
     // Match QObject::setProperty's useful "invalid means remove" behavior,
     // while keeping clear() available at call sites where intent is clearer.
@@ -168,6 +206,13 @@ void FramePropertyRegistry::clear(QObject *object, const QByteArray &name)
 void FramePropertyRegistry::removeObject(QObject *object, bool disconnectDestroyedSignal)
 {
     if (!object)
+        return;
+    // Defense in depth for the destroyed() path: direct destroyed() delivery
+    // runs on the emitter thread, so an off-thread QObject destruction must
+    // never mutate the shared hashes. ensureObject()'s functor already
+    // re-queues to the GUI thread; this check keeps any future direct
+    // caller honest as well.
+    if (!checkGuiThread(Q_FUNC_INFO))
         return;
 
     const auto objectIt = m_objects.find(object);

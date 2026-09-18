@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3frameproperties_p.h"
 
 #include <QCoreApplication>
 #include <QObject>
+#include <QSignalSpy>
+#include <QThread>
 #include <QtTest>
 
 using WinUI3::Private::FramePropertyRegistry;
@@ -16,6 +19,8 @@ private slots:
     void clearsIndividualAndObjectValues();
     void purgesDestroyedObjects();
     void boundsPropertiesPerObject();
+    void offThreadPublicAccessIsRejected();
+    void destroyedOnOwningWorkerThreadCleansUpOnGuiThread();
 };
 
 void FramePropertyRegistryTest::storesValuesWithoutDynamicProperties()
@@ -90,6 +95,77 @@ void FramePropertyRegistryTest::boundsPropertiesPerObject()
     QVERIFY(!registry.value(&object, "property-15").isValid());
     QCOMPARE(registry.value(&object, "property-16").toInt(), 16);
     QCOMPARE(registry.value(&object, "property-79").toInt(), 79);
+}
+
+void FramePropertyRegistryTest::offThreadPublicAccessIsRejected()
+{
+#ifndef QT_NO_DEBUG
+    // checkGuiThread() asserts in debug builds; the reject-without-touching
+    // contract below only applies to release builds, where the guard returns
+    // false instead of aborting.
+    QSKIP("off-thread registry access asserts in debug builds.");
+#else
+    FramePropertyRegistry &registry = FramePropertyRegistry::instance();
+    QObject object;
+    registry.set(&object, "seed", 7);
+
+    struct Probe
+    {
+        bool valueReadInvalid = false;
+        bool realReadFallback = false;
+    };
+    Probe probe;
+    QThread *thread = QThread::create([&object, &probe] {
+        FramePropertyRegistry &registry = FramePropertyRegistry::instance();
+        // Every one of these must be rejected without touching shared state.
+        registry.set(&object, "seed", 999);
+        probe.valueReadInvalid = !registry.value(&object, "seed").isValid();
+        probe.realReadFallback = registry.real(&object, "seed", -1.0) == -1.0;
+        registry.clear(&object, "seed");
+        registry.clearObject(&object);
+    });
+    thread->start();
+    QVERIFY(thread->wait(5000));
+    delete thread;
+
+    QVERIFY(probe.valueReadInvalid);
+    QVERIFY(probe.realReadFallback);
+    // The GUI-thread entry survived every off-thread attempt untouched.
+    QCOMPARE(registry.value(&object, "seed").toInt(), 7);
+    registry.clearObject(&object);
+#endif
+}
+
+void FramePropertyRegistryTest::destroyedOnOwningWorkerThreadCleansUpOnGuiThread()
+{
+    FramePropertyRegistry &registry = FramePropertyRegistry::instance();
+    QThread worker;
+    worker.start();
+
+    auto *object = new QObject;
+    object->moveToThread(&worker);
+    registry.set(object, "value", 1);
+    QCOMPARE(registry.value(object, "value").toInt(), 1);
+    QObject *address = object;
+
+    // Destroy on the owning worker thread: destroyed() is delivered there,
+    // so the registry must defer the shared-hash removal to the GUI thread
+    // instead of mutating the hashes off-thread.
+    QSignalSpy destroyedSpy(object, &QObject::destroyed);
+    QMetaObject::invokeMethod(object, "deleteLater", Qt::QueuedConnection);
+    QVERIFY(destroyedSpy.wait(5000));
+    worker.quit();
+    QVERIFY(worker.wait(5000));
+
+    // value() only hashes the address; the deferred GUI-thread cleanup must
+    // have removed the entry before that address can be reused.
+    QTRY_VERIFY_WITH_TIMEOUT(!registry.value(address, "value").isValid(), 5000);
+
+    // The registry stays coherent for later GUI-thread use.
+    QObject probe;
+    registry.set(&probe, "value", 2);
+    QCOMPARE(registry.value(&probe, "value").toInt(), 2);
+    registry.clearObject(&probe);
 }
 
 QTEST_MAIN(FramePropertyRegistryTest)

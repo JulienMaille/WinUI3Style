@@ -25,16 +25,34 @@ namespace WinUI3::Private {
 // from widget paint paths, so it has no mutex.  Callers must not use it from a
 // worker thread; debug builds assert this contract and release builds reject
 // off-thread accesses without touching the shared state.
+//
+// Keys are normally GUI-thread widgets. A worker-affinity key is tolerated
+// (a pinned test performs a GUI-thread set() on one to exercise deferred
+// cleanup), but its destroyed() fires off-thread, so the handler below
+// defers the shared-hash removal to the GUI thread via a queued invocation
+// on the application object. No mutex is added: all hash mutation stays on
+// the GUI thread by construction.
+//
+// Raw QObject* keys: the registry stores no owning reference, so callers
+// must never retain or dereference a key after its destruction. value()
+// with a dangling pointer is undefined; lookups after destroyed() simply
+// miss because the entry is removed by the destroyed() handler, which is
+// disconnected robustly on explicit clearObject()/removeObject().
 class WINUI3STYLE_EXPORT FramePropertyRegistry final
 {
 public:
     static FramePropertyRegistry &instance();
 
+    // value(): the key must be a live QObject owned by the caller; never
+    // pass a pointer after its destruction (the entry is removed on
+    // destroyed(), so a dangling key is undefined behavior, not a lookup).
     QVariant value(const QObject *object, const QByteArray &name) const;
     QVariant value(const QObject *object, const char *staticName) const;
     qreal real(const QObject *object, const QByteArray &name, qreal fallback = 0.0) const;
     qreal real(const QObject *object, const char *staticName, qreal fallback = 0.0) const;
 
+    // set(): the destroyed() handler is (re)connected here and
+    // disconnected on explicit removal. clearObject() disconnects it.
     void set(QObject *object, const QByteArray &name, const QVariant &value);
     void clear(QObject *object, const QByteArray &name);
     void clearObject(QObject *object);
@@ -48,6 +66,7 @@ private:
     };
 
     FramePropertyRegistry() = default;
+    Q_DISABLE_COPY_MOVE(FramePropertyRegistry)
 
     ObjectState *ensureObject(QObject *object);
     void removeObject(QObject *object, bool disconnectDestroyedSignal);
