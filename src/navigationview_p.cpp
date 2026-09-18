@@ -56,22 +56,30 @@ public:
         : QStyledItemDelegate(view), m_view(view), m_original(original), m_indicatorAnimation(this)
     {
         QObject::connect(&m_indicatorAnimation, &QVariantAnimation::valueChanged, this,
-                         [this](const QVariant &value) {
-                             m_indicatorY = value.toReal();
-                             if (m_view) {
-                                 WinUI3::Private::framePropertyRegistry().set(
-                                         m_view->viewport(), navigationIndicatorProperty,
-                                         m_indicatorY);
-                                 m_view->viewport()->update();
-                             }
-                         });
+                          [this](const QVariant &value) {
+                              m_indicatorY = value.toReal();
+                              if (!m_view)
+                                  return;
+                              // The viewport can be torn down while an
+                              // indicator animation is still running (window
+                              // close / view destructor, Finding B).
+                              QWidget *viewport = m_view->viewport();
+                              if (!viewport)
+                                  return;
+                              WinUI3::Private::framePropertyRegistry().set(
+                                      viewport, navigationIndicatorProperty, m_indicatorY);
+                              viewport->update();
+                          });
         attachSelectionModel();
-        m_verticalConnection =
-                QObject::connect(view->verticalScrollBar(), &QScrollBar::valueChanged, this,
-                                 [this] { syncIndicatorToViewport(); });
-        m_horizontalConnection =
-                QObject::connect(view->horizontalScrollBar(), &QScrollBar::valueChanged, this,
-                                 [this] { syncIndicatorToViewport(); });
+        // Custom views may return null scrollbars; guard them (Finding B).
+        if (QScrollBar *vertical = view->verticalScrollBar()) {
+            m_verticalConnection = QObject::connect(vertical, &QScrollBar::valueChanged, this,
+                                                    [this] { syncIndicatorToViewport(); });
+        }
+        if (QScrollBar *horizontal = view->horizontalScrollBar()) {
+            m_horizontalConnection = QObject::connect(horizontal, &QScrollBar::valueChanged, this,
+                                                      [this] { syncIndicatorToViewport(); });
+        }
     }
 
     ~NavigationItemDelegate() override { shutdown(false); }
@@ -89,25 +97,39 @@ public:
         m_selectionConnection = {};
         m_verticalConnection = {};
         m_horizontalConnection = {};
-        if (clearViewport && m_view && m_view->viewport()) {
-            WinUI3::Private::framePropertyRegistry().clear(m_view->viewport(),
-                                                           navigationIndicatorProperty);
-            m_view->viewport()->update();
+        // Finding B: the viewport may already be torn down when shutdown
+        // runs from the delegate destructor or a mid-animation close.
+        if (clearViewport && m_view) {
+            if (QWidget *viewport = m_view->viewport()) {
+                WinUI3::Private::framePropertyRegistry().clear(viewport,
+                                                               navigationIndicatorProperty);
+                viewport->update();
+            }
         }
         m_selectionModel.clear();
     }
 
     QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override
     {
+        // Layout-time (never paint-time) re-attachment point. The view
+        // exposes no selectionModelChanged signal, so a model or
+        // selection-model swap after construction is picked up here and on
+        // scroll (Finding D). Connecting signals here schedules no paint;
+        // paint() itself must stay side-effect free.
+        const_cast<NavigationItemDelegate *>(this)->attachSelectionModel();
         return { 220, Private::densityMetricsFor(m_view).navigationItemHeight };
     }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override
     {
+        // Paint stays side-effect free (Finding D): selection-model and
+        // scrollbar wiring happens in sizeHint() before any paint, and
+        // indicator changes arrive through those connections (plus the
+        // read-only launch seed below, which performs no registry,
+        // signal, or update calls).
         if (m_shutdown)
             return;
-        const_cast<NavigationItemDelegate *>(this)->attachSelectionModel();
         const auto t = Private::tokens(option.palette);
         const bool selected = option.state & QStyle::State_Selected;
         const bool hovered = option.state & QStyle::State_MouseOver;
@@ -146,13 +168,17 @@ public:
                 QStyle::visualAlignment(option.direction, Qt::AlignLeft | Qt::AlignVCenter),
                 option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight,
                                               textRect.width()));
-        if (m_view && m_indicatorY < 0.0 && m_view->currentIndex().isValid())
-            m_indicatorY = m_view->visualRect(m_view->currentIndex()).top();
-        if (m_indicatorY >= 0.0) {
+        // The launch target may not be scrolled into view yet: seed a
+        // local copy from the current index without touching member
+        // state or issuing registry, signal, or update calls (Finding D).
+        qreal indicatorY = m_indicatorY;
+        if (m_view && indicatorY < 0.0 && m_view->currentIndex().isValid())
+            indicatorY = m_view->visualRect(m_view->currentIndex()).top();
+        if (indicatorY >= 0.0) {
             const qreal indicatorX = option.direction == Qt::RightToLeft ? option.rect.right() - 5.0
                                                                          : option.rect.left() + 2.0;
             const int rowHeight = Private::densityMetricsFor(m_view).navigationItemHeight;
-            const QRectF indicator(indicatorX, m_indicatorY + (rowHeight - 16.0) / 2.0, 3.0, 16.0);
+            const QRectF indicator(indicatorX, indicatorY + (rowHeight - 16.0) / 2.0, 3.0, 16.0);
             if (indicator.intersects(option.rect))
                 roundedRect(painter, indicator, t.selectionAccent, Qt::transparent, 1.5);
         }
@@ -185,25 +211,25 @@ private:
     {
         if (m_shutdown || !m_view)
             return;
+        // Finding B: the viewport can be mid-destruction while selection
+        // or scroll callbacks run. Resolve it once and bail out cleanly.
+        QWidget *viewport = m_view->viewport();
+        if (!viewport)
+            return;
         if (!current.isValid()) {
             m_indicatorAnimation.stop();
             m_indicatorY = -1.0;
-            if (m_view->viewport()) {
-                WinUI3::Private::framePropertyRegistry().clear(m_view->viewport(),
-                                                               navigationIndicatorProperty);
-                m_view->viewport()->update();
-            }
+            WinUI3::Private::framePropertyRegistry().clear(viewport, navigationIndicatorProperty);
+            viewport->update();
             return;
         }
         const qreal target = m_view->visualRect(current).top();
         if (m_indicatorY < 0.0 || !animate || !animationsAllowed()) {
             m_indicatorAnimation.stop();
             m_indicatorY = target;
-            if (m_view->viewport()) {
-                WinUI3::Private::framePropertyRegistry().set(
-                        m_view->viewport(), navigationIndicatorProperty, m_indicatorY);
-                m_view->viewport()->update();
-            }
+            WinUI3::Private::framePropertyRegistry().set(viewport, navigationIndicatorProperty,
+                                                         m_indicatorY);
+            viewport->update();
             return;
         }
         m_indicatorAnimation.stop();
@@ -225,7 +251,7 @@ private:
     QPointer<QItemSelectionModel> m_selectionModel;
     QPointer<QAbstractItemDelegate> m_original;
     QMetaObject::Connection m_selectionConnection, m_verticalConnection, m_horizontalConnection;
-    mutable qreal m_indicatorY = -1.0;
+    qreal m_indicatorY = -1.0;
     QVariantAnimation m_indicatorAnimation;
     bool m_shutdown = false;
 };
@@ -333,6 +359,10 @@ void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !state)
         return;
+    // Finding C: compare through the tracked QPointer state. Reading
+    // view->itemDelegate() (a raw pointer) inside a destroyed() handler
+    // risks touching a dangling pointer; installation status was already
+    // decided here while both objects were alive.
     NavigationItemDelegate *delegate = state->delegate.data();
     const bool installed = delegate && view->itemDelegate() == delegate;
     QAbstractItemDelegate *original = state->original.data();
@@ -341,6 +371,9 @@ void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *stat
     state->delegate.clear();
     state->original.clear();
     clearNavigationProperties(view);
+    // The Finding-C fallback (tracked in state->original by the
+    // destroyed() handler) flows back through `original` here, so the
+    // owned fallback is restored instead of a dangling pointer.
     if (installed)
         view->setItemDelegate(original ? original : new QStyledItemDelegate(view));
     if (delegate)
@@ -367,14 +400,32 @@ void prepareNavigationView(QAbstractItemView *view)
     view->setProperty(navigationDelegateProperty, QVariant::fromValue<QObject *>(delegate));
     const QPointer<QAbstractItemView> guardedView(view);
     const QPointer<NavigationViewState> guardedState(state);
-    QObject::connect(delegate, &QObject::destroyed, state, [guardedView, guardedState, delegate] {
-        if (!guardedView || !guardedState || guardedState->delegate.data() != delegate)
-            return;
-        guardedState->delegate.clear();
-        if (guardedView->itemDelegate() == delegate)
-            guardedView->setItemDelegate(new QStyledItemDelegate(guardedView));
-        guardedView->setProperty(navigationDelegateProperty, {});
-    });
+    // Finding C: capture the delegate in a QPointer. The raw sender
+    // pointer is dangling once destroyed() is emitted (verified with a
+    // throwaway Qt 6.11 probe: QPointer clears before destroyed()
+    // handlers run), so every comparison below goes through guarded
+    // QPointer state instead.
+    const QPointer<NavigationItemDelegate> guardedDelegate(delegate);
+    QObject::connect(delegate, &QObject::destroyed, state,
+                     [guardedView, guardedState, guardedDelegate] {
+                         if (!guardedView || !guardedState || !guardedDelegate)
+                             return;
+                         if (guardedState->delegate.data() != guardedDelegate.data())
+                             return;
+                         guardedState->delegate.clear();
+                         // The destroyed delegate is already detached from
+                         // here; only replace what the view still holds.
+                         // The fallback is now tracked in state->original
+                         // (Finding C) so restoreNavigationView() restores
+                         // the owned object instead of a dangling pointer.
+                         auto *fallback = new QStyledItemDelegate(guardedView);
+                         guardedState->original = fallback;
+                         guardedView->setProperty(navigationOriginalDelegateProperty,
+                                                  QVariant::fromValue<QObject *>(fallback));
+                         if (guardedView->itemDelegate() == guardedDelegate)
+                             guardedView->setItemDelegate(fallback);
+                         guardedView->setProperty(navigationDelegateProperty, {});
+                     });
     if (original) {
         QObject::connect(original, &QObject::destroyed, state, [guardedView, guardedState] {
             if (!guardedView || !guardedState)
@@ -401,12 +452,17 @@ void restoreNavigationView(QAbstractItemView *view)
         restoreNavigationSurface(view, state);
     } else
         clearNavigationProperties(view);
-    if (view->viewport()->property(originalMouseTrackingProperty).isValid())
-        view->viewport()->setMouseTracking(
-                view->viewport()->property(originalMouseTrackingProperty).toBool());
-    view->viewport()->setProperty(originalMouseTrackingProperty, {});
-    view->viewport()->setProperty(Style::NavigationViewProperty, {});
-    WinUI3::Private::framePropertyRegistry().clear(view->viewport(), navigationIndicatorProperty);
+    // Finding A: the viewport can already be gone when the view is being
+    // torn down. Guard once with a local instead of dereferencing
+    // view->viewport() on every line.
+    QWidget *viewport = view->viewport();
+    if (!viewport)
+        return;
+    if (viewport->property(originalMouseTrackingProperty).isValid())
+        viewport->setMouseTracking(viewport->property(originalMouseTrackingProperty).toBool());
+    viewport->setProperty(originalMouseTrackingProperty, {});
+    viewport->setProperty(Style::NavigationViewProperty, {});
+    WinUI3::Private::framePropertyRegistry().clear(viewport, navigationIndicatorProperty);
 }
 
 } // namespace WinUI3::NavigationPrivate

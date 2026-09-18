@@ -103,7 +103,10 @@ private slots:
     void pluginFactory();
     void navigationModelReconnectAndScroll();
     void navigationDelegateLifecycle();
+    void navigationTeardownMidAnimation();
+    void navigationSelectionModelRepaint();
     void navigationBackdropToggleRevealsOneMaterial();
+    void navigationBackdropDisableRepaintsOpaqueAfterRestore();
 };
 
 void WinUI3NavigationTest::initTestCase()
@@ -461,6 +464,69 @@ void WinUI3NavigationTest::navigationDelegateLifecycle()
                  inheritedViewportPaletteExplicit);
 }
 
+void WinUI3NavigationTest::navigationTeardownMidAnimation()
+{
+    // Findings A/B: closing the window (viewport teardown) while the
+    // selection indicator is animating must not crash. Before the guard
+    // fix, restore/shutdown paths dereferenced view->viewport()
+    // unconditionally during teardown.
+    auto *view = new QListView;
+    WinUI3::Style::setNavigationView(view);
+    QStandardItemModel model(40, 1);
+    for (int row = 0; row < model.rowCount(); ++row)
+        model.setData(model.index(row, 0), QStringLiteral("Item %1").arg(row));
+    view->setModel(&model);
+    view->resize(260, 120);
+    view->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view));
+    QTRY_VERIFY(view->property("_winui_navigation_delegate").isValid());
+    view->setCurrentIndex(model.index(4, 0));
+    QCoreApplication::processEvents();
+    // Start an animated indicator run, then tear down mid-flight: close
+    // the window, process the deferred deletion events, and restore.
+    view->setCurrentIndex(model.index(20, 0));
+    QCoreApplication::processEvents();
+    view->close();
+    delete view;
+    QCoreApplication::processEvents();
+    QVERIFY(true);
+}
+
+void WinUI3NavigationTest::navigationSelectionModelRepaint()
+{
+    // Finding D: replacing the selection model and repainting must not
+    // crash, and the indicator target must update through the
+    // sizeHint/scroll re-attachment path — not through paint(). Before
+    // the fix, paint() mutated state via const_cast (connect signals,
+    // setIndicatorTarget, viewport update) with reentrancy risk.
+    QListView view;
+    WinUI3::Style::setNavigationView(&view);
+    QStandardItemModel model(40, 1);
+    for (int row = 0; row < model.rowCount(); ++row)
+        model.setData(model.index(row, 0), QStringLiteral("Item %1").arg(row));
+    view.setModel(&model);
+    view.setCurrentIndex(model.index(2, 0));
+    view.resize(260, 120);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
+    QCoreApplication::processEvents();
+    // Exercise sizeHint-driven attachment, then swap the selection model
+    // and repaint: the new model's current index must become the target.
+    view.viewport()->repaint();
+    QCoreApplication::processEvents();
+    auto *replacement = new QItemSelectionModel(&model, &view);
+    view.setSelectionModel(replacement);
+    replacement->setCurrentIndex(model.index(25, 0), QItemSelectionModel::SelectCurrent);
+    view.scrollTo(model.index(25, 0), QAbstractItemView::PositionAtCenter);
+    view.viewport()->repaint();
+    QCoreApplication::processEvents();
+    const qreal after = frameReal(view.viewport(), "_winui_navigation_indicator_y");
+    const qreal expected = view.visualRect(model.index(25, 0)).top();
+    QVERIFY(std::isfinite(after));
+    QCOMPARE(after, expected);
+}
+
 void WinUI3NavigationTest::navigationBackdropToggleRevealsOneMaterial()
 {
     // Panel-vs-list skew contract: toggling the window backdrop must leave
@@ -500,6 +566,121 @@ void WinUI3NavigationTest::navigationBackdropToggleRevealsOneMaterial()
     QTRY_VERIFY(list->palette().color(QPalette::Base).alpha()
                 == list->viewport()->palette().color(QPalette::Base).alpha());
     QCOMPARE(list->visualItemRect(list->item(0)).height(), rowHeight);
+}
+
+// Paint-time probe: records every synchronous paint on one widget plus the
+// palette role the paint observed. Lets the toggle tests assert repaint
+// COVERAGE (which widgets rebuilt their backing store during the leg) and
+// convergence ORDER (opaque roles before the disable-leg repaint, transparent
+// roles before the enable-leg repaint) without any screenshot.
+struct NavigationPaintProbe final : public QObject
+{
+    int paints = 0;
+    QList<int> baseAlphas;
+    QList<int> windowAlphas;
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Paint) {
+            if (const auto *widget = qobject_cast<const QWidget *>(watched)) {
+                ++paints;
+                baseAlphas.append(widget->palette().color(QPalette::Base).alpha());
+                windowAlphas.append(widget->palette().color(QPalette::Window).alpha());
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
+
+void WinUI3NavigationTest::navigationBackdropDisableRepaintsOpaqueAfterRestore()
+{
+    // Disable-leg repaint contract (mica->none->mica): toggling off must
+    // rebuild the window and the navigation surfaces from their restored
+    // opaque palettes, and toggling back on must repaint the view frame as
+    // well as the viewport. The defect: the None leg repainted the window
+    // while its Window role was still transparent (opaque convergence runs
+    // after the repaint), so painters rebuilt from transparent-era roles
+    // onto a window becoming opaque; the view frame's backing store was
+    // never fully rebuilt either, so the second enable resurrected the
+    // smeared rows (live nav-box artifacts, second enable only). Every
+    // paint below is synchronous, so the probes observe exactly the leg's
+    // repaint coverage and convergence order.
+    QWidget window;
+    window.setProperty("winuiBackdrop", QStringLiteral("none"));
+    auto *layout = new QHBoxLayout(&window);
+    auto *panel = new QWidget(&window);
+    panel->setObjectName(QStringLiteral("navigationPanel"));
+    auto *panelLayout = new QVBoxLayout(panel);
+    auto *list = new QListWidget(panel);
+    list->setProperty(WinUI3::Style::NavigationViewProperty, true);
+    list->addItems({ QStringLiteral("Controls"), QStringLiteral("Settings") });
+    panelLayout->addWidget(list);
+    layout->addWidget(panel);
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const int originalViewBase = list->palette().color(QPalette::Base).alpha();
+    const int originalViewportBase = list->viewport()->palette().color(QPalette::Base).alpha();
+    const QFrame::Shape originalShape = list->frameShape();
+    const bool originalAutoFill = list->viewport()->autoFillBackground();
+    const bool originalOpaque = list->viewport()->testAttribute(Qt::WA_OpaquePaintEvent);
+    const int originalWindowColor = window.palette().color(QPalette::Window).alpha();
+    NavigationPaintProbe windowProbe;
+    NavigationPaintProbe viewProbe;
+    NavigationPaintProbe viewportProbe;
+    window.installEventFilter(&windowProbe);
+    list->installEventFilter(&viewProbe);
+    list->viewport()->installEventFilter(&viewportProbe);
+    const auto resetProbes = [&] {
+        windowProbe.paints = 0;
+        windowProbe.windowAlphas.clear();
+        viewProbe.paints = 0;
+        viewProbe.baseAlphas.clear();
+        viewportProbe.paints = 0;
+        viewportProbe.baseAlphas.clear();
+    };
+
+    // Leg 1 (enable): the window goes transparent and the opted-in list
+    // follows; the viewport rebuilds synchronously from transparent roles.
+    resetProbes();
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(list->palette().color(QPalette::Base).alpha(), 0);
+    QCOMPARE(list->viewport()->palette().color(QPalette::Base).alpha(), 0);
+    QCOMPARE(list->frameShape(), QFrame::NoFrame);
+    QVERIFY(!list->viewport()->autoFillBackground());
+    QVERIFY(!list->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(viewportProbe.paints > 0);
+
+    // Leg 2 (disable): no paint may observe the stale transparent window
+    // role — the hierarchy repaints only after restoreBackdropState
+    // publishes Solid and the opaque palette converges. The nav surfaces
+    // converge back to their saved opaque state on the same toggle.
+    resetProbes();
+    window.setProperty("winuiBackdrop", QStringLiteral("none"));
+    QVERIFY(!windowProbe.windowAlphas.isEmpty());
+    QVERIFY(!windowProbe.windowAlphas.contains(0));
+    QCOMPARE(window.palette().color(QPalette::Window).alpha(), originalWindowColor);
+    QVERIFY(viewportProbe.paints > 0);
+    QVERIFY(viewProbe.paints > 0);
+    QCOMPARE(list->palette().color(QPalette::Base).alpha(), originalViewBase);
+    QCOMPARE(list->viewport()->palette().color(QPalette::Base).alpha(), originalViewportBase);
+    QCOMPARE(list->frameShape(), originalShape);
+    QCOMPARE(list->viewport()->autoFillBackground(), originalAutoFill);
+    QCOMPARE(list->viewport()->testAttribute(Qt::WA_OpaquePaintEvent), originalOpaque);
+    QCOMPARE(window.property("_winui_backdrop_effective").toInt(), 0);
+    QVERIFY(!window.property("_winui_backdrop").isValid());
+
+    // Leg 3 (second enable): same transparent contract as leg 1, and the
+    // view frame rebuilds again instead of reusing the none-leg store.
+    resetProbes();
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    QCOMPARE(list->palette().color(QPalette::Base).alpha(), 0);
+    QCOMPARE(list->viewport()->palette().color(QPalette::Base).alpha(), 0);
+    QVERIFY(viewportProbe.paints > 0);
+    QVERIFY(viewProbe.paints > 0);
+    QObject *delegate = list->property("_winui_navigation_delegate").value<QObject *>();
+    QVERIFY(delegate && delegate == list->itemDelegate());
 }
 
 QTEST_MAIN(WinUI3NavigationTest)
