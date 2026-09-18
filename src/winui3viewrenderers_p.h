@@ -21,6 +21,10 @@ using TableEditorOverlap =
 
 bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                        const QStyleOption *option, QPainter *painter, const QWidget *widget);
+// drawViewControl: tableEditorOverlap may be empty/null, which means "no
+// overlap check" (not an error). The paint path must guard with
+// `if (tableEditorOverlap)` before invoking it; calling an empty
+// std::function would throw std::bad_function_call in the paint path.
 bool drawViewControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option,
                      QPainter *painter, const QWidget *widget,
                      const TableEditorOverlap &tableEditorOverlap);

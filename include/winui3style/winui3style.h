@@ -4,6 +4,7 @@
 #include <winui3style/winui3global.h>
 
 #include <QColor>
+#include <QObject>
 #include <QProxyStyle>
 
 #include <memory>
@@ -14,9 +15,11 @@ class QAbstractItemView;
 class QAbstractSpinBox;
 class QFrame;
 class QString;
+class QStyle;
 class QWidget;
 
 namespace WinUI3 {
+Q_NAMESPACE_EXPORT(WINUI3STYLE_EXPORT)
 
 enum class ThemeMode { System, Light, Dark };
 
@@ -25,6 +28,10 @@ enum class ThemeMode { System, Light, Dark };
 enum class DensityMode { Standard, Compact };
 
 enum class ControlRole { Standard, Accent, Subtle, Navigation, Destructive };
+
+Q_ENUM_NS(ThemeMode)
+Q_ENUM_NS(DensityMode)
+Q_ENUM_NS(ControlRole)
 
 class StylePrivate;
 
@@ -40,6 +47,10 @@ public:
     explicit Style(ThemeMode mode = ThemeMode::System);
     explicit Style(DensityMode density);
     Style(ThemeMode mode, DensityMode density);
+    // QProxyStyle composition entry point: wraps a custom base style (e.g.
+    // QFusionStyle) instead of the default QCommonStyle. Additive overload;
+    // the existing ctors above keep working identically.
+    Style(QStyle *base, ThemeMode mode, DensityMode density);
     ~Style() override;
 
     ThemeMode themeMode() const;
@@ -61,7 +72,9 @@ public:
 
     // Whether mnemonic underlines are currently shown (Alt pressed, Windows
     // Alt-reveal contract). Tracked by the style's event filter; paint sites
-    // query it through SH_UnderlineShortcut.
+    // query it through SH_UnderlineShortcut. GUI-thread-only: both the setter
+    // and the getter assert the GUI thread (the setter repaints top-level
+    // widgets, which is itself GUI-thread-only).
     static bool altMnemonicsVisible();
     static void setAltMnemonicsVisible(bool visible);
 
@@ -137,8 +150,20 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // GUI-thread-only: repolishes the application palette, theme, and
+    // density registrations and emits themeChanged/densityChanged. Must run
+    // on the GUI thread (touches top-level widgets and palettes).
     void refreshApplicationAppearance();
+    // GUI-thread-only: re-runs the owned-palette surface pass for one window
+    // (islands + registered palette owners) after its effective backdrop
+    // surface changed, so an inline calendar converges onto the granted
+    // material instead of keeping the opaque surface computed at polish.
+    void refreshOwnedPalettes(QWidget *window);
+    // GUI-thread-only: invalidates density geometry for scope (or every
+    // top-level window when null) and repaints synchronously.
     void invalidateDensity(QWidget *scope = nullptr);
+    // GUI-thread-only: polls the system theme/accent cache and, on change,
+    // calls refreshApplicationAppearance() plus themeChanged/accent signals.
     void checkSystemAppearance();
     std::unique_ptr<StylePrivate> d;
 };

@@ -1,6 +1,8 @@
 #include <winui3style/navigationview.h>
+#include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3style.h>
 
+#include "../src/winui3backdrop_p.h"
 #include "../src/winui3density_p.h"
 #include "winui3testhelpers.h"
 
@@ -137,6 +139,8 @@ private slots:
     void menuDensityPreservesPopupGeometry();
     void inheritedCompactNumberBoxMatchesTextBoxHeight();
     void calendarPopupRemainsReadableInLightAndDark();
+    void calendarKeepPathRebasesTextRolesAcrossThemeSwitch();
+    void calendarNavigationBarLaneSharesOpaqueSurface();
 };
 
 void WinUI3DensityWidgetsTest::init()
@@ -368,7 +372,15 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     const QPalette palette = popup->viewport()->palette();
     QVERIFY(palette.color(QPalette::Base).lightness() > 180);
     QVERIFY(palette.color(QPalette::Text).lightness() < 100);
-    QVERIFY(popup->viewport()->autoFillBackground());
+    // Granted acrylic popups carry the translucent recipe (no auto-fill;
+    // Qt leaves the erase to the style's backdrop branches); refused and
+    // offscreen popups keep the opaque auto-filled surface. Gate on the
+    // published effective state, never on pixels alone.
+    if (WinUI3::Private::backdropEffectiveSurface(popup)
+        == WinUI3::Private::BackdropSurface::Composited)
+        QVERIFY(!popup->viewport()->autoFillBackground());
+    else
+        QVERIFY(popup->viewport()->autoFillBackground());
     QVERIFY(!popup->viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
 
     popup->setCurrentIndex(popup->model()->index(0, 0));
@@ -440,10 +452,20 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupRebasesPaletteAndHasNoSelectionGl
     QVERIFY2(colorDistance(pillCenter, palette.color(QPalette::Base)) > 8,
              "hovered suggestion must paint the shared hover pill");
     const QColor pillEdge = hoveredImage.pixelColor(pill.left() - 2, pill.center().y());
-    QCOMPARE(pillEdge, palette.color(QPalette::Base));
+    // Grabbed-pixel convention in this file: near-equality, not bitwise
+    // QCOMPARE (backing-store round-trips and faint antialiasing can differ
+    // below display precision). A real boxed spill still fails by distance.
+    QVERIFY2(colorDistance(pillEdge, palette.color(QPalette::Base)) <= 3,
+             qPrintable(QStringLiteral("pill edge #%1 vs Base #%2")
+                                .arg(pillEdge.name(QColor::HexArgb),
+                                     palette.color(QPalette::Base).name(QColor::HexArgb))));
     // Top edge of the 3px rounding: the corner pixel stays Base, the pixel
-    // two rows in carries the pill. Same shape a menu row paints.
-    QCOMPARE(hoveredImage.pixelColor(pill.left(), pill.top()), palette.color(QPalette::Base));
+    // two rows in carries the pill. Same shape a menu row paints. Near-
+    // equality per the grabbed-pixel convention above.
+    QVERIFY2(colorDistance(hoveredImage.pixelColor(pill.left(), pill.top()),
+                           palette.color(QPalette::Base))
+                     <= 3,
+             "pill corner must stay Base");
     QVERIFY2(colorDistance(hoveredImage.pixelColor(pill.left() + 2, pill.top() + 2),
                                                   palette.color(QPalette::Base))
                      > 8,
@@ -923,8 +945,20 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         const WinUI3::Private::Tokens modeTokens =
                 WinUI3::Private::buildTokens(style.standardPalette());
         QCOMPARE(view->palette().color(QPalette::HighlightedText), modeTokens.textPrimary);
-        QCOMPARE(view->palette().color(QPalette::Base),
-                 WinUI3::Private::popupSurfaceColor(style.standardPalette()));
+        // The popup recipe depends on the live grant: refused and offscreen
+        // popups resolve the opaque flyout surface, while a granted
+        // compositor carries the same RGB with the theme translucency
+        // (178 dark / 242 light, the documented popup recipe). Gate on the
+        // published effective state.
+        if (WinUI3::Private::backdropEffectiveSurface(calendar->window())
+            == WinUI3::Private::BackdropSurface::Composited) {
+            QColor tinted = WinUI3::Private::popupSurfaceColor(style.standardPalette());
+            tinted.setAlpha(modeTokens.dark ? 178 : 242);
+            QCOMPARE(view->palette().color(QPalette::Base), tinted);
+        } else {
+            QCOMPARE(view->palette().color(QPalette::Base),
+                     WinUI3::Private::popupSurfaceColor(style.standardPalette()));
+        }
         auto *monthButton =
                 calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_monthbutton"));
         QVERIFY(monthButton);
@@ -1000,7 +1034,14 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         QVERIFY(inlineView);
         QCOMPARE(inlineView->palette().color(QPalette::Highlight), QColor(Qt::transparent));
         QCOMPARE(inlineView->palette().color(QPalette::HighlightedText), modeTokens.textPrimary);
-        QCOMPARE(inlineView->palette().color(QPalette::Base), modeTokens.layer);
+        // Standalone inline calendar: InputActive over Window, no group card.
+        QImage inlineSurface(1, 1, QImage::Format_ARGB32_Premultiplied);
+        inlineSurface.fill(modeTokens.surface);
+        {
+            QPainter painter(&inlineSurface);
+            painter.fillRect(inlineSurface.rect(), modeTokens.editorFocusedFill);
+        }
+        QCOMPARE(inlineView->palette().color(QPalette::Base), inlineSurface.pixelColor(0, 0));
         auto *inlineNav = inlineCalendar.findChild<QWidget *>(
                 QStringLiteral("qt_calendar_navigationbar"));
         QVERIFY(inlineNav);
@@ -1039,6 +1080,231 @@ void WinUI3DensityWidgetsTest::calendarPopupRemainsReadableInLightAndDark()
         calendar->hide();
         QCoreApplication::processEvents();
     }
+}
+
+void WinUI3DensityWidgetsTest::calendarNavigationBarLaneSharesOpaqueSurface()
+{
+    // Gallery repro: Dialogs&states persistentCalendar (inline) + synthesized
+    // QDateEdit popup calendar. Mica (composited backdrop) vs normal must keep
+    // the header lane uniform: empty stretches and month/year/prev/next parts
+    // share the same opaque content-surface background.
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    const QList<WinUI3::DensityMode> densities = { WinUI3::DensityMode::Standard,
+                                                  WinUI3::DensityMode::Compact };
+    for (const WinUI3::DensityMode density : densities) {
+        for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
+            style.setThemeMode(mode);
+            QCoreApplication::processEvents();
+            for (const bool mica : { false, true }) {
+                QWidget host;
+                host.setStyle(&style);
+                // Real grant path only: the previous revision faked Composited
+                // by writing _winui_backdrop_effective directly, which asserts
+                // a contract no real compositor can produce (an opaque lane
+                // over a granted material). A genuine grant veils the lane;
+                // a refused/offscreen grant keeps the opaque fallback.
+                // Grant on the VISIBLE window (gallery + calendarheader path):
+                // requesting Mica before show forces handle creation pre-show
+                // and the show-time re-apply can transiently refuse, sticking
+                // Painted with no re-grant. No real client grants pre-show.
+                QCalendarWidget *calendar = new QCalendarWidget(&host);
+                calendar->setStyle(&style);
+                calendar->setSelectedDate(QDate(2026, 8, 15));
+                calendar->resize(360, 240);
+                if (density == WinUI3::DensityMode::Compact)
+                    calendar->setProperty(WinUI3::Style::DensityProperty,
+                                          QStringLiteral("compact"));
+                host.resize(420, 320);
+                host.show();
+                QVERIFY(QTest::qWaitForWindowExposed(&host));
+                QCoreApplication::processEvents();
+                const bool granted = mica
+                        && WinUI3::applyBackdrop(&host, WinUI3::Backdrop::Mica)
+                        && WinUI3::Private::backdropEffectiveSurface(&host)
+                                == WinUI3::Private::BackdropSurface::Composited;
+                QCoreApplication::processEvents();
+
+                auto *navigation = calendar->findChild<QWidget *>(
+                        QStringLiteral("qt_calendar_navigationbar"));
+                QVERIFY2(navigation, "calendar navigation bar must exist");
+                QCOMPARE(navigation->backgroundRole(), QPalette::Window);
+                // Uniformity, not opacity, is the contract: a genuine grant
+                // veils the lane in Dark (alpha < 255); Light's pinned
+                // InputActive is opaque by definition, and the refused and
+                // offscreen fallbacks stay opaque. Either way the lane must
+                // equal the bar.
+                if (granted && mode == WinUI3::ThemeMode::Dark)
+                    QVERIFY2(navigation->palette().color(QPalette::Window).alpha() < 255,
+                             "granted Mica must veil the lane, not bake it opaque");
+                else
+                    QCOMPARE(navigation->palette().color(QPalette::Window).alpha(), 255);
+
+                const QStringList laneNames = { QStringLiteral("qt_calendar_monthbutton"),
+                                                QStringLiteral("qt_calendar_yearbutton"),
+                                                QStringLiteral("qt_calendar_prevmonth"),
+                                                QStringLiteral("qt_calendar_nextmonth") };
+                QList<QWidget *> laneChildren;
+                for (const QString &name : laneNames) {
+                    QWidget *child = calendar->findChild<QWidget *>(name);
+                    QVERIFY2(child, qPrintable(QStringLiteral("missing lane child %1").arg(name)));
+                    laneChildren << child;
+                    // Mechanism: lane children must sit on the same
+                    // Window surface as the bar, never a different role.
+                    // Granted Mica veils that shared surface in Dark (Light
+                    // InputActive is opaque by definition); the fallback
+                    // keeps it opaque.
+                    QCOMPARE(child->backgroundRole(), QPalette::Window);
+                    if (granted && mode == WinUI3::ThemeMode::Dark)
+                        QVERIFY2(child->palette().color(QPalette::Window).alpha() < 255,
+                                 "granted Mica must veil lane children, not bake them opaque");
+                    else
+                        QCOMPARE(child->palette().color(QPalette::Window).alpha(), 255);
+                    QCOMPARE(child->palette().color(QPalette::Window),
+                             navigation->palette().color(QPalette::Window));
+                }
+
+                // CalendarView navigation has no idle fill/stroke. The style
+                // restores its resolved calendar surface before Subtle state
+                // overlays, including when the backdrop erase gate is open.
+                for (QWidget *child : laneChildren) {
+                    if (!qobject_cast<QAbstractButton *>(child))
+                        continue;
+                    QCOMPARE(WinUI3::Style::controlRole(child),
+                             WinUI3::ControlRole::Subtle);
+                    // Suspect 2: rest/hover fills read the Button role while
+                    // the bar reads Window. The lane palette repoints Button
+                    // at the same opaque lane surface, so the Standard rest
+                    // fill covers the erase with the lane color in both modes.
+                    QCOMPARE(child->palette().color(QPalette::Button),
+                             navigation->palette().color(QPalette::Window));
+                }
+                // The year editor frame (CC_SpinBox) also fills from the
+                // Button role (t.control), while its text field reads Base:
+                // both must be the opaque lane surface, never the app roles.
+                if (QAbstractSpinBox *yearEditor = calendar->findChild<QAbstractSpinBox *>()) {
+                    QCOMPARE(yearEditor->palette().color(QPalette::Base),
+                             navigation->palette().color(QPalette::Window));
+                    QCOMPARE(yearEditor->palette().color(QPalette::Button),
+                             navigation->palette().color(QPalette::Window));
+                }
+
+                // Visual: empty stretch vs month-button rect from the same grab.
+                // Mechanism-first (roles + shared Window palettes are asserted
+                // above); the grab is a regression signal for the empty
+                // stretch only. Child-button pixels are not comparable:
+                // offscreen grabs composite the button text/antialiasing over
+                // the lane, so a corner probe still lands on text coverage.
+                const QImage laneImage =
+                        navigation->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+                QVERIFY(!laneImage.isNull());
+                auto childContains = [&](const QPoint &pt) {
+                    for (const QWidget *child : laneChildren) {
+                        const QRect inBar(child->mapTo(navigation, QPoint(0, 0)),
+                                          child->size());
+                        if (inBar.contains(pt))
+                            return true;
+                    }
+                    return false;
+                };
+                QPoint emptyPt(-1, -1);
+                const int probeY = navigation->rect().center().y();
+                for (int x = 0; x < navigation->rect().width(); ++x) {
+                    const QPoint candidate(x, probeY);
+                    if (!childContains(candidate)) {
+                        emptyPt = candidate;
+                        break;
+                    }
+                }
+                QVERIFY2(emptyPt.x() >= 0, "navigation bar must expose an empty stretch");
+                const QColor emptyColor = laneImage.pixelColor(emptyPt);
+                // Mechanism-first: the lane children paint from the same
+                // Window surface contract as the bar (roles + palettes
+                // asserted above). The empty stretch must render that surface;
+                // the button rect is owned by the same contract and
+                // is not pixel-compared (text coverage is not separable in a
+                // grab).
+                QVERIFY2(colorDistance(emptyColor, navigation->palette().color(QPalette::Window))
+                                 < 36,
+                         qPrintable(QStringLiteral("empty #%1 vs lane #%2")
+                                            .arg(emptyColor.name())
+                                            .arg(navigation->palette().color(QPalette::Window).name())));
+                // Mica parity: the same shared lane surface with and without
+                // the composited material — veiled under a genuine Dark grant
+                // (Light InputActive is opaque by definition), opaque on the
+                // refused/offscreen fallback. Only DWM behind the window may
+                // otherwise change.
+                QCOMPARE(emptyColor.alpha(),
+                         navigation->palette().color(QPalette::Window).alpha());
+                if (granted && mode == WinUI3::ThemeMode::Dark)
+                    QVERIFY2(navigation->palette().color(QPalette::Window).alpha() < 255,
+                             "granted Mica must veil the lane surface");
+                else
+                    QCOMPARE(navigation->palette().color(QPalette::Window).alpha(), 255);
+                host.hide();
+                QCoreApplication::processEvents();
+            }
+        }
+    }
+}
+
+void WinUI3DensityWidgetsTest::calendarKeepPathRebasesTextRolesAcrossThemeSwitch()
+{
+    // Keep-path: reused popup HWND skips the full rebuild; text roles must
+    // still follow a theme flip while hidden (fresh dark surface + stale
+    // black text reads as black-on-dark).
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    QWidget root;
+    root.setStyle(&style);
+    QDateEdit date(&root);
+    date.setCalendarPopup(true);
+    date.setDate(QDate(2026, 8, 15));
+    date.resize(200, 40);
+    root.show();
+    QCoreApplication::processEvents();
+    QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5, date.height() / 2));
+    QCoreApplication::processEvents();
+    auto *calendar = date.calendarWidget();
+    QVERIFY(calendar);
+    if (!calendar->isVisible()) {
+        calendar->show();
+        QCoreApplication::processEvents();
+    }
+    QVERIFY(calendar->isVisible());
+    QWidget *popup = calendar->window();
+    QVERIFY(popup);
+    const QColor staleText = popup->palette().color(QPalette::Text);
+    calendar->hide();
+    QCoreApplication::processEvents();
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    QCoreApplication::processEvents();
+    QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5, date.height() / 2));
+    QCoreApplication::processEvents();
+    QCOMPARE(date.calendarWidget(), calendar);
+    if (!calendar->isVisible()) {
+        calendar->show();
+        QCoreApplication::processEvents();
+    }
+    QVERIFY(calendar->isVisible());
+    QWidget *reopened = calendar->window();
+    QVERIFY(reopened);
+    const QPalette fresh = style.standardPalette();
+    QCOMPARE(reopened->palette().color(QPalette::WindowText), fresh.color(QPalette::WindowText));
+    QCOMPARE(reopened->palette().color(QPalette::Text), fresh.color(QPalette::Text));
+    QCOMPARE(reopened->palette().color(QPalette::ButtonText), fresh.color(QPalette::ButtonText));
+    QCOMPARE(reopened->palette().color(QPalette::HighlightedText),
+             fresh.color(QPalette::HighlightedText));
+    QVERIFY2(reopened->palette().color(QPalette::Text) != staleText,
+             "reopened popup must not keep the pre-flip text role");
+    auto *view = calendar->findChild<QAbstractItemView *>(
+            QStringLiteral("qt_calendar_calendarview"));
+    QVERIFY(view);
+    const WinUI3::Private::Tokens darkTokens = WinUI3::Private::buildTokens(fresh);
+    QCOMPARE(view->palette().color(QPalette::HighlightedText), darkTokens.textPrimary);
+    const QImage image = view->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+    QVERIFY(!image.isNull());
+    calendar->hide();
+    QCoreApplication::processEvents();
 }
 
 QTEST_MAIN(WinUI3DensityWidgetsTest)

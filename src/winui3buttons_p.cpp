@@ -70,7 +70,7 @@ void drawEditorScopedClearSurface(const QStyleOption *option, QPainter *painter,
                                   const QLineEdit *lineEdit, const QColor &fill)
 {
     const auto *button = lineEditClearButton(lineEdit);
-    if (!option || !painter || !button)
+    if (!option || !painter || !lineEdit || !button)
         return;
 
     QRectF surface(
@@ -118,12 +118,27 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             : 0.0;
 
     if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool) {
+        const QWidget *parent = widget ? widget->parentWidget() : nullptr;
+        const bool calendarPopupButton = parent
+                && parent->objectName() == QStringLiteral("qt_calendar_navigationbar")
+                && parent->parentWidget() && parent->parentWidget()->inherits("QCalendarWidget")
+                && Style::controlRole(widget) == ControlRole::Subtle;
+        // Calendar buttons sit on a tinted popup, not bare Mica. Restore
+        // exactly one effective surface layer before the unchanged state
+        // overlay; an idle Source-clear would punch a button-shaped hole.
+        if (calendarPopupButton) {
+            const QColor surface = widget->window()->windowType() == Qt::Popup
+                    ? widget->window()->palette().color(QPalette::Window)
+                    : parent->palette().color(QPalette::Window);
+            if (!clearForBackdropFill(painter, widget, option->rect, surface))
+                painter->fillRect(option->rect, surface);
+        }
         // Subtle-at-rest is the WinUI no-fill case: the parent surface must
         // show straight through. Erase the hover ghost, then repaint the
         // parent card tone when inside a group card (directly on the
         // material transparent is correct). Interactive states keep the
         // standard erase-then-fill path below.
-        if ((Style::controlRole(widget) == ControlRole::Subtle
+        if (!calendarPopupButton && (Style::controlRole(widget) == ControlRole::Subtle
              || Style::controlRole(widget) == ControlRole::Navigation)
             && paintsDirectlyOnBackdrop(widget)
             && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
@@ -158,7 +173,8 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // No radius clip: the fill below repaints the full frame shape every
         // pass, so a clipped erase would leave stale hover pixels outside
         // the rounded path (the accumulate-contract failure).
-        eraseForBackdrop(painter, widget, option->rect);
+        if (!calendarPopupButton)
+            eraseForBackdrop(painter, widget, option->rect);
         const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
@@ -496,12 +512,14 @@ static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, Q
         painter->drawEllipse(knobRect);
         painter->restore();
 
-        const QVariant stateText =
-                widget->property(checked ? Style::ToggleSwitchOnTextProperty
-                                         : Style::ToggleSwitchOffTextProperty);
+        const QVariant stateText = widget
+                ? widget->property(checked ? Style::ToggleSwitchOnTextProperty
+                                           : Style::ToggleSwitchOffTextProperty)
+                : QVariant();
         const QString label = stateText.isValid() ? stateText.toString() : check->text;
         if (!label.isEmpty()) {
-            painter->setFont(widget->font());
+            const QFont labelFont = widget ? widget->font() : QApplication::font();
+            painter->setFont(labelFont);
             painter->setPen(enabled ? t.textPrimary : t.textDisabled);
             const QRect labelRect = check->direction == Qt::RightToLeft
                     ? check->rect.adjusted(0, 0, -50, 0)
@@ -510,7 +528,7 @@ static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, Q
                     check->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
             paintGrayscaleText(painter, labelRect,
                                horizontal | Qt::AlignVCenter | Qt::TextShowMnemonic,
-                               widget->font(), enabled ? t.textPrimary : t.textDisabled, label);
+                               labelFont, enabled ? t.textPrimary : t.textDisabled, label);
         }
         if (keyboardFocusVisible(widget))
             paintFocusRing(painter, track, t.focusOuter, t.focusInner, -3, -1, 12, 11);
