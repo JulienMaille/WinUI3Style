@@ -1443,9 +1443,6 @@ void Style::refreshApplicationAppearance()
     if (!qApp)
         return;
     const QPalette applicationPalette = standardPalette();
-    const Private::Tokens applicationTokens = Private::tokens(applicationPalette);
-    const QColor applicationAccent = accentColor();
-    const bool darkTheme = d->dark();
     qApp->setPalette(applicationPalette);
     QToolTip::setPalette(applicationPalette);
     // A popup's view and viewport are often created after their combo box was
