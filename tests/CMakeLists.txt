@@ -142,6 +142,19 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_calendarheader_tests winui3styleplugin)
 endif()
 
+# Calendar surface split (60 KB cap: density_widgets has no headroom).
+# Same shape as winui3style_calendarheader_tests: links the public library
+# plus Qt Test/Widgets, resolves private test seams in the src headers via
+# the src include directory.
+add_executable(winui3style_calendarsurface_tests tst_winui3calendarsurface.cpp)
+target_include_directories(winui3style_calendarsurface_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_calendarsurface_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_calendarsurface_tests winui3styleplugin)
+endif()
+
 # ScrollBar rest groove inside an opaque group card (60 KB cap: views has no
 # headroom). Same shape as winui3style_calendarheader_tests: links the public
 # library plus Qt Test/Widgets, resolves private test seams in the src
@@ -189,6 +202,7 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_icons_tests
         winui3style_popupcorners_tests
         winui3style_calendarheader_tests
+        winui3style_calendarsurface_tests
         winui3style_scrollbarcard_tests)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
@@ -242,6 +256,8 @@ add_test(NAME winui3style_popupcorners_unit
          COMMAND winui3style_popupcorners_tests)
 add_test(NAME winui3style_calendarheader_unit
          COMMAND winui3style_calendarheader_tests)
+add_test(NAME winui3style_calendarsurface_unit
+         COMMAND winui3style_calendarsurface_tests)
 add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
 add_test(NAME winui3style_designer_gallery_contract
@@ -298,6 +314,9 @@ set_tests_properties(winui3style_popupcorners_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_calendarheader_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_calendarsurface_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_scrollbarcard_unit PROPERTIES
