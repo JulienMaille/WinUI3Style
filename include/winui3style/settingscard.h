@@ -100,6 +100,9 @@ private:
     void refreshHeaderGeometry();
     int expandableContentHeight();
     void resetExpansionState(bool notify);
+    void resolveNamedWidgetLater(bool &pendingFlag, QString &storedName,
+                                 void (SettingsCard::*setter)(QWidget *));
+    bool activateCard();
     QGridLayout *m_headerLayout = nullptr;
     QVBoxLayout *m_rootLayout = nullptr;
     QWidget *m_headerHost = nullptr;

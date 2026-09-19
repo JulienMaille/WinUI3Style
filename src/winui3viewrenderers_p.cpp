@@ -224,9 +224,19 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                 // and spills outside the pill on live acrylic. The tint ink is
                 // exact under a grant; on fallback Base is already opaque so
                 // this is identical. Never transparent-clear here (hole punch).
+                // A translucent Base (composited publish leaving the tint in
+                // the role) must still rebuild the row opaque: the CE site
+                // above round-trips it to the opaque flyout color, and the
+                // pill over a tinted frame reads as a 242-ish hole instead of
+                // the opaque hover ink (the live mouseover smear). Same guard
+                // as drawViewControl's CE_ItemViewItem rebuild: opaque roles
+                // pass through unchanged.
+                QColor popupRowBase = option->palette.color(QPalette::Base);
+                if (popupRowBase.alpha() < 255)
+                    popupRowBase = Private::popupSurfaceColor(option->palette);
                 painter->save();
                 painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(option->rect, option->palette.color(QPalette::Base));
+                painter->fillRect(option->rect, popupRowBase);
                 painter->restore();
             } else {
                 eraseForBackdrop(painter, widget, option->rect);

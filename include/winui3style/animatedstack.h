@@ -55,6 +55,7 @@ private:
     void finishTransition();
     void destroyTransitionObjects();
     void updateOverlayGeometry(qreal progress);
+    bool takeDeferred(int &index, Transition &transition);
 
     int m_duration = 250;
     int m_from = -1;

@@ -14,6 +14,14 @@ namespace WinUI3 {
 
 namespace {
 
+void shiftIndexForRemoval(int &stored, int removed)
+{
+    if (stored == removed)
+        stored = -1;
+    else if (stored > removed)
+        --stored;
+}
+
 class SnapshotOverlay final : public QWidget
 {
 public:
@@ -128,10 +136,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
             page->setGeometry(rect());
         emit transitionFinished(index);
         if (m_deferredIndex >= 0) {
-            const int deferred = m_deferredIndex;
-            const Transition deferredTransition = m_deferredTransition;
-            m_deferredIndex = -1;
-            setCurrentIndex(deferred, deferredTransition);
+            int deferred = -1;
+            Transition deferredTransition = Transition::Automatic;
+            if (takeDeferred(deferred, deferredTransition))
+                setCurrentIndex(deferred, deferredTransition);
         }
         return;
     }
@@ -183,10 +191,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         m_from = m_to = -1;
         m_transitionProgress = 0.0;
         if (m_deferredIndex >= 0) {
-            const int deferred = m_deferredIndex;
-            const Transition deferredTransition = m_deferredTransition;
-            m_deferredIndex = -1;
-            setCurrentIndex(deferred, deferredTransition);
+            int deferred = -1;
+            Transition deferredTransition = Transition::Automatic;
+            if (takeDeferred(deferred, deferredTransition))
+                setCurrentIndex(deferred, deferredTransition);
         }
         return;
     }
@@ -230,10 +238,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     m_group->start();
 
     if (m_deferredIndex >= 0) {
-        const int deferred = m_deferredIndex;
-        const Transition deferredTransition = m_deferredTransition;
-        m_deferredIndex = -1;
-        setCurrentIndex(deferred, deferredTransition);
+        int deferred = -1;
+        Transition deferredTransition = Transition::Automatic;
+        if (takeDeferred(deferred, deferredTransition))
+            setCurrentIndex(deferred, deferredTransition);
     }
 }
 
@@ -277,10 +285,7 @@ void AnimatedStack::handleWidgetRemoved(int index)
     // no group exists yet (the reentrant currentChanged path). A deferred
     // target that was itself removed no longer exists: drop it instead of
     // replaying the shifted-in successor.
-    if (m_deferredIndex == index)
-        m_deferredIndex = -1;
-    else if (m_deferredIndex > index)
-        --m_deferredIndex;
+    shiftIndexForRemoval(m_deferredIndex, index);
     if (!m_group)
         return;
 
@@ -288,15 +293,19 @@ void AnimatedStack::handleWidgetRemoved(int index)
     // guarded page pointers remain authoritative, but keeping both indices in
     // sync prevents stale values from being used by diagnostic code or a
     // re-entrant navigation request.
-    if (m_from == index)
-        m_from = -1;
-    else if (m_from > index)
-        --m_from;
-    if (m_to == index)
-        m_to = -1;
-    else if (m_to > index)
-        --m_to;
+    shiftIndexForRemoval(m_from, index);
+    shiftIndexForRemoval(m_to, index);
     cancelTransition();
+}
+
+bool AnimatedStack::takeDeferred(int &index, Transition &transition)
+{
+    if (m_deferredIndex < 0)
+        return false;
+    index = m_deferredIndex;
+    transition = m_deferredTransition;
+    m_deferredIndex = -1;
+    return true;
 }
 
 void AnimatedStack::destroyTransitionObjects()

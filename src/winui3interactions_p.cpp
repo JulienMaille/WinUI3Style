@@ -263,6 +263,23 @@ bool revealsKeyboardFocus(int key)
 
 } // namespace
 
+void cancelComboPress(QComboBox *combo, QSet<QComboBox *> &pressStates,
+                      const StyleInteractionCallbacks &callbacks)
+{
+    // Shared tail for the three stateless combo-cancel clones below
+    // (Leave/FocusOut/Hide always settle the press animation and chevron;
+    // Leave settles only a grab the combo does not own). Every path clears
+    // the press slot, unwinds the press animation, and releases the chevron;
+    // ownership of the grab and the grab release itself stay with the caller.
+    // EnabledChange intentionally does NOT use this helper: the original
+    // branch released the grab and chevron without animating.
+    if (!combo || !pressStates.remove(combo))
+        return;
+    callbacks.animate(combo, pressProperty, 0.0,
+                      interactionDuration(combo, InteractionMotion::Press, false));
+    callbacks.releaseComboChevron(combo);
+}
+
 StyleInteractionController::StyleInteractionController(Style *style,
                                                        StyleInteractionCallbacks callbacks)
     : m_style(style), m_callbacks(std::move(callbacks))
@@ -389,12 +406,10 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             // grab (never another widget's): a persistently held grab keeps
             // Qt's underMouse stuck true, which freezes the hover fallback
             // even after every frame has settled to zero.
-            if (m_comboPressStates.remove(combo)) {
+            if (m_comboPressStates.contains(combo)) {
                 if (QWidget::mouseGrabber() == combo)
                     combo->releaseMouse();
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                m_callbacks.releaseComboChevron(combo);
+                cancelComboPress(combo, m_comboPressStates, m_callbacks);
             }
         }
         if (!widget->isEnabled()) {
@@ -597,11 +612,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         break;
     case QEvent::FocusOut:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            if (m_comboPressStates.remove(combo)) {
+            if (m_comboPressStates.contains(combo)) {
                 combo->releaseMouse();
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                m_callbacks.releaseComboChevron(combo);
+                cancelComboPress(combo, m_comboPressStates, m_callbacks);
             }
         }
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
@@ -822,11 +835,9 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         break;
     case QEvent::Hide:
         if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            if (m_comboPressStates.remove(combo)) {
+            if (m_comboPressStates.contains(combo)) {
                 combo->releaseMouse();
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                m_callbacks.releaseComboChevron(combo);
+                cancelComboPress(combo, m_comboPressStates, m_callbacks);
             }
         }
         if (qobject_cast<QProgressBar *>(widget))

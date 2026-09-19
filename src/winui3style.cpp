@@ -340,6 +340,36 @@ QColor inlineCalendarSurface(const QWidget *widget, const QPalette &applicationP
     return pixel.pixelColor(0, 0);
 }
 
+// Shared calendar header surface: popup tint (+ live window tint when
+// composited), otherwise the inline veiled surface. Exact recipe shared by
+// the navigation-bar and lane polish branches and the refresh inline arm.
+inline QColor calendarHeaderSurface(bool popup, const QWidget *context,
+                                    const QPalette &applicationPalette)
+{
+    if (popup) {
+        QColor surface = Private::popupSurfaceColor(applicationPalette);
+        if (context && context->window()
+            && Private::backdropEffectiveSurface(context->window())
+                    == Private::BackdropSurface::Composited)
+            surface = context->window()->palette().color(QPalette::Window);
+        return surface;
+    }
+    return inlineCalendarSurface(context, applicationPalette);
+}
+
+// Shared update triad used by the refreshOwnedPalettes owner loops.
+inline void repaintViewTree(QWidget *widget)
+{
+    if (!widget)
+        return;
+    widget->update();
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+        view->update();
+        if (view->viewport())
+            view->viewport()->update();
+    }
+}
+
 // The navigation-bar lane (qt_calendar_navigationbar) paints its empty
 // stretches with its own Window fill while the month/year/prev/next
 // QToolButtons paint over it. The lane reads as one surface only when every
@@ -1550,6 +1580,48 @@ void Style::refreshOwnedPalettes(QWidget *window)
             continue;
         if (insideCalendarNavigationBar(widget))
             continue;
+        // The backdrop host's own Window role is owned by
+        // applyBackdrop()/restoreBackdropState(): it carries the
+        // live-material translucent recipe (alpha 0 in Painted, cleared
+        // under Composited). Rebasing it from the opaque application
+        // palette here would clobber that recipe, and the nested property
+        // write applyBackdrop performs to publish the effective state
+        // re-enters this loop before the caller re-asserts the material.
+        // Solid (no live backdrop) keeps the opaque app recipe below.
+        if (widget->isWindow()
+            && Private::backdropEffectiveSurface(widget) != Private::BackdropSurface::Solid)
+            continue;
+        // Live translucent navigation surfaces are style-owned transient
+        // state: prepareNavigationSurface transparentizes Base/Window while a
+        // mica/acrylic backdrop is granted on the view's window and restores
+        // the pre-navigation palette (explicit or inherited) when it goes
+        // away. Rebaseing them from the opaque application palette here would
+        // both clobber the live-material translucency and poison the state
+        // snapshot — this loop re-enters from applyBackdrop's effective-surface
+        // publish before refreshNavigationView re-prepares the view, so the
+        // saved "explicit" flag would record the clobber instead of the true
+        // pre-navigation state. Restored views are inherited again and follow
+        // every theme refresh through the parent chain, so skipping them in
+        // this pass loses nothing. The predicate mirrors prepareNavigationSurface
+        // (SurfaceProperty override stays a normal owned widget) and covers
+        // the viewport too: it is a plain QWidget child, not an item view, so
+        // it matches through its navigation-view parent instead.
+        QAbstractItemView *navSurfaceView = nullptr;
+        if (auto *itemView = qobject_cast<QAbstractItemView *>(widget))
+            navSurfaceView = itemView;
+        else if (auto *parentView = qobject_cast<QAbstractItemView *>(widget->parentWidget()))
+            navSurfaceView = parentView;
+        if (navSurfaceView && navSurfaceView->property(Style::NavigationViewProperty).toBool()
+            && !navSurfaceView->property(Style::SurfaceProperty).isValid()) {
+            const QString viewBackdrop = navSurfaceView->window()
+                    ? navSurfaceView->window()->property(Style::BackdropProperty).toString()
+                    : QString();
+            const bool translucentViewBackdrop =
+                    viewBackdrop.compare(QLatin1String("mica"), Qt::CaseInsensitive) == 0
+                    || viewBackdrop.compare(QLatin1String("acrylic"), Qt::CaseInsensitive) == 0;
+            if (translucentViewBackdrop)
+                continue;
+        }
         if (widget->window() && widget->window()->windowType() == Qt::Popup) {
             // Hidden calendar popups skip the owned-palette branches
             // (preparePopupSurface re-asserts the surface on show), but
@@ -1572,12 +1644,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
                     bar->update();
                     calendar->update();
                 }
-                widget->update();
-                if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-                    view->update();
-                    if (view->viewport())
-                        view->viewport()->update();
-                }
+                repaintViewTree(widget);
                 continue;
             }
             preparePopupSurface(widget);
@@ -1629,18 +1696,16 @@ void Style::refreshOwnedPalettes(QWidget *window)
             } else if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
                        && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
                 // Popup bars are handled by preparePopupSurface above. Inline
-                // bars follow the same Composited-aware surface as the day
-                // grid (mirroring polish): veiled under a granted backdrop so
-                // bar, lane, and body read as one surface; opaque Window only
-                // on the refused/offscreen fallback.
-                QColor navigationWindow;
+                // bars follow the opaque Window surface on the
+                // refused/offscreen fallback; Composited-aware veiling happens
+                // in the insideCalendarWidget rebase below (mirroring polish),
+                // so the bar and body converge as one surface.
+                QColor navigationWindow = applicationPalette.color(QPalette::Window);
+                navigationWindow.setAlpha(255);
                 if (Private::backdropEffectiveSurface(widget->window())
                     == Private::BackdropSurface::Composited)
-                    navigationWindow = inlineCalendarSurface(widget, applicationPalette);
-                else {
-                    navigationWindow = applicationPalette.color(QPalette::Window);
-                    navigationWindow.setAlpha(255);
-                }
+                    navigationWindow =
+                            calendarHeaderSurface(false, widget, applicationPalette);
                 palette.setColor(QPalette::Window, navigationWindow);
             } else if (qobject_cast<QDialog *>(widget)) {
                 palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
@@ -1654,12 +1719,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
             if (auto *dialog = qobject_cast<QDialog *>(widget))
                 prepareContentDialogState(dialog, darkTheme);
         }
-        widget->update();
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-            view->update();
-            if (view->viewport())
-                view->viewport()->update();
-        }
+        repaintViewTree(widget);
     }
     // Phase 2: the lane copies the post-phase-1 bar exactly (RGB+alpha),
     // guaranteed same pass. Lane buttons paint Subtle flat at rest over
@@ -1687,12 +1747,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
         if (qobject_cast<QAbstractSpinBox *>(widget))
             lanePalette.setColor(QPalette::Base, laneWindow);
         widget->setPalette(lanePalette);
-        widget->update();
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-            view->update();
-            if (view->viewport())
-                view->viewport()->update();
-        }
+        repaintViewTree(widget);
     }
     // Re-sync transparentized chrome and content islands after the recompute
     // above: the generic owner branches rebase every widget from the opaque
@@ -1947,26 +2002,18 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
 
     if (element == PE_Widget && widget
         && widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
-        && qobject_cast<QCalendarWidget *>(widget->parentWidget())
-        && widget->window()->windowType() == Qt::Popup) {
-        const QColor surface = widget->window()->palette().color(QPalette::Window);
+        && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
+        // Popup bars read the composited window tint; inline bars read the
+        // resolved bar palette. Inline lanes under a granted backdrop must
+        // read the same single-composite ink as the day cells: Source-fill
+        // the resolved bar surface instead of layering a second SourceOver
+        // fill over the calendar fill beneath (which drifts toward opaque).
+        // Refused and offscreen fallbacks keep the plain fill.
+        const bool isPopup = widget->window()->windowType() == Qt::Popup;
+        const QColor surface = isPopup ? widget->window()->palette().color(QPalette::Window)
+                                       : widget->palette().color(QPalette::Window);
         if (!Private::clearForBackdropFill(painter, widget, option->rect, surface))
             painter->fillRect(option->rect, surface);
-        return;
-    }
-
-    if (element == PE_Widget && widget
-        && widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
-        && qobject_cast<QCalendarWidget *>(widget->parentWidget())
-        && widget->window()->windowType() != Qt::Popup) {
-        // Inline lane under a granted backdrop must read the same
-        // single-composite ink as the day cells: Source-fill the resolved bar
-        // surface instead of layering a second SourceOver fill over the
-        // calendar fill beneath (which drifts toward opaque). Refused and
-        // offscreen fallbacks keep the plain fill.
-        const QColor lane = widget->palette().color(QPalette::Window);
-        if (!Private::clearForBackdropFill(painter, widget, option->rect, lane))
-            painter->fillRect(option->rect, lane);
         return;
     }
 
@@ -2689,15 +2736,7 @@ void Style::polish(QWidget *widget)
         d->registerPaletteOwner(widget);
         const QPalette navigationSource = standardPalette();
         const bool popupHeader = widget->window() && widget->window()->windowType() == Qt::Popup;
-        QColor navigationWindow;
-        if (popupHeader) {
-            navigationWindow = Private::popupSurfaceColor(navigationSource);
-            if (Private::backdropEffectiveSurface(widget->window())
-                == Private::BackdropSurface::Composited)
-                navigationWindow = widget->window()->palette().color(QPalette::Window);
-        } else {
-            navigationWindow = inlineCalendarSurface(widget, navigationSource);
-        }
+        const QColor navigationWindow = calendarHeaderSurface(popupHeader, widget, navigationSource);
         QPalette navigationPalette = navigationSource;
         navigationPalette.setColor(QPalette::Window, navigationWindow);
         widget->setPalette(navigationPalette);
@@ -2733,15 +2772,7 @@ void Style::polish(QWidget *widget)
         // palette: popup tint on popup calendars, opaque Window surface
         // inline. Never the factory Highlight a freshly-created bar may
         // still carry when a lane child is polished first.
-        QColor laneWindow;
-        if (popupCalendar) {
-            laneWindow = Private::popupSurfaceColor(lanePalette);
-            if (Private::backdropEffectiveSurface(widget->window())
-                == Private::BackdropSurface::Composited)
-                laneWindow = widget->window()->palette().color(QPalette::Window);
-        } else {
-            laneWindow = inlineCalendarSurface(widget, lanePalette);
-        }
+        const QColor laneWindow = calendarHeaderSurface(popupCalendar, widget, lanePalette);
         lanePalette.setColor(QPalette::Window, laneWindow);
         lanePalette.setColor(QPalette::Button, laneWindow);
         if (qobject_cast<QAbstractSpinBox *>(widget))

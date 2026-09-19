@@ -326,4 +326,16 @@ inline Tokens tokens(const QPalette &palette)
     return entry.value;
 }
 
+// Translucent popup/acrylic tint: the opaque flyout surface at the per-theme
+// compositing alpha (178 dark / 242 light). Single home for the alpha pair
+// duplicated across popup prep, the re-arm retint and the backdrop
+// convergence blocks; the RGB stays owned by popupSurfaceColor above.
+constexpr int PopupTintDarkAlpha = 178;
+constexpr int PopupTintLightAlpha = 242;
+inline QColor translucentPopupTint(const QPalette &palette)
+{
+    return withAlpha(popupSurfaceColor(palette),
+                     tokens(palette).dark ? PopupTintDarkAlpha : PopupTintLightAlpha);
+}
+
 } // namespace WinUI3::Private

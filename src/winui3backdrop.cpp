@@ -302,8 +302,12 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         // Main-window Mica keeps the transparent Window role (the live
         // material shows through), so this stays popup-only.
         const QPalette popupBase = Private::effectivePopupPalette(window, QApplication::palette());
-        QColor popupTint = Private::popupSurfaceColor(popupBase);
-        popupTint.setAlpha(qGray(themedWindowColor.rgb()) < 128 ? 178 : 242);
+        // Dark source is the themed (standardPalette Window) color, not the
+        // popup palette: custom popup palettes must not flip the tint alpha.
+        const bool dark = Private::windowIsDark(themedWindowColor);
+        const QColor popupTint = Private::withAlpha(
+                Private::popupSurfaceColor(popupBase),
+                dark ? Private::PopupTintDarkAlpha : Private::PopupTintLightAlpha);
         materialPalette.setColor(QPalette::Window, popupTint);
         materialPalette.setColor(QPalette::Base, popupTint);
         window->setPalette(materialPalette);

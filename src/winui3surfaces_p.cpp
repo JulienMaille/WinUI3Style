@@ -3,6 +3,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 #include "winui3backdrop_p.h"
@@ -374,16 +375,6 @@ void restoreTransparentizedSurface(QWidget *surface)
     surface->update();
 }
 
-void transparentizeForBackdrop(QWidget *surface)
-{
-    transparentizeSurface(surface);
-}
-
-void restoreTransparentizedForBackdrop(QWidget *surface)
-{
-    restoreTransparentizedSurface(surface);
-}
-
 void makeChromeSurfacesTransparent(QWidget *window)
 {
     if (!window)
@@ -421,12 +412,7 @@ void syncContentSurfacesForBackdrop(QWidget *window)
     // paintsDirectlyOnBackdrop instead of disabling clears.
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
-        const QVariant surface = island->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        const bool optedIn = surface.toBool()
-                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-        if (!optedIn)
+        if (!isContentLayerIsland(island))
             continue;
         for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>()) {
             guardIslandScrollArea(area);
@@ -478,70 +464,54 @@ void syncContentSurfacesForBackdrop(QWidget *window)
 
 // restore alone leaves the content island transparent, so PE_Widget keeps
 // Source-clearing to transparent on an opaque window (retained-frame smear).
+// Every restore link also normalizes Styled back to the polish-provided
+// opaque state (the restore helper does not track Styled) and repaints.
+void restoreStyled(QWidget *widget)
+{
+    if (!widget)
+        return;
+    restoreTransparentizedForBackdrop(widget);
+    widget->setAttribute(Qt::WA_StyledBackground, false);
+    widget->update();
+}
+
 void restoreContentSurfacesForBackdrop(QWidget *window)
 {
     if (!window)
         return;
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
-        const QVariant surface = island->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        const bool optedIn = surface.toBool()
-                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-        if (!optedIn)
+        if (!isContentLayerIsland(island))
             continue;
         // restoreTransparentizedSurface returns early for islands that were
-        // never transparentized, so no alpha pre-check is needed here. The
-        // restore helper does not track Styled; normalize back to the
-        // polish-provided opaque state.
-        restoreTransparentizedSurface(island);
-        island->setAttribute(Qt::WA_StyledBackground, false);
-        island->update();
+        // never transparentized, so no alpha pre-check is needed here.
+        restoreStyled(island);
         // The sync above transparentized the scrolled chain alongside the
         // island: restore every link the same way (each restore is a no-op
         // for widgets that were never transparentized).
         const QList<QAbstractScrollArea *> areas = island->findChildren<QAbstractScrollArea *>();
         for (QAbstractScrollArea *area : areas) {
-            restoreTransparentizedForBackdrop(area);
-            area->setAttribute(Qt::WA_StyledBackground, false);
-            if (QWidget *viewport = area->viewport()) {
-                restoreTransparentizedForBackdrop(viewport);
-                viewport->setAttribute(Qt::WA_StyledBackground, false);
-                viewport->update();
-            }
+            restoreStyled(area);
+            if (QWidget *viewport = area->viewport())
+                restoreStyled(viewport);
             // Every bar armed by the sync above is returned the same way
             // (each restore is a no-op for bars that were never armed).
-            if (QScrollBar *verticalBar = area->verticalScrollBar()) {
-                restoreTransparentizedForBackdrop(verticalBar);
-                verticalBar->setAttribute(Qt::WA_StyledBackground, false);
-                verticalBar->update();
-            }
-            if (QScrollBar *horizontalBar = area->horizontalScrollBar()) {
-                restoreTransparentizedForBackdrop(horizontalBar);
-                horizontalBar->setAttribute(Qt::WA_StyledBackground, false);
-                horizontalBar->update();
-            }
+            if (QScrollBar *verticalBar = area->verticalScrollBar())
+                restoreStyled(verticalBar);
+            if (QScrollBar *horizontalBar = area->horizontalScrollBar())
+                restoreStyled(horizontalBar);
             if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
-                if (QWidget *container = scrollArea->widget()) {
-                    restoreTransparentizedForBackdrop(container);
-                    container->setAttribute(Qt::WA_StyledBackground, false);
-                    container->update();
-                }
+                if (QWidget *container = scrollArea->widget())
+                    restoreStyled(container);
             }
             area->update();
         }
     }
     // Shell links transparentized by the sync above (no-ops if never armed).
     if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
-        restoreTransparentizedForBackdrop(central);
-        central->setAttribute(Qt::WA_StyledBackground, false);
-        central->update();
-        if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel"))) {
-            restoreTransparentizedForBackdrop(nav);
-            nav->setAttribute(Qt::WA_StyledBackground, false);
-            nav->update();
-        }
+        restoreStyled(central);
+        if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel")))
+            restoreStyled(nav);
     }
 }
 
@@ -1043,47 +1013,29 @@ constexpr DWORD popupBackdropTypeAttribute = 38;
 constexpr DWORD popupBackdropTransientValue = 3; // DWMSBT_TRANSIENTWINDOW.
 #endif
 
-bool popupBackdropReadbackGranted(QWidget *popup)
-{
-#ifdef Q_OS_WIN
-    if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
-        return false;
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return false;
-    QWindow *nativeWindow = popup->windowHandle();
-    if (!nativeWindow || !nativeWindow->handle())
-        return false;
-    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
-    if (!hwnd)
-        return false;
-    DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
-            && value == popupBackdropTransientValue;
-#else
-    Q_UNUSED(popup);
-    return false;
-#endif
-}
+enum class PopupBackdropReadback { Unknown, Granted, Refused };
 
-bool popupBackdropReadbackRefused(QWidget *popup)
+PopupBackdropReadback popupBackdropReadback(QWidget *popup)
 {
 #ifdef Q_OS_WIN
     if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
-        return false;
+        return PopupBackdropReadback::Unknown;
     if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return false;
+        return PopupBackdropReadback::Unknown;
     QWindow *nativeWindow = popup->windowHandle();
     if (!nativeWindow || !nativeWindow->handle())
-        return false;
+        return PopupBackdropReadback::Unknown;
     const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
     if (!hwnd)
-        return false;
+        return PopupBackdropReadback::Unknown;
     DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
-            && value != popupBackdropTransientValue;
+    if (!SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value))))
+        return PopupBackdropReadback::Unknown;
+    return value == popupBackdropTransientValue ? PopupBackdropReadback::Granted
+                                                : PopupBackdropReadback::Refused;
 #else
     Q_UNUSED(popup);
-    return false;
+    return PopupBackdropReadback::Unknown;
 #endif
 }
 
@@ -1226,18 +1178,17 @@ void preparePopupSurface(QWidget *widget)
                 bool granted = false;
                 if (keepPath) {
                     granted = WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic);
-                    // Definitive refusal (S_OK-with-value-!=3): clear the
+                    // Definitive refusal (S_OK-with-value-Refused): clear the
                     // grant and fall through to the retry below. An
                     // unreadable Get keeps the HRESULT-based acceptance
-                    // above (Refused is false there by construction).
-                    if (granted && !popupBackdropReadbackGranted(popup)
-                        && popupBackdropReadbackRefused(popup))
+                    // above (anything but Refused there by construction).
+                    if (granted
+                        && popupBackdropReadback(popup) == PopupBackdropReadback::Refused)
                         granted = false;
                     popup->update();
                 } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
                            && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
-                    if (!popupBackdropReadbackGranted(popup)
-                        && popupBackdropReadbackRefused(popup)) {
+                    if (popupBackdropReadback(popup) == PopupBackdropReadback::Refused) {
                         // Definitive refusal: leave the opaque fallback the
                         // refused branch converged on and retry below. The
                         // translucent re-tint runs only on a verified grant
@@ -1247,12 +1198,9 @@ void preparePopupSurface(QWidget *widget)
                     } else {
                         granted = true;
                         QPalette translucent = popup->palette();
-                        const Private::Tokens retint = Private::tokens(translucent);
-                        QColor windowTint = Private::popupSurfaceColor(translucent);
-                        windowTint.setAlpha(retint.dark ? 178 : 242);
+                        const QColor windowTint = Private::translucentPopupTint(translucent);
                         translucent.setColor(QPalette::Window, windowTint);
-                        QColor baseTint = windowTint;
-                        translucent.setColor(QPalette::Base, baseTint);
+                        translucent.setColor(QPalette::Base, windowTint);
                         popup->setPalette(translucent);
                         popup->setAutoFillBackground(false);
                         popup->setAttribute(Qt::WA_OpaquePaintEvent, false);
@@ -1296,11 +1244,9 @@ void preparePopupSurface(QWidget *widget)
         // near-solid paper, never a washed veil. Recompute from the
         // fallback rather than layering over the stale translucent roles.
         QPalette translucent = popup->palette();
-        QColor windowTint = popupSurface;
-        windowTint.setAlpha(popupTokens.dark ? 178 : 242);
+        const QColor windowTint = Private::translucentPopupTint(popupPalette);
         translucent.setColor(QPalette::Window, windowTint);
-        QColor baseTint = windowTint;
-        translucent.setColor(QPalette::Base, baseTint);
+        translucent.setColor(QPalette::Base, windowTint);
         popup->setPalette(translucent);
         popup->setAutoFillBackground(false);
         popup->setAttribute(Qt::WA_OpaquePaintEvent, false);
@@ -1425,8 +1371,7 @@ void preparePopupSurface(QWidget *widget)
             // paint event (retained frames); item delegates rebuild rows
             // from transparent (see CE_MenuItem/CE_ItemViewItem). Same
             // fallback-resolved tint as the popup window above.
-            QColor viewTint = popupSurface;
-            viewTint.setAlpha(popupTokens.dark ? 178 : 242);
+            const QColor viewTint = Private::translucentPopupTint(popupPalette);
             QPalette translucentView = view->palette();
             translucentView.setColor(QPalette::Base, viewTint);
             translucentView.setColor(QPalette::Window, viewTint);

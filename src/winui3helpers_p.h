@@ -96,6 +96,19 @@ inline bool keyboardFocusVisible(const QWidget *widget)
 // material (Composited): clearing over a painted fallback, a failed DWM
 // call, or pre-composited first frames reveals black or stale pixels instead
 // of wallpaper tint.
+// Opt-in content/layer island: the style-owned surface contract that reveals
+// the live material. Single home for the check duplicated across the gate
+// below and the surface sync/restore chains.
+inline bool isContentLayerIsland(const QWidget *widget)
+{
+    if (!widget)
+        return false;
+    const QVariant surface = widget->property(Style::SurfaceProperty);
+    const QString name = surface.toString();
+    return surface.toBool()
+            || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+            || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+}
 inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
 {
     if (!widget)
@@ -118,19 +131,13 @@ inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
     // self never paints directly on the backdrop; a translucent self
     // (zero-alpha Window role, the island erase) falls through so the
     // walk above still resolves the backdrop source.
-    const QVariant selfSurface = widget->property(Style::SurfaceProperty);
-    const QString selfName = selfSurface.toString();
-    if (selfSurface.toBool() || selfName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-        || selfName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+    if (isContentLayerIsland(widget)) {
         if (widget->palette().color(QPalette::Window).alpha() != 0)
             return false;
     }
     for (const QWidget *parent = widget->parentWidget(); parent && parent != win;
          parent = parent->parentWidget()) {
-        const QVariant surface = parent->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        if (surface.toBool() || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-            || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+        if (isContentLayerIsland(parent)) {
             // Translucent islands are the material surface itself: no fill to
             // punch through, keep walking so children clear every frame.
             if (parent->palette().color(QPalette::Window).alpha() == 0)

@@ -249,20 +249,9 @@ void SettingsCard::setTrailingWidgetName(const QString &name)
     }
     if (QWidget *widget = findChild<QWidget *>(name)) {
         setTrailingWidget(widget);
-    } else if (!m_trailingBindingPending) {
-        // uic applies custom-widget properties before constructing nested
-        // children. Resolve once the generated setupUi() has finished.
-        m_trailingBindingPending = true;
-        QMetaObject::invokeMethod(
-                this,
-                [this] {
-                    m_trailingBindingPending = false;
-                    if (!m_trailingWidgetName.isEmpty()) {
-                        if (QWidget *widget = findChild<QWidget *>(m_trailingWidgetName))
-                            setTrailingWidget(widget);
-                    }
-                },
-                Qt::QueuedConnection);
+    } else {
+        resolveNamedWidgetLater(m_trailingBindingPending, m_trailingWidgetName,
+                                &SettingsCard::setTrailingWidget);
     }
 }
 
@@ -279,19 +268,44 @@ void SettingsCard::setExpandableWidgetName(const QString &name)
     }
     if (QWidget *widget = findChild<QWidget *>(name)) {
         setExpandableWidget(widget);
-    } else if (!m_expandableBindingPending) {
-        m_expandableBindingPending = true;
-        QMetaObject::invokeMethod(
-                this,
-                [this] {
-                    m_expandableBindingPending = false;
-                    if (!m_expandableWidgetName.isEmpty()) {
-                        if (QWidget *widget = findChild<QWidget *>(m_expandableWidgetName))
-                            setExpandableWidget(widget);
-                    }
-                },
-                Qt::QueuedConnection);
+    } else {
+        resolveNamedWidgetLater(m_expandableBindingPending, m_expandableWidgetName,
+                                &SettingsCard::setExpandableWidget);
     }
+}
+
+void SettingsCard::resolveNamedWidgetLater(bool &pendingFlag, QString &storedName,
+                                           void (SettingsCard::*setter)(QWidget *))
+{
+    if (pendingFlag)
+        return;
+    // uic applies custom-widget properties before constructing nested
+    // children. Resolve once the generated setupUi() has finished.
+    pendingFlag = true;
+    QMetaObject::invokeMethod(
+            this,
+            [this, &pendingFlag, &storedName, setter] {
+                pendingFlag = false;
+                if (!storedName.isEmpty()) {
+                    if (QWidget *widget = findChild<QWidget *>(storedName))
+                        (this->*setter)(widget);
+                }
+            },
+            Qt::QueuedConnection);
+}
+
+bool SettingsCard::activateCard()
+{
+    // Re-entrant activated(): slots may delete this card or clear the
+    // expandable widget. Guard the tail so the post-emit dereference
+    // of m_expandableWidget/m_expanded never touches freed memory.
+    const QPointer<SettingsCard> guard(this);
+    emit activated();
+    if (guard.isNull())
+        return false;
+    if (m_expandableWidget)
+        setExpanded(!m_expanded);
+    return true;
 }
 
 void SettingsCard::refreshIconPixmap()
@@ -685,15 +699,8 @@ void SettingsCard::mouseReleaseEvent(QMouseEvent *event)
     m_pressed = false;
     update();
     if (activate) {
-        // Re-entrant activated(): slots may delete this card or clear the
-        // expandable widget. Guard the tail so the post-emit dereference
-        // of m_expandableWidget/m_expanded never touches freed memory.
-        const QPointer<SettingsCard> guard(this);
-        emit activated();
-        if (guard.isNull())
+        if (!activateCard())
             return;
-        if (m_expandableWidget)
-            setExpanded(!m_expanded);
         event->accept();
         return;
     }
@@ -704,14 +711,8 @@ void SettingsCard::keyPressEvent(QKeyEvent *event)
 {
     if (isCardInteractive() && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
         && !event->isAutoRepeat()) {
-        // Same re-entrancy guard as mouseReleaseEvent: activated() slots
-        // may delete this card or clear the expandable widget.
-        const QPointer<SettingsCard> guard(this);
-        emit activated();
-        if (guard.isNull())
+        if (!activateCard())
             return;
-        if (m_expandableWidget)
-            setExpanded(!m_expanded);
         event->accept();
         return;
     }

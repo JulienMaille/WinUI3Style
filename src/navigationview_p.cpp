@@ -321,11 +321,24 @@ void restoreNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !state || !state->surfaceStateSaved)
         return;
-    view->setPalette(state->viewPaletteExplicit ? state->viewPalette : QPalette());
+    if (state->viewPaletteExplicit)
+        view->setPalette(state->viewPalette);
+    else {
+        // Re-resolve the palette from the parent chain. setPalette(QPalette())
+        // still leaves WA_SetPalette set, so clearing the attribute is what
+        // restores the pre-navigation inherited state exactly (a view with an
+        // inherited palette must not report an explicit one after restore).
+        view->setPalette(QPalette());
+        view->setAttribute(Qt::WA_SetPalette, false);
+    }
     view->setFrameShape(state->frameShape);
     if (view->viewport()) {
-        view->viewport()->setPalette(state->viewportPaletteExplicit ? state->viewportPalette
-                                                                    : QPalette());
+        if (state->viewportPaletteExplicit)
+            view->viewport()->setPalette(state->viewportPalette);
+        else {
+            view->viewport()->setPalette(QPalette());
+            view->viewport()->setAttribute(Qt::WA_SetPalette, false);
+        }
         view->viewport()->setAutoFillBackground(state->viewportAutoFill);
         view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, state->viewportOpaque);
     }

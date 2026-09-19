@@ -34,6 +34,18 @@ bool verticalSpinButtons(const QWidget *widget)
             && widget->property(Style::VerticalSpinButtonsProperty).toBool();
 }
 
+bool isInsideOpaqueCard(const QWidget *widget)
+{
+    for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
+         ancestor = ancestor->parentWidget()) {
+        if (qobject_cast<const QGroupBox *>(ancestor)
+            && ancestor->palette().color(QPalette::Window).alpha() != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 bool coveredComplex(QStyle::ComplexControl control)
@@ -235,15 +247,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             // no SurfaceProperty, so the gate cannot see them: skip the erase
             // when an opaque QGroupBox ancestor intervenes and keep the card
             // fill the parent already painted.
-            bool insideOpaqueCard = false;
-            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
-                 ancestor = ancestor->parentWidget()) {
-                if (qobject_cast<const QGroupBox *>(ancestor)
-                    && ancestor->palette().color(QPalette::Window).alpha() != 0) {
-                    insideOpaqueCard = true;
-                    break;
-                }
-            }
+            const bool insideOpaqueCard = isInsideOpaqueCard(widget);
             if (!insideOpaqueCard)
                 eraseForBackdrop(painter, widget, option->rect);
             const bool horizontal = slider->orientation == Qt::Horizontal;
@@ -369,15 +373,7 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
             // the veil. Rebuild the veiled card tone instead (the erase
             // still clears stale hover/thumb frames); outer bars keep the
             // erase-only rest. Hover track and thumb below are unchanged.
-            bool insideOpaqueCard = false;
-            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
-                 ancestor = ancestor->parentWidget()) {
-                if (qobject_cast<const QGroupBox *>(ancestor)
-                    && ancestor->palette().color(QPalette::Window).alpha() != 0) {
-                    insideOpaqueCard = true;
-                    break;
-                }
-            }
+            const bool insideOpaqueCard = isInsideOpaqueCard(widget);
             const bool onBackdrop = eraseForBackdrop(painter, widget, option->rect);
             const bool enabled = option->state & QStyle::State_Enabled;
             if (!onBackdrop)

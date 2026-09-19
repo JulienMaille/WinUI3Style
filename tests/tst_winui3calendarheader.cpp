@@ -57,7 +57,12 @@ void WinUI3CalendarHeaderTest::initTestCase()
     qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
 #ifdef Q_OS_WIN
     wchar_t modulePath[32768] = {};
-    const HMODULE module = GetModuleHandleW(L"winui3style.dll");
+    // The style DLL name carries Qt's debug suffix in Debug builds
+    // (winui3styled.dll); probe the release name first, then the suffixed
+    // module, so the pinned SHA256 below always reflects the loaded library.
+    HMODULE module = GetModuleHandleW(L"winui3style.dll");
+    if (!module)
+        module = GetModuleHandleW(L"winui3styled.dll");
     QVERIFY(module);
     QVERIFY(GetModuleFileNameW(module, modulePath, 32768));
     QFile dll(QString::fromWCharArray(modulePath));

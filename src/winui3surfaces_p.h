@@ -30,6 +30,8 @@ void remember(QWidget *widget, const char *property, const QVariant &value);
 void rememberPalette(QWidget *widget);
 void restoreRememberedPalette(QWidget *widget);
 QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback);
+void transparentizeSurface(QWidget *surface);
+void restoreTransparentizedSurface(QWidget *surface);
 
 void stopDialogAnimations(QDialog *dialog);
 void restoreContentDialogState(QDialog *dialog, bool clearSavedState);
@@ -70,8 +72,18 @@ WINUI3STYLE_EXPORT void restoreContentSurfacesForBackdrop(QWidget *window);
 // autofill, StyledBackground so Qt leaves the erase to the style's
 // Source-clear branch (backdrop erase policy, recipe 1: see
 // winui3helpers_p.h). State is remembered so toggle-off restores exactly.
-void transparentizeForBackdrop(QWidget *surface);
-void restoreTransparentizedForBackdrop(QWidget *surface);
+// Restore twin: returns a transparentized widget to its remembered palette,
+// attributes and autofill. Mechanical delegation aliases kept for the public
+// private-header seam: island/scroll/shell links share one no-fill recipe,
+// so every arm and restore forwards to the single implementation pair above.
+inline void transparentizeForBackdrop(QWidget *surface)
+{
+    transparentizeSurface(surface);
+}
+inline void restoreTransparentizedForBackdrop(QWidget *surface)
+{
+    restoreTransparentizedSurface(surface);
+}
 // Small-delta scrolls inside a translucent content/layer island smear: Qt
 // scrolls the viewport backing store with a blit and only repaints the
 // exposed strip, so shifted pixels accumulate over the live material. Armed
