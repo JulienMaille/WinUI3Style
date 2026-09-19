@@ -36,9 +36,31 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QWizard` / `QWizardPage` | Multi-step dialog composition | Consistency extension | source-audited | separate content/footer surfaces and automatic accent Next/Finish roles are covered; native navigation, cancellation, RTL and live WinUI comparison remain |
 | `QAbstractItemView[winuiNavigationView=true]` | NavigationView item | Semantic variant | source-audited | style-owned delegate, real click, selected-pill transition tested; panel/list/content share one mica material via the shell sync, restore cleanly on toggle-off; dark/keyboard live pass remains |
 | `QFrame[winuiSettingsCard=true]` / settings-card composition | Gallery settings card | Semantic variant + compound behavior | source-audited | interactive iff an expandable child is bound (`isCardInteractive`); trailing-only cards keep resting fill and ignore header clicks; expandable chevron is ChevronDown collapsed and expanded; expanded host shares the card surface with no fill/border; dark live pass remains |
-| `Top-level QWidget[winuiBackdrop=mica]` (+ `micaalt`, `acrylic`) | Window SystemBackdrop (Mica / Mica Alt / Desktop Acrylic via `DWMWA_SYSTEMBACKDROP_TYPE`) | Direct | source-audited | `applyBackdrop` maps to DWM `DWMSBT_MAINWINDOW`/`TABBEDWINDOW`/`TRANSIENTWINDOW` + full-frame extend, opaque `Painted` fallback offscreen/refused; single erase policy in `winui3helpers_p.h` (shared gate + recipe 1 erase-then-fill default, recipe 2 erase-means-transparent, recipe 3 `clearForBackdropFill` for acrylic popup pills) + island scroll guard + chrome/content transparentize/restore covered by `backdropLifecycleContract`, `backdrop*DoesNotAccumulate`, `islandScrollPostsFullViewportRepaint`, `materialErase*`, theme/chrome/resize/expose/move contracts, native acrylic-tin…
+| `Top-level QWidget[winuiBackdrop=mica]` (+ `micaalt`, `acrylic`) | Window SystemBackdrop (Mica / Mica Alt / Desktop Acrylic via `DWMWA_SYSTEMBACKDROP_TYPE`) | Direct | partial — caption lifecycle reopened 2026-09-19 | `applyBackdrop` maps to DWM `DWMSBT_MAINWINDOW`/`TABBEDWINDOW`/`TRANSIENTWINDOW` + full-frame extend, opaque `Painted` fallback offscreen/refused; single erase policy in `winui3helpers_p.h` (shared gate + recipe 1 erase-then-fill default, recipe 2 erase-means-transparent, recipe 3 `clearForBackdropFill` for acrylic popup pills) + island scroll guard + chrome/content transparentize/restore covered by `backdropLifecycleContract`, `backdrop*DoesNotAccumulate`, `islandScrollPostsFullViewportRepaint`, `materialErase*`, theme/chrome/resize/expose/move contracts; caption evidence below; broader live compositor verification remains. |
 
 ## P1 and structural closure ledger
+
+### Reopened evidence — native caption after backdrop disable (2026-09-19)
+
+The existing top-level SystemBackdrop mapping and runtime theme contract remain
+unchanged; their caption lifecycle evidence is **partial**. Live Gallery sequence
+Dark → Mica on → Mica off → Light leaves a dark caption over light content.
+`captionThemeAfterBackdropDisable` reproduces four Light/Dark sequences, including
+a theme change while the material is enabled. RED: `build/caption-theme-red4.txt`,
+four failures, zero skips. It checks native immersive-dark state plus PrintWindow
+caption pixels against the same-state Window palette; caption/text DWM attributes
+are set-only, so earlier getter-based drafts are not acceptance evidence.
+The fix keeps disabled-backdrop captions in the theme refresh and resolves their
+color from the current theme, not the saved pre-backdrop palette. GREEN:
+`build/caption-theme-green.txt`, 6 passed, zero failures/skips. Gallery replay of
+Dark → Mica on → Mica off → Light now restores the light caption. Loaded and built
+DLL hashes match `1C0B683FE46CC8EB8F8E0CC268AF8959E48DFFDC33F9739F4EEA3592111D1C0F`.
+Release build and snapshot matrix pass; full offscreen CTest retains the three
+pre-existing failures (combobox, navigation, source-contract test-size gate).
+Full native CTest passes (85 s); combined result is 47/50 CTest entries passing.
+The 22 offscreen domain executables were also rerun: 20 pass, with the same
+combobox/navigation failures (`build/theme-fix-domain-logs`).
+This does not promote either mapping to Verified.
 
 The following items are required regression contracts, independently of the
 per-control live-verification status above:

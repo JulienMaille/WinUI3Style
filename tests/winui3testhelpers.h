@@ -95,6 +95,47 @@
 #include <cmath>
 #include <limits>
 
+#if defined(Q_OS_WIN) && defined(WINUI3STYLE_NATIVE_CAPTURE)
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
+
+// Includes the native caption, unlike QWidget::grab(). Own a copy before
+// releasing the DIB; callers pair pixel checks with same-state contracts.
+inline QImage nativeWindowFrame(WId id)
+{
+    const HWND hwnd = reinterpret_cast<HWND>(id);
+    RECT bounds{};
+    if (!GetWindowRect(hwnd, &bounds))
+        return {};
+    const int width = bounds.right - bounds.left;
+    const int height = bounds.bottom - bounds.top;
+    BITMAPINFO info{};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    const HDC dc = CreateCompatibleDC(nullptr);
+    if (!dc)
+        return {};
+    void *pixels = nullptr;
+    const HBITMAP bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+    QImage frame;
+    if (bitmap) {
+        const HGDIOBJ previous = SelectObject(dc, bitmap);
+        if (PrintWindow(hwnd, dc, 2))
+            frame = QImage(static_cast<uchar *>(pixels), width, height, QImage::Format_RGB32)
+                            .copy();
+        SelectObject(dc, previous);
+        DeleteObject(bitmap);
+    }
+    DeleteDC(dc);
+    return frame;
+}
+#endif
+
 // Drain Qt's deferred-delete queue so top-level inventories/counts measure a
 // settled widget set (previous cycles' deletes land BEFORE measurement).
 [[maybe_unused]] static void drainDeferredDeletion()

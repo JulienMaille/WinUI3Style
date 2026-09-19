@@ -1462,7 +1462,10 @@ void Style::refreshApplicationAppearance()
                 if (guardedWizard && guardedStyle)
                     refreshWizardSurface(guardedWizard, guardedStyle->standardPalette());
             });
-        } else if (qobject_cast<QDialog *>(window)) {
+        } else if (qobject_cast<QDialog *>(window)
+                   || window->property(Private::effectiveBackdropProperty).isValid()) {
+            // Disabling a material restores opaque content, but its native
+            // caption remains style-owned and must follow later theme changes.
             applyDialogCaptionTheme(window);
         }
         if (window->windowType() == Qt::Popup) {
