@@ -1034,47 +1034,33 @@ constexpr DWORD popupBackdropTypeAttribute = 38;
 constexpr DWORD popupBackdropTransientValue = 3; // DWMSBT_TRANSIENTWINDOW.
 #endif
 
-bool popupBackdropReadbackGranted(QWidget *popup)
-{
-#ifdef Q_OS_WIN
-    if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
-        return false;
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return false;
-    QWindow *nativeWindow = popup->windowHandle();
-    if (!nativeWindow || !nativeWindow->handle())
-        return false;
-    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
-    if (!hwnd)
-        return false;
-    DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
-            && value == popupBackdropTransientValue;
-#else
-    Q_UNUSED(popup);
-    return false;
-#endif
-}
+enum class PopupBackdropReadback {
+    Unknown,
+    Granted,
+    Refused,
+};
 
-bool popupBackdropReadbackRefused(QWidget *popup)
+PopupBackdropReadback popupBackdropReadback(QWidget *popup)
 {
 #ifdef Q_OS_WIN
     if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
-        return false;
+        return PopupBackdropReadback::Unknown;
     if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return false;
+        return PopupBackdropReadback::Unknown;
     QWindow *nativeWindow = popup->windowHandle();
     if (!nativeWindow || !nativeWindow->handle())
-        return false;
+        return PopupBackdropReadback::Unknown;
     const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
     if (!hwnd)
-        return false;
+        return PopupBackdropReadback::Unknown;
     DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
-            && value != popupBackdropTransientValue;
+    if (FAILED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value))))
+        return PopupBackdropReadback::Unknown;
+    return value == popupBackdropTransientValue ? PopupBackdropReadback::Granted
+                                                 : PopupBackdropReadback::Refused;
 #else
     Q_UNUSED(popup);
-    return false;
+    return PopupBackdropReadback::Unknown;
 #endif
 }
 
@@ -1221,14 +1207,14 @@ void preparePopupSurface(QWidget *widget)
                     // grant and fall through to the retry below. An
                     // unreadable Get keeps the HRESULT-based acceptance
                     // above (Refused is false there by construction).
-                    if (granted && !popupBackdropReadbackGranted(popup)
-                        && popupBackdropReadbackRefused(popup))
+                    if (granted
+                        && popupBackdropReadback(popup) == PopupBackdropReadback::Refused)
                         granted = false;
                     popup->update();
                 } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
                            && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
-                    if (!popupBackdropReadbackGranted(popup)
-                        && popupBackdropReadbackRefused(popup)) {
+                    const PopupBackdropReadback readback = popupBackdropReadback(popup);
+                    if (readback == PopupBackdropReadback::Refused) {
                         // Definitive refusal: leave the opaque fallback the
                         // refused branch converged on and retry below. The
                         // translucent re-tint runs only on a verified grant
