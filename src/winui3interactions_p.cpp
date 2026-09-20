@@ -718,9 +718,21 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
             if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
+                // Qt computes the container height from its rows before the
+                // WinUI 4px top/bottom inset is installed. Extend the outer
+                // popup during Show so the inset cannot shrink the viewport
+                // and force a late selected-row scroll.
+                const bool offscreen =
+                        QGuiApplication::platformName() == QStringLiteral("offscreen");
+                if (!offscreen) {
+                    const QMargins margins = widget->contentsMargins();
+                    widget->resize(widget->width(), widget->height() + margins.top()
+                                           + margins.bottom());
+                }
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
-                animateMenuPopup(widget, combo);
+                if (!offscreen)
+                    animateMenuPopup(widget, combo);
             } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
                 animateMenuPopup(widget, nullptr);
                 // Parent-wash lane: hovering a submenu row open delivers

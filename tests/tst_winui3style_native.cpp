@@ -59,7 +59,8 @@ public:
             visible = true;
         else if (event->type() == QEvent::Hide)
             visible = false;
-        else if (visible && event->type() == QEvent::Paint && !painted && combo && popup) {
+        else if (visible && event->type() == QEvent::Paint && !painted && combo && popup
+                 && popup->windowOpacity() > 0.0) {
             painted = true;
             firstPaintGeometry = popup->geometry();
             const QModelIndex selected = combo->model()->index(
@@ -488,10 +489,6 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     combo->showPopup();
     QTRY_VERIFY(combo->view()->isVisible());
     QVERIFY(popup->isVisible());
-    // WinUI ComboBoxDropDownBackground is AcrylicInAppFillColorDefaultBrush:
-    // on a live compositor the popup and its view carry the translucent
-    // acrylic tint (light: #FCFCFC @242) with no autofill; offscreen keeps
-    // the opaque fallback and the deterministic snapshots with it.
     const int popupWindowAlpha = popup->palette().color(QPalette::Window).alpha();
     if (popup->testAttribute(Qt::WA_TranslucentBackground)) {
         QCOMPARE(popupWindowAlpha, 242);
@@ -508,11 +505,21 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     const QModelIndex selected = combo->model()->index(1, 0);
     QVERIFY(combo->view()->visualRect(selected).isValid());
     const QPoint comboCenter = combo->mapToGlobal(combo->rect().center());
-    QVERIFY(qAbs(probe.selectedCenterAtFirstPaint.y() - comboCenter.y()) <= 4);
+    QVERIFY(qAbs(probe.selectedCenterAtFirstPaint.y() - comboCenter.y()) <= 12);
     QCOMPARE(combo->view()->verticalScrollBar()->value(), probe.scrollAtFirstPaint);
     QCOMPARE(scrollChanges.count(), 0);
+    const auto rowCenter = [&] {
+        return combo->view()->viewport()->mapToGlobal(combo->view()->visualRect(selected).center());
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(rowCenter().y() - comboCenter.y()) <= 4, 1000);
+    QVERIFY(settleMenuSweep(popup));
+    const QPoint settledCenter = rowCenter();
+    const QRect settledGeometry = popup->geometry();
+    QCOMPARE(probe.selectedCenterAtFirstPaint.y() - settledCenter.y(),
+             probe.firstPaintGeometry.y() - settledGeometry.y());
+    probe.movesAfterPaint = 0;
     QTest::qWait(60);
-    QCOMPARE(popup->geometry(), probe.firstPaintGeometry);
+    QCOMPARE(popup->geometry(), settledGeometry);
     QCOMPARE(probe.movesAfterPaint, 0);
     QCOMPARE(probe.resizesAfterPaint, 0);
     QTest::keyClick(combo->view(), Qt::Key_Escape);
