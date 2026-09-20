@@ -292,6 +292,18 @@ const QAbstractItemView *itemView(const QWidget *widget)
     return nullptr;
 }
 
+void repaintPaletteOwnedWidgetTree(QWidget *widget)
+{
+    if (!widget)
+        return;
+    widget->update();
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+        view->update();
+        if (view->viewport())
+            view->viewport()->update();
+    }
+}
+
 bool insideCalendarWidget(const QWidget *widget)
 {
     for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
@@ -1575,12 +1587,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
                     bar->update();
                     calendar->update();
                 }
-                widget->update();
-                if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-                    view->update();
-                    if (view->viewport())
-                        view->viewport()->update();
-                }
+                repaintPaletteOwnedWidgetTree(widget);
                 continue;
             }
             preparePopupSurface(widget);
@@ -1664,12 +1671,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
             if (auto *dialog = qobject_cast<QDialog *>(widget))
                 prepareContentDialogState(dialog, darkTheme);
         }
-        widget->update();
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-            view->update();
-            if (view->viewport())
-                view->viewport()->update();
-        }
+        repaintPaletteOwnedWidgetTree(widget);
     }
     // Phase 2: the lane copies the post-phase-1 bar exactly (RGB+alpha),
     // guaranteed same pass. Lane buttons paint Subtle flat at rest over
@@ -1697,12 +1699,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
         if (qobject_cast<QAbstractSpinBox *>(widget))
             lanePalette.setColor(QPalette::Base, laneWindow);
         widget->setPalette(lanePalette);
-        widget->update();
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-            view->update();
-            if (view->viewport())
-                view->viewport()->update();
-        }
+        repaintPaletteOwnedWidgetTree(widget);
     }
     // Re-sync transparentized chrome and content islands after the recompute
     // above: the generic owner branches rebase every widget from the opaque
