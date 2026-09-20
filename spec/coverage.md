@@ -21,7 +21,7 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QProgressBar` | ProgressBar / ProgressRing substitute | Direct | source-audited | determinate/indeterminate, both axes, inversion, disabled, periodic repaint, deterministic freeze and timer cleanup are covered; live comparison remains |
 | `QTabBar` / `QTabWidget` | TabView | Direct | source-audited | official 100×32 min item, 12 px type, 16 px icon, 32×24 close button, separators and selected attached surface; no legacy accent underline; live hover/down, overflow, drag/reorder and keyboard comparison remains |
 | popup `QListView` | ComboBox item | Direct | source-audited | selected pill, hover/down, row height, scrolling; open-popup arrows move the view current index (selection follows) and repaint the hover pill on the new current row while the value row keeps only its accent marker (`comboOpenPopupKeyboardNavMovesHoverPill`) |
-| `QLineEdit` + `QCompleter` (PopupCompletion) | AutoSuggestBox | Semantic variant | source-audited | stock editor + completer keep semantics, signals, focus, and hit testing; QStyle owns the popup surface and every row visual. Hover/keyboard-current rows paint the identical menu pill (shared `paintPopupRowPill`/`popupRowPillRect`: 4,2 insets, 3px radius, subtleHover token; `autoSuggestHoverPillMatchesMenuPill` incl. hover-sweep ghost guard); the composited hover rebuilds the row frame from the opaque flyout color so CE/PE agree and no translucent frame accumulates (`autoSuggestCompositedHoverRebuildsRowFrame`); the completer view window itself is frameless so the rounded flyout region reads cleanly; live pointer/keyboard comparison remains |
+| `QLineEdit` + `QCompleter` (PopupCompletion) | AutoSuggestBox | Semantic variant | partial — row-frame evidence reopened 2026-09-19 | stock editor + completer keep semantics, signals, focus, and hit testing; QStyle owns the popup surface and every row visual. Shared `paintPopupRowPill`/`popupRowPillRect` geometry remains 4,2 insets and 3px radius. CE/PE now preserve the resolved Base RGB with opaque row frames: `autoSuggestResolvedFramePreservesRgb` covers Light/Dark × Standard/Compact × rest/hover/leave; the existing composited-hover assertion is unchanged and passes offscreen. See RED/GREEN and PrintWindow evidence below. The completer view is frameless; the complete live pointer/keyboard pass remains incomplete. |
 | `QListView` / `QListWidget` | ListView | Direct | source-audited | official 40 px rows, padding, subtle hover/selected/down layers, accent selection pill, icons/checks, editing, disabled and keyboard focus; live pointer sequence remains |
 | `QTreeView` / `QTreeWidget` | TreeView | Direct | source-audited | official 28 px rows, 4×2 margin, Fluent expanders, hierarchy, selected pill and keyboard focus; multi-column header is a consistency extension; live pointer sequence remains |
 | `QTableView` / `QTableWidget` / headers | DataGrid-like extension | Consistency extension | source-audited | 36 px rows, subtle row selection, flat 32 px headers, sorting glyph, editing and scrolling tested; no core WinUI DataGrid is claimed; live pointer/resize pass remains |
@@ -39,6 +39,74 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `Top-level QWidget[winuiBackdrop=mica]` (+ `micaalt`, `acrylic`) | Window SystemBackdrop (Mica / Mica Alt / Desktop Acrylic via `DWMWA_SYSTEMBACKDROP_TYPE`) | Direct | partial — caption lifecycle reopened 2026-09-19 | `applyBackdrop` maps to DWM `DWMSBT_MAINWINDOW`/`TABBEDWINDOW`/`TRANSIENTWINDOW` + full-frame extend, opaque `Painted` fallback offscreen/refused; single erase policy in `winui3helpers_p.h` (shared gate + recipe 1 erase-then-fill default, recipe 2 erase-means-transparent, recipe 3 `clearForBackdropFill` for acrylic popup pills) + island scroll guard + chrome/content transparentize/restore covered by `backdropLifecycleContract`, `backdrop*DoesNotAccumulate`, `islandScrollPostsFullViewportRepaint`, `materialErase*`, theme/chrome/resize/expose/move contracts; caption evidence below; broader live compositor verification remains. |
 
 ## P1 and structural closure ledger
+
+### Reopened evidence — AutoSuggestBox resolved row frame (2026-09-19)
+
+Mapping and tokens are unchanged. `autoSuggestResolvedFramePreservesRgb` adds
+12 renderer cases: Light/Dark × Standard/Compact × rest/hover/leave. Real popup
+construction establishes the completer association and inherited density; direct
+painting then supplies the already-resolved flyout RGB with the composited tint
+alpha. This is a renderer contract, not proof of a native material grant.
+The exact row-edge oracle rejects both opacity loss and a second color lift.
+RED: `build/autosuggest-resolved-rgb-red.txt`, 12 failures, zero skips. Rest/leave
+produce Light #FFFFFF instead of #FCFCFC and Dark #383838 instead of #2C2C2C;
+hover produces alpha 242/178 instead of 255. Existing assertions are unchanged.
+Earlier draft logs (`autosuggest-rgb-red.txt`, `autosuggest-rgb-lifecycle-red.txt`)
+include incomplete association/density fixtures and are not acceptance evidence.
+
+Live Gallery inspection at commit facba49 with the pinned official Gallery 2.9.3
+did not reproduce the historical gross smear during the inspected hover sweeps.
+The separate native run of `autoSuggestCompositedHoverRebuildsRowFrame` stops at
+its opaque initial-Base assumption (actual alpha 242); its offscreen simulation
+still failed at hovered-frame alpha before the fix. Desktop access subsequently
+resumed: the Dark Gallery popup was visibly lighter than the official popup.
+
+2026-09-20: both AutoSuggest paint paths now use the existing `withAlpha(Base,
+255)` helper; no second `popupSurfaceColor` lift, token change, geometry change,
+or calendar/ComboBox/menu policy change. Full ComboBox domain GREEN:
+`build/autosuggest-combobox-green.txt`, 25 passed, zero failures/skips. This
+includes all 12 new cases and the unchanged pre-existing assertions.
+
+The opt-in `winui3style_autosuggest_native_tests` instantiates the real Gallery
+and uses shared `nativeWindowFrame` (PrintWindow). Run with
+`QT_QPA_PLATFORM=windows`, `WINUI3STYLE_DISABLE_ANIMATIONS=1`, and
+`WINUI3STYLE_AUTOSUGGEST_CAPTURE_DIR=<output-directory>`. It captures the main
+window and popup rest/hover/leave in Light/Dark, records DPR/palette/effective
+material, and asserts delivered hover ink. Qt's QWidget mouseMove overload only
+warps the cursor, so the fixture also routes a QWindow move; cursor coordinates
+alone were insufficient evidence. The native resize border is included in the
+frame dimensions. Early capture-fixture drafts are not acceptance evidence.
+
+Final before/after evidence: `build/autosuggest-native-{before,after}-qpa`, logs
+with the same prefix, 4 passed/zero failures/skips each. Before uses preserved
+DLL SHA256 `1C0B683FE46CC8EB8F8E0CC268AF8959E48DFFDC33F9739F4EEA3592111D1C0F`;
+after uses `6EB62A1C7BAD5B535F4FD91658D0AA235682898C7D486290987A539E6B692F4D`.
+DPR is 1; popup effective material is Composited (2). The main-window material
+is off in this fixture. Both main-window captures outside the popup scope are
+pixel-identical (0 differing pixels, RMS 0). A preliminary Dark caption drift
+was confined to the native title bar and disappeared after fixture settling;
+the final comparison does not exclude that region. No Verified claim follows
+from these captures; the standalone replay is recorded below.
+
+The final native RGB assertions also reproduce the defect with the preserved
+old DLL: `build/autosuggest-native-before-rgb.txt` has two failures (Light edge
+#FAFAFA vs #FCFCFC; Dark #383838 vs #2C2C2C). The same fixture with the repaired
+DLL passes 4/4 without skips (`build/autosuggest-native-after-rgb.txt`). Captures
+are in the corresponding directories without `.txt`; both main-window frames
+again compare with 0 differing pixels. Release configuration/build passes.
+Full CTest: 51/52 passing (`build/autosuggest-final-ctest.txt`), with only the
+pre-existing NavigationView failures remaining (`navigationDelegateLifecycle`
+and `navigationBackdropDisableRepaintsOpaqueAfterRestore`). All 23 offscreen
+domain executables were rerun: 22 pass, NavigationView retains those two failures
+(`build/autosuggest-final-domain-logs`). Source/Designer contracts and the full
+snapshot matrix pass; the standard native suite passes. The opt-in capture
+suite was run explicitly above, not inferred from its default skipped cases.
+After desktop unlock, the rebuilt standalone Gallery was replayed with Mica on
+in System (currently Light) and explicit Dark: focus the actual AutoSuggest
+editor, type `a`, hover Beta then Gamma, and observe Beta return to the uniform
+rest surface without retained hover ink. Both themes passed this live sequence.
+The demo remains open on the Dark popup. This limited replay does not promote
+the coverage row to Verified.
 
 ### Reopened evidence — native caption after backdrop disable (2026-09-19)
 

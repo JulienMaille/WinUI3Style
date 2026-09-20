@@ -177,6 +177,22 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     if(WINUI3STYLE_BUILD_PLUGIN)
         add_dependencies(winui3style_native_tests winui3styleplugin)
     endif()
+
+    add_executable(winui3style_autosuggest_native_tests
+        tst_winui3autosuggest_native.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+    target_compile_definitions(winui3style_autosuggest_native_tests PRIVATE
+        WINUI3STYLE_NATIVE_CAPTURE)
+    target_include_directories(winui3style_autosuggest_native_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+    target_link_libraries(winui3style_autosuggest_native_tests PRIVATE
+        WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+    if(WINUI3STYLE_BUILD_PLUGIN)
+        add_dependencies(winui3style_autosuggest_native_tests winui3styleplugin)
+    endif()
 endif()
 
 # On Windows the executable directory is searched before PATH. Keep the
@@ -206,6 +222,8 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_scrollbarcard_tests)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
+        list(APPEND _winui3style_linked_test_targets
+            winui3style_autosuggest_native_tests)
     endif()
     foreach(_target IN LISTS _winui3style_linked_test_targets)
         add_custom_command(TARGET ${_target} POST_BUILD
@@ -373,6 +391,8 @@ endforeach()
 
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_test(NAME winui3style_native COMMAND winui3style_native_tests)
+    add_test(NAME winui3style_autosuggest_native
+        COMMAND winui3style_autosuggest_native_tests)
     set(_winui3style_native_environment
         "QT_QPA_PLATFORM=windows"
         "QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"
@@ -393,4 +413,10 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         LABELS "native;interactive"
         TIMEOUT 180
     )
+    set_tests_properties(winui3style_autosuggest_native PROPERTIES
+        ENVIRONMENT "${_winui3style_native_environment}"
+        RUN_SERIAL TRUE
+        RESOURCE_LOCK winui3style_desktop
+        LABELS "native;interactive;opt-in"
+        TIMEOUT 180)
 endif()

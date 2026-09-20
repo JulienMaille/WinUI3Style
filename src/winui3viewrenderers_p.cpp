@@ -202,31 +202,15 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                 : table         ? QRectF(option->rect)
                                 : QRectF(option->rect).adjusted(2, 1, -2, -1);
         if (fill.alpha() > 0) {
-            // Same accumulation contract as menu items: on a translucent
-            // (acrylic) popup, rebuild the row frame from transparent first.
-            // The pill itself is the shared menu/combo shape (see
-            // paintPopupRowPill): identical insets, identical radius, so
-            // hover edges match everywhere.
-            // Gate agreement with the CE_ItemViewItem rebuild above: the CE
-            // row is Source-replaced from the opaque flyout Base, which on an
-            // opaque fallback produces no transparency for this erase to
-            // reveal — but when the publish still claims Composited, this
-            // Source-clear punches the opaque CE frame back to transparent
-            // and the alpha-9 pill floats over the hole (the live mouseover
-            // smear). Autosuggest rows therefore skip the transparent erase
-            // and rebuild Source-opaque from the same flyout color the CE
-            // site uses; every frame is independent (no viewport erase, no
-            // over-blend), the dark-ghost flag stays off, and non-autosuggest
-            // popups keep the shared erase path untouched.
+            // AutoSuggest rows must keep the opaque CE frame under the shared
+            // hover pill. Other popup types retain their material erase recipe.
             if (autoSuggestPopup) {
-                // Source the row's own Base exactly: re-deriving the flyout
-                // from an already-tinted palette double-lightens toward white
-                // and spills outside the pill on live acrylic. The tint ink is
-                // exact under a grant; on fallback Base is already opaque so
-                // this is identical. Never transparent-clear here (hole punch).
+                // Base already owns the resolved flyout RGB. Normalize only
+                // alpha: resolving popupSurfaceColor again would lift it twice.
                 painter->save();
                 painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(option->rect, option->palette.color(QPalette::Base));
+                painter->fillRect(option->rect,
+                                  withAlpha(option->palette.color(QPalette::Base), 255));
                 painter->restore();
             } else {
                 eraseForBackdrop(painter, widget, option->rect);
@@ -386,30 +370,14 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                     && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
             const bool autoSuggestPopup = popup && completerPopupView(view);
             if (calendar || autoSuggestPopup) {
-                // preparePopupSurface has already resolved Base to the opaque
-                // flyout color. AutoSuggest must also rebuild every item from
-                // that base before applying translucent hover/selection fills;
-                // otherwise partial native-popup repaints accumulate ghosts.
-                // Source-fill (not SourceOver): the viewport deliberately
-                // keeps WA_OpaquePaintEvent off so Qt never erases, which
-                // means a SourceOver Base layer would re-blend over the
-                // previous hover frame on every mouseover and smear the pill
-                // across rows. Source replacing the rect keeps each frame
-                // independent; the composited-acrylic branch below still
-                // resolves the same opaque Base role, so offscreen snapshots
-                // are unchanged.
-                // On a live composited presenter the Base role itself is a
-                // translucent tint, so rebuilding from it leaves a
-                // transparent frame that the pill then floats over (the live
-                // mouseover smear). Rebuild autosuggest rows from the opaque
-                // flyout color instead: popupSurfaceColor round-trips the
-                // tint's RGB with full alpha, which is exactly the opaque
-                // fallback the prep resolved. Opaque roles take this path
-                // unchanged, so offscreen captures are pixel-identical.
-                // Calendar keeps its own Base (that lane is verified green).
+                // Source replaces retained row pixels; SourceOver would blend
+                // with the previous frame. AutoSuggest Base already contains
+                // the resolved flyout RGB, even when its material tint has
+                // alpha. Match PE's opaque frame without a second color lift.
+                // Calendar keeps its own Base and material policy unchanged.
                 QColor rowBase = source->palette.color(QPalette::Base);
-                if (autoSuggestPopup && rowBase.alpha() < 255)
-                    rowBase = Private::popupSurfaceColor(source->palette);
+                if (autoSuggestPopup)
+                    rowBase = withAlpha(rowBase, 255);
                 painter->save();
                 painter->setCompositionMode(QPainter::CompositionMode_Source);
                 painter->fillRect(source->rect, rowBase);
