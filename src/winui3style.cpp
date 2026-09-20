@@ -1512,12 +1512,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
     if (window->property("_winui_backdrop").isValid()) {
         const QList<QWidget *> islands = window->findChildren<QWidget *>();
         for (QWidget *island : islands) {
-            const QVariant surface = island->property(Style::SurfaceProperty);
-            const QString name = surface.toString();
-            const bool optedIn = surface.toBool()
-                    || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                    || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-            if (!optedIn)
+            if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
                 continue;
             QPalette rebased = island->palette();
             QColor rebasedWindow = applicationPalette.color(QPalette::Window);
@@ -2480,8 +2475,7 @@ void Style::polish(QWidget *widget)
     }
     const QVariant surface = widget->property(SurfaceProperty);
     const QString surfaceName = surface.toString();
-    if (surface.toBool() || surfaceName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-        || surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+    if (isContentLayerSurface(surface, surfaceName)) {
         // A native backdrop makes the top-level Window role transparent.
         // Standard stacked/page widgets otherwise retain stale backing-store
         // pixels while scrolling or switching pages. An explicit content
@@ -2992,9 +2986,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
             } else if (change->propertyName() == SurfaceProperty) {
                 const QVariant surface = widget->property(SurfaceProperty);
                 const QString surfaceName = surface.toString();
-                const bool enabled = surface.toBool()
-                        || surfaceName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                        || surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+                const bool enabled = isContentLayerSurface(surface, surfaceName);
                 if (enabled) {
                     widget->setProperty(ownedPaletteProperty, true);
                     d->registerPaletteOwner(widget);

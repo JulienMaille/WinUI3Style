@@ -3,6 +3,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 #include "winui3backdrop_p.h"
@@ -421,12 +422,7 @@ void syncContentSurfacesForBackdrop(QWidget *window)
     // paintsDirectlyOnBackdrop instead of disabling clears.
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
-        const QVariant surface = island->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        const bool optedIn = surface.toBool()
-                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-        if (!optedIn)
+        if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
             continue;
         for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>()) {
             guardIslandScrollArea(area);
@@ -484,12 +480,7 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
         return;
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
-        const QVariant surface = island->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        const bool optedIn = surface.toBool()
-                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-        if (!optedIn)
+        if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
             continue;
         // restoreTransparentizedSurface returns early for islands that were
         // never transparentized, so no alpha pre-check is needed here. The
