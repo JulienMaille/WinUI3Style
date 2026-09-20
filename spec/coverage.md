@@ -34,11 +34,41 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QStatusBar` / `QSizeGrip` | Window footer / resize affordance | Consistency extension | source-audited | layer surface, top separator, automatic grip discovery, 16 px metric and all-corner glyph geometry are covered; live resize and high-DPI comparison remain |
 | opted-in `QDialog` / `QMessageBox` | ContentDialog | Compound mapping | source-audited | distinct content and command/footer surfaces, 320×184 minimum, 24 px content margin, 12 px spacing, accent default button, Fluent message glyphs and 83/250 ms show motion; live modality/dismissal/dark comparison remains |
 | `QWizard` / `QWizardPage` | Multi-step dialog composition | Consistency extension | source-audited | separate content/footer surfaces and automatic accent Next/Finish roles are covered; native navigation, cancellation, RTL and live WinUI comparison remain |
-| `QAbstractItemView[winuiNavigationView=true]` | NavigationView item | Semantic variant | source-audited | style-owned delegate, real click, selected-pill transition tested; panel/list/content share one mica material via the shell sync, restore cleanly on toggle-off; dark/keyboard live pass remains |
+| `QAbstractItemView[winuiNavigationView=true]` | NavigationView item | Semantic variant | partial — palette lifecycle reopened 2026-09-20 | style-owned delegate, real click, selected-pill transition tested; palette ownership and Mica/theme restoration evidence below; complete dark/keyboard live pass remains |
 | `QFrame[winuiSettingsCard=true]` / settings-card composition | Gallery settings card | Semantic variant + compound behavior | source-audited | interactive iff an expandable child is bound (`isCardInteractive`); trailing-only cards keep resting fill and ignore header clicks; expandable chevron is ChevronDown collapsed and expanded; expanded host shares the card surface with no fill/border; dark live pass remains |
 | `Top-level QWidget[winuiBackdrop=mica]` (+ `micaalt`, `acrylic`) | Window SystemBackdrop (Mica / Mica Alt / Desktop Acrylic via `DWMWA_SYSTEMBACKDROP_TYPE`) | Direct | partial — caption lifecycle reopened 2026-09-19 | `applyBackdrop` maps to DWM `DWMSBT_MAINWINDOW`/`TABBEDWINDOW`/`TRANSIENTWINDOW` + full-frame extend, opaque `Painted` fallback offscreen/refused; single erase policy in `winui3helpers_p.h` (shared gate + recipe 1 erase-then-fill default, recipe 2 erase-means-transparent, recipe 3 `clearForBackdropFill` for acrylic popup pills) + island scroll guard + chrome/content transparentize/restore covered by `backdropLifecycleContract`, `backdrop*DoesNotAccumulate`, `islandScrollPostsFullViewportRepaint`, `materialErase*`, theme/chrome/resize/expose/move contracts; caption evidence below; broader live compositor verification remains. |
 
 ## P1 and structural closure ledger
+
+### Reopened evidence — NavigationView palette lifecycle (2026-09-20)
+
+Mapping, tokens and geometry are unchanged. Live standalone Gallery reproduced
+System/Light → Mica on → Dark → Mica off leaving a light navigation background
+and dark text. `navigationBackdropThemeRestore` reproduces the stale Text role
+(#E4000000 instead of #FFFFFFFF), before the navigation fix, in
+`build/navigation-theme-red.txt`. The two existing mechanism assertions also
+fail unchanged in `build/navigation-fix-red.txt`: inherited palette ownership
+is lost, and the top-level material alpha is overwritten on enable.
+
+The owned-palette refresh now delegates temporary navigation palettes to their
+existing state owner, preserving saved inheritance and rebasing style-owned
+saved colors. The main-window refresh preserves applyBackdrop's alpha while
+refreshing theme RGB. No existing assertion was removed or changed.
+Release configuration/build pass. All 23 current split domain executables pass,
+including NavigationView 13/13 (`build/navigation-domain-logs`); the leftover
+pre-split `winui3style_tests.exe` is not a current CMake target and its stale
+results are not acceptance evidence. Live rebuilt Gallery replay of the same
+Light/Mica/Dark/disable sequence restores dark navigation with readable white
+text; library and deployed demo DLL SHA256 both start `EA3F54B3BFC04DC1`.
+The first full CTest run passed 51/52 (including strict snapshot matrix and
+source/Designer contracts). The native rerun identified `comboPopupSurface`
+first-paint alignment as its remaining failure; isolated runs with both the
+preserved pre-fix DLL and rebuilt DLL then passed 3/3. This does not establish
+the cause of that intermittent failure. No Verified promotion is made.
+Final complete CTest rerun: **52/52 passed**, including the standard native
+suite (84.63 s), in `build/navigation-final-ctest-rerun.txt`. The opt-in
+AutoSuggest capture test still requires its explicit capture environment;
+its default CTest result is not additional live evidence.
 
 ### Reopened evidence — AutoSuggestBox resolved row frame (2026-09-19)
 
@@ -106,7 +136,8 @@ in System (currently Light) and explicit Dark: focus the actual AutoSuggest
 editor, type `a`, hover Beta then Gamma, and observe Beta return to the uniform
 rest surface without retained hover ink. Both themes passed this live sequence.
 The demo remains open on the Dark popup. This limited replay does not promote
-the coverage row to Verified.
+the coverage row to Verified. The previously blocking NavigationView failures
+are now repaired by the separate palette-lifecycle batch above.
 
 ### Reopened evidence — native caption after backdrop disable (2026-09-19)
 

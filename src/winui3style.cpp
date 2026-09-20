@@ -1550,6 +1550,14 @@ void Style::refreshOwnedPalettes(QWidget *window)
             continue;
         if (insideCalendarNavigationBar(widget))
             continue;
+        if (widget->property(NavigationViewProperty).toBool()
+            && !widget->property(SurfaceProperty).isValid()) {
+            // The delegate owns temporary navigation palettes and their saved
+            // inheritance. Do not overwrite them in the generic owner pass.
+            if (auto *view = qobject_cast<QAbstractItemView *>(widget))
+                NavigationPrivate::refreshNavigationPalette(view, applicationPalette);
+            continue;
+        }
         if (widget->window() && widget->window()->windowType() == Qt::Popup) {
             // Hidden calendar popups skip the owned-palette branches
             // (preparePopupSurface re-asserts the surface on show), but
@@ -1650,6 +1658,13 @@ void Style::refreshOwnedPalettes(QWidget *window)
                 palette.setColor(QPalette::Window, surface);
                 palette.setColor(QPalette::Base, surface);
             }
+            // applyBackdrop owns the top-level alpha, including the synchronous
+            // effective-surface notification that brought us here. Rebase the
+            // theme RGB without replacing that in-flight material recipe.
+            if (widget == window && window->property("_winui_backdrop").isValid())
+                palette.setColor(QPalette::Window,
+                                 withAlpha(palette.color(QPalette::Window),
+                                           widget->palette().color(QPalette::Window).alpha()));
             widget->setPalette(palette);
             if (auto *dialog = qobject_cast<QDialog *>(widget))
                 prepareContentDialogState(dialog, darkTheme);
