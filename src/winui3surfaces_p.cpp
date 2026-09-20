@@ -474,6 +474,17 @@ void syncContentSurfacesForBackdrop(QWidget *window)
 
 // restore alone leaves the content island transparent, so PE_Widget keeps
 // Source-clearing to transparent on an opaque window (retained-frame smear).
+// Restore the remembered surface state, normalize the style background flag,
+// and repaint in that order.
+static void restoreBackdropSurface(QWidget *widget)
+{
+    if (!widget)
+        return;
+    restoreTransparentizedForBackdrop(widget);
+    widget->setAttribute(Qt::WA_StyledBackground, false);
+    widget->update();
+}
+
 void restoreContentSurfacesForBackdrop(QWidget *window)
 {
     if (!window)
@@ -486,38 +497,27 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
         // never transparentized, so no alpha pre-check is needed here. The
         // restore helper does not track Styled; normalize back to the
         // polish-provided opaque state.
-        restoreTransparentizedSurface(island);
-        island->setAttribute(Qt::WA_StyledBackground, false);
-        island->update();
+        restoreBackdropSurface(island);
         // The sync above transparentized the scrolled chain alongside the
         // island: restore every link the same way (each restore is a no-op
         // for widgets that were never transparentized).
         const QList<QAbstractScrollArea *> areas = island->findChildren<QAbstractScrollArea *>();
         for (QAbstractScrollArea *area : areas) {
-            restoreTransparentizedForBackdrop(area);
-            area->setAttribute(Qt::WA_StyledBackground, false);
+            restoreBackdropSurface(area);
             if (QWidget *viewport = area->viewport()) {
-                restoreTransparentizedForBackdrop(viewport);
-                viewport->setAttribute(Qt::WA_StyledBackground, false);
-                viewport->update();
+                restoreBackdropSurface(viewport);
             }
             // Every bar armed by the sync above is returned the same way
             // (each restore is a no-op for bars that were never armed).
             if (QScrollBar *verticalBar = area->verticalScrollBar()) {
-                restoreTransparentizedForBackdrop(verticalBar);
-                verticalBar->setAttribute(Qt::WA_StyledBackground, false);
-                verticalBar->update();
+                restoreBackdropSurface(verticalBar);
             }
             if (QScrollBar *horizontalBar = area->horizontalScrollBar()) {
-                restoreTransparentizedForBackdrop(horizontalBar);
-                horizontalBar->setAttribute(Qt::WA_StyledBackground, false);
-                horizontalBar->update();
+                restoreBackdropSurface(horizontalBar);
             }
             if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
                 if (QWidget *container = scrollArea->widget()) {
-                    restoreTransparentizedForBackdrop(container);
-                    container->setAttribute(Qt::WA_StyledBackground, false);
-                    container->update();
+                    restoreBackdropSurface(container);
                 }
             }
             area->update();
@@ -525,13 +525,9 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
     }
     // Shell links transparentized by the sync above (no-ops if never armed).
     if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
-        restoreTransparentizedForBackdrop(central);
-        central->setAttribute(Qt::WA_StyledBackground, false);
-        central->update();
+        restoreBackdropSurface(central);
         if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel"))) {
-            restoreTransparentizedForBackdrop(nav);
-            nav->setAttribute(Qt::WA_StyledBackground, false);
-            nav->update();
+            restoreBackdropSurface(nav);
         }
     }
 }
