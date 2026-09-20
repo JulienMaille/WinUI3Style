@@ -81,6 +81,8 @@ public:
     bool eventFilter(QObject *watched, QEvent *event);
 
 private:
+    void cancelComboPress(QComboBox *combo, bool releaseMouse);
+
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;
     QSet<QComboBox *> m_comboPressStates;
