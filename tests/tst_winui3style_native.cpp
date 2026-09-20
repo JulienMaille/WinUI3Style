@@ -237,6 +237,7 @@ static bool snapCycleSnapshot(const char *tag, QMenu &menu, const QWidget &host,
     readDwmWindowAttribute(menu.winId(), dwmwaSystemBackdropType, &out->dwmBackdrop);
     // One desktop frame per snapshot: host band, surface band and shadow
     // strips all sample THIS capture (never three different grabs).
+    flushNativeCompositor();
     out->desktop = DesktopTestFrame::capture(menu.screen());
     // Surface band: just inside the popup's top margin (pure fill).
     out->screenGrey = out->desktop.colorAt(menu.geometry().topLeft()

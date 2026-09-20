@@ -99,6 +99,8 @@
 #  define WIN32_LEAN_AND_MEAN
 #  define NOMINMAX
 #  include <windows.h>
+#  include <dwmapi.h>
+#  pragma comment(lib, "dwmapi.lib")
 
 // Includes the native caption, unlike QWidget::grab(). Own a copy before
 // releasing the DIB; callers pair pixel checks with same-state contracts.
@@ -135,6 +137,15 @@ inline QImage nativeWindowFrame(WId id)
     return frame;
 }
 #endif
+
+// Desktop capture can run ahead of a redirected popup surface and record only
+// its DWM shadow. Synchronize the compositor without adding arbitrary sleeps.
+inline void flushNativeCompositor()
+{
+#if defined(Q_OS_WIN) && defined(WINUI3STYLE_NATIVE_CAPTURE)
+    DwmFlush();
+#endif
+}
 
 // Drain Qt's deferred-delete queue so top-level inventories/counts measure a
 // settled widget set (previous cycles' deletes land BEFORE measurement).
