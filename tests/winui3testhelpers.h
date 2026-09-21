@@ -14,6 +14,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
+#include "../src/winui3qtcompat_p.h"
 #include "../src/winui3tokens_p.h"
 
 #include <QLabel>
@@ -231,9 +232,9 @@ inline bool stableOpaqueDesktopBaseline(QWidget &host, const QRect &globalRegion
 {
     const QColor expected = host.palette().color(QPalette::Window);
     QTest::qWait(500);
-    const auto first = DesktopTestFrame::capture(host.screen());
+    const auto first = DesktopTestFrame::capture(WinUI3::Private::widgetScreen(&host));
     QTest::qWait(100);
-    const auto second = DesktopTestFrame::capture(host.screen());
+    const auto second = DesktopTestFrame::capture(WinUI3::Private::widgetScreen(&host));
     const QColor firstMedian = first.image.isNull()
             ? QColor()
             : medianStripColor(first.image, first.pixels(globalRegion));
