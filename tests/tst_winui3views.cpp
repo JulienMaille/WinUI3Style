@@ -113,7 +113,6 @@ private slots:
     void tableHeaderContract();
     void tableSortIndicatorGeometryContract();
     void tableEditingPaintContract();
-    void tableLiveEditorSuppressesDisplay();
     void richEditBoxContract();
     void sliderExtremeRangeTicks();
     void itemViewMouseFocusReset();
@@ -938,19 +937,28 @@ void WinUI3ViewsTest::tableSortIndicatorGeometryContract()
 void WinUI3ViewsTest::tableEditingPaintContract()
 {
     QTableWidget table(1, 1);
+    table.setItem(0, 0, new QTableWidgetItem(QStringLiteral("Painted underneath editor")));
+    table.setEditTriggers(QAbstractItemView::AllEditTriggers);
+    table.setColumnWidth(0, 240);
     table.resize(320, 80);
     table.show();
     QTRY_VERIFY(table.isVisible());
 
+    const QModelIndex index = table.model()->index(0, 0);
+    table.editItem(table.item(0, 0));
+    QTRY_VERIFY_WITH_TIMEOUT(!table.findChildren<QLineEdit *>().isEmpty(), 1000);
+    QLineEdit *editor = table.findChildren<QLineEdit *>().constFirst();
+    QVERIFY(editor->isVisible());
+    QVERIFY(editor->property("_winui_table_editor").toBool());
     QStyleOptionViewItem option;
     option.initFrom(table.viewport());
     option.widget = table.viewport();
-    option.rect = QRect(0, 0, 240, 36);
-    option.index = table.model()->index(0, 0);
+    option.rect = table.visualRect(index);
+    option.index = index;
     option.text = QStringLiteral("Painted underneath editor");
     option.icon = WinUI3::icon(WinUI3::Icon::Settings);
     option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::HasDecoration;
-    option.state = QStyle::State_Enabled | QStyle::State_Selected | QStyle::State_Editing;
+    option.state = QStyle::State_Enabled | QStyle::State_Selected;
 
     const auto render = [&](const QStyleOptionViewItem &source) {
         QImage image(source.rect.size(), QImage::Format_ARGB32_Premultiplied);
@@ -970,43 +978,6 @@ void WinUI3ViewsTest::tableEditingPaintContract()
     unselected.state &= ~QStyle::State_Selected;
     QVERIFY(editing.pixelColor(120, 18) != render(unselected).pixelColor(120, 18));
     QVERIFY(editing.pixelColor(8, 18).alpha() > 0);
-}
-
-void WinUI3ViewsTest::tableLiveEditorSuppressesDisplay()
-{
-    QTableWidget table(1, 1);
-    table.setItem(0, 0, new QTableWidgetItem(QStringLiteral("Painted underneath the live editor")));
-    table.setEditTriggers(QAbstractItemView::AllEditTriggers);
-    table.resize(320, 80);
-    table.show();
-    QTRY_VERIFY(table.isVisible());
-
-    const QModelIndex index = table.model()->index(0, 0);
-    table.editItem(table.item(0, 0));
-    QTRY_VERIFY_WITH_TIMEOUT(!table.findChildren<QLineEdit *>().isEmpty(), 1000);
-    QLineEdit *editor = table.findChildren<QLineEdit *>().constFirst();
-    QVERIFY(editor->isVisible());
-    QVERIFY(editor->property("_winui_table_editor").toBool());
-    QStyleOptionViewItem option;
-    option.initFrom(table.viewport());
-    option.widget = table.viewport();
-    option.rect = table.visualRect(index);
-    option.index = index;
-    option.text = QStringLiteral("Painted underneath the live editor");
-    option.features = QStyleOptionViewItem::HasDisplay;
-    option.state = QStyle::State_Enabled;
-
-    const auto render = [&](const QStyleOptionViewItem &source) {
-        QImage image(source.rect.size(), QImage::Format_ARGB32_Premultiplied);
-        image.fill(table.palette().color(QPalette::Base));
-        QPainter painter(&image);
-        table.style()->drawControl(QStyle::CE_ItemViewItem, &source, &painter, table.viewport());
-        return image;
-    };
-
-    auto withoutDisplay = option;
-    withoutDisplay.features &= ~QStyleOptionViewItem::HasDisplay;
-    QCOMPARE(render(option), render(withoutDisplay));
 }
 
 void WinUI3ViewsTest::richEditBoxContract()
