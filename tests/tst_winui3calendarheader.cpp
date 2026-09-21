@@ -407,7 +407,7 @@ void WinUI3CalendarHeaderTest::inlineCalendarUniformSurface()
                                    : E_NOTIMPL;
             qInfo() << "epoch=" << epoch << "requestMica=" << requestMica
                     << "applyBackdrop=" << applied << "host=" << host.internalWinId()
-                    << "DwmGet38 hr=" << Qt::hex << quint32(hr) << Qt::dec << "value=" << material;
+                    << "DwmGet38 hr=" << QString::number(quint32(hr), 16) << "value=" << material;
             granted = requestMica && applied && SUCCEEDED(hr) && material == 2;
         }
 #endif
@@ -713,7 +713,7 @@ void WinUI3CalendarHeaderTest::micaScrollBarsAndNavigationPanelShareMaterial()
                 ? get(reinterpret_cast<HWND>(host.internalWinId()), 38, &material, sizeof(material))
                 : E_NOTIMPL;
         qInfo() << "mica bars/nav epoch theme=" << (dark ? "dark" : "light")
-                << "applied=" << applied << "hr=" << Qt::hex << quint32(hr) << Qt::dec
+                << "applied=" << applied << "hr=" << QString::number(quint32(hr), 16)
                 << "attr38=" << material;
         granted = applied && SUCCEEDED(hr) && material == 2;
     }
