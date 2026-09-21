@@ -372,6 +372,8 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
 QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyleOption *option,
                      const QWidget *widget)
 {
+    if (!option)
+        return {};
     const DensityMetrics &density = densityMetricsFor(widget, style);
     if (element == QStyle::SE_PushButtonContents)
         return option->rect.adjusted(8, 4, -8, -4);

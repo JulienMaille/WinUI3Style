@@ -370,6 +370,8 @@ void WinUI3DensityApiTest::nullOptionGeometryContracts()
              QStyle::SC_None);
     QCOMPARE(style.hitTestComplexControl(QStyle::CC_SpinBox, nullptr, QPoint(4, 4), nullptr),
              QStyle::SC_None);
+    QWidget popup(nullptr, Qt::Popup);
+    QCOMPARE(style.subElementRect(QStyle::SE_ItemViewItemText, nullptr, &popup), QRect());
     // Same-state sanity: a valid option still resolves a non-empty slot
     // inside the offered rect.
     QStyleOptionComboBox option;
