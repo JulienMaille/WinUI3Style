@@ -12,6 +12,8 @@
 #     story: implementation LGPL, Qt-only runtime).
 # (d) Test size ratchet: fail if any tests/tst_*.cpp exceeds 60 KB, so the
 #     split test binaries of plan step 8 cannot regrow into one giant file.
+# (e) Qt 5.12 namespace metadata: Q_NAMESPACE_EXPORT only exists from Qt 5.14;
+#     the public header must retain a guarded Q_NAMESPACE fallback.
 
 if(NOT DEFINED SOURCE_DIR)
     message(FATAL_ERROR "SOURCE_DIR must be passed on the command line")
@@ -83,3 +85,15 @@ foreach(_file IN LISTS _test_sources)
             "split by domain per plan step 8 instead of growing one file")
     endif()
 endforeach()
+
+# (e) Keep the Qt 5.12 AUTOMOC path parseable while exporting the namespace
+# metadata where Qt provides Q_NAMESPACE_EXPORT.
+file(READ "${SOURCE_DIR}/include/winui3style/winui3style.h" _style_header)
+string(REGEX MATCH
+    "#if QT_VERSION >= QT_VERSION_CHECK\\(5, 14, 0\\)[ \t\r\n]+Q_NAMESPACE_EXPORT\\(WINUI3STYLE_EXPORT\\)[ \t\r\n]+#else[ \t\r\n]+Q_NAMESPACE[ \t\r\n]+#endif"
+    _qt512_namespace_guard "${_style_header}")
+if(_qt512_namespace_guard STREQUAL "")
+    message(FATAL_ERROR
+        "Qt 5.12 compatibility: WinUI3 namespace metadata needs a guarded "
+        "Q_NAMESPACE fallback because Q_NAMESPACE_EXPORT starts in Qt 5.14")
+endif()
