@@ -22,6 +22,7 @@ namespace WinUI3 {
 
 namespace {
 
+#ifdef Q_OS_WIN
 constexpr auto backdropProperty = "_winui_backdrop";
 constexpr auto originalWindowColorProperty = "_winui_original_window_color";
 constexpr auto originalPaletteProperty = "_winui_backdrop_original_palette";
@@ -31,7 +32,6 @@ constexpr auto originalNoSystemBackgroundProperty = "_winui_backdrop_original_no
 constexpr auto originalOpaquePaintProperty = "_winui_backdrop_original_opaque_paint";
 constexpr auto originalAutoFillProperty = "_winui_backdrop_original_auto_fill";
 
-#ifdef Q_OS_WIN
 QColor themedWindowColor()
 {
     QColor result = QApplication::palette().color(QPalette::Window);
@@ -39,7 +39,6 @@ QColor themedWindowColor()
         result = style->standardPalette().color(QPalette::Window);
     return result;
 }
-#endif
 
 void rememberBackdropState(QWidget *window)
 {
@@ -105,6 +104,7 @@ void restoreBackdropState(QWidget *window)
     window->setProperty(originalOpaquePaintProperty, {});
     window->setProperty(originalAutoFillProperty, {});
 }
+#endif
 
 } // namespace
 
