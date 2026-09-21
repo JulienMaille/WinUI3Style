@@ -3,6 +3,7 @@
 
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 #include "winui3backdrop_p.h"
@@ -421,12 +422,7 @@ void syncContentSurfacesForBackdrop(QWidget *window)
     // paintsDirectlyOnBackdrop instead of disabling clears.
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
-        const QVariant surface = island->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        const bool optedIn = surface.toBool()
-                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-        if (!optedIn)
+        if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
             continue;
         for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>()) {
             guardIslandScrollArea(area);
@@ -478,55 +474,50 @@ void syncContentSurfacesForBackdrop(QWidget *window)
 
 // restore alone leaves the content island transparent, so PE_Widget keeps
 // Source-clearing to transparent on an opaque window (retained-frame smear).
+// Restore the remembered surface state, normalize the style background flag,
+// and repaint in that order.
+static void restoreBackdropSurface(QWidget *widget)
+{
+    if (!widget)
+        return;
+    restoreTransparentizedForBackdrop(widget);
+    widget->setAttribute(Qt::WA_StyledBackground, false);
+    widget->update();
+}
+
 void restoreContentSurfacesForBackdrop(QWidget *window)
 {
     if (!window)
         return;
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
-        const QVariant surface = island->property(Style::SurfaceProperty);
-        const QString name = surface.toString();
-        const bool optedIn = surface.toBool()
-                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
-                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
-        if (!optedIn)
+        if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
             continue;
         // restoreTransparentizedSurface returns early for islands that were
         // never transparentized, so no alpha pre-check is needed here. The
         // restore helper does not track Styled; normalize back to the
         // polish-provided opaque state.
-        restoreTransparentizedSurface(island);
-        island->setAttribute(Qt::WA_StyledBackground, false);
-        island->update();
+        restoreBackdropSurface(island);
         // The sync above transparentized the scrolled chain alongside the
         // island: restore every link the same way (each restore is a no-op
         // for widgets that were never transparentized).
         const QList<QAbstractScrollArea *> areas = island->findChildren<QAbstractScrollArea *>();
         for (QAbstractScrollArea *area : areas) {
-            restoreTransparentizedForBackdrop(area);
-            area->setAttribute(Qt::WA_StyledBackground, false);
+            restoreBackdropSurface(area);
             if (QWidget *viewport = area->viewport()) {
-                restoreTransparentizedForBackdrop(viewport);
-                viewport->setAttribute(Qt::WA_StyledBackground, false);
-                viewport->update();
+                restoreBackdropSurface(viewport);
             }
             // Every bar armed by the sync above is returned the same way
             // (each restore is a no-op for bars that were never armed).
             if (QScrollBar *verticalBar = area->verticalScrollBar()) {
-                restoreTransparentizedForBackdrop(verticalBar);
-                verticalBar->setAttribute(Qt::WA_StyledBackground, false);
-                verticalBar->update();
+                restoreBackdropSurface(verticalBar);
             }
             if (QScrollBar *horizontalBar = area->horizontalScrollBar()) {
-                restoreTransparentizedForBackdrop(horizontalBar);
-                horizontalBar->setAttribute(Qt::WA_StyledBackground, false);
-                horizontalBar->update();
+                restoreBackdropSurface(horizontalBar);
             }
             if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
                 if (QWidget *container = scrollArea->widget()) {
-                    restoreTransparentizedForBackdrop(container);
-                    container->setAttribute(Qt::WA_StyledBackground, false);
-                    container->update();
+                    restoreBackdropSurface(container);
                 }
             }
             area->update();
@@ -534,13 +525,9 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
     }
     // Shell links transparentized by the sync above (no-ops if never armed).
     if (auto *central = window->findChild<QWidget *>(QStringLiteral("centralWidget"))) {
-        restoreTransparentizedForBackdrop(central);
-        central->setAttribute(Qt::WA_StyledBackground, false);
-        central->update();
+        restoreBackdropSurface(central);
         if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel"))) {
-            restoreTransparentizedForBackdrop(nav);
-            nav->setAttribute(Qt::WA_StyledBackground, false);
-            nav->update();
+            restoreBackdropSurface(nav);
         }
     }
 }
@@ -1043,47 +1030,33 @@ constexpr DWORD popupBackdropTypeAttribute = 38;
 constexpr DWORD popupBackdropTransientValue = 3; // DWMSBT_TRANSIENTWINDOW.
 #endif
 
-bool popupBackdropReadbackGranted(QWidget *popup)
-{
-#ifdef Q_OS_WIN
-    if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
-        return false;
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return false;
-    QWindow *nativeWindow = popup->windowHandle();
-    if (!nativeWindow || !nativeWindow->handle())
-        return false;
-    const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
-    if (!hwnd)
-        return false;
-    DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
-            && value == popupBackdropTransientValue;
-#else
-    Q_UNUSED(popup);
-    return false;
-#endif
-}
+enum class PopupBackdropReadback {
+    Unknown,
+    Granted,
+    Refused,
+};
 
-bool popupBackdropReadbackRefused(QWidget *popup)
+PopupBackdropReadback popupBackdropReadback(QWidget *popup)
 {
 #ifdef Q_OS_WIN
     if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
-        return false;
+        return PopupBackdropReadback::Unknown;
     if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        return false;
+        return PopupBackdropReadback::Unknown;
     QWindow *nativeWindow = popup->windowHandle();
     if (!nativeWindow || !nativeWindow->handle())
-        return false;
+        return PopupBackdropReadback::Unknown;
     const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
     if (!hwnd)
-        return false;
+        return PopupBackdropReadback::Unknown;
     DWORD value = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value)))
-            && value != popupBackdropTransientValue;
+    if (FAILED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value))))
+        return PopupBackdropReadback::Unknown;
+    return value == popupBackdropTransientValue ? PopupBackdropReadback::Granted
+                                                : PopupBackdropReadback::Refused;
 #else
     Q_UNUSED(popup);
-    return false;
+    return PopupBackdropReadback::Unknown;
 #endif
 }
 
@@ -1230,14 +1203,13 @@ void preparePopupSurface(QWidget *widget)
                     // grant and fall through to the retry below. An
                     // unreadable Get keeps the HRESULT-based acceptance
                     // above (Refused is false there by construction).
-                    if (granted && !popupBackdropReadbackGranted(popup)
-                        && popupBackdropReadbackRefused(popup))
+                    if (granted && popupBackdropReadback(popup) == PopupBackdropReadback::Refused)
                         granted = false;
                     popup->update();
                 } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
                            && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
-                    if (!popupBackdropReadbackGranted(popup)
-                        && popupBackdropReadbackRefused(popup)) {
+                    const PopupBackdropReadback readback = popupBackdropReadback(popup);
+                    if (readback == PopupBackdropReadback::Refused) {
                         // Definitive refusal: leave the opaque fallback the
                         // refused branch converged on and retry below. The
                         // translucent re-tint runs only on a verified grant

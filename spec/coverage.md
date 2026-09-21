@@ -21,7 +21,7 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QProgressBar` | ProgressBar / ProgressRing substitute | Direct | source-audited | determinate/indeterminate, both axes, inversion, disabled, periodic repaint, deterministic freeze and timer cleanup are covered; live comparison remains |
 | `QTabBar` / `QTabWidget` | TabView | Direct | source-audited | official 100×32 min item, 12 px type, 16 px icon, 32×24 close button, separators and selected attached surface; no legacy accent underline; live hover/down, overflow, drag/reorder and keyboard comparison remains |
 | popup `QListView` | ComboBox item | Direct | source-audited | selected pill, hover/down, row height, scrolling; open-popup arrows move the view current index (selection follows) and repaint the hover pill on the new current row while the value row keeps only its accent marker (`comboOpenPopupKeyboardNavMovesHoverPill`) |
-| `QLineEdit` + `QCompleter` (PopupCompletion) | AutoSuggestBox | Semantic variant | source-audited | stock editor + completer keep semantics, signals, focus, and hit testing; QStyle owns the popup surface and every row visual. Hover/keyboard-current rows paint the identical menu pill (shared `paintPopupRowPill`/`popupRowPillRect`: 4,2 insets, 3px radius, subtleHover token; `autoSuggestHoverPillMatchesMenuPill` incl. hover-sweep ghost guard); the composited hover rebuilds the row frame from the opaque flyout color so CE/PE agree and no translucent frame accumulates (`autoSuggestCompositedHoverRebuildsRowFrame`); the completer view window itself is frameless so the rounded flyout region reads cleanly; live pointer/keyboard comparison remains |
+| `QLineEdit` + `QCompleter` (PopupCompletion) | AutoSuggestBox | Semantic variant | partial — row-frame evidence reopened 2026-09-19 | stock editor + completer keep semantics, signals, focus, and hit testing; QStyle owns the popup surface and every row visual. Shared `paintPopupRowPill`/`popupRowPillRect` geometry remains 4,2 insets and 3px radius. CE/PE now preserve the resolved Base RGB with opaque row frames: `autoSuggestResolvedFramePreservesRgb` covers Light/Dark × Standard/Compact × rest/hover/leave; the existing composited-hover assertion is unchanged and passes offscreen. See RED/GREEN and PrintWindow evidence below. The completer view is frameless; the complete live pointer/keyboard pass remains incomplete. |
 | `QListView` / `QListWidget` | ListView | Direct | source-audited | official 40 px rows, padding, subtle hover/selected/down layers, accent selection pill, icons/checks, editing, disabled and keyboard focus; live pointer sequence remains |
 | `QTreeView` / `QTreeWidget` | TreeView | Direct | source-audited | official 28 px rows, 4×2 margin, Fluent expanders, hierarchy, selected pill and keyboard focus; multi-column header is a consistency extension; live pointer sequence remains |
 | `QTableView` / `QTableWidget` / headers | DataGrid-like extension | Consistency extension | source-audited | 36 px rows, subtle row selection, flat 32 px headers, sorting glyph, editing and scrolling tested; no core WinUI DataGrid is claimed; live pointer/resize pass remains |
@@ -34,11 +34,132 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QStatusBar` / `QSizeGrip` | Window footer / resize affordance | Consistency extension | source-audited | layer surface, top separator, automatic grip discovery, 16 px metric and all-corner glyph geometry are covered; live resize and high-DPI comparison remain |
 | opted-in `QDialog` / `QMessageBox` | ContentDialog | Compound mapping | source-audited | distinct content and command/footer surfaces, 320×184 minimum, 24 px content margin, 12 px spacing, accent default button, Fluent message glyphs and 83/250 ms show motion; live modality/dismissal/dark comparison remains |
 | `QWizard` / `QWizardPage` | Multi-step dialog composition | Consistency extension | source-audited | separate content/footer surfaces and automatic accent Next/Finish roles are covered; native navigation, cancellation, RTL and live WinUI comparison remain |
-| `QAbstractItemView[winuiNavigationView=true]` | NavigationView item | Semantic variant | source-audited | style-owned delegate, real click, selected-pill transition tested; panel/list/content share one mica material via the shell sync, restore cleanly on toggle-off; dark/keyboard live pass remains |
+| `QAbstractItemView[winuiNavigationView=true]` | NavigationView item | Semantic variant | partial — palette lifecycle reopened 2026-09-20 | style-owned delegate, real click, selected-pill transition tested; palette ownership and Mica/theme restoration evidence below; complete dark/keyboard live pass remains |
 | `QFrame[winuiSettingsCard=true]` / settings-card composition | Gallery settings card | Semantic variant + compound behavior | source-audited | interactive iff an expandable child is bound (`isCardInteractive`); trailing-only cards keep resting fill and ignore header clicks; expandable chevron is ChevronDown collapsed and expanded; expanded host shares the card surface with no fill/border; dark live pass remains |
-| `Top-level QWidget[winuiBackdrop=mica]` (+ `micaalt`, `acrylic`) | Window SystemBackdrop (Mica / Mica Alt / Desktop Acrylic via `DWMWA_SYSTEMBACKDROP_TYPE`) | Direct | source-audited | `applyBackdrop` maps to DWM `DWMSBT_MAINWINDOW`/`TABBEDWINDOW`/`TRANSIENTWINDOW` + full-frame extend, opaque `Painted` fallback offscreen/refused; single erase policy in `winui3helpers_p.h` (shared gate + recipe 1 erase-then-fill default, recipe 2 erase-means-transparent, recipe 3 `clearForBackdropFill` for acrylic popup pills) + island scroll guard + chrome/content transparentize/restore covered by `backdropLifecycleContract`, `backdrop*DoesNotAccumulate`, `islandScrollPostsFullViewportRepaint`, `materialErase*`, theme/chrome/resize/expose/move contracts, native acrylic-tin…
+| `Top-level QWidget[winuiBackdrop=mica]` (+ `micaalt`, `acrylic`) | Window SystemBackdrop (Mica / Mica Alt / Desktop Acrylic via `DWMWA_SYSTEMBACKDROP_TYPE`) | Direct | partial — caption lifecycle reopened 2026-09-19 | `applyBackdrop` maps to DWM `DWMSBT_MAINWINDOW`/`TABBEDWINDOW`/`TRANSIENTWINDOW` + full-frame extend, opaque `Painted` fallback offscreen/refused; single erase policy in `winui3helpers_p.h` (shared gate + recipe 1 erase-then-fill default, recipe 2 erase-means-transparent, recipe 3 `clearForBackdropFill` for acrylic popup pills) + island scroll guard + chrome/content transparentize/restore covered by `backdropLifecycleContract`, `backdrop*DoesNotAccumulate`, `islandScrollPostsFullViewportRepaint`, `materialErase*`, theme/chrome/resize/expose/move contracts; caption evidence below; broader live compositor verification remains. |
 
 ## P1 and structural closure ledger
+
+### Reopened evidence — NavigationView palette lifecycle (2026-09-20)
+
+Mapping, tokens and geometry are unchanged. Live standalone Gallery reproduced
+System/Light → Mica on → Dark → Mica off leaving a light navigation background
+and dark text. `navigationBackdropThemeRestore` reproduces the stale Text role
+(#E4000000 instead of #FFFFFFFF), before the navigation fix, in
+`build/navigation-theme-red.txt`. The two existing mechanism assertions also
+fail unchanged in `build/navigation-fix-red.txt`: inherited palette ownership
+is lost, and the top-level material alpha is overwritten on enable.
+
+The owned-palette refresh now delegates temporary navigation palettes to their
+existing state owner, preserving saved inheritance and rebasing style-owned
+saved colors. The main-window refresh preserves applyBackdrop's alpha while
+refreshing theme RGB. No existing assertion was removed or changed.
+Release configuration/build pass. All 23 current split domain executables pass,
+including NavigationView 13/13 (`build/navigation-domain-logs`); the leftover
+pre-split `winui3style_tests.exe` is not a current CMake target and its stale
+results are not acceptance evidence. Live rebuilt Gallery replay of the same
+Light/Mica/Dark/disable sequence restores dark navigation with readable white
+text; library and deployed demo DLL SHA256 both start `EA3F54B3BFC04DC1`.
+The first full CTest run passed 51/52 (including strict snapshot matrix and
+source/Designer contracts). The native rerun identified `comboPopupSurface`
+first-paint alignment as its remaining failure; isolated runs with both the
+preserved pre-fix DLL and rebuilt DLL then passed 3/3. This does not establish
+the cause of that intermittent failure. No Verified promotion is made.
+Final complete CTest rerun: **52/52 passed**, including the standard native
+suite (84.63 s), in `build/navigation-final-ctest-rerun.txt`. The opt-in
+AutoSuggest capture test still requires its explicit capture environment;
+its default CTest result is not additional live evidence.
+
+### Reopened evidence — AutoSuggestBox resolved row frame (2026-09-19)
+
+Mapping and tokens are unchanged. `autoSuggestResolvedFramePreservesRgb` adds
+12 renderer cases: Light/Dark × Standard/Compact × rest/hover/leave. Real popup
+construction establishes the completer association and inherited density; direct
+painting then supplies the already-resolved flyout RGB with the composited tint
+alpha. This is a renderer contract, not proof of a native material grant.
+The exact row-edge oracle rejects both opacity loss and a second color lift.
+RED: `build/autosuggest-resolved-rgb-red.txt`, 12 failures, zero skips. Rest/leave
+produce Light #FFFFFF instead of #FCFCFC and Dark #383838 instead of #2C2C2C;
+hover produces alpha 242/178 instead of 255. Existing assertions are unchanged.
+Earlier draft logs (`autosuggest-rgb-red.txt`, `autosuggest-rgb-lifecycle-red.txt`)
+include incomplete association/density fixtures and are not acceptance evidence.
+
+Live Gallery inspection at commit facba49 with the pinned official Gallery 2.9.3
+did not reproduce the historical gross smear during the inspected hover sweeps.
+The separate native run of `autoSuggestCompositedHoverRebuildsRowFrame` stops at
+its opaque initial-Base assumption (actual alpha 242); its offscreen simulation
+still failed at hovered-frame alpha before the fix. Desktop access subsequently
+resumed: the Dark Gallery popup was visibly lighter than the official popup.
+
+2026-09-20: both AutoSuggest paint paths now use the existing `withAlpha(Base,
+255)` helper; no second `popupSurfaceColor` lift, token change, geometry change,
+or calendar/ComboBox/menu policy change. Full ComboBox domain GREEN:
+`build/autosuggest-combobox-green.txt`, 25 passed, zero failures/skips. This
+includes all 12 new cases and the unchanged pre-existing assertions.
+
+The opt-in `winui3style_autosuggest_native_tests` instantiates the real Gallery
+and uses shared `nativeWindowFrame` (PrintWindow). Run with
+`QT_QPA_PLATFORM=windows`, `WINUI3STYLE_DISABLE_ANIMATIONS=1`, and
+`WINUI3STYLE_AUTOSUGGEST_CAPTURE_DIR=<output-directory>`. It captures the main
+window and popup rest/hover/leave in Light/Dark, records DPR/palette/effective
+material, and asserts delivered hover ink. Qt's QWidget mouseMove overload only
+warps the cursor, so the fixture also routes a QWindow move; cursor coordinates
+alone were insufficient evidence. The native resize border is included in the
+frame dimensions. Early capture-fixture drafts are not acceptance evidence.
+
+Final before/after evidence: `build/autosuggest-native-{before,after}-qpa`, logs
+with the same prefix, 4 passed/zero failures/skips each. Before uses preserved
+DLL SHA256 `1C0B683FE46CC8EB8F8E0CC268AF8959E48DFFDC33F9739F4EEA3592111D1C0F`;
+after uses `6EB62A1C7BAD5B535F4FD91658D0AA235682898C7D486290987A539E6B692F4D`.
+DPR is 1; popup effective material is Composited (2). The main-window material
+is off in this fixture. Both main-window captures outside the popup scope are
+pixel-identical (0 differing pixels, RMS 0). A preliminary Dark caption drift
+was confined to the native title bar and disappeared after fixture settling;
+the final comparison does not exclude that region. No Verified claim follows
+from these captures; the standalone replay is recorded below.
+
+The final native RGB assertions also reproduce the defect with the preserved
+old DLL: `build/autosuggest-native-before-rgb.txt` has two failures (Light edge
+#FAFAFA vs #FCFCFC; Dark #383838 vs #2C2C2C). The same fixture with the repaired
+DLL passes 4/4 without skips (`build/autosuggest-native-after-rgb.txt`). Captures
+are in the corresponding directories without `.txt`; both main-window frames
+again compare with 0 differing pixels. Release configuration/build passes.
+Full CTest: 51/52 passing (`build/autosuggest-final-ctest.txt`), with only the
+pre-existing NavigationView failures remaining (`navigationDelegateLifecycle`
+and `navigationBackdropDisableRepaintsOpaqueAfterRestore`). All 23 offscreen
+domain executables were rerun: 22 pass, NavigationView retains those two failures
+(`build/autosuggest-final-domain-logs`). Source/Designer contracts and the full
+snapshot matrix pass; the standard native suite passes. The opt-in capture
+suite was run explicitly above, not inferred from its default skipped cases.
+After desktop unlock, the rebuilt standalone Gallery was replayed with Mica on
+in System (currently Light) and explicit Dark: focus the actual AutoSuggest
+editor, type `a`, hover Beta then Gamma, and observe Beta return to the uniform
+rest surface without retained hover ink. Both themes passed this live sequence.
+The demo remains open on the Dark popup. This limited replay does not promote
+the coverage row to Verified. The previously blocking NavigationView failures
+are now repaired by the separate palette-lifecycle batch above.
+
+### Reopened evidence — native caption after backdrop disable (2026-09-19)
+
+The existing top-level SystemBackdrop mapping and runtime theme contract remain
+unchanged; their caption lifecycle evidence is **partial**. Live Gallery sequence
+Dark → Mica on → Mica off → Light leaves a dark caption over light content.
+`captionThemeAfterBackdropDisable` reproduces four Light/Dark sequences, including
+a theme change while the material is enabled. RED: `build/caption-theme-red4.txt`,
+four failures, zero skips. It checks native immersive-dark state plus PrintWindow
+caption pixels against the same-state Window palette; caption/text DWM attributes
+are set-only, so earlier getter-based drafts are not acceptance evidence.
+The fix keeps disabled-backdrop captions in the theme refresh and resolves their
+color from the current theme, not the saved pre-backdrop palette. GREEN:
+`build/caption-theme-green.txt`, 6 passed, zero failures/skips. Gallery replay of
+Dark → Mica on → Mica off → Light now restores the light caption. Loaded and built
+DLL hashes match `1C0B683FE46CC8EB8F8E0CC268AF8959E48DFFDC33F9739F4EEA3592111D1C0F`.
+Release build and snapshot matrix pass; full offscreen CTest retains the three
+pre-existing failures (combobox, navigation, source-contract test-size gate).
+Full native CTest passes (85 s); combined result is 47/50 CTest entries passing.
+The 22 offscreen domain executables were also rerun: 20 pass, with the same
+combobox/navigation failures (`build/theme-fix-domain-logs`).
+This does not promote either mapping to Verified.
 
 The following items are required regression contracts, independently of the
 per-control live-verification status above:

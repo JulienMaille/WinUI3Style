@@ -269,6 +269,17 @@ StyleInteractionController::StyleInteractionController(Style *style,
 {
 }
 
+void StyleInteractionController::cancelComboPress(QComboBox *combo, bool releaseMouse)
+{
+    if (!m_comboPressStates.remove(combo))
+        return;
+    if (releaseMouse)
+        combo->releaseMouse();
+    m_callbacks.animate(combo, pressProperty, 0.0,
+                        interactionDuration(combo, InteractionMotion::Press, false));
+    m_callbacks.releaseComboChevron(combo);
+}
+
 bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
 {
     auto *widget = qobject_cast<QWidget *>(watched);
@@ -389,13 +400,7 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             // grab (never another widget's): a persistently held grab keeps
             // Qt's underMouse stuck true, which freezes the hover fallback
             // even after every frame has settled to zero.
-            if (m_comboPressStates.remove(combo)) {
-                if (QWidget::mouseGrabber() == combo)
-                    combo->releaseMouse();
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                m_callbacks.releaseComboChevron(combo);
-            }
+            cancelComboPress(combo, QWidget::mouseGrabber() == combo);
         }
         if (!widget->isEnabled()) {
             m_callbacks.clearPointerInteraction(widget);
@@ -596,14 +601,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
         break;
     case QEvent::FocusOut:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            if (m_comboPressStates.remove(combo)) {
-                combo->releaseMouse();
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                m_callbacks.releaseComboChevron(combo);
-            }
-        }
+        if (auto *combo = qobject_cast<QComboBox *>(widget))
+            cancelComboPress(combo, true);
         if (auto *slider = qobject_cast<QSlider *>(widget)) {
             m_callbacks.cancelSliderToolTip(slider);
             hideSliderValueToolTip(slider);
@@ -719,9 +718,21 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
             if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
+                // Qt computes the container height from its rows before the
+                // WinUI 4px top/bottom inset is installed. Extend the outer
+                // popup during Show so the inset cannot shrink the viewport
+                // and force a late selected-row scroll.
+                const bool offscreen =
+                        QGuiApplication::platformName() == QStringLiteral("offscreen");
+                if (!offscreen) {
+                    const QMargins margins = widget->contentsMargins();
+                    widget->resize(widget->width(),
+                                   widget->height() + margins.top() + margins.bottom());
+                }
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
-                animateMenuPopup(widget, combo);
+                if (!offscreen)
+                    animateMenuPopup(widget, combo);
             } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
                 animateMenuPopup(widget, nullptr);
                 // Parent-wash lane: hovering a submenu row open delivers
@@ -821,14 +832,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::Hide:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            if (m_comboPressStates.remove(combo)) {
-                combo->releaseMouse();
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                m_callbacks.releaseComboChevron(combo);
-            }
-        }
+        if (auto *combo = qobject_cast<QComboBox *>(widget))
+            cancelComboPress(combo, true);
         if (qobject_cast<QProgressBar *>(widget))
             m_callbacks.refreshProgressTimer();
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))

@@ -108,6 +108,8 @@ private slots:
     void comboOpenPopupKeyboardNavMovesHoverPill();
     void autoSuggestHoverPillMatchesMenuPill();
     void autoSuggestCompositedHoverRebuildsRowFrame();
+    void autoSuggestResolvedFramePreservesRgb_data();
+    void autoSuggestResolvedFramePreservesRgb();
 };
 
 void WinUI3ComboBoxTest::initTestCase()
@@ -1141,6 +1143,95 @@ void WinUI3ComboBoxTest::autoSuggestCompositedHoverRebuildsRowFrame()
     QCOMPARE(leftCenter.alpha(), 255);
     QCOMPARE(colorDistance(leftCenter, opaqueBase) < 48, true);
     completer->popup()->hide();
+}
+
+void WinUI3ComboBoxTest::autoSuggestResolvedFramePreservesRgb_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("phase");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            for (int phase = 0; phase < 3; ++phase) {
+                const QByteArray name = QByteArray(dark ? "dark" : "light")
+                        + (compact ? "-compact-" : "-standard-")
+                        + (phase == 0           ? "rest"
+                                   : phase == 1 ? "hover"
+                                                : "leave");
+                QTest::newRow(name.constData()) << dark << compact << phase;
+            }
+        }
+    }
+}
+
+void WinUI3ComboBoxTest::autoSuggestResolvedFramePreservesRgb()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(int, phase);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+
+    QLineEdit editor;
+    QCompleter completer(QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta") });
+    editor.setCompleter(&completer);
+    completer.setCompletionMode(QCompleter::PopupCompletion);
+    QAbstractItemView *popup = completer.popup();
+    QVERIFY(popup);
+    WinUI3::Style::setDensityMode(
+            &editor, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    editor.resize(300, compact ? 24 : 32);
+    editor.show();
+    completer.complete();
+    QTRY_VERIFY(popup->isVisible());
+    popup->setCurrentIndex({});
+    QWidget *viewport = popup->viewport();
+    QVERIFY(viewport);
+
+    // Pure renderer contract, not a native grant or live-hover proof. The
+    // popup preparation already resolved the flyout RGB before assigning
+    // the composited tint's alpha. Neither CE nor PE may apply that lift twice.
+    const int channel = dark ? 44 : 252;
+    const QColor opaqueBase(channel, channel, channel);
+    QCOMPARE(WinUI3::Private::popupSurfaceColor(style->standardPalette()), opaqueBase);
+    QColor tint = opaqueBase;
+    tint.setAlpha(dark ? 178 : 242);
+    QPalette palette = style->standardPalette();
+    palette.setColor(QPalette::Window, tint);
+    palette.setColor(QPalette::Base, tint);
+
+    QStyleOptionViewItem option;
+    option.initFrom(viewport);
+    option.widget = viewport;
+    option.palette = palette;
+    option.index = popup->model()->index(1, 0);
+    QVERIFY(option.index.isValid());
+    option.features = QStyleOptionViewItem::HasDisplay;
+    option.text = QStringLiteral("Beta");
+    option.rect = QRect(0, 0, 300, compact ? 32 : 40);
+    QCOMPARE(style->sizeFromContents(QStyle::CT_ItemViewItem, &option, QSize(80, 16), viewport)
+                     .height(),
+             option.rect.height());
+
+    QImage frame(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    frame.fill(Qt::transparent);
+    const auto paint = [&](bool hovered) {
+        option.state =
+                QStyle::State_Enabled | (hovered ? QStyle::State_MouseOver : QStyle::State_None);
+        QPainter painter(&frame);
+        style->drawControl(QStyle::CE_ItemViewItem, &option, &painter, viewport);
+    };
+    if (phase == 2)
+        paint(true);
+    paint(phase == 1);
+
+    // Outside the 4,2 pill: exact RGB as well as alpha rejects both the
+    // translucent PE overwrite and a second popupSurfaceColor lift in CE/PE.
+    const QColor edge = frame.pixelColor(1, option.rect.center().y());
+    QCOMPARE(frame.size(), option.rect.size());
+    QCOMPARE(edge.alpha(), 255);
+    QCOMPARE(edge.rgb(), opaqueBase.rgb());
 }
 
 QTEST_MAIN(WinUI3ComboBoxTest)

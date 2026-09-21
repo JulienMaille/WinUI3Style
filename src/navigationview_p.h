@@ -2,6 +2,7 @@
 #pragma once
 
 class QAbstractItemView;
+class QPalette;
 
 namespace WinUI3::NavigationPrivate {
 
@@ -14,5 +15,6 @@ namespace WinUI3::NavigationPrivate {
 // restore-without-prepare are safe no-ops owned by the caller.
 void prepareNavigationView(QAbstractItemView *view);
 void restoreNavigationView(QAbstractItemView *view);
+void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette);
 
 } // namespace WinUI3::NavigationPrivate

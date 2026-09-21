@@ -382,6 +382,28 @@ void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *stat
 
 } // namespace
 
+void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
+{
+    auto *state = navigationState(view, false);
+    if (!state || !state->surfaceStateSaved || !view->viewport())
+        return;
+    // Keep the saved ownership flags: rebasing a temporary material palette
+    // must not turn inherited colors into application overrides on restore.
+    if (view->property(WinUI3::Private::ownedPaletteProperty).toBool())
+        state->viewPalette = palette;
+    if (view->viewport()->property(WinUI3::Private::ownedPaletteProperty).toBool())
+        state->viewportPalette = palette;
+    const auto refresh = [&palette](QWidget *widget, const QPalette &saved) {
+        QPalette transparent =
+                widget->property(WinUI3::Private::ownedPaletteProperty).toBool() ? palette : saved;
+        transparent.setColor(QPalette::Base, Qt::transparent);
+        transparent.setColor(QPalette::Window, Qt::transparent);
+        widget->setPalette(transparent);
+    };
+    refresh(view, state->viewPalette);
+    refresh(view->viewport(), state->viewportPalette);
+}
+
 void prepareNavigationView(QAbstractItemView *view)
 {
     if (!view || !view->property(Style::NavigationViewProperty).toBool())

@@ -99,6 +99,7 @@ private slots:
     void init();
     void cleanup();
     void backdropLifecycleContract();
+    void contentLayerSurfacePredicate();
     void backdropButtonRepaintDoesNotAccumulate();
     void backdropSliderInsideOpaqueCardKeepsCardFill();
     void backdropSliderRepaintDoesNotAccumulate();
@@ -126,6 +127,31 @@ private slots:
     void progressTextAndDisabledPaletteContract();
     void progressTimerScalingAndLifecycle();
 };
+
+void WinUI3SurfacesTest::contentLayerSurfacePredicate()
+{
+    const QList<QVariant> values = { {},
+                                     false,
+                                     true,
+                                     0,
+                                     1,
+                                     QString(),
+                                     QStringLiteral("false"),
+                                     QStringLiteral("0"),
+                                     QStringLiteral("content"),
+                                     QStringLiteral("CoNtEnT"),
+                                     QStringLiteral("layer"),
+                                     QStringLiteral("LaYeR"),
+                                     QStringLiteral("custom") };
+    for (const QVariant &surface : values) {
+        const QString name = surface.toString();
+        const bool original = surface.toBool()
+                || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+                || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
+        QCOMPARE(WinUI3::Private::isContentLayerSurface(surface), original);
+        QCOMPARE(WinUI3::Private::isContentLayerSurface(surface, name), original);
+    }
+}
 
 void WinUI3SurfacesTest::initTestCase()
 {

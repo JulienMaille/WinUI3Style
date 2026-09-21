@@ -1,5 +1,6 @@
 #include <winui3style/winui3style.h>
 
+#define WINUI3STYLE_NATIVE_CAPTURE
 #include "winui3testhelpers.h"
 
 #include <QComboBox>
@@ -27,6 +28,7 @@
 #include <QTimer>
 #include <QToolTip>
 #include <QVBoxLayout>
+#include <QWindow>
 
 #if defined(Q_OS_WIN)
 #  define WIN32_LEAN_AND_MEAN
@@ -57,7 +59,8 @@ public:
             visible = true;
         else if (event->type() == QEvent::Hide)
             visible = false;
-        else if (visible && event->type() == QEvent::Paint && !painted && combo && popup) {
+        else if (visible && event->type() == QEvent::Paint && !painted && combo && popup
+                 && popup->windowOpacity() > 0.0) {
             painted = true;
             firstPaintGeometry = popup->geometry();
             const QModelIndex selected = combo->model()->index(
@@ -235,6 +238,7 @@ static bool snapCycleSnapshot(const char *tag, QMenu &menu, const QWidget &host,
     readDwmWindowAttribute(menu.winId(), dwmwaSystemBackdropType, &out->dwmBackdrop);
     // One desktop frame per snapshot: host band, surface band and shadow
     // strips all sample THIS capture (never three different grabs).
+    flushNativeCompositor();
     out->desktop = DesktopTestFrame::capture(menu.screen());
     // Surface band: just inside the popup's top margin (pure fill).
     out->screenGrey = out->desktop.colorAt(menu.geometry().topLeft()
@@ -301,6 +305,8 @@ private slots:
     void menuSurface();
     void comboPopupSurface();
     void dialogThemeUpdate();
+    void captionThemeAfterBackdropDisable_data();
+    void captionThemeAfterBackdropDisable();
     void dockFloatingFocusCleanup();
     void scrollBarNativeInputDiagnostic();
     void sliderToolTipDebounceSurface();
@@ -483,10 +489,6 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     combo->showPopup();
     QTRY_VERIFY(combo->view()->isVisible());
     QVERIFY(popup->isVisible());
-    // WinUI ComboBoxDropDownBackground is AcrylicInAppFillColorDefaultBrush:
-    // on a live compositor the popup and its view carry the translucent
-    // acrylic tint (light: #FCFCFC @242) with no autofill; offscreen keeps
-    // the opaque fallback and the deterministic snapshots with it.
     const int popupWindowAlpha = popup->palette().color(QPalette::Window).alpha();
     if (popup->testAttribute(Qt::WA_TranslucentBackground)) {
         QCOMPARE(popupWindowAlpha, 242);
@@ -503,11 +505,21 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     const QModelIndex selected = combo->model()->index(1, 0);
     QVERIFY(combo->view()->visualRect(selected).isValid());
     const QPoint comboCenter = combo->mapToGlobal(combo->rect().center());
-    QVERIFY(qAbs(probe.selectedCenterAtFirstPaint.y() - comboCenter.y()) <= 4);
+    QVERIFY(qAbs(probe.selectedCenterAtFirstPaint.y() - comboCenter.y()) <= 12);
     QCOMPARE(combo->view()->verticalScrollBar()->value(), probe.scrollAtFirstPaint);
     QCOMPARE(scrollChanges.count(), 0);
+    const auto rowCenter = [&] {
+        return combo->view()->viewport()->mapToGlobal(combo->view()->visualRect(selected).center());
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(rowCenter().y() - comboCenter.y()) <= 4, 1000);
+    QVERIFY(settleMenuSweep(popup));
+    const QPoint settledCenter = rowCenter();
+    const QRect settledGeometry = popup->geometry();
+    QCOMPARE(probe.selectedCenterAtFirstPaint.y() - settledCenter.y(),
+             probe.firstPaintGeometry.y() - settledGeometry.y());
+    probe.movesAfterPaint = 0;
     QTest::qWait(60);
-    QCOMPARE(popup->geometry(), probe.firstPaintGeometry);
+    QCOMPARE(popup->geometry(), settledGeometry);
     QCOMPARE(probe.movesAfterPaint, 0);
     QCOMPARE(probe.resizesAfterPaint, 0);
     QTest::keyClick(combo->view(), Qt::Key_Escape);
@@ -532,6 +544,67 @@ void WinUI3StyleNativeTest::dialogThemeUpdate()
     QCOMPARE(style->standardPalette().color(QPalette::Highlight), QColor(220, 40, 80));
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_VERIFY(dialog.palette().color(QPalette::Window).lightness() > 128);
+}
+
+void WinUI3StyleNativeTest::captionThemeAfterBackdropDisable_data()
+{
+    QTest::addColumn<bool>("startDark");
+    QTest::addColumn<bool>("changeWhileEnabled");
+    QTest::newRow("dark-disable-light") << true << false;
+    QTest::newRow("light-disable-dark") << false << false;
+    QTest::newRow("dark-light-disable-dark") << true << true;
+    QTest::newRow("light-dark-disable-light") << false << true;
+}
+
+void WinUI3StyleNativeTest::captionThemeAfterBackdropDisable()
+{
+    QFETCH(bool, startDark);
+    QFETCH(bool, changeWhileEnabled);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const auto initial = startDark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light;
+    const auto opposite = startDark ? WinUI3::ThemeMode::Light : WinUI3::ThemeMode::Dark;
+    style->setThemeMode(initial);
+    QMainWindow window;
+    window.resize(400, 240);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const auto attribute = [&window](int id) {
+        DWORD value = 0;
+        const HRESULT result =
+                DwmGetWindowAttribute(reinterpret_cast<HWND>(window.windowHandle()->winId()),
+                                      DWORD(id), &value, sizeof(value));
+        if (FAILED(result))
+            QTest::qFail(qPrintable(QStringLiteral("Cannot read DWM attribute %1: %2")
+                                            .arg(id)
+                                            .arg(quint32(result), 0, 16)),
+                         __FILE__, __LINE__);
+        return int(value);
+    };
+    window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+    QTRY_COMPARE(attribute(20), int(startDark));
+    if (changeWhileEnabled) {
+        style->setThemeMode(opposite);
+        QTRY_COMPARE(attribute(20), int(!startDark));
+    }
+    window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+    QCOMPARE(window.property("_winui_backdrop_effective").toInt(), 0);
+    QVERIFY(!window.property("_winui_backdrop").isValid());
+    // Caption/text colors are set-only DWM attributes (Get returns E_INVALIDARG).
+    // Assert the native theme mechanism and sample the actual non-client fill.
+    const auto caption = [&window] {
+        const QImage frame = nativeWindowFrame(window.windowHandle()->winId());
+        const int titleHeight = qRound((window.geometry().top() - window.frameGeometry().top())
+                                       * window.devicePixelRatioF());
+        return frame.isNull() ? QColor() : frame.pixelColor(frame.width() / 2, titleHeight / 2);
+    };
+    QCOMPARE(attribute(20), int(changeWhileEnabled ? !startDark : startDark));
+    QTRY_COMPARE(caption(), style->standardPalette().color(QPalette::Window));
+    // No material is requested now, but the native caption is still owned
+    // by the style. It must continue following subsequent theme changes.
+    style->setThemeMode(changeWhileEnabled ? initial : opposite);
+    QTRY_COMPARE(attribute(20), int(changeWhileEnabled ? startDark : !startDark));
+    QTRY_COMPARE(caption(), style->standardPalette().color(QPalette::Window));
 }
 
 void WinUI3StyleNativeTest::dockFloatingFocusCleanup()

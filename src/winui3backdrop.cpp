@@ -369,7 +369,7 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
     const BOOL dark = qGray(themedWindowColor.rgb()) < 128;
     DwmSetWindowAttribute(hwnd, immersiveDarkModeAttribute, &dark, sizeof(dark));
     const COLORREF caption = backdrop == Backdrop::None
-            ? RGB(windowColor.red(), windowColor.green(), windowColor.blue())
+            ? RGB(themedWindowColor.red(), themedWindowColor.green(), themedWindowColor.blue())
             : colorNone;
     const COLORREF text = dark ? RGB(255, 255, 255) : RGB(0, 0, 0);
     DwmSetWindowAttribute(hwnd, borderColorAttribute, &colorNone, sizeof(colorNone));

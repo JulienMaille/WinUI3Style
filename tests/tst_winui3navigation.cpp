@@ -107,6 +107,7 @@ private slots:
     void navigationSelectionModelRepaint();
     void navigationBackdropToggleRevealsOneMaterial();
     void navigationBackdropDisableRepaintsOpaqueAfterRestore();
+    void navigationBackdropThemeRestore();
 };
 
 void WinUI3NavigationTest::initTestCase()
@@ -462,6 +463,27 @@ void WinUI3NavigationTest::navigationDelegateLifecycle()
     QTRY_COMPARE(inheritedView.testAttribute(Qt::WA_SetPalette), inheritedViewPaletteExplicit);
     QTRY_COMPARE(inheritedView.viewport()->testAttribute(Qt::WA_SetPalette),
                  inheritedViewportPaletteExplicit);
+}
+
+void WinUI3NavigationTest::navigationBackdropThemeRestore()
+{
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *view = new QListWidget(&window);
+    WinUI3::Style::setNavigationView(view);
+    view->addItems({ QStringLiteral("Controls"), QStringLiteral("Settings") });
+    layout->addWidget(view);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    window.setProperty("winuiBackdrop", QStringLiteral("none"));
+    QCOMPARE(view->palette().color(QPalette::Text), style->standardPalette().color(QPalette::Text));
+    QCOMPARE(view->viewport()->palette().color(QPalette::Text),
+             style->standardPalette().color(QPalette::Text));
+    QCOMPARE(view->palette().color(QPalette::Base), style->standardPalette().color(QPalette::Base));
 }
 
 void WinUI3NavigationTest::navigationTeardownMidAnimation()
