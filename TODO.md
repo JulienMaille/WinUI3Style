@@ -1,11 +1,12 @@
 # WinUI3Style — feuille de route
 
-> État : 12 septembre 2026, `main` @ `d8d26d1`. Suite 41/41 verte (natif exclu) ; Release `/WX` + Debug `/W4` propres ; gates `source_contracts` et `designer_gallery` vertes.
+> État : 21 septembre 2026, `main` @ `80f6094`. Suite locale 52/52 + 23 binaires de domaine verte ; gates `source_contracts`, `designer_gallery`, snapshot et natif verts.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## P0 — garde-fous
 
 - [ ] Couvrir l'axe complet Light/Dark/System × Standard/Compact × états dans la matrice (`CMakeLists.txt:64-73`, `winui3style_snapshot_matrix`).
+- [ ] Réparer les gates CI clang-tidy (Qt 6.4 installé pour un minimum 6.5) et Qt 5.12 (`Q_NAMESPACE_EXPORT` refusé par moc 5.12), puis publier le rapport/ratchet décrit dans [`spec/REFACTORING_PLAN.md`](spec/REFACTORING_PLAN.md).
 
 ## P1 — navigation, champs, états
 
@@ -15,6 +16,7 @@
 
 ## P2 — architecture, accessibilité, robustesse, tests
 
+- [ ] Exécuter le plan d'assainissement par petits lots, tests d'abord : split des tests saturés, renderers/contrats/surfaces, puis réduction symétrique de `polish`/`unpolish`/`eventFilter` ([`spec/REFACTORING_PLAN.md`](spec/REFACTORING_PLAN.md)).
 - [ ] Remplacer `WinUI3::SettingsCard` promu par `QFrame` + `winuiSettingsCard=true` (`demo/gallerywindow.ui:119-139`, `check_designer_gallery.cmake:27-44` verrouille le promu).
 - [ ] Live keyboard : focus/Tab/Space/Enter/popups (offscreen partiel via `inputModalityFocus`).
 - [ ] Contrastes Light/Dark (pas de test de ratio dédié) + `prefers-reduced-motion` OS (seul `WINUI3STYLE_DISABLE_ANIMATIONS` existe).
