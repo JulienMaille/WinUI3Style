@@ -866,13 +866,12 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
             s->top = qApp->topLevelWidgets().size();
             s->ch = menu->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly).size();
             s->dwm = dwmGrant(menu->winId());
-            s->scr = screenPx(WinUI3::Private::widgetScreen(menu),
-                              QPoint(s->geo.center().x(), s->geo.top() + 2));
-            s->hst = screenPx(WinUI3::Private::widgetScreen(&host),
+            s->scr = screenPx(testScreen(menu), QPoint(s->geo.center().x(), s->geo.top() + 2));
+            s->hst = screenPx(testScreen(&host),
                               QPoint(host.geometry().left() + 12, host.geometry().top() + 8));
             s->shSide = 0;
             s->shDepth = 0;
-            if (QScreen *sc = WinUI3::Private::widgetScreen(menu)) {
+            if (QScreen *sc = testScreen(menu)) {
                 const QImage d = sc->grabWindow(0).toImage();
                 if (!d.isNull()) {
                     const QRect sg = sc->geometry();
