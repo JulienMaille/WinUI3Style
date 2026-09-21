@@ -66,7 +66,10 @@ private:
     };
 
     FramePropertyRegistry() = default;
-    Q_DISABLE_COPY_MOVE(FramePropertyRegistry)
+    FramePropertyRegistry(const FramePropertyRegistry &) = delete;
+    FramePropertyRegistry &operator=(const FramePropertyRegistry &) = delete;
+    FramePropertyRegistry(FramePropertyRegistry &&) = delete;
+    FramePropertyRegistry &operator=(FramePropertyRegistry &&) = delete;
 
     ObjectState *ensureObject(QObject *object);
     void removeObject(QObject *object, bool disconnectDestroyedSignal);

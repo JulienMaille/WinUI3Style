@@ -22,7 +22,11 @@ namespace WinUI3 {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
 Q_NAMESPACE_EXPORT(WINUI3STYLE_EXPORT)
 #else
+#  ifdef Q_MOC_RUN
 Q_NAMESPACE
+#  else
+extern WINUI3STYLE_EXPORT const QMetaObject staticMetaObject;
+#  endif
 #endif
 
 enum class ThemeMode { System, Light, Dark };

@@ -7,7 +7,14 @@
 #include <QThread>
 #include <QtTest>
 
+#include <type_traits>
+
 using WinUI3::Private::FramePropertyRegistry;
+
+static_assert(!std::is_copy_constructible<FramePropertyRegistry>::value);
+static_assert(!std::is_copy_assignable<FramePropertyRegistry>::value);
+static_assert(!std::is_move_constructible<FramePropertyRegistry>::value);
+static_assert(!std::is_move_assignable<FramePropertyRegistry>::value);
 
 class FramePropertyRegistryTest : public QObject
 {
