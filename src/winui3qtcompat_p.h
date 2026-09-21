@@ -10,6 +10,7 @@
 // which is required to load the style plugin into Qt 5 applications.
 
 #include <QtGlobal>
+#include <QtMath>
 
 #include <QIcon>
 #include <QMouseEvent>
