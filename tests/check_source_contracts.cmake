@@ -90,10 +90,10 @@ endforeach()
 # metadata where Qt provides Q_NAMESPACE_EXPORT.
 file(READ "${SOURCE_DIR}/include/winui3style/winui3style.h" _style_header)
 string(REGEX MATCH
-    "#if QT_VERSION >= QT_VERSION_CHECK\\(5, 14, 0\\)[ \t\r\n]+Q_NAMESPACE_EXPORT\\(WINUI3STYLE_EXPORT\\)[ \t\r\n]+#else[ \t\r\n]+Q_NAMESPACE[ \t\r\n]+#endif"
+    "#if QT_VERSION >= QT_VERSION_CHECK\\(5, 14, 0\\)[ \t\r\n]+Q_NAMESPACE_EXPORT\\(WINUI3STYLE_EXPORT\\)[ \t\r\n]+#else[ \t\r\n]+#[ \t]+ifdef Q_MOC_RUN[ \t\r\n]+Q_NAMESPACE[ \t\r\n]+#[ \t]+else[ \t\r\n]+extern WINUI3STYLE_EXPORT const QMetaObject staticMetaObject;[ \t\r\n]+#[ \t]+endif[ \t\r\n]+#endif"
     _qt512_namespace_guard "${_style_header}")
 if(_qt512_namespace_guard STREQUAL "")
     message(FATAL_ERROR
-        "Qt 5.12 compatibility: WinUI3 namespace metadata needs a guarded "
-        "Q_NAMESPACE fallback because Q_NAMESPACE_EXPORT starts in Qt 5.14")
+        "Qt 5.12 compatibility: moc needs a guarded Q_NAMESPACE while C++ "
+        "consumers need the exported WinUI3::staticMetaObject declaration")
 endif()
