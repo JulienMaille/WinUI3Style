@@ -394,8 +394,8 @@ void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
     if (view->viewport()->property(WinUI3::Private::ownedPaletteProperty).toBool())
         state->viewportPalette = palette;
     const auto refresh = [&palette](QWidget *widget, const QPalette &saved) {
-        QPalette transparent = widget->property(WinUI3::Private::ownedPaletteProperty).toBool()
-                ? palette : saved;
+        QPalette transparent =
+                widget->property(WinUI3::Private::ownedPaletteProperty).toBool() ? palette : saved;
         transparent.setColor(QPalette::Base, Qt::transparent);
         transparent.setColor(QPalette::Window, Qt::transparent);
         widget->setPalette(transparent);

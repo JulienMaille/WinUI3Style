@@ -81,8 +81,7 @@ inline bool keyboardFocusVisible(const QWidget *widget)
 // Preserve QVariant's existing bool conversion as well as the named surfaces.
 inline bool isContentLayerSurface(const QVariant &surface, const QString &name)
 {
-    return surface.toBool()
-            || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
+    return surface.toBool() || name.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0
             || name.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0;
 }
 

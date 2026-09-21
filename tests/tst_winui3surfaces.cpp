@@ -130,11 +130,19 @@ private slots:
 
 void WinUI3SurfacesTest::contentLayerSurfacePredicate()
 {
-    const QList<QVariant> values = {
-        {}, false, true, 0, 1, QString(), QStringLiteral("false"), QStringLiteral("0"),
-        QStringLiteral("content"), QStringLiteral("CoNtEnT"), QStringLiteral("layer"),
-        QStringLiteral("LaYeR"), QStringLiteral("custom")
-    };
+    const QList<QVariant> values = { {},
+                                     false,
+                                     true,
+                                     0,
+                                     1,
+                                     QString(),
+                                     QStringLiteral("false"),
+                                     QStringLiteral("0"),
+                                     QStringLiteral("content"),
+                                     QStringLiteral("CoNtEnT"),
+                                     QStringLiteral("layer"),
+                                     QStringLiteral("LaYeR"),
+                                     QStringLiteral("custom") };
     for (const QVariant &surface : values) {
         const QString name = surface.toString();
         const bool original = surface.toBool()

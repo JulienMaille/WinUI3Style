@@ -480,12 +480,10 @@ void WinUI3NavigationTest::navigationBackdropThemeRestore()
     QVERIFY(style);
     style->setThemeMode(WinUI3::ThemeMode::Dark);
     window.setProperty("winuiBackdrop", QStringLiteral("none"));
-    QCOMPARE(view->palette().color(QPalette::Text),
-             style->standardPalette().color(QPalette::Text));
+    QCOMPARE(view->palette().color(QPalette::Text), style->standardPalette().color(QPalette::Text));
     QCOMPARE(view->viewport()->palette().color(QPalette::Text),
              style->standardPalette().color(QPalette::Text));
-    QCOMPARE(view->palette().color(QPalette::Base),
-             style->standardPalette().color(QPalette::Base));
+    QCOMPARE(view->palette().color(QPalette::Base), style->standardPalette().color(QPalette::Base));
 }
 
 void WinUI3NavigationTest::navigationTeardownMidAnimation()

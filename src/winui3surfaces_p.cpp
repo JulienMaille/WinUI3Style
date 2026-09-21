@@ -1053,7 +1053,7 @@ PopupBackdropReadback popupBackdropReadback(QWidget *popup)
     if (FAILED(DwmGetWindowAttribute(hwnd, popupBackdropTypeAttribute, &value, sizeof(value))))
         return PopupBackdropReadback::Unknown;
     return value == popupBackdropTransientValue ? PopupBackdropReadback::Granted
-                                                 : PopupBackdropReadback::Refused;
+                                                : PopupBackdropReadback::Refused;
 #else
     Q_UNUSED(popup);
     return PopupBackdropReadback::Unknown;
@@ -1203,8 +1203,7 @@ void preparePopupSurface(QWidget *widget)
                     // grant and fall through to the retry below. An
                     // unreadable Get keeps the HRESULT-based acceptance
                     // above (Refused is false there by construction).
-                    if (granted
-                        && popupBackdropReadback(popup) == PopupBackdropReadback::Refused)
+                    if (granted && popupBackdropReadback(popup) == PopupBackdropReadback::Refused)
                         granted = false;
                     popup->update();
                 } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)

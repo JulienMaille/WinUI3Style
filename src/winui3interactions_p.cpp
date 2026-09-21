@@ -726,8 +726,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
                         QGuiApplication::platformName() == QStringLiteral("offscreen");
                 if (!offscreen) {
                     const QMargins margins = widget->contentsMargins();
-                    widget->resize(widget->width(), widget->height() + margins.top()
-                                           + margins.bottom());
+                    widget->resize(widget->width(),
+                                   widget->height() + margins.top() + margins.bottom());
                 }
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
