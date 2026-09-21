@@ -65,13 +65,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Qt6 + clang-tidy
+      - name: Install clang-tidy
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-tidy-18 qt6-base-dev qt6-base-dev-tools
+          sudo apt-get install -y clang-tidy-18
+      - name: Install Qt 6.8.3
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: 'qt-6.8.3-linux-gcc64-v1'
       - name: Configure (tidy on, tests/benchmarks off)
         run: >
           cmake -S . -B build-tidy
+          -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
           -DWINUI3STYLE_BUILD_PLUGIN=ON
           -DWINUI3STYLE_BUILD_DEMO=ON
           -DWINUI3STYLE_BUILD_TESTS=OFF
