@@ -19,7 +19,11 @@ class QStyle;
 class QWidget;
 
 namespace WinUI3 {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
 Q_NAMESPACE_EXPORT(WINUI3STYLE_EXPORT)
+#else
+Q_NAMESPACE
+#endif
 
 enum class ThemeMode { System, Light, Dark };
 
