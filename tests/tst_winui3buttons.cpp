@@ -633,6 +633,7 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
+    QVERIFY(!WinUI3::Private::textBoxHelperButton(nullptr));
 
     for (const WinUI3::ControlRole role :
          { WinUI3::ControlRole::Standard, WinUI3::ControlRole::Accent, WinUI3::ControlRole::Subtle,
