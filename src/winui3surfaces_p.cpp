@@ -1172,7 +1172,7 @@ void preparePopupSurface(QWidget *widget)
             popup->setProperty("_winui_backdrop_rearm", true);
             if (popup->property(rearmAttemptsProperty).isNull())
                 popup->setProperty(rearmAttemptsProperty, 0);
-            const auto rearmStep = [popup, rearmAttemptsProperty] {
+            const auto rearmStep = [popup] {
                 const int attempt = popup->property(rearmAttemptsProperty).toInt();
                 if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup
                     || !popup->isVisible() || !popup->windowHandle()) {

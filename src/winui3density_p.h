@@ -293,7 +293,7 @@ inline DensityMode densityModeFor(const QWidget *widget)
         // as the generic path below (the Q_PROPERTY exposes the same global
         // mode), falling back to the concrete accessor.
         DensityMode mode = winui->densityMode();
-        if (parseDensity(style->property("densityMode"), &mode))
+        if (parseDensity(winui->property("densityMode"), &mode))
             return mode;
         return winui->densityMode();
     }

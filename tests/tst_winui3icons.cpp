@@ -84,15 +84,19 @@ void WinUI3IconsTest::workerThreadResolutionIsIsolated()
     // GUI-thread baseline: resolve once so the shared runtime is populated.
     WinUI3::Private::invalidateIconCachesForTest();
     const QFont gui = WinUI3::Private::fluentFontForTest(16);
+    QCOMPARE(gui.pixelSize(), 16);
     QVERIFY(WinUI3::Private::iconFontCacheResolvedForTest());
 
     OffThreadProbe probe;
     probe.start();
     QVERIFY(probe.wait(10000));
-    // The worker thread produced the same usable family without the GUI
-    // database query path...
+    // The worker thread produced the requested Fluent family without the GUI
+    // database query path. Do not compare QFont::family() with the GUI font:
+    // on hosts without Segoe Fluent Icons the GUI cache deliberately requests
+    // the MDL2 fallback, while the off-thread path leaves fallback resolution
+    // to Qt when the font is used.
     QCOMPARE(probe.font.pixelSize(), 16);
-    QCOMPARE(probe.font.family(), gui.family());
+    QCOMPARE(probe.font.family(), QStringLiteral("Segoe Fluent Icons"));
     // ...and without mutating the shared runtime from off-thread. Under the
     // old fallback (iconRuntime().fluentFontFamily() from a worker thread)
     // this resolution wrote m_fontFamilyResolved on the shared cache. The
@@ -103,7 +107,7 @@ void WinUI3IconsTest::workerThreadResolutionIsIsolated()
     OffThreadProbe isolated;
     isolated.start();
     QVERIFY(isolated.wait(10000));
-    QCOMPARE(isolated.font.family(), gui.family());
+    QCOMPARE(isolated.font.family(), probe.font.family());
     QVERIFY(!isolated.resolvedAfter);
     QVERIFY(!WinUI3::Private::iconFontCacheResolvedForTest());
 }

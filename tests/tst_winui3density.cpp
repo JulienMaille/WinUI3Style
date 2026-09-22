@@ -1,5 +1,7 @@
 #include "winui3density_p.h"
 
+#include <winui3style/winui3style.h>
+
 #include <QApplication>
 #include <QProxyStyle>
 #include <QWidget>
@@ -17,6 +19,7 @@ private slots:
     void profilesExposeDocumentedSizing();
     void localDensityInheritsAndOverrides();
     void styleDensityIsUsedAsFallback();
+    void nullWidgetUsesApplicationStyleDensity();
 };
 
 void WinUI3DensityTest::profilesExposeDocumentedSizing()
@@ -84,6 +87,12 @@ void WinUI3DensityTest::styleDensityIsUsedAsFallback()
     widget.setStyle(&style);
     style.setProperty("densityMode", QStringLiteral("compact"));
     QCOMPARE(densityModeFor(&widget), DensityMode::Compact);
+}
+
+void WinUI3DensityTest::nullWidgetUsesApplicationStyleDensity()
+{
+    qApp->setStyle(new WinUI3::Style(WinUI3::DensityMode::Compact));
+    QCOMPARE(densityModeFor(nullptr), DensityMode::Compact);
 }
 
 QTEST_MAIN(WinUI3DensityTest)

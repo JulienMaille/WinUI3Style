@@ -108,6 +108,7 @@ private slots:
     void coloredIconCacheReuseAndPixelContract();
     void iconPixmapCacheDprAndPalette();
     void buttonPressedPulseContract();
+    void buttonReleaseTimerSurvivesWidgetDeletion();
     void commandLinkButtonContract();
     void disabledButtonHasNoInteractionState();
     void toolButtonIconVerticalCenter();
@@ -633,6 +634,7 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
 {
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
+    QVERIFY(!WinUI3::Private::textBoxHelperButton(nullptr));
 
     for (const WinUI3::ControlRole role :
          { WinUI3::ControlRole::Standard, WinUI3::ControlRole::Accent, WinUI3::ControlRole::Subtle,
@@ -678,6 +680,25 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
     QTest::mouseRelease(&tool, Qt::LeftButton, Qt::NoModifier, tool.rect().center());
     QTest::qWait(130);
     QVERIFY(frameReal(&tool, "_winui_press_progress") < 0.1);
+}
+
+void WinUI3ButtonsTest::buttonReleaseTimerSurvivesWidgetDeletion()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const int animationBaseline = style->findChildren<QVariantAnimation *>().size();
+
+    auto *button = new QPushButton(QStringLiteral("Short lived"));
+    button->resize(120, 32);
+    button->show();
+    (void)QTest::qWaitForWindowExposed(button);
+    QTest::mousePress(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
+    QCOMPARE(frameReal(button, "_winui_press_progress"), 1.0);
+    QTest::mouseRelease(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
+
+    delete button;
+    QTest::qWait(30);
+    QCOMPARE(style->findChildren<QVariantAnimation *>().size(), animationBaseline);
 }
 
 void WinUI3ButtonsTest::commandLinkButtonContract()

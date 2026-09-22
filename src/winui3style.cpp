@@ -1413,9 +1413,9 @@ bool g_altMnemonicsVisible = false;
 // sufficient because no cross-thread access is permitted.
 void assertGuiThread(const char *operation)
 {
-    const bool onGuiThread = !QCoreApplication::instance()
-            || QThread::currentThread() == QCoreApplication::instance()->thread();
-    Q_ASSERT_X(onGuiThread, operation, "must be called on the GUI thread");
+    Q_ASSERT_X(!QCoreApplication::instance()
+                       || QThread::currentThread() == QCoreApplication::instance()->thread(),
+               operation, "must be called on the GUI thread");
     Q_UNUSED(operation);
 }
 } // namespace

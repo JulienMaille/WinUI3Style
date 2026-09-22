@@ -420,10 +420,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                                 source->state & QStyle::State_Selected ? QIcon::On : QIcon::Off);
             }
 
-            const bool tableEditing = tableView
-                    && ((source->state & QStyle::State_Editing)
-                        || (tableEditorOverlap
-                            && tableEditorOverlap(tableView, source->index, source->rect)));
+            const bool tableEditing = tableView && tableEditorOverlap
+                    && tableEditorOverlap(tableView, source->index, source->rect);
             if ((source->features & QStyleOptionViewItem::HasDisplay) && !tableEditing) {
                 const bool hasLeadingContent =
                         (source->features & QStyleOptionViewItem::HasDecoration)

@@ -41,6 +41,8 @@ inline bool toggleSwitch(const QWidget *widget)
 // The trailing clear/completer button inside a QLineEdit.
 inline bool textBoxHelperButton(const QWidget *widget)
 {
+    if (!widget)
+        return false;
     return qobject_cast<const QAbstractButton *>(widget)
             && qobject_cast<const QLineEdit *>(widget->parentWidget());
 }

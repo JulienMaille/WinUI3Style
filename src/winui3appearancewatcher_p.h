@@ -54,7 +54,9 @@ private:
     void onHostApplicationDestroyed();
     void scheduleNotification();
 
+#ifdef Q_OS_WIN
     QTimer *m_debounceTimer = nullptr;
+#endif
     Callback m_callback;
     bool m_active = false;
     bool m_installed = false;
