@@ -13,11 +13,9 @@
 #include <winui3style/winui3style.h>
 
 #include <QAbstractButton>
-#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
 #include <QCommandLinkButton>
-#include <QComboBox>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QPainter>
@@ -36,18 +34,6 @@ namespace WinUI3::Private {
 using namespace PaintPrivate;
 
 namespace {
-
-bool spinBoxEditor(const QWidget *widget)
-{
-    return qobject_cast<const QLineEdit *>(widget)
-            && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget());
-}
-
-bool comboBoxEditor(const QWidget *widget)
-{
-    return qobject_cast<const QLineEdit *>(widget)
-            && qobject_cast<const QComboBox *>(widget->parentWidget());
-}
 
 QRectF devicePixelCenteredRect(const QPainter *painter, const QRectF &rect)
 {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3geometry_p.h"
 
+#include "winui3helpers_p.h"
+
 #include <winui3style/winui3style.h>
 
-#include <QAbstractSpinBox>
 #include <QStyleOptionComplex>
 #include <QStyleOptionGroupBox>
 #include <QStyleOptionSlider>
@@ -11,15 +12,6 @@
 #include <QStyleOptionToolButton>
 
 namespace WinUI3::Private {
-namespace {
-
-bool verticalSpinButtons(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractSpinBox *>(widget)
-            && widget->property(Style::VerticalSpinButtonsProperty).toBool();
-}
-
-} // namespace
 
 QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction, DensityMode mode)
 {

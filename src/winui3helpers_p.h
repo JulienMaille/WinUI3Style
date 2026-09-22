@@ -13,7 +13,9 @@
 #include <winui3style/winui3style.h>
 
 #include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QLineEdit>
 #include <QPalette>
 #include <QPainter>
@@ -36,6 +38,24 @@ inline bool toggleSwitch(const QWidget *widget)
 {
     return qobject_cast<const QCheckBox *>(widget)
             && widget->property(Style::ToggleSwitchProperty).toBool();
+}
+
+inline bool verticalSpinButtons(const QWidget *widget)
+{
+    return qobject_cast<const QAbstractSpinBox *>(widget)
+            && widget->property(Style::VerticalSpinButtonsProperty).toBool();
+}
+
+inline bool spinBoxEditor(const QWidget *widget)
+{
+    return qobject_cast<const QLineEdit *>(widget)
+            && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget());
+}
+
+inline bool comboBoxEditor(const QWidget *widget)
+{
+    return qobject_cast<const QLineEdit *>(widget)
+            && qobject_cast<const QComboBox *>(widget->parentWidget());
 }
 
 // The trailing clear/completer button inside a QLineEdit.

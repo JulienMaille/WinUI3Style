@@ -18,7 +18,6 @@
 #include <QDateTimeEdit>
 #include <QFontMetrics>
 #include <QFrame>
-#include <QLineEdit>
 #include <QListView>
 #include <QProgressBar>
 #include <QTableView>
@@ -34,24 +33,6 @@
 
 namespace WinUI3::Private {
 namespace {
-
-bool verticalSpinButtons(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractSpinBox *>(widget)
-            && widget->property(Style::VerticalSpinButtonsProperty).toBool();
-}
-
-bool spinBoxEditor(const QWidget *widget)
-{
-    return qobject_cast<const QLineEdit *>(widget)
-            && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget());
-}
-
-bool comboBoxEditor(const QWidget *widget)
-{
-    return qobject_cast<const QLineEdit *>(widget)
-            && qobject_cast<const QComboBox *>(widget->parentWidget());
-}
 
 const QAbstractItemView *itemView(const QWidget *widget)
 {
