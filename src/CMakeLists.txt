@@ -52,6 +52,8 @@ add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     winui3complex_editors_p.cpp
     winui3complex_rangecontrols_p.h
     winui3complex_rangecontrols_p.cpp
+    winui3complex_toolgroup_p.h
+    winui3complex_toolgroup_p.cpp
     winui3viewrenderers_p.h
     winui3viewrenderers_p.cpp
     winui3tokens_p.h
