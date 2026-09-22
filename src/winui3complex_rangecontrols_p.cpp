@@ -128,15 +128,9 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
             painter->setPen(Qt::NoPen);
             painter->drawEllipse(QPointF(handle.center()), innerDiameter / 2.0,
                                  innerDiameter / 2.0);
-            if ((option->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2));
-                painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1), ControlRadius,
-                                         ControlRadius);
-                painter->setPen(QPen(t.focusInner, 1));
-                painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3),
-                                         ControlRadius - 1, ControlRadius - 1);
-            }
+            if ((option->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget))
+                paintFocusRing(painter, option->rect, t.focusOuter, t.focusInner, 1, 3,
+                               ControlRadius, ControlRadius - 1);
             painter->restore();
             return true;
         }

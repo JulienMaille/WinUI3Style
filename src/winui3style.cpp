@@ -2002,20 +2002,12 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
                 progress(widget, focusProperty, option->state & State_HasFocus ? 1.0 : 0.0);
         if (focus <= 0.01)
             return;
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
         QColor outer = t.focusOuter;
         QColor inner = t.focusInner;
         outer.setAlphaF(outer.alphaF() * focus);
         inner.setAlphaF(inner.alphaF() * focus);
-        painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(outer, 2));
-        painter->drawRoundedRect(QRectF(option->rect).adjusted(1, 1, -1, -1), ControlRadius + 2,
-                                 ControlRadius + 2);
-        painter->setPen(QPen(inner, 1));
-        painter->drawRoundedRect(QRectF(option->rect).adjusted(3, 3, -3, -3), ControlRadius,
-                                 ControlRadius);
-        painter->restore();
+        paintFocusRing(painter, option->rect, outer, inner, 1, 3, ControlRadius + 2,
+                       ControlRadius);
         return;
     }
 

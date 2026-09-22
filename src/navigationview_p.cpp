@@ -182,13 +182,8 @@ public:
             if (indicator.intersects(option.rect))
                 roundedRect(painter, indicator, t.selectionAccent, Qt::transparent, 1.5);
         }
-        if ((option.state & QStyle::State_HasFocus) && keyboardFocusVisible(m_view)) {
-            painter->setBrush(Qt::NoBrush);
-            painter->setPen(QPen(t.focusOuter, 2));
-            painter->drawRoundedRect(QRectF(option.rect).adjusted(3, 3, -3, -3), 4, 4);
-            painter->setPen(QPen(t.focusInner, 1));
-            painter->drawRoundedRect(QRectF(option.rect).adjusted(5, 5, -5, -5), 3, 3);
-        }
+        if ((option.state & QStyle::State_HasFocus) && keyboardFocusVisible(m_view))
+            paintFocusRing(painter, option.rect, t.focusOuter, t.focusInner, 3, 5, 4, 3);
         painter->restore();
     }
 

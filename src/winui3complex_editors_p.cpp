@@ -68,16 +68,8 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             }
             if (editableFocused)
                 drawEditorFocusUnderline(painter, combo->rect, t.accentFill, ControlRadius);
-            if (keyboardFocusVisible(widget) && !editableFocused) {
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing);
-                painter->setBrush(Qt::NoBrush);
-                painter->setPen(QPen(t.focusOuter, 2));
-                painter->drawRoundedRect(QRectF(combo->rect).adjusted(1, 1, -1, -1), 7, 7);
-                painter->setPen(QPen(t.focusInner, 1));
-                painter->drawRoundedRect(QRectF(combo->rect).adjusted(3, 3, -3, -3), 5, 5);
-                painter->restore();
-            }
+            if (keyboardFocusVisible(widget) && !editableFocused)
+                paintFocusRing(painter, combo->rect, t.focusOuter, t.focusInner, 1, 3, 7, 5);
             return true;
         }
     }
