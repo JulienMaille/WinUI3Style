@@ -57,7 +57,11 @@ void WinUI3CalendarHeaderTest::initTestCase()
     qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
 #ifdef Q_OS_WIN
     wchar_t modulePath[32768] = {};
+#  ifdef QT_DEBUG
+    const HMODULE module = GetModuleHandleW(L"winui3styled.dll");
+#  else
     const HMODULE module = GetModuleHandleW(L"winui3style.dll");
+#  endif
     QVERIFY(module);
     QVERIFY(GetModuleFileNameW(module, modulePath, 32768));
     QFile dll(QString::fromWCharArray(modulePath));
