@@ -33,6 +33,7 @@
 #include <QDialogButtonBox>
 #include <QEvent>
 #include <QDockWidget>
+#include <QElapsedTimer>
 #include <QFocusEvent>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
@@ -146,6 +147,32 @@ inline void flushNativeCompositor()
 #if defined(Q_OS_WIN) && defined(WINUI3STYLE_NATIVE_CAPTURE)
     DwmFlush();
 #endif
+}
+
+// Settle a popup's open sweep before sampling its native surface. Shared by
+// the ComboBox and menu native fixtures so neither binary grows a private
+// copy of the same animation wait.
+[[maybe_unused]] static bool settleMenuSweep(QWidget *popup)
+{
+    if (!popup)
+        return false;
+    const auto sweepRunning = [popup] {
+        const auto groups = popup->findChildren<QParallelAnimationGroup *>(
+                QStringLiteral("_winui_popup_open_animation"), Qt::FindDirectChildrenOnly);
+        for (const auto *group : groups) {
+            if (group->state() == QAbstractAnimation::Running)
+                return true;
+        }
+        return false;
+    };
+    QElapsedTimer timer;
+    timer.start();
+    while ((popup->windowOpacity() != 1.0 || sweepRunning()) && !timer.hasExpired(3000)) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        QTest::qWait(20);
+    }
+    QCoreApplication::processEvents();
+    return popup->windowOpacity() == 1.0 && !sweepRunning();
 }
 
 // Drain Qt's deferred-delete queue so top-level inventories/counts measure a
