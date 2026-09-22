@@ -173,9 +173,15 @@ jobs:
           $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
           $config = $env:BUILD_CONFIGURATION
-          foreach ($t in @('winui3style_menus_tests', 'winui3style_editors_tests')) {
+          foreach ($t in @('winui3style_icons_tests', 'winui3style_menus_tests', 'winui3style_editors_tests')) {
             Write-Output "===== $t per-function ====="
             $funcs = & "build/tests/$config/$t.exe" -functions 2>&1
+            $listCode = $LASTEXITCODE
+            Write-Output "$t::-functions exit: $listCode"
+            if ($listCode -ne 0) {
+                $funcs | Out-File "$t-startup.log"
+                continue
+            }
             foreach ($f in $funcs) {
                 $name = $f -replace '[()]', ''
                 if ($name -match '^(initTestCase|cleanupTestCase|init|cleanup)$') { continue }
