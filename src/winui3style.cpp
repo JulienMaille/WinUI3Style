@@ -2672,6 +2672,28 @@ void Style::polish(QWidget *widget)
             setControlRole(toolButton, ControlRole::Subtle);
     }
 
+    polishCalendarWidget(widget);
+
+    if (qobject_cast<QComboBox *>(widget))
+        framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
+
+    // QMenu computes its first popup geometry after polish but before Show.
+    // Install the layout inset here; the opaque palette is refreshed on Show.
+    if (auto *menu = qobject_cast<QMenu *>(widget)) {
+        remember(menu, originalMarginsProperty, QVariant::fromValue(menu->contentsMargins()));
+        menu->setContentsMargins(0, 2, 0, 2);
+    }
+
+    if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
+        && (qobject_cast<QMessageBox *>(dialog)
+            || dialog->property(ContentDialogProperty).toBool())) {
+        prepareContentDialogState(dialog, d->dark());
+        d->registerPaletteOwner(dialog);
+    }
+}
+
+void Style::polishCalendarWidget(QWidget *widget)
+{
     // Qt hard-codes QCalendarWidget's navigation bar to the Highlight role,
     // producing an accent-blue strip unrelated to WinUI's CalendarView. Keep
     // the native calendar implementation but place its navigation controls on
@@ -2800,23 +2822,6 @@ void Style::polish(QWidget *widget)
         widget->setProperty(ownedPaletteProperty, true);
         d->registerPaletteOwner(widget);
         widget->setPalette(palette);
-    }
-
-    if (qobject_cast<QComboBox *>(widget))
-        framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
-
-    // QMenu computes its first popup geometry after polish but before Show.
-    // Install the layout inset here; the opaque palette is refreshed on Show.
-    if (auto *menu = qobject_cast<QMenu *>(widget)) {
-        remember(menu, originalMarginsProperty, QVariant::fromValue(menu->contentsMargins()));
-        menu->setContentsMargins(0, 2, 0, 2);
-    }
-
-    if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
-        && (qobject_cast<QMessageBox *>(dialog)
-            || dialog->property(ContentDialogProperty).toBool())) {
-        prepareContentDialogState(dialog, d->dark());
-        d->registerPaletteOwner(dialog);
     }
 }
 
