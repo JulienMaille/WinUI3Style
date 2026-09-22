@@ -178,6 +178,15 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         add_dependencies(winui3style_native_tests winui3styleplugin)
     endif()
 
+    add_executable(winui3style_menus_native_tests tst_winui3menus_native.cpp)
+    target_include_directories(winui3style_menus_native_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    target_link_libraries(winui3style_menus_native_tests PRIVATE
+        WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+    if(WINUI3STYLE_BUILD_PLUGIN)
+        add_dependencies(winui3style_menus_native_tests winui3styleplugin)
+    endif()
+
     add_executable(winui3style_autosuggest_native_tests
         tst_winui3autosuggest_native.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
@@ -222,6 +231,8 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_scrollbarcard_tests)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
+        list(APPEND _winui3style_linked_test_targets
+            winui3style_menus_native_tests)
         list(APPEND _winui3style_linked_test_targets
             winui3style_autosuggest_native_tests)
     endif()
@@ -391,6 +402,7 @@ endforeach()
 
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_test(NAME winui3style_native COMMAND winui3style_native_tests)
+    add_test(NAME winui3style_menus_native COMMAND winui3style_menus_native_tests)
     add_test(NAME winui3style_autosuggest_native
         COMMAND winui3style_autosuggest_native_tests)
     set(_winui3style_native_environment
@@ -407,6 +419,13 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
             "PATH=${_winui3style_native_path}")
     endif()
     set_tests_properties(winui3style_native PROPERTIES
+        ENVIRONMENT "${_winui3style_native_environment}"
+        RUN_SERIAL TRUE
+        RESOURCE_LOCK winui3style_desktop
+        LABELS "native;interactive"
+        TIMEOUT 180
+    )
+    set_tests_properties(winui3style_menus_native PROPERTIES
         ENVIRONMENT "${_winui3style_native_environment}"
         RUN_SERIAL TRUE
         RESOURCE_LOCK winui3style_desktop

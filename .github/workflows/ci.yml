@@ -14,10 +14,11 @@
 # After merge: enable GitHub branch protection requiring the msvc-gate job
 # green on PRs (manual repo-settings step; not automatable from the tree).
 #
-# winui3style_native is excluded from the hosted gate: it needs an interactive
-# desktop (QT_QPA_PLATFORM=windows, real focus/compositor) and can only report
-# skipped/blocked on a headless runner. It keeps LABELS native;interactive in
-# tests/CMakeLists.txt and runs on self-hosted runners or manual dispatch.
+# winui3style_native and winui3style_menus_native are excluded from the hosted
+# gate: they need an interactive desktop (QT_QPA_PLATFORM=windows, real
+# focus/compositor) and can only report skipped/blocked on a headless runner.
+# They keep LABELS native;interactive in tests/CMakeLists.txt and run on
+# self-hosted runners or manual dispatch.
 
 name: ci
 
@@ -156,14 +157,14 @@ jobs:
             throw "Debug plugin output missing: $source"
           }
           Get-ChildItem -LiteralPath $source -File | Copy-Item -Destination $target -Force
-      - name: Test (exclude interactive native test)
+      - name: Test (exclude interactive native tests)
         shell: pwsh
         run: |
           # -V streams QtTest PASS/FAIL lines into the job log; without it a
           # crash and an assertion look identical (empty LastTest.log output).
           # Tee to a file because Select-Object -Last truncates the FAIL! lines
           # we need; the next step greps the full log.
-          ctest --test-dir build -C $env:BUILD_CONFIGURATION --output-on-failure -V -E "^winui3style_native$" 2>&1 |
+          ctest --test-dir build -C $env:BUILD_CONFIGURATION --output-on-failure -V -E "^(winui3style_native|winui3style_menus_native)$" 2>&1 |
             Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
       - name: Rerun failed binaries with QtTest -v2
         if: failure()
