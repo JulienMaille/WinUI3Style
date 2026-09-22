@@ -11,7 +11,6 @@
 #include <winui3style/winui3style.h>
 
 #include <QAbstractSpinBox>
-#include <QComboBox>
 #include <QLineEdit>
 #include <QApplication>
 #include <QGroupBox>
@@ -27,12 +26,6 @@ namespace WinUI3::Private {
 using namespace PaintPrivate;
 
 namespace {
-
-bool verticalSpinButtons(const QWidget *widget)
-{
-    return qobject_cast<const QAbstractSpinBox *>(widget)
-            && widget->property(Style::VerticalSpinButtonsProperty).toBool();
-}
 
 bool isInsideOpaqueCard(const QWidget *widget)
 {
