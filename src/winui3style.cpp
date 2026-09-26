@@ -2562,59 +2562,7 @@ void Style::polish(QWidget *widget)
         framePropertyRegistry().set(widget, scrollBarInsideProperty, widget->underMouse());
         framePropertyRegistry().set(widget, scrollBarGenerationProperty, 0);
     }
-    if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
-        if (const auto previous = d->toggleConnections.take(widget))
-            disconnect(previous);
-        framePropertyRegistry().set(widget, checkProperty,
-                                    checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
-        framePropertyRegistry().set(widget, togglePositionProperty,
-                                    checkBox->isChecked() ? 1.0 : 0.0);
-        d->toggleConnections.insert(
-                widget,
-                connect(checkBox,
-#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-                        &QCheckBox::checkStateChanged,
-#else
-                        &QCheckBox::stateChanged,
-#endif
-                        this, [this, checkBox](int state) {
-                            const bool on = state != Qt::Unchecked;
-                            // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
-                            // removes the stroke immediately. Only the acceptance path
-                            // is animated; an on-transition remains interruptible by
-                            // starting from its current progress.
-                            d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
-                                       on ? (toggleSwitch(checkBox) ? Private::FastDuration
-                                                                    : Private::CheckBoxDuration)
-                                          : 0);
-                            if (toggleSwitch(checkBox))
-                                d->animate(checkBox, togglePositionProperty, on ? 1.0 : 0.0,
-                                           Private::FasterDuration);
-                        }));
-    } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
-        if (const auto previous = d->radioConnections.take(radio))
-            disconnect(previous);
-        framePropertyRegistry().set(widget, checkProperty, radio->isChecked() ? 1.0 : 0.0);
-        d->radioConnections.insert(
-                radio, connect(radio, &QAbstractButton::toggled, this, [this, radio](bool checked) {
-                    // RadioButton checked-state switch is discrete: only the dot
-                    // hover/press sizes animate (Normal 250ms via pressProperty).
-                    // Duration 0 lands instantly from current progress, so rapid
-                    // reversals track state exactly like checkbox uncheck.
-                    d->animate(radio, checkProperty, checked ? 1.0 : 0.0, 0);
-                }));
-    } else if (auto *groupBox = qobject_cast<QGroupBox *>(widget);
-               groupBox && groupBox->isCheckable()) {
-        if (const auto previous = d->toggleConnections.take(widget))
-            disconnect(previous);
-        framePropertyRegistry().set(widget, checkProperty, groupBox->isChecked() ? 1.0 : 0.0);
-        d->toggleConnections.insert(
-                widget,
-                connect(groupBox, &QGroupBox::toggled, this, [this, groupBox](bool checked) {
-                    d->animate(groupBox, checkProperty, checked ? 1.0 : 0.0,
-                               checked ? Private::CheckBoxDuration : 0);
-                }));
-    }
+    polishCheckableWidget(widget);
 
     if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
         d->registerProgressBar(progressBar);
@@ -2689,6 +2637,63 @@ void Style::polish(QWidget *widget)
             || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
+    }
+}
+
+void Style::polishCheckableWidget(QWidget *widget)
+{
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
+        if (const auto previous = d->toggleConnections.take(widget))
+            disconnect(previous);
+        framePropertyRegistry().set(widget, checkProperty,
+                                    checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
+        framePropertyRegistry().set(widget, togglePositionProperty,
+                                    checkBox->isChecked() ? 1.0 : 0.0);
+        d->toggleConnections.insert(
+                widget,
+                connect(checkBox,
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+                        &QCheckBox::checkStateChanged,
+#else
+                        &QCheckBox::stateChanged,
+#endif
+                        this, [this, checkBox](int state) {
+                            const bool on = state != Qt::Unchecked;
+                            // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
+                            // removes the stroke immediately. Only the acceptance path
+                            // is animated; an on-transition remains interruptible by
+                            // starting from its current progress.
+                            d->animate(checkBox, checkProperty, on ? 1.0 : 0.0,
+                                       on ? (toggleSwitch(checkBox) ? Private::FastDuration
+                                                                    : Private::CheckBoxDuration)
+                                          : 0);
+                            if (toggleSwitch(checkBox))
+                                d->animate(checkBox, togglePositionProperty, on ? 1.0 : 0.0,
+                                           Private::FasterDuration);
+                        }));
+    } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
+        if (const auto previous = d->radioConnections.take(radio))
+            disconnect(previous);
+        framePropertyRegistry().set(widget, checkProperty, radio->isChecked() ? 1.0 : 0.0);
+        d->radioConnections.insert(
+                radio, connect(radio, &QAbstractButton::toggled, this, [this, radio](bool checked) {
+                    // RadioButton checked-state switch is discrete: only the dot
+                    // hover/press sizes animate (Normal 250ms via pressProperty).
+                    // Duration 0 lands instantly from current progress, so rapid
+                    // reversals track state exactly like checkbox uncheck.
+                    d->animate(radio, checkProperty, checked ? 1.0 : 0.0, 0);
+                }));
+    } else if (auto *groupBox = qobject_cast<QGroupBox *>(widget);
+               groupBox && groupBox->isCheckable()) {
+        if (const auto previous = d->toggleConnections.take(widget))
+            disconnect(previous);
+        framePropertyRegistry().set(widget, checkProperty, groupBox->isChecked() ? 1.0 : 0.0);
+        d->toggleConnections.insert(
+                widget,
+                connect(groupBox, &QGroupBox::toggled, this, [this, groupBox](bool checked) {
+                    d->animate(groupBox, checkProperty, checked ? 1.0 : 0.0,
+                               checked ? Private::CheckBoxDuration : 0);
+                }));
     }
 }
 
@@ -2909,11 +2914,7 @@ void Style::unpolish(QWidget *widget)
             d->untrackTable(table);
         else if (qobject_cast<const QTableView *>(itemView(widget)))
             d->untrackTableEditor(widget);
-        if (const auto connection = d->toggleConnections.take(widget))
-            disconnect(connection);
-        if (auto *radio = qobject_cast<QRadioButton *>(widget))
-            if (const auto connection = d->radioConnections.take(radio))
-                disconnect(connection);
+        unpolishCheckableWidget(widget);
         if (const auto connection = d->tableConnections.take(widget))
             disconnect(connection);
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
@@ -2948,6 +2949,15 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishCheckableWidget(QWidget *widget)
+{
+    if (const auto connection = d->toggleConnections.take(widget))
+        disconnect(connection);
+    if (auto *radio = qobject_cast<QRadioButton *>(widget))
+        if (const auto connection = d->radioConnections.take(radio))
+            disconnect(connection);
 }
 
 bool Style::eventFilter(QObject *watched, QEvent *event)

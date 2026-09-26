@@ -158,6 +158,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // Installs and removes the state-animation connections owned by checkable
+    // controls while preserving their per-control transition contracts.
+    void polishCheckableWidget(QWidget *widget);
+    void unpolishCheckableWidget(QWidget *widget);
     // Applies the calendar header, lane, grid, and inline-surface contracts
     // after generic table polish and before popup/dialog polish.
     void polishCalendarWidget(QWidget *widget);
