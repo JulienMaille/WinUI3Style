@@ -187,6 +187,10 @@ private:
     // Installs the QMenu layout inset before its first popup geometry pass.
     // Shared remembered-state teardown restores the original margins.
     void polishMenuMargins(QWidget *widget);
+    // Owns the top-level wizard palette, primary roles, and footer surface.
+    // Theme refresh and delayed Show/ChildAdded handling remain shared.
+    void polishWizard(QWidget *widget);
+    void unpolishWizard(QWidget *widget);
     // Prepares and restores the dialog surface state owned by style polish.
     // Runtime property, theme, and Show/Hide paths remain independently owned.
     void polishContentDialog(QWidget *widget);

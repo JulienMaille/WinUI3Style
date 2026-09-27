@@ -2501,17 +2501,7 @@ void Style::polish(QWidget *widget)
         widget->setPalette(palette);
         widget->setAutoFillBackground(true);
     }
-    if (auto *wizard = qobject_cast<QWizard *>(widget)) {
-        // Keep the wizard in the style-owned palette registry so a later
-        // theme change refreshes its internal page and command surfaces too.
-        widget->setProperty(ownedPaletteProperty, true);
-        d->registerPaletteOwner(widget);
-        for (QWizard::WizardButton button : { QWizard::NextButton, QWizard::FinishButton }) {
-            if (QAbstractButton *primary = wizard->button(button))
-                primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));
-        }
-        refreshWizardSurface(wizard, standardPalette());
-    }
+    polishWizard(widget);
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);
         if (backdrop.isValid()) {
@@ -2858,6 +2848,23 @@ void Style::polishMenuMargins(QWidget *widget)
     menu->setContentsMargins(0, 2, 0, 2);
 }
 
+void Style::polishWizard(QWidget *widget)
+{
+    auto *wizard = qobject_cast<QWizard *>(widget);
+    if (!wizard)
+        return;
+
+    // Keep the wizard in the style-owned palette registry so a later
+    // theme change refreshes its internal page and command surfaces too.
+    widget->setProperty(ownedPaletteProperty, true);
+    d->registerPaletteOwner(widget);
+    for (QWizard::WizardButton button : { QWizard::NextButton, QWizard::FinishButton }) {
+        if (QAbstractButton *primary = wizard->button(button))
+            primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));
+    }
+    refreshWizardSurface(wizard, standardPalette());
+}
+
 void Style::polishContentDialog(QWidget *widget)
 {
     auto *dialog = qobject_cast<QDialog *>(widget);
@@ -2933,8 +2940,7 @@ void Style::unpolish(QWidget *widget)
         if (auto *list = qobject_cast<QListView *>(widget))
             if (widget->property(originalListSpacingProperty).isValid())
                 list->setSpacing(widget->property(originalListSpacingProperty).toInt());
-        if (auto *wizard = qobject_cast<QWizard *>(widget))
-            delete wizardFooterSurface(wizard, false);
+        unpolishWizard(widget);
         unpolishContentDialog(widget);
         if (auto *frame = qobject_cast<QFrame *>(widget))
             if (widget->property(originalFrameShapeProperty).isValid())
@@ -2981,6 +2987,12 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishWizard(QWidget *widget)
+{
+    if (auto *wizard = qobject_cast<QWizard *>(widget))
+        delete wizardFooterSurface(wizard, false);
 }
 
 void Style::unpolishContentDialog(QWidget *widget)
