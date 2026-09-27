@@ -2528,36 +2528,7 @@ void Style::polish(QWidget *widget)
     framePropertyRegistry().set(widget, focusProperty, widget->hasFocus() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, focusVisibleProperty,
                                 widget->hasFocus() && d->keyboardInput);
-    if (widget->property(DensityProperty).isValid())
-        invalidateDensityTree(widget);
-    if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
-        prepareLineEditHelperButtons(lineEdit, this);
-        syncCompleterPopupDensity(lineEdit);
-    } else if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-        if (effectiveDensityMode(combo) == DensityMode::Compact) {
-            QEvent styleChange(QEvent::StyleChange);
-            QCoreApplication::sendEvent(combo, &styleChange);
-            combo->updateGeometry();
-        }
-    } else if (auto *spinBox = qobject_cast<QAbstractSpinBox *>(widget)) {
-        if (effectiveDensityMode(spinBox) == DensityMode::Compact) {
-            QEvent styleChange(QEvent::StyleChange);
-            QCoreApplication::sendEvent(spinBox, &styleChange);
-            spinBox->updateGeometry();
-        }
-    } else if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
-        if (effectiveDensityMode(button) == DensityMode::Compact) {
-            QEvent styleChange(QEvent::StyleChange);
-            QCoreApplication::sendEvent(button, &styleChange);
-            button->updateGeometry();
-        }
-    }
-    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-        if (auto *completer = qobject_cast<QCompleter *>(view->parent())) {
-            if (auto *editor = qobject_cast<QLineEdit *>(completer->widget()))
-                syncCompleterPopupDensity(editor);
-        }
-    }
+    polishDensityWidget(widget);
     if (qobject_cast<QScrollBar *>(widget)) {
         framePropertyRegistry().set(widget, scrollBarInsideProperty, widget->underMouse());
         framePropertyRegistry().set(widget, scrollBarGenerationProperty, 0);
@@ -2637,6 +2608,40 @@ void Style::polish(QWidget *widget)
             || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
+    }
+}
+
+void Style::polishDensityWidget(QWidget *widget)
+{
+    if (widget->property(DensityProperty).isValid())
+        invalidateDensityTree(widget);
+    if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
+        prepareLineEditHelperButtons(lineEdit, this);
+        syncCompleterPopupDensity(lineEdit);
+    } else if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (effectiveDensityMode(combo) == DensityMode::Compact) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(combo, &styleChange);
+            combo->updateGeometry();
+        }
+    } else if (auto *spinBox = qobject_cast<QAbstractSpinBox *>(widget)) {
+        if (effectiveDensityMode(spinBox) == DensityMode::Compact) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(spinBox, &styleChange);
+            spinBox->updateGeometry();
+        }
+    } else if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
+        if (effectiveDensityMode(button) == DensityMode::Compact) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(button, &styleChange);
+            button->updateGeometry();
+        }
+    }
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+        if (auto *completer = qobject_cast<QCompleter *>(view->parent())) {
+            if (auto *editor = qobject_cast<QLineEdit *>(completer->widget()))
+                syncCompleterPopupDensity(editor);
+        }
     }
 }
 

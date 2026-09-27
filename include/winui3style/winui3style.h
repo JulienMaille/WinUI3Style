@@ -158,6 +158,9 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // Applies density-dependent geometry invalidation and editor/completer
+    // setup before control-specific animation state is installed.
+    void polishDensityWidget(QWidget *widget);
     // Installs and removes the state-animation connections owned by checkable
     // controls while preserving their per-control transition contracts.
     void polishCheckableWidget(QWidget *widget);
