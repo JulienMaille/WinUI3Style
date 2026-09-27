@@ -487,6 +487,38 @@ QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window,
     return palette;
 }
 
+bool refreshNestedPopupCalendarPalette(QWidget *widget, const QPalette &applicationPalette)
+{
+    if (!widget || !widget->window() || widget->window()->windowType() != Qt::Popup)
+        return false;
+
+    auto *calendar = qobject_cast<QCalendarWidget *>(widget);
+    if (!calendar || widget->windowType() == Qt::Popup)
+        return false;
+
+    // Hidden calendar popups skip the owned-palette branches
+    // (preparePopupSurface re-asserts the surface on show), but
+    // their chrome still needs the surface-roles semantics now:
+    // converge bar and lane onto the uniform popup tint (same
+    // popupSurfaceColor recipe + alpha preparePopupSurface paints)
+    // without manufacturing winId/DWM state (the callee already
+    // guards windowHandle/offscreen itself). Bar first, lane copies
+    // the bar exactly, preserving the calendar -> bar -> lane order.
+    preparePopupSurface(widget);
+    if (QWidget *bar = calendar->findChild<QWidget *>(
+                QStringLiteral("qt_calendar_navigationbar"))) {
+        QPalette barPalette = applicationPalette;
+        const QColor barWindow = widget->window()->palette().color(QPalette::Window);
+        barPalette.setColor(QPalette::Window, barWindow);
+        barPalette.setColor(QPalette::Base, barWindow);
+        bar->setPalette(barPalette);
+        bar->update();
+        calendar->update();
+    }
+    repaintPaletteOwnedWidgetTree(widget);
+    return true;
+}
+
 void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &applicationPalette,
                          const Private::Tokens &applicationTokens,
                          const QColor &applicationAccent, bool darkTheme)
@@ -513,30 +545,8 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
         return;
     }
     if (widget->window() && widget->window()->windowType() == Qt::Popup) {
-        // Hidden calendar popups skip the owned-palette branches
-        // (preparePopupSurface re-asserts the surface on show), but
-        // their chrome still needs the surface-roles semantics now:
-        // converge bar and lane onto the uniform popup tint (same
-        // popupSurfaceColor recipe + alpha preparePopupSurface paints)
-        // without manufacturing winId/DWM state (the callee already
-        // guards windowHandle/offscreen itself). Bar first, lane copies
-        // the bar exactly, preserving the calendar -> bar -> lane order.
-        if (auto *calendar = qobject_cast<QCalendarWidget *>(widget);
-            calendar && widget->windowType() != Qt::Popup) {
-            preparePopupSurface(widget);
-            if (QWidget *bar = calendar->findChild<QWidget *>(
-                        QStringLiteral("qt_calendar_navigationbar"))) {
-                QPalette barPalette = applicationPalette;
-                const QColor barWindow = widget->window()->palette().color(QPalette::Window);
-                barPalette.setColor(QPalette::Window, barWindow);
-                barPalette.setColor(QPalette::Base, barWindow);
-                bar->setPalette(barPalette);
-                bar->update();
-                calendar->update();
-            }
-            repaintPaletteOwnedWidgetTree(widget);
+        if (refreshNestedPopupCalendarPalette(widget, applicationPalette))
             return;
-        }
         preparePopupSurface(widget);
     } else if (auto *wizard = qobject_cast<QWizard *>(widget)) {
         refreshWizardSurface(wizard, applicationPalette);
