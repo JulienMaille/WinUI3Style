@@ -25,6 +25,7 @@
 #include <QStyleFactory>
 #include <QTableView>
 #include <QTest>
+#include <QToolTip>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -60,6 +61,7 @@ private slots:
     void nullOptionGeometryContracts();
     void nullWidgetComplexPaintContracts();
     void pluginAliases();
+    void applicationTooltipPaletteRestoration();
 };
 
 void WinUI3DensityApiTest::publicPropertyAndConstructors()
@@ -103,6 +105,33 @@ void WinUI3DensityApiTest::inheritedLocalProperty()
     QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Standard);
     WinUI3::Style::clearDensityMode(&panel);
     QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Compact);
+}
+
+void WinUI3DensityApiTest::applicationTooltipPaletteRestoration()
+{
+    const QPalette before = QToolTip::palette();
+    QPalette custom = before;
+    custom.setColor(QPalette::ToolTipText, QColor(46, 82, 133));
+    QToolTip::setPalette(custom);
+
+    WinUI3::Style style(WinUI3::ThemeMode::Dark);
+    style.polish(qApp);
+    QVERIFY(QToolTip::palette() != custom);
+    style.unpolish(qApp);
+    const QPalette restored = QToolTip::palette();
+
+    style.polish(qApp);
+    QPalette runtime = QToolTip::palette();
+    runtime.setColor(QPalette::ToolTipText, QColor(117, 65, 102));
+    QToolTip::setPalette(runtime);
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    const QPalette afterRefresh = QToolTip::palette();
+    style.unpolish(qApp);
+    const QPalette afterUnpolish = QToolTip::palette();
+    QToolTip::setPalette(before);
+    QCOMPARE(restored, custom);
+    QCOMPARE(afterRefresh, runtime);
+    QCOMPARE(afterUnpolish, runtime);
 }
 
 void WinUI3DensityApiTest::verticalSizeHints_data()

@@ -1543,6 +1543,8 @@ public:
     QTimer *systemAppearanceWatchdog = nullptr;
     QFont originalApplicationFont;
     QPalette originalApplicationPalette;
+    QPalette originalToolTipPalette;
+    QPalette lastStyleToolTipPalette;
     std::unique_ptr<Private::StyleInteractionController> interactionController;
 };
 
@@ -1680,8 +1682,12 @@ void Style::refreshApplicationAppearance()
     if (!qApp)
         return;
     const QPalette applicationPalette = standardPalette();
+    const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
     qApp->setPalette(applicationPalette);
-    QToolTip::setPalette(applicationPalette);
+    if (toolTipStillOwned) {
+        QToolTip::setPalette(applicationPalette);
+        d->lastStyleToolTipPalette = applicationPalette;
+    }
     // A popup's view and viewport are often created after their combo box was
     // polished. Prepare and register them now that the popup exists, before
     // walking the bounded owner registry below.
@@ -2461,6 +2467,7 @@ void Style::polish(QApplication *application)
     if (!d->applicationStateSaved) {
         d->originalApplicationFont = application->font();
         d->originalApplicationPalette = application->palette();
+        d->originalToolTipPalette = QToolTip::palette();
         d->applicationStateSaved = true;
     }
     QByteArray overrideFamily = qgetenv("WINUI3STYLE_APP_FONT");
@@ -2485,8 +2492,10 @@ void Style::polish(QApplication *application)
     QFont font(preferred);
     font.setPixelSize(14);
     application->setFont(font);
-    application->setPalette(standardPalette());
-    QToolTip::setPalette(standardPalette());
+    const QPalette stylePalette = standardPalette();
+    application->setPalette(stylePalette);
+    QToolTip::setPalette(stylePalette);
+    d->lastStyleToolTipPalette = stylePalette;
     d->systemAppearanceWatcher->setActive(true);
     d->restartSystemAppearanceWatchdog();
 }
@@ -2968,8 +2977,11 @@ void Style::unpolish(QApplication *application)
     d->systemAppearanceWatcher->setActive(false);
     d->clearPaletteOwners();
     if (application && d->applicationStateSaved) {
+        const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
         application->setFont(d->originalApplicationFont);
         application->setPalette(d->originalApplicationPalette);
+        if (toolTipStillOwned)
+            QToolTip::setPalette(d->originalToolTipPalette);
         d->applicationStateSaved = false;
     }
     QProxyStyle::unpolish(application);
