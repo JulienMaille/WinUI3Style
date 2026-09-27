@@ -352,6 +352,26 @@ QColor inlineCalendarSurface(const QWidget *widget, const QPalette &applicationP
     return pixel.pixelColor(0, 0);
 }
 
+void rebaseBackdropIslands(QWidget *window, const QPalette &applicationPalette)
+{
+    if (!window->property("_winui_backdrop").isValid())
+        return;
+
+    const QList<QWidget *> islands = window->findChildren<QWidget *>();
+    for (QWidget *island : islands) {
+        if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
+            continue;
+        QPalette rebased = island->palette();
+        QColor rebasedWindow = applicationPalette.color(QPalette::Window);
+        rebasedWindow.setAlpha(rebased.color(QPalette::Window).alpha());
+        if (rebased.color(QPalette::Window) == rebasedWindow)
+            continue;
+        rebased.setColor(QPalette::Window, rebasedWindow);
+        island->setPalette(rebased);
+        island->update();
+    }
+}
+
 // The navigation-bar lane (qt_calendar_navigationbar) paints its empty
 // stretches with its own Window fill while the month/year/prev/next
 // QToolButtons paint over it. The lane reads as one surface only when every
@@ -1521,21 +1541,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
     const Private::Tokens applicationTokens = Private::tokens(applicationPalette);
     const QColor applicationAccent = accentColor();
     const bool darkTheme = d->dark();
-    if (window->property("_winui_backdrop").isValid()) {
-        const QList<QWidget *> islands = window->findChildren<QWidget *>();
-        for (QWidget *island : islands) {
-            if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
-                continue;
-            QPalette rebased = island->palette();
-            QColor rebasedWindow = applicationPalette.color(QPalette::Window);
-            rebasedWindow.setAlpha(rebased.color(QPalette::Window).alpha());
-            if (rebased.color(QPalette::Window) == rebasedWindow)
-                continue;
-            rebased.setColor(QPalette::Window, rebasedWindow);
-            island->setPalette(rebased);
-            island->update();
-        }
-    }
+    rebaseBackdropIslands(window, applicationPalette);
     // Calendar header ordering: the owner loop visits widgets in
     // registration order, and lane children are polished (registered)
     // before the bar. In a single pass the lane is therefore computed
