@@ -180,6 +180,9 @@ private:
     // Applies explicit content/layer palettes and the automatic StatusBar /
     // WizardPage surface contract before top-level surface setup.
     void polishSurfacePalette(QWidget *widget);
+    // Applies only an explicit content/layer surface palette; absent or
+    // unsupported values preserve their existing no-op behavior.
+    void applyExplicitSurfacePalette(QWidget *widget);
     // Installs and removes the state-animation connections owned by checkable
     // controls while preserving their per-control transition contracts.
     void polishCheckableWidget(QWidget *widget);
