@@ -15,7 +15,9 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
+#include <QProgressBar>
 #include <QPushButton>
+#include <QSlider>
 #include <QSpinBox>
 #include <QSignalSpy>
 #include <QStyleOption>
@@ -50,6 +52,8 @@ private slots:
     void inheritedLocalProperty();
     void runtimeInvalidatesLayout();
     void geometryContractsAndInvariants();
+    void verticalSizeHints_data();
+    void verticalSizeHints();
     void navigationViewRelayoutsAtRuntime();
     void comboClosedTextContracts();
     void spinBoxPrefixSuffixSizingContract();
@@ -99,6 +103,40 @@ void WinUI3DensityApiTest::inheritedLocalProperty()
     QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Standard);
     WinUI3::Style::clearDensityMode(&panel);
     QCOMPARE(style.effectiveDensityMode(&button), WinUI3::DensityMode::Compact);
+}
+
+void WinUI3DensityApiTest::verticalSizeHints_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("progress");
+    QTest::newRow("slider-standard") << false << false;
+    QTest::newRow("slider-compact") << true << false;
+    QTest::newRow("progress-standard") << false << true;
+    QTest::newRow("progress-compact") << true << true;
+}
+
+void WinUI3DensityApiTest::verticalSizeHints()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, progress);
+    WinUI3::Style style(WinUI3::ThemeMode::Light, compact ? WinUI3::DensityMode::Compact
+                                                        : WinUI3::DensityMode::Standard);
+    QWidget parent;
+    parent.setStyle(&style);
+    if (progress) {
+        QProgressBar horizontal(&parent), vertical(&parent);
+        horizontal.setStyle(&style);
+        vertical.setStyle(&style);
+        horizontal.setTextVisible(false);
+        vertical.setTextVisible(false);
+        vertical.setOrientation(Qt::Vertical);
+        QCOMPARE(vertical.sizeHint(), horizontal.sizeHint().transposed());
+    } else {
+        QSlider horizontal(Qt::Horizontal, &parent), vertical(Qt::Vertical, &parent);
+        horizontal.setStyle(&style);
+        vertical.setStyle(&style);
+        QCOMPARE(vertical.sizeHint(), horizontal.sizeHint().transposed());
+    }
 }
 
 void WinUI3DensityApiTest::runtimeInvalidatesLayout()

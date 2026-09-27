@@ -327,15 +327,28 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
         const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
         const bool showsText = bar && bar->textVisible && !bar->text.isEmpty() && horizontal;
-        size.setWidth(qMax(size.width(), 120));
-        size.setHeight(showsText ? size.height() + 6 // text + thin underline
-                                 : qMax(size.height(), 8));
+        if (horizontal) {
+            size.setWidth(qMax(size.width(), 120));
+            size.setHeight(showsText ? size.height() + 6 // text + thin underline
+                                     : qMax(size.height(), 8));
+        } else {
+            size.setWidth(qMax(size.width(), 8));
+            size.setHeight(qMax(size.height(), 120));
+        }
         break;
     }
-    case QStyle::CT_Slider:
-        size.setWidth(qMax(size.width(), 120));
-        size.setHeight(qMax(size.height(), density.buttonHeight));
+    case QStyle::CT_Slider: {
+        const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option);
+        const bool horizontal = !slider || slider->orientation == Qt::Horizontal;
+        if (horizontal) {
+            size.setWidth(qMax(size.width(), 120));
+            size.setHeight(qMax(size.height(), density.buttonHeight));
+        } else {
+            size.setWidth(qMax(size.width(), density.buttonHeight));
+            size.setHeight(qMax(size.height(), 120));
+        }
         break;
+    }
     case QStyle::CT_ScrollBar:
         size.setWidth(qMax(size.width(), 12));
         size.setHeight(qMax(size.height(), 12));
