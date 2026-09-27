@@ -95,6 +95,7 @@ private slots:
     void init();
     void cleanup();
     void styleMutationRestoration();
+    void runtimeExplicitPaletteOwnership();
     void accessibilityOwnershipContracts();
     void baseStyleContract();
     void settingsCardExpansion();
@@ -281,6 +282,35 @@ void WinUI3InteractionTest::styleMutationRestoration()
     unknownSurface.setProperty("winuiSurface", QStringLiteral("marble"));
     style->polish(&unknownSurface);
     style->unpolish(&unknownSurface);
+}
+
+void WinUI3InteractionTest::runtimeExplicitPaletteOwnership()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QLineEdit editor;
+    QLineEdit inherited;
+    editor.setText(QStringLiteral("Palette override"));
+    editor.show();
+    inherited.show();
+    QTRY_VERIFY(editor.isVisible());
+
+    QPalette custom = editor.palette();
+    const QColor userText(31, 85, 143);
+    custom.setColor(QPalette::Text, userText);
+    editor.setPalette(custom);
+    QVERIFY(editor.testAttribute(Qt::WA_SetPalette));
+
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QCOMPARE(editor.palette().color(QPalette::Text), userText);
+    QCOMPARE(inherited.palette().color(QPalette::Text),
+             style->standardPalette().color(QPalette::Text));
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    QCOMPARE(editor.palette().color(QPalette::Text), userText);
+    QCOMPARE(inherited.palette().color(QPalette::Text),
+             style->standardPalette().color(QPalette::Text));
+    style->unpolish(&editor);
+    QCOMPARE(editor.palette().color(QPalette::Text), userText);
 }
 
 void WinUI3InteractionTest::accessibilityOwnershipContracts()

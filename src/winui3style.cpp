@@ -107,6 +107,14 @@ Backdrop backdropFromProperty(const QVariant &value)
 }
 
 constexpr auto wizardFooterName = "_winui_wizard_footer_surface";
+constexpr auto implicitPaletteSnapshotProperty = "_winui_implicit_palette_snapshot";
+
+bool hasRuntimePaletteOverride(const QWidget *widget)
+{
+    const QVariant snapshot = widget->property(implicitPaletteSnapshotProperty);
+    return snapshot.isValid() && widget->testAttribute(Qt::WA_SetPalette)
+            && widget->palette() != snapshot.value<QPalette>();
+}
 
 class WizardFooterSurface final : public QWidget
 {
@@ -534,6 +542,15 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
     if (QWidget *ownerWindow = widget->window();
         ownerWindow != window && ownerWindow->isWindow())
         return;
+    if (hasRuntimePaletteOverride(widget)) {
+        // A palette installed after polish belongs to the application. The
+        // implicit owner registration must not turn it into a style palette.
+        widget->setProperty(originalPaletteProperty, QVariant::fromValue(widget->palette()));
+        widget->setProperty(originalPaletteExplicitProperty, true);
+        widget->setProperty(ownedPaletteProperty, false);
+        widget->setProperty(implicitPaletteSnapshotProperty, {});
+        return;
+    }
     if (insideCalendarNavigationBar(widget))
         return;
     if (widget->property(Style::NavigationViewProperty).toBool()
@@ -561,8 +578,11 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
         // only records the factory palette Qt set before polish.
         return;
     } else {
-        widget->setPalette(ownedPaletteForWidget(widget, window, applicationPalette,
-                                                 applicationTokens, applicationAccent));
+        const QPalette palette = ownedPaletteForWidget(widget, window, applicationPalette,
+                                                       applicationTokens, applicationAccent);
+        if (widget->property(implicitPaletteSnapshotProperty).isValid())
+            widget->setProperty(implicitPaletteSnapshotProperty, QVariant::fromValue(palette));
+        widget->setPalette(palette);
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
     }
@@ -2548,6 +2568,14 @@ void Style::polish(QWidget *widget)
     polishMenuMargins(widget);
 
     polishContentDialog(widget);
+    if (!widget->testAttribute(Qt::WA_SetPalette)
+        && widget->property(ownedPaletteProperty).toBool()
+        && widget->window()->windowType() != Qt::Popup
+        && !qobject_cast<QWizard *>(widget->window())
+        && !insideCalendarWidget(widget)
+        && !widget->property(BackdropProperty).isValid())
+        widget->setProperty(implicitPaletteSnapshotProperty,
+                            QVariant::fromValue(widget->palette()));
 }
 
 void Style::polishTableEditor(QWidget *widget)
@@ -2675,6 +2703,7 @@ void Style::applyExplicitSurfacePalette(QWidget *widget)
     const QString surfaceName = surface.toString();
     if (!isContentLayerSurface(surface, surfaceName))
         return;
+    widget->setProperty(implicitPaletteSnapshotProperty, {});
 
     // A native backdrop makes the top-level Window role transparent.
     // Standard stacked/page widgets otherwise retain stale backing-store
@@ -2970,6 +2999,10 @@ void Style::unpolish(QWidget *widget)
         d->stopAnimations(widget);
         if (widget->property("_winui_backdrop").isValid())
             applyBackdrop(widget, Backdrop::None);
+        if (hasRuntimePaletteOverride(widget)) {
+            widget->setProperty(originalPaletteProperty, QVariant::fromValue(widget->palette()));
+            widget->setProperty(originalPaletteExplicitProperty, true);
+        }
         restoreRememberedPalette(widget);
         if (widget->property(originalAutoFillProperty).isValid())
             widget->setAutoFillBackground(widget->property(originalAutoFillProperty).toBool());
@@ -3019,6 +3052,7 @@ void Style::unpolish(QWidget *widget)
             hideSliderValueToolTip(slider);
         framePropertyRegistry().clearObject(widget);
         widget->setProperty(ownedPaletteProperty, {});
+        widget->setProperty(implicitPaletteSnapshotProperty, {});
         widget->setProperty(originalPaletteProperty, {});
         widget->setProperty(originalPaletteExplicitProperty, {});
         widget->setProperty(originalAutoFillProperty, {});
