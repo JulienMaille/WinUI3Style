@@ -158,6 +158,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // Registers progress bars with the shared indeterminate-animation timer
+    // and removes that registration during unpolish.
+    void polishProgressBar(QWidget *widget);
+    void unpolishProgressBar(QWidget *widget);
     // Applies density-dependent geometry invalidation and editor/completer
     // setup before control-specific animation state is installed.
     void polishDensityWidget(QWidget *widget);

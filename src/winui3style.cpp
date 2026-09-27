@@ -2535,12 +2535,7 @@ void Style::polish(QWidget *widget)
     }
     polishCheckableWidget(widget);
 
-    if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
-        d->registerProgressBar(progressBar);
-        framePropertyRegistry().set(progressBar, progressPhaseProperty,
-                                    Style::animationsAllowed() ? 0.0 : 0.35);
-        d->refreshProgressTimer();
-    }
+    polishProgressBar(widget);
     if (auto *view = qobject_cast<QAbstractItemView *>(widget))
         NavigationPrivate::prepareNavigationView(view);
 
@@ -2608,6 +2603,16 @@ void Style::polish(QWidget *widget)
             || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
+    }
+}
+
+void Style::polishProgressBar(QWidget *widget)
+{
+    if (auto *progressBar = qobject_cast<QProgressBar *>(widget)) {
+        d->registerProgressBar(progressBar);
+        framePropertyRegistry().set(progressBar, progressPhaseProperty,
+                                    Style::animationsAllowed() ? 0.0 : 0.35);
+        d->refreshProgressTimer();
     }
 }
 
@@ -2926,8 +2931,7 @@ void Style::unpolish(QWidget *widget)
             d->toggleDragStates.remove(checkBox);
         if (auto *slider = qobject_cast<QSlider *>(widget))
             d->unregisterSlider(slider);
-        if (auto *progressBar = qobject_cast<QProgressBar *>(widget))
-            d->unregisterProgressBar(progressBar);
+        unpolishProgressBar(widget);
         if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
             d->cancelScrollBarTimer(scrollBar);
             d->unregisterScrollBar(scrollBar);
@@ -2954,6 +2958,12 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishProgressBar(QWidget *widget)
+{
+    if (auto *progressBar = qobject_cast<QProgressBar *>(widget))
+        d->unregisterProgressBar(progressBar);
 }
 
 void Style::unpolishCheckableWidget(QWidget *widget)
