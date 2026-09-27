@@ -2558,12 +2558,7 @@ void Style::polish(QWidget *widget)
 
     polishMenuMargins(widget);
 
-    if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
-        && (qobject_cast<QMessageBox *>(dialog)
-            || dialog->property(ContentDialogProperty).toBool())) {
-        prepareContentDialogState(dialog, d->dark());
-        d->registerPaletteOwner(dialog);
-    }
+    polishContentDialog(widget);
 }
 
 void Style::polishTableEditor(QWidget *widget)
@@ -2863,6 +2858,18 @@ void Style::polishMenuMargins(QWidget *widget)
     menu->setContentsMargins(0, 2, 0, 2);
 }
 
+void Style::polishContentDialog(QWidget *widget)
+{
+    auto *dialog = qobject_cast<QDialog *>(widget);
+    if (!dialog
+        || (!qobject_cast<QMessageBox *>(dialog)
+            && !dialog->property(ContentDialogProperty).toBool()))
+        return;
+
+    prepareContentDialogState(dialog, d->dark());
+    d->registerPaletteOwner(dialog);
+}
+
 void Style::polish(QPalette &palette)
 {
     palette = standardPalette();
@@ -2928,9 +2935,7 @@ void Style::unpolish(QWidget *widget)
                 list->setSpacing(widget->property(originalListSpacingProperty).toInt());
         if (auto *wizard = qobject_cast<QWizard *>(widget))
             delete wizardFooterSurface(wizard, false);
-        if (auto *dialog = qobject_cast<QDialog *>(widget)) {
-            restoreContentDialogState(dialog, false);
-        }
+        unpolishContentDialog(widget);
         if (auto *frame = qobject_cast<QFrame *>(widget))
             if (widget->property(originalFrameShapeProperty).isValid())
                 frame->setFrameShape(static_cast<QFrame::Shape>(
@@ -2976,6 +2981,12 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishContentDialog(QWidget *widget)
+{
+    if (auto *dialog = qobject_cast<QDialog *>(widget))
+        restoreContentDialogState(dialog, false);
 }
 
 void Style::unpolishTableEditor(QWidget *widget)
