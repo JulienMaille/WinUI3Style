@@ -63,6 +63,7 @@ private slots:
     void pluginAliases();
     void applicationTooltipPaletteRestoration();
     void applicationFontOverrideSurvivesUnpolish();
+    void applicationPaletteOverrideSurvivesThemeAndUnpolish();
 };
 
 void WinUI3DensityApiTest::publicPropertyAndConstructors()
@@ -152,6 +153,33 @@ void WinUI3DensityApiTest::applicationFontOverrideSurvivesUnpolish()
     const QFont after = qApp->font();
     qApp->setFont(before);
     QCOMPARE(after, custom);
+}
+
+void WinUI3DensityApiTest::applicationPaletteOverrideSurvivesThemeAndUnpolish()
+{
+    const QPalette before = qApp->palette();
+    WinUI3::Style style(WinUI3::ThemeMode::Light);
+    style.polish(qApp);
+    style.unpolish(qApp);
+    QCOMPARE(qApp->palette(), before);
+    style.polish(qApp);
+    QLineEdit editor;
+    editor.setStyle(&style);
+    editor.show();
+
+    QPalette custom = qApp->palette();
+    const QColor userText(44, 93, 137);
+    custom.setColor(QPalette::Text, userText);
+    qApp->setPalette(custom);
+    style.setThemeMode(WinUI3::ThemeMode::Dark);
+    const QColor afterTheme = qApp->palette().color(QPalette::Text);
+    const QColor editorAfterTheme = editor.palette().color(QPalette::Text);
+    style.unpolish(qApp);
+    const QColor afterUnpolish = qApp->palette().color(QPalette::Text);
+    qApp->setPalette(before);
+    QCOMPARE(afterTheme, userText);
+    QCOMPARE(editorAfterTheme, userText);
+    QCOMPARE(afterUnpolish, userText);
 }
 
 void WinUI3DensityApiTest::verticalSizeHints_data()

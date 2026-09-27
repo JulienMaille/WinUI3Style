@@ -1544,6 +1544,7 @@ public:
     QFont originalApplicationFont;
     QFont lastStyleApplicationFont;
     QPalette originalApplicationPalette;
+    QPalette lastStyleApplicationPalette;
     QPalette originalToolTipPalette;
     QPalette lastStyleToolTipPalette;
     std::unique_ptr<Private::StyleInteractionController> interactionController;
@@ -1682,9 +1683,14 @@ void Style::refreshApplicationAppearance()
 {
     if (!qApp)
         return;
-    const QPalette applicationPalette = standardPalette();
+    const bool applicationPaletteStillOwned = qApp->palette() == d->lastStyleApplicationPalette;
+    const QPalette applicationPalette = applicationPaletteStillOwned ? standardPalette()
+                                                                  : qApp->palette();
     const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
-    qApp->setPalette(applicationPalette);
+    if (applicationPaletteStillOwned) {
+        qApp->setPalette(applicationPalette);
+        d->lastStyleApplicationPalette = applicationPalette;
+    }
     if (toolTipStillOwned) {
         QToolTip::setPalette(applicationPalette);
         d->lastStyleToolTipPalette = applicationPalette;
@@ -1749,7 +1755,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
     if (!window)
         return;
     d->prunePaletteOwners();
-    const QPalette applicationPalette = standardPalette();
+    const QPalette applicationPalette = qApp ? qApp->palette() : standardPalette();
     const Private::Tokens applicationTokens = Private::tokens(applicationPalette);
     const QColor applicationAccent = accentColor();
     const bool darkTheme = d->dark();
@@ -2496,6 +2502,7 @@ void Style::polish(QApplication *application)
     d->lastStyleApplicationFont = font;
     const QPalette stylePalette = standardPalette();
     application->setPalette(stylePalette);
+    d->lastStyleApplicationPalette = stylePalette;
     QToolTip::setPalette(stylePalette);
     d->lastStyleToolTipPalette = stylePalette;
     d->systemAppearanceWatcher->setActive(true);
@@ -2982,7 +2989,8 @@ void Style::unpolish(QApplication *application)
         const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
         if (application->font() == d->lastStyleApplicationFont)
             application->setFont(d->originalApplicationFont);
-        application->setPalette(d->originalApplicationPalette);
+        if (application->palette() == d->lastStyleApplicationPalette)
+            application->setPalette(d->originalApplicationPalette);
         if (toolTipStillOwned)
             QToolTip::setPalette(d->originalToolTipPalette);
         d->applicationStateSaved = false;

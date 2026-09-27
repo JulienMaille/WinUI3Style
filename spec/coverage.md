@@ -180,7 +180,7 @@ per-control live-verification status above:
 | Check/radio reverse motion | fill, check path and radio dot all consume the animated progress in both directions | `checkboxAndRadioUncheckMotion` |
 | Navigation model lifecycle | delegate reconnects to replacement model and selection model and resynchronizes on scroll | `navigationModelReconnectAndScroll` |
 | Dialog lifecycle | opacity-only show motion avoids layout geometry changes; hide/reopen clears animation state | `runtimeAppearanceAndDialogLifecycle`, `contentDialogContract` |
-| Runtime theme/accent | system scheme/accent watcher refreshes application palette, owned palettes, open windows and opaque popups | `runtimeAppearanceAndDialogLifecycle`, native `dialogThemeUpdate`, `comboPopupContract` |
+| Runtime theme/accent | system scheme/accent watcher refreshes the style-owned application palette, owned palettes, open windows and opaque popups; an application palette explicitly replaced after polish is retained through theme changes and unpolish, including a child editor | `runtimeAppearanceAndDialogLifecycle`, `applicationPaletteOverrideSurvivesThemeAndUnpolish`, native `dialogThemeUpdate`, `comboPopupContract` |
 | Popup first frame | ComboBox selection/scroll are prepared before presentation; MenuFlyout insets are installed before its first size negotiation | `comboPopupContract`, `menuSizingContract`, native `comboPopupSurface` |
 
 Rows marked `partial` or `not covered` are explicitly not claims of complete
