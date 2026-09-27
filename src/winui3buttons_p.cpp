@@ -104,11 +104,12 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             : 0.0;
 
     if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool) {
+        const ControlRole role = Style::controlRole(widget);
         const QWidget *parent = widget ? widget->parentWidget() : nullptr;
         const bool calendarPopupButton = parent
                 && parent->objectName() == QStringLiteral("qt_calendar_navigationbar")
                 && parent->parentWidget() && parent->parentWidget()->inherits("QCalendarWidget")
-                && Style::controlRole(widget) == ControlRole::Subtle;
+                && role == ControlRole::Subtle;
         // Calendar buttons sit on a tinted popup, not bare Mica. Restore
         // exactly one effective surface layer before the unchanged state
         // overlay; an idle Source-clear would punch a button-shaped hole.
@@ -125,8 +126,7 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // material transparent is correct). Interactive states keep the
         // standard erase-then-fill path below.
         if (!calendarPopupButton
-            && (Style::controlRole(widget) == ControlRole::Subtle
-                || Style::controlRole(widget) == ControlRole::Navigation)
+            && (role == ControlRole::Subtle || role == ControlRole::Navigation)
             && paintsDirectlyOnBackdrop(widget)
             && !(option->state
                  & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
@@ -163,7 +163,6 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // the rounded path (the accumulate-contract failure).
         if (!calendarPopupButton)
             eraseForBackdrop(painter, widget, option->rect);
-        const ControlRole role = Style::controlRole(widget);
         const bool textHelper = textBoxHelperButton(widget);
         const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
                 && qobject_cast<const QToolBar *>(widget->parentWidget());

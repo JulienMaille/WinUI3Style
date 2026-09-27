@@ -10,8 +10,11 @@
 #include <QHeaderView>
 #include <QImage>
 #include <QListView>
+#include <QPainter>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QStandardItemModel>
+#include <QStyleOptionButton>
 #include <QTabBar>
 #include <QTableView>
 #include <QToolBar>
@@ -36,6 +39,16 @@ struct Options
     int iterations = DefaultIterations;
     bool icons = true;
 };
+
+double percentile(std::vector<double> values, double fraction)
+{
+    if (values.empty())
+        return 0.0;
+    std::sort(values.begin(), values.end());
+    const int index =
+            qBound(0, int(std::ceil(fraction * values.size())) - 1, int(values.size()) - 1);
+    return values[index];
+}
 
 void benchmarkTokens()
 {
@@ -64,14 +77,33 @@ void benchmarkTokens()
     run("tokens-cached", WinUI3::Private::tokens);
 }
 
-double percentile(std::vector<double> values, double fraction)
+void benchmarkButtonPaint(int iterations)
 {
-    if (values.empty())
-        return 0.0;
-    std::sort(values.begin(), values.end());
-    const int index =
-            qBound(0, int(std::ceil(fraction * values.size())) - 1, int(values.size()) - 1);
-    return values[index];
+    QPushButton button(QStringLiteral("Accent"));
+    button.setProperty(WinUI3::Style::ControlRoleProperty, QStringLiteral("accent"));
+    button.resize(120, 32);
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    QImage image(button.size(), QImage::Format_ARGB32_Premultiplied);
+    constexpr int paintsPerSample = 500;
+    std::vector<double> samples;
+    samples.reserve(iterations);
+    for (int sample = -Warmups; sample < iterations; ++sample) {
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        QElapsedTimer timer;
+        timer.start();
+        for (int paint = 0; paint < paintsPerSample; ++paint)
+            button.style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+        const double nanoseconds = double(timer.nsecsElapsed()) / paintsPerSample;
+        if (sample >= 0)
+            samples.push_back(nanoseconds);
+    }
+    qInfo().noquote() << QStringLiteral("button-accent-paint p50=%1 ns p95=%2 ns samples=%3")
+                                 .arg(percentile(samples, 0.50), 0, 'f', 1)
+                                 .arg(percentile(samples, 0.95), 0, 'f', 1)
+                                 .arg(samples.size());
 }
 
 void render(QWidget *widget, QImage *sink)
@@ -265,6 +297,7 @@ int main(int argc, char **argv)
     const Options options = parseOptions(application);
 
     benchmarkTokens();
+    benchmarkButtonPaint(options.iterations);
     benchmarkList(options);
     benchmarkTree(options);
     benchmarkTable(options);
