@@ -2556,12 +2556,7 @@ void Style::polish(QWidget *widget)
     if (qobject_cast<QComboBox *>(widget))
         framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
 
-    // QMenu computes its first popup geometry after polish but before Show.
-    // Install the layout inset here; the opaque palette is refreshed on Show.
-    if (auto *menu = qobject_cast<QMenu *>(widget)) {
-        remember(menu, originalMarginsProperty, QVariant::fromValue(menu->contentsMargins()));
-        menu->setContentsMargins(0, 2, 0, 2);
-    }
+    polishMenuMargins(widget);
 
     if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
         && (qobject_cast<QMessageBox *>(dialog)
@@ -2854,6 +2849,18 @@ void Style::polishCalendarWidget(QWidget *widget)
         d->registerPaletteOwner(widget);
         widget->setPalette(palette);
     }
+}
+
+void Style::polishMenuMargins(QWidget *widget)
+{
+    auto *menu = qobject_cast<QMenu *>(widget);
+    if (!menu)
+        return;
+
+    // QMenu computes its first popup geometry after polish but before Show.
+    // Install the layout inset here; the opaque palette is refreshed on Show.
+    remember(menu, originalMarginsProperty, QVariant::fromValue(menu->contentsMargins()));
+    menu->setContentsMargins(0, 2, 0, 2);
 }
 
 void Style::polish(QPalette &palette)

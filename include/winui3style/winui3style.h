@@ -184,6 +184,9 @@ private:
     // Applies the calendar header, lane, grid, and inline-surface contracts
     // after generic table polish and before popup/dialog polish.
     void polishCalendarWidget(QWidget *widget);
+    // Installs the QMenu layout inset before its first popup geometry pass.
+    // Shared remembered-state teardown restores the original margins.
+    void polishMenuMargins(QWidget *widget);
     // GUI-thread-only: repolishes the application palette, theme, and
     // density registrations and emits themeChanged/densityChanged. Must run
     // on the GUI thread (touches top-level widgets and palettes).
