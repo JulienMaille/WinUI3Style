@@ -417,6 +417,76 @@ void refreshCalendarNavigationLanes(QWidget *window, const QPalette &application
     }
 }
 
+QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window,
+                               const QPalette &applicationPalette,
+                               const Private::Tokens &applicationTokens,
+                               const QColor &applicationAccent)
+{
+    QPalette palette = applicationPalette;
+    if (qobject_cast<QStatusBar *>(widget) || qobject_cast<QWizard *>(widget)) {
+        palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
+    } else if (qobject_cast<QWizardPage *>(widget)) {
+        palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
+    } else if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
+               calendarGrid && insideCalendarWidget(widget)) {
+        // Transient pickers spawn a QCalendarWidget in Qt::Popup (gets
+        // the preparePopupSurface palette rebase) while the Dialogs
+        // persistentCalendar is inline (keeps the app palette). The
+        // shared calendarPopupView day chrome paints its own accent
+        // circle, so neutralize the native Highlight role for ALL
+        // calendar grids here, not only popups. Keep Base on the
+        // content surface (only real popups get the flyout tint) and
+        // kill just the native blue rect/strip.
+        palette.setColor(QPalette::Highlight, Qt::transparent);
+        palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
+    } else if (widget->property(Style::SurfaceProperty)
+                       .toString()
+                       .compare(QLatin1String("layer"), Qt::CaseInsensitive)
+               == 0) {
+        const QColor layer = Private::popupSurfaceColor(applicationPalette);
+        palette.setColor(QPalette::Window, layer);
+        if (qobject_cast<QAbstractItemView *>(widget))
+            palette.setColor(QPalette::Base, layer);
+    } else if (qobject_cast<QTableView *>(widget)) {
+        palette.setColor(QPalette::Highlight, applicationTokens.subtleHover);
+        palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
+    } else if (auto *editor = qobject_cast<QLineEdit *>(widget); editor && itemView(editor)) {
+        palette.setColor(QPalette::Highlight, applicationAccent);
+        palette.setColor(QPalette::HighlightedText, applicationTokens.textOnAccentPrimary);
+    } else if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
+               && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
+        // Popup bars are handled by preparePopupSurface above. Inline
+        // bars follow the same Composited-aware surface as the day
+        // grid (mirroring polish): veiled under a granted backdrop so
+        // bar, lane, and body read as one surface; opaque Window only
+        // on the refused/offscreen fallback.
+        QColor navigationWindow;
+        if (Private::backdropEffectiveSurface(widget->window())
+            == Private::BackdropSurface::Composited)
+            navigationWindow = inlineCalendarSurface(widget, applicationPalette);
+        else {
+            navigationWindow = applicationPalette.color(QPalette::Window);
+            navigationWindow.setAlpha(255);
+        }
+        palette.setColor(QPalette::Window, navigationWindow);
+    } else if (qobject_cast<QDialog *>(widget)) {
+        palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
+    }
+    if (insideCalendarWidget(widget)) {
+        const QColor surface = inlineCalendarSurface(widget, applicationPalette);
+        palette.setColor(QPalette::Window, surface);
+        palette.setColor(QPalette::Base, surface);
+    }
+    // applyBackdrop owns the top-level alpha, including the synchronous
+    // effective-surface notification that brought us here. Rebase the
+    // theme RGB without replacing that in-flight material recipe.
+    if (widget == window && window->property("_winui_backdrop").isValid())
+        palette.setColor(QPalette::Window,
+                         withAlpha(palette.color(QPalette::Window),
+                                   widget->palette().color(QPalette::Window).alpha()));
+    return palette;
+}
+
 void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &applicationPalette,
                          const Private::Tokens &applicationTokens,
                          const QColor &applicationAccent, bool darkTheme)
@@ -481,70 +551,8 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
         // only records the factory palette Qt set before polish.
         return;
     } else {
-        QPalette palette = applicationPalette;
-        if (qobject_cast<QStatusBar *>(widget) || qobject_cast<QWizard *>(widget)) {
-            palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
-        } else if (qobject_cast<QWizardPage *>(widget)) {
-            palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
-        } else if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
-                   calendarGrid && insideCalendarWidget(widget)) {
-            // Transient pickers spawn a QCalendarWidget in Qt::Popup (gets
-            // the preparePopupSurface palette rebase) while the Dialogs
-            // persistentCalendar is inline (keeps the app palette). The
-            // shared calendarPopupView day chrome paints its own accent
-            // circle, so neutralize the native Highlight role for ALL
-            // calendar grids here, not only popups. Keep Base on the
-            // content surface (only real popups get the flyout tint) and
-            // kill just the native blue rect/strip.
-            palette.setColor(QPalette::Highlight, Qt::transparent);
-            palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
-        } else if (widget->property(Style::SurfaceProperty)
-                           .toString()
-                           .compare(QLatin1String("layer"), Qt::CaseInsensitive)
-                   == 0) {
-            const QColor layer = Private::popupSurfaceColor(applicationPalette);
-            palette.setColor(QPalette::Window, layer);
-            if (qobject_cast<QAbstractItemView *>(widget))
-                palette.setColor(QPalette::Base, layer);
-        } else if (qobject_cast<QTableView *>(widget)) {
-            palette.setColor(QPalette::Highlight, applicationTokens.subtleHover);
-            palette.setColor(QPalette::HighlightedText, applicationTokens.textPrimary);
-        } else if (auto *editor = qobject_cast<QLineEdit *>(widget); editor && itemView(editor)) {
-            palette.setColor(QPalette::Highlight, applicationAccent);
-            palette.setColor(QPalette::HighlightedText,
-                             applicationTokens.textOnAccentPrimary);
-        } else if (widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
-                   && qobject_cast<QCalendarWidget *>(widget->parentWidget())) {
-            // Popup bars are handled by preparePopupSurface above. Inline
-            // bars follow the same Composited-aware surface as the day
-            // grid (mirroring polish): veiled under a granted backdrop so
-            // bar, lane, and body read as one surface; opaque Window only
-            // on the refused/offscreen fallback.
-            QColor navigationWindow;
-            if (Private::backdropEffectiveSurface(widget->window())
-                == Private::BackdropSurface::Composited)
-                navigationWindow = inlineCalendarSurface(widget, applicationPalette);
-            else {
-                navigationWindow = applicationPalette.color(QPalette::Window);
-                navigationWindow.setAlpha(255);
-            }
-            palette.setColor(QPalette::Window, navigationWindow);
-        } else if (qobject_cast<QDialog *>(widget)) {
-            palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
-        }
-        if (insideCalendarWidget(widget)) {
-            const QColor surface = inlineCalendarSurface(widget, applicationPalette);
-            palette.setColor(QPalette::Window, surface);
-            palette.setColor(QPalette::Base, surface);
-        }
-        // applyBackdrop owns the top-level alpha, including the synchronous
-        // effective-surface notification that brought us here. Rebase the
-        // theme RGB without replacing that in-flight material recipe.
-        if (widget == window && window->property("_winui_backdrop").isValid())
-            palette.setColor(QPalette::Window,
-                             withAlpha(palette.color(QPalette::Window),
-                                       widget->palette().color(QPalette::Window).alpha()));
-        widget->setPalette(palette);
+        widget->setPalette(ownedPaletteForWidget(widget, window, applicationPalette,
+                                                 applicationTokens, applicationAccent));
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
     }
