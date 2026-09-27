@@ -172,7 +172,7 @@ per-control live-verification status above:
 | Non-left slider input | style press state, tooltip and absolute-set policy are left-button-only | `rtlGeometryAndHitTesting`, `sliderDragInteraction` |
 | Extreme slider ranges | tick arithmetic is `qint64`, capped to at most about 100 intervals and has an overflow-safe terminal condition | `sliderExtremeRangeTicks` |
 | AnimatedStack effects/lifecycle | application effects are never replaced; snapshot/effect cleanup survives reversal, removal and hide/reopen | `animatedStackEffectsAndInterruption` |
-| Polish symmetry | palettes, autofill, hover/opaque attributes, margins, spacing, list spacing, navigation delegate/mouse tracking, timers and role properties are restored | `styleMutationRestoration` |
+| Polish symmetry | palettes, autofill, hover/opaque attributes, margins, spacing, list spacing, navigation delegate/mouse tracking, timers and role properties are restored; a font explicitly set by the application after style polish survives unpolish while the style-owned default restores the pre-style font | `styleMutationRestoration`, `applicationFontOverrideSurvivesUnpolish` |
 | Accent role separation | selection uses `SystemAccentColor`; control AccentFill uses the theme-specific ramp role; text-on-accent has separate theme roles | `palettes`, `runtimeAppearanceAndDialogLifecycle` |
 | Palette-owned glyphs | Fluent glyphs are explicit foreground masks; arbitrary application icons retain their colors | `buttonToolButtonAndIconContracts` |
 | Covered-style fallbacks | debug assertions reject covered primitives, controls and complex controls that reach `QCommonStyle`; covered content sizing is explicit | all render/state tests plus deterministic snapshot matrix |

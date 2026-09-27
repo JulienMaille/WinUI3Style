@@ -62,6 +62,7 @@ private slots:
     void nullWidgetComplexPaintContracts();
     void pluginAliases();
     void applicationTooltipPaletteRestoration();
+    void applicationFontOverrideSurvivesUnpolish();
 };
 
 void WinUI3DensityApiTest::publicPropertyAndConstructors()
@@ -132,6 +133,25 @@ void WinUI3DensityApiTest::applicationTooltipPaletteRestoration()
     QCOMPARE(restored, custom);
     QCOMPARE(afterRefresh, runtime);
     QCOMPARE(afterUnpolish, runtime);
+}
+
+void WinUI3DensityApiTest::applicationFontOverrideSurvivesUnpolish()
+{
+    const QFont before = qApp->font();
+    WinUI3::Style style(WinUI3::ThemeMode::Light);
+    style.polish(qApp);
+    QVERIFY(qApp->font() != before);
+    style.unpolish(qApp);
+    QCOMPARE(qApp->font(), before);
+
+    style.polish(qApp);
+    QFont custom = qApp->font();
+    custom.setPixelSize(23);
+    qApp->setFont(custom);
+    style.unpolish(qApp);
+    const QFont after = qApp->font();
+    qApp->setFont(before);
+    QCOMPARE(after, custom);
 }
 
 void WinUI3DensityApiTest::verticalSizeHints_data()

@@ -1542,6 +1542,7 @@ public:
     SystemAppearanceWatcher *systemAppearanceWatcher = nullptr;
     QTimer *systemAppearanceWatchdog = nullptr;
     QFont originalApplicationFont;
+    QFont lastStyleApplicationFont;
     QPalette originalApplicationPalette;
     QPalette originalToolTipPalette;
     QPalette lastStyleToolTipPalette;
@@ -2492,6 +2493,7 @@ void Style::polish(QApplication *application)
     QFont font(preferred);
     font.setPixelSize(14);
     application->setFont(font);
+    d->lastStyleApplicationFont = font;
     const QPalette stylePalette = standardPalette();
     application->setPalette(stylePalette);
     QToolTip::setPalette(stylePalette);
@@ -2978,7 +2980,8 @@ void Style::unpolish(QApplication *application)
     d->clearPaletteOwners();
     if (application && d->applicationStateSaved) {
         const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
-        application->setFont(d->originalApplicationFont);
+        if (application->font() == d->lastStyleApplicationFont)
+            application->setFont(d->originalApplicationFont);
         application->setPalette(d->originalApplicationPalette);
         if (toolTipStillOwned)
             QToolTip::setPalette(d->originalToolTipPalette);
