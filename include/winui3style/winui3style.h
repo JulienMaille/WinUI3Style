@@ -158,6 +158,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // Owns the generic TableView selection palette and its theme-refresh
+    // connection; calendar polish may replace that connection afterwards.
+    void polishTableViewSelectionPalette(QWidget *widget);
+    void unpolishTableViewSelectionPalette(QWidget *widget);
     // Installs and restores the NavigationView delegate, viewport tracking,
     // and surface state owned by the navigation implementation.
     void polishNavigationView(QWidget *widget);

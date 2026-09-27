@@ -2538,25 +2538,9 @@ void Style::polish(QWidget *widget)
     polishProgressBar(widget);
     polishNavigationView(widget);
 
-    if (auto *table = qobject_cast<QTableView *>(widget)) {
-        if (const auto previous = d->tableConnections.take(widget))
-            disconnect(previous);
-        widget->setProperty(ownedPaletteProperty, true);
-        d->registerPaletteOwner(widget);
-        const auto applyTableSelectionPalette = [this, table] {
-            QPalette palette = table->palette();
-            const Private::Tokens tableTokens = Private::tokens(standardPalette());
-            palette.setColor(QPalette::Highlight, tableTokens.subtleHover);
-            palette.setColor(QPalette::HighlightedText, tableTokens.textPrimary);
-            table->setPalette(palette);
-        };
-        applyTableSelectionPalette();
-        d->tableConnections.insert(
-                table,
-                connect(this, &Style::themeChanged, table,
-                        [applyTableSelectionPalette](ThemeMode) { applyTableSelectionPalette(); }));
-    } else if (auto *editor = qobject_cast<QLineEdit *>(widget);
-               editor && qobject_cast<const QTableView *>(itemView(editor))) {
+    polishTableViewSelectionPalette(widget);
+    if (auto *editor = qobject_cast<QLineEdit *>(widget);
+        editor && qobject_cast<const QTableView *>(itemView(editor))) {
         widget->setProperty(ownedPaletteProperty, true);
         d->registerPaletteOwner(widget);
         QPalette palette = editor->palette();
@@ -2602,6 +2586,28 @@ void Style::polish(QWidget *widget)
             || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
+    }
+}
+
+void Style::polishTableViewSelectionPalette(QWidget *widget)
+{
+    if (auto *table = qobject_cast<QTableView *>(widget)) {
+        if (const auto previous = d->tableConnections.take(widget))
+            disconnect(previous);
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        const auto applyTableSelectionPalette = [this, table] {
+            QPalette palette = table->palette();
+            const Private::Tokens tableTokens = Private::tokens(standardPalette());
+            palette.setColor(QPalette::Highlight, tableTokens.subtleHover);
+            palette.setColor(QPalette::HighlightedText, tableTokens.textPrimary);
+            table->setPalette(palette);
+        };
+        applyTableSelectionPalette();
+        d->tableConnections.insert(
+                table,
+                connect(this, &Style::themeChanged, table,
+                        [applyTableSelectionPalette](ThemeMode) { applyTableSelectionPalette(); }));
     }
 }
 
@@ -2929,8 +2935,7 @@ void Style::unpolish(QWidget *widget)
         else if (qobject_cast<const QTableView *>(itemView(widget)))
             d->untrackTableEditor(widget);
         unpolishCheckableWidget(widget);
-        if (const auto connection = d->tableConnections.take(widget))
-            disconnect(connection);
+        unpolishTableViewSelectionPalette(widget);
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
             d->toggleDragStates.remove(checkBox);
         if (auto *slider = qobject_cast<QSlider *>(widget))
@@ -2962,6 +2967,12 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishTableViewSelectionPalette(QWidget *widget)
+{
+    if (const auto connection = d->tableConnections.take(widget))
+        disconnect(connection);
 }
 
 void Style::unpolishNavigationView(QWidget *widget)
