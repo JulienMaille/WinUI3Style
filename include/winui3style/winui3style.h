@@ -158,6 +158,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // Installs and restores the NavigationView delegate, viewport tracking,
+    // and surface state owned by the navigation implementation.
+    void polishNavigationView(QWidget *widget);
+    void unpolishNavigationView(QWidget *widget);
     // Registers progress bars with the shared indeterminate-animation timer
     // and removes that registration during unpolish.
     void polishProgressBar(QWidget *widget);

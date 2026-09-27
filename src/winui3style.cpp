@@ -2536,8 +2536,7 @@ void Style::polish(QWidget *widget)
     polishCheckableWidget(widget);
 
     polishProgressBar(widget);
-    if (auto *view = qobject_cast<QAbstractItemView *>(widget))
-        NavigationPrivate::prepareNavigationView(view);
+    polishNavigationView(widget);
 
     if (auto *table = qobject_cast<QTableView *>(widget)) {
         if (const auto previous = d->tableConnections.take(widget))
@@ -2604,6 +2603,12 @@ void Style::polish(QWidget *widget)
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
     }
+}
+
+void Style::polishNavigationView(QWidget *widget)
+{
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget))
+        NavigationPrivate::prepareNavigationView(view);
 }
 
 void Style::polishProgressBar(QWidget *widget)
@@ -2918,8 +2923,7 @@ void Style::unpolish(QWidget *widget)
             else
                 widget->setProperty(roleProperty, {});
         }
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget))
-            NavigationPrivate::restoreNavigationView(view);
+        unpolishNavigationView(widget);
         if (auto *table = qobject_cast<QTableView *>(widget))
             d->untrackTable(table);
         else if (qobject_cast<const QTableView *>(itemView(widget)))
@@ -2958,6 +2962,12 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishNavigationView(QWidget *widget)
+{
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget))
+        NavigationPrivate::restoreNavigationView(view);
 }
 
 void Style::unpolishProgressBar(QWidget *widget)
