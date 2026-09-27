@@ -2462,45 +2462,7 @@ void Style::polish(QWidget *widget)
         widget->setProperty(ownedPaletteProperty, true);
         d->registerPaletteOwner(widget);
     }
-    const QVariant surface = widget->property(SurfaceProperty);
-    const QString surfaceName = surface.toString();
-    if (isContentLayerSurface(surface, surfaceName)) {
-        // A native backdrop makes the top-level Window role transparent.
-        // Standard stacked/page widgets otherwise retain stale backing-store
-        // pixels while scrolling or switching pages. An explicit content
-        // layer is the Qt equivalent of WinUI's opaque content surface.
-        widget->setProperty(ownedPaletteProperty, true);
-        d->registerPaletteOwner(widget);
-        remember(widget, originalOpaquePaintProperty,
-                 widget->testAttribute(Qt::WA_OpaquePaintEvent));
-        QPalette palette = standardPalette();
-        if (surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
-            const QColor layer = Private::popupSurfaceColor(palette);
-            palette.setColor(QPalette::Window, layer);
-            if (qobject_cast<QAbstractItemView *>(widget))
-                palette.setColor(QPalette::Base, layer);
-        }
-        widget->setPalette(palette);
-        widget->setAutoFillBackground(true);
-        widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
-    }
-    // QDialogButtonBox is a layout container, not a command-surface panel.
-    // Filling its own inset geometry creates a rectangular footer inside a
-    // ContentDialog. It must inherit the dialog surface instead. QWizard has
-    // a separate full-width footer surface installed by refreshWizardSurface.
-    const bool automaticCommandSurface = qobject_cast<QStatusBar *>(widget);
-    const bool automaticDialogContent = qobject_cast<QWizardPage *>(widget);
-    if (!surface.isValid() && (automaticCommandSurface || automaticDialogContent)) {
-        widget->setProperty(ownedPaletteProperty, true);
-        d->registerPaletteOwner(widget);
-        QPalette palette = standardPalette();
-        if (automaticCommandSurface)
-            palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
-        else if (automaticDialogContent)
-            palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
-        widget->setPalette(palette);
-        widget->setAutoFillBackground(true);
-    }
+    polishSurfacePalette(widget);
     polishWizard(widget);
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);
@@ -2643,6 +2605,50 @@ void Style::polishDensityWidget(QWidget *widget)
             if (auto *editor = qobject_cast<QLineEdit *>(completer->widget()))
                 syncCompleterPopupDensity(editor);
         }
+    }
+}
+
+void Style::polishSurfacePalette(QWidget *widget)
+{
+    const QVariant surface = widget->property(SurfaceProperty);
+    const QString surfaceName = surface.toString();
+    if (isContentLayerSurface(surface, surfaceName)) {
+        // A native backdrop makes the top-level Window role transparent.
+        // Standard stacked/page widgets otherwise retain stale backing-store
+        // pixels while scrolling or switching pages. An explicit content
+        // layer is the Qt equivalent of WinUI's opaque content surface.
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        remember(widget, originalOpaquePaintProperty,
+                 widget->testAttribute(Qt::WA_OpaquePaintEvent));
+        QPalette palette = standardPalette();
+        if (surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
+            const QColor layer = Private::popupSurfaceColor(palette);
+            palette.setColor(QPalette::Window, layer);
+            if (qobject_cast<QAbstractItemView *>(widget))
+                palette.setColor(QPalette::Base, layer);
+        }
+        widget->setPalette(palette);
+        widget->setAutoFillBackground(true);
+        widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    }
+
+    // QDialogButtonBox is a layout container, not a command-surface panel.
+    // Filling its own inset geometry creates a rectangular footer inside a
+    // ContentDialog. It must inherit the dialog surface instead. QWizard has
+    // a separate full-width footer surface installed by refreshWizardSurface.
+    const bool automaticCommandSurface = qobject_cast<QStatusBar *>(widget);
+    const bool automaticDialogContent = qobject_cast<QWizardPage *>(widget);
+    if (!surface.isValid() && (automaticCommandSurface || automaticDialogContent)) {
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        QPalette palette = standardPalette();
+        if (automaticCommandSurface)
+            palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
+        else if (automaticDialogContent)
+            palette.setColor(QPalette::Window, Private::popupSurfaceColor(palette));
+        widget->setPalette(palette);
+        widget->setAutoFillBackground(true);
     }
 }
 

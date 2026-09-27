@@ -177,6 +177,9 @@ private:
     // Applies density-dependent geometry invalidation and editor/completer
     // setup before control-specific animation state is installed.
     void polishDensityWidget(QWidget *widget);
+    // Applies explicit content/layer palettes and the automatic StatusBar /
+    // WizardPage surface contract before top-level surface setup.
+    void polishSurfacePalette(QWidget *widget);
     // Installs and removes the state-animation connections owned by checkable
     // controls while preserving their per-control transition contracts.
     void polishCheckableWidget(QWidget *widget);
