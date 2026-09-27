@@ -158,6 +158,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    // Applies the table-editor selection palette and tracks editor geometry
+    // so the item delegate suppresses text beneath active editors.
+    void polishTableEditor(QWidget *widget);
+    void unpolishTableEditor(QWidget *widget);
     // Owns the generic TableView selection palette and its theme-refresh
     // connection; calendar polish may replace that connection afterwards.
     void polishTableViewSelectionPalette(QWidget *widget);

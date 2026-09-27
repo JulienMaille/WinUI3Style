@@ -2539,25 +2539,7 @@ void Style::polish(QWidget *widget)
     polishNavigationView(widget);
 
     polishTableViewSelectionPalette(widget);
-    if (auto *editor = qobject_cast<QLineEdit *>(widget);
-        editor && qobject_cast<const QTableView *>(itemView(editor))) {
-        widget->setProperty(ownedPaletteProperty, true);
-        d->registerPaletteOwner(widget);
-        QPalette palette = editor->palette();
-        const Private::Tokens editorTokens = Private::tokens(standardPalette());
-        palette.setColor(QPalette::Highlight, accentColor());
-        palette.setColor(QPalette::HighlightedText, editorTokens.textOnAccentPrimary);
-        editor->setPalette(palette);
-    }
-
-    if (auto *view = qobject_cast<QTableView *>(const_cast<QAbstractItemView *>(itemView(widget)));
-        view && widget->parentWidget() == view->viewport()) {
-        // Editors are children of the viewport and are polished after the
-        // delegate creates them. Track that lifecycle in the style so item
-        // painting can suppress display text even when Qt omits
-        // State_Editing from the real delegate option.
-        d->trackTableEditor(view, widget);
-    }
+    polishTableEditor(widget);
 
     if (auto *toolButton = qobject_cast<QAbstractButton *>(widget)) {
         // The calendar navigation-bar lane paints Subtle flat at rest over
@@ -2586,6 +2568,29 @@ void Style::polish(QWidget *widget)
             || dialog->property(ContentDialogProperty).toBool())) {
         prepareContentDialogState(dialog, d->dark());
         d->registerPaletteOwner(dialog);
+    }
+}
+
+void Style::polishTableEditor(QWidget *widget)
+{
+    if (auto *editor = qobject_cast<QLineEdit *>(widget);
+        editor && qobject_cast<const QTableView *>(itemView(editor))) {
+        widget->setProperty(ownedPaletteProperty, true);
+        d->registerPaletteOwner(widget);
+        QPalette palette = editor->palette();
+        const Private::Tokens editorTokens = Private::tokens(standardPalette());
+        palette.setColor(QPalette::Highlight, accentColor());
+        palette.setColor(QPalette::HighlightedText, editorTokens.textOnAccentPrimary);
+        editor->setPalette(palette);
+    }
+
+    if (auto *view = qobject_cast<QTableView *>(const_cast<QAbstractItemView *>(itemView(widget)));
+        view && widget->parentWidget() == view->viewport()) {
+        // Editors are children of the viewport and are polished after the
+        // delegate creates them. Track that lifecycle in the style so item
+        // painting can suppress display text even when Qt omits
+        // State_Editing from the real delegate option.
+        d->trackTableEditor(view, widget);
     }
 }
 
@@ -2930,10 +2935,7 @@ void Style::unpolish(QWidget *widget)
                 widget->setProperty(roleProperty, {});
         }
         unpolishNavigationView(widget);
-        if (auto *table = qobject_cast<QTableView *>(widget))
-            d->untrackTable(table);
-        else if (qobject_cast<const QTableView *>(itemView(widget)))
-            d->untrackTableEditor(widget);
+        unpolishTableEditor(widget);
         unpolishCheckableWidget(widget);
         unpolishTableViewSelectionPalette(widget);
         if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
@@ -2967,6 +2969,14 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalRoleProperty, {});
         widget->setProperty(originalRoleWasValidProperty, {});
     }
+}
+
+void Style::unpolishTableEditor(QWidget *widget)
+{
+    if (auto *table = qobject_cast<QTableView *>(widget))
+        d->untrackTable(table);
+    else if (qobject_cast<const QTableView *>(itemView(widget)))
+        d->untrackTableEditor(widget);
 }
 
 void Style::unpolishTableViewSelectionPalette(QWidget *widget)
