@@ -384,6 +384,39 @@ bool insideCalendarNavigationBar(const QWidget *widget)
             && insideCalendarWidget(widget);
 }
 
+void refreshCalendarNavigationLanes(QWidget *window, const QPalette &applicationPalette,
+                                    const QVector<QPointer<QWidget>> &owners)
+{
+    // Phase 2: the lane copies the post-phase-1 bar exactly (RGB+alpha),
+    // guaranteed same pass. Lane buttons paint Subtle flat at rest over
+    // the now-translucent bar; roles stay untouched here per the two-phase
+    // contract (Standard->Subtle happens in polish only).
+    for (const QPointer<QWidget> &guarded : owners) {
+        QWidget *widget = guarded.data();
+        if (!widget || !insideCalendarNavigationBar(widget))
+            continue;
+        if (QWidget *ownerWindow = widget->window();
+            ownerWindow != window && ownerWindow->isWindow())
+            continue;
+        if (widget->property(originalPaletteExplicitProperty).toBool()
+            && !widget->property(ownedPaletteProperty).toBool())
+            continue;
+        const QWidget *navigationBar = widget->parentWidget();
+        const QColor laneWindow = navigationBar ? navigationBar->palette().color(QPalette::Window)
+                                                : applicationPalette.color(QPalette::Window);
+        QPalette lanePalette = applicationPalette;
+        lanePalette.setColor(QPalette::Window, laneWindow);
+        // The year editor frame fills from the Button role: repoint it at
+        // the lane surface so hover-free pixels match the bar's empty
+        // stretches; Button/Window/Base stay one identical tint.
+        lanePalette.setColor(QPalette::Button, laneWindow);
+        if (qobject_cast<QAbstractSpinBox *>(widget))
+            lanePalette.setColor(QPalette::Base, laneWindow);
+        widget->setPalette(lanePalette);
+        repaintPaletteOwnedWidgetTree(widget);
+    }
+}
+
 const QWidget *richTextEditor(const QWidget *widget)
 {
     for (const QWidget *candidate = widget; candidate; candidate = candidate->parentWidget()) {
@@ -1679,34 +1712,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
         }
         repaintPaletteOwnedWidgetTree(widget);
     }
-    // Phase 2: the lane copies the post-phase-1 bar exactly (RGB+alpha),
-    // guaranteed same pass. Lane buttons paint Subtle flat at rest over
-    // the now-translucent bar; roles stay untouched here per the two-phase
-    // contract (Standard->Subtle happens in polish only).
-    for (const QPointer<QWidget> &guarded : d->paletteOwners) {
-        QWidget *widget = guarded.data();
-        if (!widget || !insideCalendarNavigationBar(widget))
-            continue;
-        if (QWidget *ownerWindow = widget->window();
-            ownerWindow != window && ownerWindow->isWindow())
-            continue;
-        if (widget->property(originalPaletteExplicitProperty).toBool()
-            && !widget->property(ownedPaletteProperty).toBool())
-            continue;
-        const QWidget *navigationBar = widget->parentWidget();
-        const QColor laneWindow = navigationBar ? navigationBar->palette().color(QPalette::Window)
-                                                : applicationPalette.color(QPalette::Window);
-        QPalette lanePalette = applicationPalette;
-        lanePalette.setColor(QPalette::Window, laneWindow);
-        // The year editor frame fills from the Button role: repoint it at
-        // the lane surface so hover-free pixels match the bar's empty
-        // stretches; Button/Window/Base stay one identical tint.
-        lanePalette.setColor(QPalette::Button, laneWindow);
-        if (qobject_cast<QAbstractSpinBox *>(widget))
-            lanePalette.setColor(QPalette::Base, laneWindow);
-        widget->setPalette(lanePalette);
-        repaintPaletteOwnedWidgetTree(widget);
-    }
+    refreshCalendarNavigationLanes(window, applicationPalette, d->paletteOwners);
     // Re-sync transparentized chrome and content islands after the recompute
     // above: the generic owner branches rebase every widget from the opaque
     // application palette, which would clobber the live-material recipe
