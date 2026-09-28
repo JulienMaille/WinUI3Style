@@ -100,6 +100,8 @@ private slots:
     void palettes();
     void paletteDerivedTokensMatchWinUIConstants();
     void customWidgetPaletteDrivesTokensAndPaint();
+    void buttonTextPaletteRoleIsHonored_data();
+    void buttonTextPaletteRoleIsHonored();
     void systemAccentRampIsAtomic();
     void systemThemeMatchesResolvedExplicitTheme();
     void buttonToolButtonAndIconContracts();
@@ -233,6 +235,61 @@ void WinUI3ButtonsTest::customWidgetPaletteDrivesTokensAndPaint()
         }
     }
     QVERIFY2(foundRedInk, "button painted with a custom palette shows no custom-ink pixels");
+}
+
+void WinUI3ButtonsTest::buttonTextPaletteRoleIsHonored_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::newRow("light") << false;
+    QTest::newRow("dark") << true;
+}
+
+void WinUI3ButtonsTest::buttonTextPaletteRoleIsHonored()
+{
+    QFETCH(bool, dark);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    const QColor customInk(220, 32, 32);
+    QPalette palette = style->standardPalette();
+    palette.setColor(QPalette::ButtonText, customInk);
+    QVERIFY(palette.color(QPalette::WindowText) != customInk);
+
+    const auto hasCustomInk = [](const QImage &image) {
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.red() - qMax(pixel.green(), pixel.blue()) > 60)
+                    return true;
+            }
+        }
+        return false;
+    };
+
+    QPushButton button(QStringLiteral("ButtonText"));
+    QToolButton tool;
+    tool.setToolButtonStyle(Qt::ToolButtonTextOnly);
+    tool.setText(QStringLiteral("ButtonText"));
+    for (QWidget *widget : { static_cast<QWidget *>(&button), static_cast<QWidget *>(&tool) }) {
+        widget->setPalette(palette);
+        widget->resize(140, 40);
+        QCOMPARE(widget->palette().color(QPalette::ButtonText), customInk);
+        QCOMPARE(widget->palette().color(QPalette::WindowText),
+                 palette.color(QPalette::WindowText));
+        QCOMPARE(widget->size(), QSize(140, 40));
+        QVERIFY2(hasCustomInk(widget->grab().toImage()),
+                 qPrintable(QStringLiteral("%1 ignored QPalette::ButtonText")
+                                    .arg(widget->metaObject()->className())));
+
+        widget->setEnabled(false);
+        QCOMPARE(widget->isEnabled(), false);
+        QCOMPARE(widget->palette().color(QPalette::Disabled, QPalette::ButtonText), customInk);
+        QCOMPARE(WinUI3::Private::tokens(widget->palette()).textDisabled,
+                 dark ? QColor(255, 255, 255, 93) : QColor(0, 0, 0, 92));
+        QVERIFY2(!hasCustomInk(widget->grab().toImage()),
+                 qPrintable(QStringLiteral("%1 used custom ink while disabled")
+                                    .arg(widget->metaObject()->className())));
+    }
 }
 
 void WinUI3ButtonsTest::systemAccentRampIsAtomic()

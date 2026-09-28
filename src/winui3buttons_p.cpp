@@ -525,6 +525,21 @@ static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, Q
     return false;
 }
 
+static QColor buttonRoleTextColor(const QPalette &palette, const Tokens &tokens, bool enabled,
+                                  bool pressed)
+{
+    if (!enabled)
+        return tokens.textDisabled;
+    const QColor roleInk = palette.color(QPalette::ButtonText);
+    if (roleInk == palette.color(QPalette::WindowText))
+        return pressed ? tokens.textSecondary : tokens.textPrimary;
+    if (!pressed)
+        return roleInk;
+    QColor pressedInk = roleInk;
+    pressedInk.setAlpha(qMin(roleInk.alpha(), tokens.textSecondary.alpha()));
+    return pressedInk;
+}
+
 static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option,
                                        QPainter *painter, const QWidget *widget)
 {
@@ -535,9 +550,10 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
         const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
                 || ((button->state & QStyle::State_On) && role == ControlRole::Standard);
         const bool pressed = enabled && (button->state & QStyle::State_Sunken);
-        const QColor textColor = !enabled ? t.textDisabled
-                : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
-                         : (pressed ? t.textSecondary : t.textPrimary);
+        const QColor textColor = accent
+                ? (!enabled ? t.textDisabled
+                            : pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
+                : buttonRoleTextColor(button->palette, t, enabled, pressed);
         QRect content = style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
         if (qobject_cast<const QCommandLinkButton *>(widget)) {
             // QCommandLinkButton paints its title and description
@@ -595,10 +611,12 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
                 widget ? qobject_cast<const QLineEdit *>(widget->parentWidget()) : nullptr;
         const bool clearHelper = helperEditor && lineEditClearButton(helperEditor) == widget;
         const bool pressed = tool->state & QStyle::State_Sunken;
-        const QColor textColor = !enabled ? t.textDisabled
-                : textHelper              ? (pressed ? t.textTertiary : t.textSecondary)
-                : accent ? (pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
-                         : (pressed ? t.textSecondary : t.textPrimary);
+        const QColor textColor = textHelper ? (!enabled ? t.textDisabled
+                                                        : pressed ? t.textTertiary
+                                                                  : t.textSecondary)
+                : accent ? (!enabled ? t.textDisabled
+                                     : pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
+                         : buttonRoleTextColor(tool->palette, t, enabled, pressed);
         const QRectF buttonRect(
                 style->subControlRect(QStyle::CC_ToolButton, tool, QStyle::SC_ToolButton, widget));
         // WinUI's 30 px DeleteButton contains a 12 px E894 glyph inside
