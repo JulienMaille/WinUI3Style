@@ -1,6 +1,6 @@
 # WinUI3Style — feuille de route
 
-> État : 21 septembre 2026, `main` @ `80f6094`. Suite locale 52/52 + 23 binaires de domaine verte ; gates `source_contracts`, `designer_gallery`, snapshot et natif verts.
+> État : 28 septembre 2026, `main` @ `33e89d3`. Dernière suite complète : 53/53 CTest + 26/26 binaires de domaine ; gates `source_contracts`, `designer_gallery`, snapshot et natif verts. [Audit NavigationView](spec/NAVIGATIONVIEW_AUDIT_2026-09-28.md) réalisé sans correctif visuel.
 > `spec/coverage.md` reste « source-audited » partout : comparaison WinUI live obligatoire avant tout « verified ».
 
 ## P0 — garde-fous
@@ -10,12 +10,14 @@
 
 ## P1 — navigation, champs, états
 
-- [ ] NavigationView : revalidation métriques WinUI + contraste hover/pressed/selected trois thèmes (comportement testé : `navigationTransition`, `navigationInteractiveFrames`, `renderCommonStates`).
+- [ ] NavigationView : corriger la correspondance des fonds `Selected` / `PointerOverSelected` / `PressedSelected` (Secondary / Tertiary / Secondary dans le XAML épinglé, ordre inversé dans `NavigationItemDelegate::paint()`). Test RED Light/Dark × Standard/Compact, puis validation visuelle par l'utilisateur avant commit. Voir [l'audit](spec/NAVIGATIONVIEW_AUDIT_2026-09-28.md).
 - [ ] AutoSuggestBox : clavier, hit-test, stratégie backdrop (couvert : sous-chaînes, palette popup, thème ouvert).
 - [ ] Démos Compact galerie manquantes : NavigationView, MenuBar (le reste ajouté ; métriques+tests OK via `OfficialCompactWidgets`).
 
 ## P2 — architecture, accessibilité, robustesse, tests
 
+- [ ] NavigationView sans icône : `IconCollapsed` réduit la colonne d'icône officielle à 8 px, alors que le délégué garde un inset de texte fixe de 42 px. Établir la géométrie exacte, test RED puis correction séparée du lot des couleurs sélectionnées.
+- [ ] Démo NavigationView : décider si l'on expose une composition complète (retour, repli, pied Settings) ; le mapping QStyle actuel ne couvre que l'item sémantique. Compléter les captures live du focus clavier, press et animation avant tout statut `Verified`.
 - [ ] Exécuter le plan d'assainissement par petits lots, tests d'abord : split des tests saturés, renderers/contrats/surfaces, puis réduction symétrique de `polish`/`unpolish`/`eventFilter` ([`spec/REFACTORING_PLAN.md`](spec/REFACTORING_PLAN.md)).
 - [ ] Remplacer `WinUI3::SettingsCard` promu par `QFrame` + `winuiSettingsCard=true` (`demo/gallerywindow.ui:119-139`, `check_designer_gallery.cmake:27-44` verrouille le promu).
 - [ ] Live keyboard : focus/Tab/Space/Enter/popups (offscreen partiel via `inputModalityFocus`).
