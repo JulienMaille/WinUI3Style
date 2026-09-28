@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QFont>
 #include <QStyleFactory>
 #include <QTimer>
 
@@ -25,7 +26,23 @@ int main(int argc, char *argv[])
                                      QStringLiteral("Write deterministic light/dark gallery PNGs."),
                                      QStringLiteral("directory"));
     parser.addOption(captureOption);
+    QCommandLineOption fontPixelSizeOption(QStringLiteral("font-pixel-size"),
+                                           QStringLiteral("Override the application font size for visual QA."),
+                                           QStringLiteral("pixels"));
+    parser.addOption(fontPixelSizeOption);
     parser.process(application);
+
+    if (parser.isSet(fontPixelSizeOption)) {
+        bool valid = false;
+        const int pixels = parser.value(fontPixelSizeOption).toInt(&valid);
+        if (!valid || pixels < 8 || pixels > 48) {
+            qCritical() << "--font-pixel-size must be an integer from 8 to 48";
+            return 1;
+        }
+        QFont font = application.font();
+        font.setPixelSize(pixels);
+        application.setFont(font);
+    }
 
     const bool captureMode = parser.isSet(captureOption);
     if (captureMode) {

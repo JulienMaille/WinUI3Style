@@ -107,9 +107,12 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
             button && (button->features & QStyleOptionButton::HasMenu))
             size.rwidth() += 22;
         size.setWidth(qMax(size.width(), 32));
-        // WinUI buttons are a fixed 32 px template: font ascent must never
-        // grow the frame (live Segoe 14 px offers 33). Clamp, don't floor.
-        size.setHeight(density.buttonHeight);
+        // Preserve the WinUI template for its default font, but an
+        // application-supplied larger font needs enough room for its ink.
+        size.setHeight(qMax(density.buttonHeight,
+                            option ? option->fontMetrics.height()
+                                            + 2 * density.buttonVerticalPadding
+                                   : size.height()));
         break;
     case QStyle::CT_ComboBox:
         if (densityModeFor(widget) == DensityMode::Compact) {
@@ -124,9 +127,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         } else {
             // Preserve the established Standard geometry pixel-for-pixel.
             size += QSize(2 * density.comboHorizontalPadding, 2 * density.comboVerticalPadding);
-            // Same fixed-template clamp as buttons: Segoe 14 px offers 33
-            // for combo and edit alike (live probe); the template is 32.
-            size.setHeight(density.comboBoxHeight);
+            size.setHeight(qMax(density.comboBoxHeight,
+                                option ? option->fontMetrics.height()
+                                                + 2 * density.comboVerticalPadding
+                                       : size.height()));
         }
         if (const auto *combo = qobject_cast<const QComboBox *>(widget);
             combo && option && size.width() > 0) {
@@ -168,7 +172,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         } else {
             size += QSize(2 * density.lineEditHorizontalPadding,
                           2 * density.lineEditVerticalPadding);
-            size.setHeight(density.textBoxHeight);
+            size.setHeight(qMax(density.textBoxHeight,
+                                option ? option->fontMetrics.height()
+                                                + 2 * density.lineEditVerticalPadding
+                                       : size.height()));
         }
         break;
     case QStyle::CT_SpinBox:
@@ -233,7 +240,9 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         break;
     case QStyle::CT_TabBarTab:
         size += QSize(2 * density.tabHorizontalPadding, 2 * density.tabVerticalPadding);
-        size.setHeight(density.tabHeight);
+        size.setHeight(qMax(density.tabHeight,
+                            option ? option->fontMetrics.height() + 2 * density.tabVerticalPadding
+                                   : size.height()));
         size.setWidth(qBound(100, size.width(), 240));
         break;
     case QStyle::CT_MenuItem:

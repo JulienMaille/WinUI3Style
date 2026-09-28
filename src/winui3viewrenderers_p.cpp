@@ -35,6 +35,17 @@ using namespace PaintPrivate;
 
 namespace {
 
+QFont controlLabelFont(const QWidget *widget)
+{
+    QFont font = widget ? widget->font() : QApplication::font();
+    // The stock WinUI label uses 12 px over the style's 14 px application
+    // font. An explicit widget font or a replaced application font belongs
+    // to the host application and must not be silently reset here.
+    if (!widget || (!widget->testAttribute(Qt::WA_SetFont) && font.pixelSize() == 14))
+        font.setPixelSize(12);
+    return font;
+}
+
 const QAbstractItemView *itemView(const QWidget *widget)
 {
     if (const auto *view = qobject_cast<const QAbstractItemView *>(widget))
@@ -620,8 +631,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             if (tab->rightButtonSize.isValid())
                 textRect.adjust(0, 0, -tab->rightButtonSize.width() - 4, 0);
             painter->save();
-            QFont font = widget ? widget->font() : QApplication::font();
-            font.setPixelSize(12);
+            QFont font = controlLabelFont(widget);
             font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
             painter->setFont(font);
             painter->setPen(enabled ? (selected ? t.textPrimary : t.textSecondary)
@@ -641,7 +651,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->drawText(
                     textRect,
                     QStyle::visualAlignment(tab->direction, Qt::AlignLeft | Qt::AlignVCenter),
-                    tab->fontMetrics.elidedText(tab->text, Qt::ElideRight, textRect.width()));
+                    painter->fontMetrics().elidedText(tab->text, Qt::ElideRight,
+                                                     textRect.width()));
             painter->restore();
             return true;
         }
@@ -699,8 +710,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             const Tokens t = tokens(option->palette);
             QRect content = header->rect.adjusted(12, 0, -10, 0);
             painter->save();
-            QFont font = widget ? widget->font() : QApplication::font();
-            font.setPixelSize(12);
+            QFont font = controlLabelFont(widget);
             font.setWeight(QFont::DemiBold);
             painter->setFont(font);
             painter->setPen(header->state & QStyle::State_Enabled ? t.textSecondary
@@ -724,7 +734,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                     content,
                     QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
                             | Qt::TextSingleLine,
-                    header->fontMetrics.elidedText(header->text, Qt::ElideRight, content.width()));
+                    painter->fontMetrics().elidedText(header->text, Qt::ElideRight,
+                                                     content.width()));
             painter->restore();
             return true;
         }

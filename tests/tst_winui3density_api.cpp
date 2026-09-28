@@ -24,6 +24,7 @@
 #include <QStyleOptionComboBox>
 #include <QStyleFactory>
 #include <QTableView>
+#include <QTabBar>
 #include <QTest>
 #include <QToolTip>
 #include <QTreeView>
@@ -64,6 +65,8 @@ private slots:
     void applicationTooltipPaletteRestoration();
     void applicationFontOverrideSurvivesUnpolish();
     void applicationPaletteOverrideSurvivesThemeAndUnpolish();
+    void largeFontControlSizing_data();
+    void largeFontControlSizing();
 };
 
 void WinUI3DensityApiTest::publicPropertyAndConstructors()
@@ -180,6 +183,87 @@ void WinUI3DensityApiTest::applicationPaletteOverrideSurvivesThemeAndUnpolish()
     QCOMPARE(afterTheme, userText);
     QCOMPARE(editorAfterTheme, userText);
     QCOMPARE(afterUnpolish, userText);
+}
+
+void WinUI3DensityApiTest::largeFontControlSizing_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("standard") << false;
+    QTest::newRow("compact") << true;
+}
+
+void WinUI3DensityApiTest::largeFontControlSizing()
+{
+    QFETCH(bool, compact);
+    WinUI3::Style style(WinUI3::ThemeMode::Light, compact ? WinUI3::DensityMode::Compact
+                                                        : WinUI3::DensityMode::Standard);
+    QWidget parent;
+    parent.setStyle(&style);
+    QFont large = parent.font();
+    large.setPixelSize(28);
+
+    QPushButton button(QStringLiteral("Large font"), &parent);
+    QLineEdit editor(&parent);
+    QComboBox combo(&parent);
+    QTabBar tabs(&parent);
+    combo.addItem(QStringLiteral("Large font"));
+    tabs.addTab(QStringLiteral("Large font"));
+    for (QWidget *widget : { static_cast<QWidget *>(&button), static_cast<QWidget *>(&editor),
+                             static_cast<QWidget *>(&combo), static_cast<QWidget *>(&tabs) }) {
+        widget->setStyle(&style);
+        widget->setFont(large);
+    }
+    const int inkHeight = QFontMetrics(large).height();
+    QVERIFY2(button.sizeHint().height() >= inkHeight + 12, "button clips the supplied font");
+    QVERIFY2(editor.sizeHint().height() >= inkHeight + (compact ? 8 : 12),
+             "TextBox clips the supplied font");
+    QVERIFY2(combo.sizeHint().height() >= inkHeight + (compact ? 8 : 12),
+             "ComboBox clips the supplied font");
+    QVERIFY2(tabs.sizeHint().height() >= inkHeight + 8, "TabView clips the supplied font");
+
+    QTableView table(&parent);
+    table.setStyle(&style);
+    table.horizontalHeader()->setStyle(&style);
+    table.horizontalHeader()->setFont(large);
+    QStyleOptionTab tabOption;
+    tabOption.initFrom(&tabs);
+    tabOption.rect = QRect(0, 0, 240, 70);
+    tabOption.text = QStringLiteral("Typography");
+    tabOption.state |= QStyle::State_Selected;
+    QStyleOptionHeader headerOption;
+    headerOption.initFrom(table.horizontalHeader());
+    headerOption.rect = tabOption.rect;
+    headerOption.text = tabOption.text;
+    QCOMPARE(tabOption.fontMetrics.height(), inkHeight);
+    QCOMPARE(headerOption.fontMetrics.height(), inkHeight);
+    QVERIFY(style.sizeFromContents(QStyle::CT_HeaderSection, &headerOption, QSize(80, inkHeight),
+                                   table.horizontalHeader()).height() >= inkHeight + 8);
+
+    const auto paintedInkHeight = [&](QStyle::ControlElement element,
+                                      const QStyleOption &option, QWidget *target) {
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        style.drawControl(element, &option, &painter, target);
+        painter.end();
+        int first = image.height();
+        int last = -1;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.red() < 180 && pixel.green() < 180 && pixel.blue() < 180) {
+                    first = qMin(first, y);
+                    last = qMax(last, y);
+                }
+            }
+        }
+        return last - first + 1;
+    };
+    QVERIFY2(paintedInkHeight(QStyle::CE_TabBarTabLabel, tabOption, &tabs) >= 17,
+             "TabView still paints its 12 px font despite an explicit large font");
+    QVERIFY2(paintedInkHeight(QStyle::CE_HeaderLabel, headerOption,
+                              table.horizontalHeader()) >= 17,
+             "header still paints its 12 px font despite an explicit large font");
 }
 
 void WinUI3DensityApiTest::verticalSizeHints_data()
