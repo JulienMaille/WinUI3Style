@@ -98,6 +98,8 @@ private slots:
     void init();
     void cleanup();
     void navigationTransition();
+    void navigationSelectedStateFill_data();
+    void navigationSelectedStateFill();
     void navigationInteractiveFrames();
     void renderCommonStates();
     void pluginFactory();
@@ -159,6 +161,82 @@ void WinUI3NavigationTest::navigationTransition()
     QTRY_VERIFY(qAbs(frameReal(view.navigationList()->viewport(), "_winui_navigation_indicator_y")
                      - second.top())
                 < 0.5);
+}
+
+void WinUI3NavigationTest::navigationSelectedStateFill_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("interaction");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            for (int interaction = 0; interaction < 3; ++interaction) {
+                const QByteArray name = QByteArray(dark ? "dark" : "light")
+                        + (compact ? "-compact" : "-standard")
+                        + QByteArray("-") + QByteArray::number(interaction);
+                QTest::newRow(name.constData()) << dark << compact << interaction;
+            }
+        }
+    }
+}
+
+void WinUI3NavigationTest::navigationSelectedStateFill()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(int, interaction);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+
+    QListWidget view;
+    view.setProperty(WinUI3::Style::NavigationViewProperty, true);
+    view.setProperty(WinUI3::Style::DensityProperty,
+                     compact ? QStringLiteral("compact") : QStringLiteral("standard"));
+    view.addItem(QStringLiteral("Page"));
+    view.resize(240, 100);
+    view.show();
+    QCoreApplication::processEvents();
+    QVERIFY(view.property("_winui_navigation_delegate").value<QObject *>()
+            == view.itemDelegate());
+
+    const int itemHeight = compact ? 32 : 40;
+    QStyleOptionViewItem option;
+    option.initFrom(&view);
+    option.widget = view.viewport();
+    option.rect = QRect(0, 0, 220, itemHeight);
+    option.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver | QStyle::State_Sunken);
+    option.state |= QStyle::State_Selected;
+    if (interaction >= 1)
+        option.state |= QStyle::State_MouseOver;
+    if (interaction == 2)
+        option.state |= QStyle::State_Sunken;
+    WinUI3::Private::framePropertyRegistry().set(
+            view.viewport(), "_winui_press_progress", interaction == 2 ? 1.0 : 0.0);
+    const auto tokens = WinUI3::Private::tokens(option.palette);
+    const QColor expectedFill = interaction == 1 ? tokens.subtlePressed : tokens.subtleHover;
+    QCOMPARE(option.rect.height(), itemHeight);
+    QCOMPARE(tokens.subtleHover.alpha(), dark ? 15 : 9);
+    QCOMPARE(tokens.subtlePressed.alpha(), dark ? 10 : 6);
+    QCOMPARE(frameReal(view.viewport(), "_winui_press_progress"),
+             interaction == 2 ? 1.0 : 0.0);
+
+    const QColor base = tokens.surface;
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(base);
+    {
+        QPainter painter(&actual);
+        view.itemDelegate()->paint(&painter, option, view.model()->index(0, 0));
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(base);
+    {
+        QPainter painter(&expected);
+        painter.fillRect(expected.rect(), expectedFill);
+    }
+    const QPoint sample(150, itemHeight / 2);
+    QVERIFY(option.rect.adjusted(2, 2, -2, -2).contains(sample));
+    QCOMPARE(actual.pixelColor(sample), expected.pixelColor(sample));
 }
 
 void WinUI3NavigationTest::navigationInteractiveFrames()

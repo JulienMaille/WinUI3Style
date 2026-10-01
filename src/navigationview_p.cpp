@@ -144,10 +144,13 @@ public:
             Private::eraseForBackdrop(painter, m_view, option.rect);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        QColor fill = selected ? t.subtlePressed : Qt::transparent;
+        const QColor restFill = selected ? t.subtleHover : Qt::transparent;
+        const QColor hoverFill = selected ? t.subtlePressed : t.subtleHover;
+        const QColor pressedFill = selected ? t.subtleHover : t.subtlePressed;
+        QColor fill = restFill;
         if (hovered)
-            fill = Private::mix(fill, t.subtleHover, 1.0 - press);
-        fill = Private::mix(fill, t.subtlePressed, press);
+            fill = Private::mix(fill, hoverFill, 1.0 - press);
+        fill = Private::mix(fill, pressedFill, press);
         if (fill.alpha() > 0)
             roundedRect(painter, QRectF(option.rect).adjusted(2, 2, -2, -2), fill, Qt::transparent,
                         Private::ControlRadius);
