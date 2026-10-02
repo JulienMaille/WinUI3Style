@@ -95,7 +95,8 @@ void benchmarkButtonPaint(int iterations)
         QElapsedTimer timer;
         timer.start();
         for (int paint = 0; paint < paintsPerSample; ++paint)
-            button.style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+            button.style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter,
+                                          &button);
         const double nanoseconds = double(timer.nsecsElapsed()) / paintsPerSample;
         if (sample >= 0)
             samples.push_back(nanoseconds);

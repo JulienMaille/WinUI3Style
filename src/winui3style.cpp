@@ -425,8 +425,7 @@ void refreshCalendarNavigationLanes(QWidget *window, const QPalette &application
     }
 }
 
-QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window,
-                               const QPalette &applicationPalette,
+QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window, const QPalette &applicationPalette,
                                const Private::Tokens &applicationTokens,
                                const QColor &applicationAccent)
 {
@@ -513,8 +512,8 @@ bool refreshNestedPopupCalendarPalette(QWidget *widget, const QPalette &applicat
     // guards windowHandle/offscreen itself). Bar first, lane copies
     // the bar exactly, preserving the calendar -> bar -> lane order.
     preparePopupSurface(widget);
-    if (QWidget *bar = calendar->findChild<QWidget *>(
-                QStringLiteral("qt_calendar_navigationbar"))) {
+    if (QWidget *bar =
+                calendar->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"))) {
         QPalette barPalette = applicationPalette;
         const QColor barWindow = widget->window()->palette().color(QPalette::Window);
         barPalette.setColor(QPalette::Window, barWindow);
@@ -528,8 +527,8 @@ bool refreshNestedPopupCalendarPalette(QWidget *widget, const QPalette &applicat
 }
 
 void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &applicationPalette,
-                         const Private::Tokens &applicationTokens,
-                         const QColor &applicationAccent, bool darkTheme)
+                         const Private::Tokens &applicationTokens, const QColor &applicationAccent,
+                         bool darkTheme)
 {
     if (!widget)
         return;
@@ -539,8 +538,7 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
     // different real window are left untouched this pass. Owners whose
     // window is not a real top-level window (Designer-assembled or
     // orphan hierarchies) keep the old visit-every-pass behavior.
-    if (QWidget *ownerWindow = widget->window();
-        ownerWindow != window && ownerWindow->isWindow())
+    if (QWidget *ownerWindow = widget->window(); ownerWindow != window && ownerWindow->isWindow())
         return;
     if (hasRuntimePaletteOverride(widget)) {
         // A palette installed after polish belongs to the application. The
@@ -1684,8 +1682,8 @@ void Style::refreshApplicationAppearance()
     if (!qApp)
         return;
     const bool applicationPaletteStillOwned = qApp->palette() == d->lastStyleApplicationPalette;
-    const QPalette applicationPalette = applicationPaletteStillOwned ? standardPalette()
-                                                                  : qApp->palette();
+    const QPalette applicationPalette =
+            applicationPaletteStillOwned ? standardPalette() : qApp->palette();
     const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
     if (applicationPaletteStillOwned) {
         qApp->setPalette(applicationPalette);
@@ -2079,8 +2077,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         QColor inner = t.focusInner;
         outer.setAlphaF(outer.alphaF() * focus);
         inner.setAlphaF(inner.alphaF() * focus);
-        paintFocusRing(painter, option->rect, outer, inner, 1, 3, ControlRadius + 2,
-                       ControlRadius);
+        paintFocusRing(painter, option->rect, outer, inner, 1, 3, ControlRadius + 2, ControlRadius);
         return;
     }
 
@@ -2589,12 +2586,9 @@ void Style::polish(QWidget *widget)
     polishMenuMargins(widget);
 
     polishContentDialog(widget);
-    if (!widget->testAttribute(Qt::WA_SetPalette)
-        && widget->property(ownedPaletteProperty).toBool()
-        && widget->window()->windowType() != Qt::Popup
-        && !qobject_cast<QWizard *>(widget->window())
-        && !insideCalendarWidget(widget)
-        && !widget->property(BackdropProperty).isValid())
+    if (!widget->testAttribute(Qt::WA_SetPalette) && widget->property(ownedPaletteProperty).toBool()
+        && widget->window()->windowType() != Qt::Popup && !qobject_cast<QWizard *>(widget->window())
+        && !insideCalendarWidget(widget) && !widget->property(BackdropProperty).isValid())
         widget->setProperty(implicitPaletteSnapshotProperty,
                             QVariant::fromValue(widget->palette()));
 }
@@ -2732,8 +2726,7 @@ void Style::applyExplicitSurfacePalette(QWidget *widget)
     // layer is the Qt equivalent of WinUI's opaque content surface.
     widget->setProperty(ownedPaletteProperty, true);
     d->registerPaletteOwner(widget);
-    remember(widget, originalOpaquePaintProperty,
-             widget->testAttribute(Qt::WA_OpaquePaintEvent));
+    remember(widget, originalOpaquePaintProperty, widget->testAttribute(Qt::WA_OpaquePaintEvent));
     QPalette palette = standardPalette();
     if (surfaceName.compare(QLatin1String("layer"), Qt::CaseInsensitive) == 0) {
         const QColor layer = Private::popupSurfaceColor(palette);
@@ -3180,7 +3173,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 const Backdrop requested = backdropFromProperty(widget->property(BackdropProperty));
                 const bool leavingCompositedBackdrop = requested == Backdrop::None
                         && Private::backdropEffectiveSurface(widget)
-                                   == Private::BackdropSurface::Composited;
+                                == Private::BackdropSurface::Composited;
                 applyBackdrop(widget, requested);
                 if (leavingCompositedBackdrop) {
                     // A hidden QMenu can retain its acrylic HWND across the

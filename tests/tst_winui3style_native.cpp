@@ -419,8 +419,7 @@ void WinUI3StyleNativeTest::backdropDisableRestoresOpaqueContent()
     const QColor expected = style->standardPalette().color(QPalette::Window);
     // Probe the margin beside the cards: the body does not cover missing
     // viewport/page erasure there, unlike a card-center sample.
-    const QPoint probe = area->viewport()->mapToGlobal(
-            QPoint(3, area->viewport()->height() / 2));
+    const QPoint probe = area->viewport()->mapToGlobal(QPoint(3, area->viewport()->height() / 2));
     const QSize contentSize = pages->size();
     const bool windowPaletteExplicit = window.testAttribute(Qt::WA_SetPalette);
     const bool pageAutoFill = pages->autoFillBackground();

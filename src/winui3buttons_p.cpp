@@ -125,8 +125,7 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // parent card tone when inside a group card (directly on the
         // material transparent is correct). Interactive states keep the
         // standard erase-then-fill path below.
-        if (!calendarPopupButton
-            && (role == ControlRole::Subtle || role == ControlRole::Navigation)
+        if (!calendarPopupButton && (role == ControlRole::Subtle || role == ControlRole::Navigation)
             && paintsDirectlyOnBackdrop(widget)
             && !(option->state
                  & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
@@ -550,10 +549,10 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
         const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
                 || ((button->state & QStyle::State_On) && role == ControlRole::Standard);
         const bool pressed = enabled && (button->state & QStyle::State_Sunken);
-        const QColor textColor = accent
-                ? (!enabled ? t.textDisabled
-                            : pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
-                : buttonRoleTextColor(button->palette, t, enabled, pressed);
+        const QColor textColor = accent ? (!enabled          ? t.textDisabled
+                                                   : pressed ? t.textOnAccentSecondary
+                                                             : t.textOnAccentPrimary)
+                                        : buttonRoleTextColor(button->palette, t, enabled, pressed);
         QRect content = style->subElementRect(QStyle::SE_PushButtonContents, button, widget);
         if (qobject_cast<const QCommandLinkButton *>(widget)) {
             // QCommandLinkButton paints its title and description
@@ -611,11 +610,12 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
                 widget ? qobject_cast<const QLineEdit *>(widget->parentWidget()) : nullptr;
         const bool clearHelper = helperEditor && lineEditClearButton(helperEditor) == widget;
         const bool pressed = tool->state & QStyle::State_Sunken;
-        const QColor textColor = textHelper ? (!enabled ? t.textDisabled
-                                                        : pressed ? t.textTertiary
-                                                                  : t.textSecondary)
-                : accent ? (!enabled ? t.textDisabled
-                                     : pressed ? t.textOnAccentSecondary : t.textOnAccentPrimary)
+        const QColor textColor = textHelper ? (!enabled          ? t.textDisabled
+                                                       : pressed ? t.textTertiary
+                                                                 : t.textSecondary)
+                : accent                    ? (!enabled          ? t.textDisabled
+                                                       : pressed ? t.textOnAccentSecondary
+                                                                 : t.textOnAccentPrimary)
                          : buttonRoleTextColor(tool->palette, t, enabled, pressed);
         const QRectF buttonRect(
                 style->subControlRect(QStyle::CC_ToolButton, tool, QStyle::SC_ToolButton, widget));

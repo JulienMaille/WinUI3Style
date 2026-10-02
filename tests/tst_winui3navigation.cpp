@@ -174,8 +174,8 @@ void WinUI3NavigationTest::navigationSelectedStateFill_data()
         for (bool compact : { false, true }) {
             for (int interaction = 0; interaction < 3; ++interaction) {
                 const QByteArray name = QByteArray(dark ? "dark" : "light")
-                        + (compact ? "-compact" : "-standard")
-                        + QByteArray("-") + QByteArray::number(interaction);
+                        + (compact ? "-compact" : "-standard") + QByteArray("-")
+                        + QByteArray::number(interaction);
                 QTest::newRow(name.constData()) << dark << compact << interaction;
             }
         }
@@ -199,8 +199,7 @@ void WinUI3NavigationTest::navigationSelectedStateFill()
     view.resize(240, 100);
     view.show();
     QCoreApplication::processEvents();
-    QVERIFY(view.property("_winui_navigation_delegate").value<QObject *>()
-            == view.itemDelegate());
+    QVERIFY(view.property("_winui_navigation_delegate").value<QObject *>() == view.itemDelegate());
 
     const int itemHeight = compact ? 32 : 40;
     QStyleOptionViewItem option;
@@ -213,15 +212,14 @@ void WinUI3NavigationTest::navigationSelectedStateFill()
         option.state |= QStyle::State_MouseOver;
     if (interaction == 2)
         option.state |= QStyle::State_Sunken;
-    WinUI3::Private::framePropertyRegistry().set(
-            view.viewport(), "_winui_press_progress", interaction == 2 ? 1.0 : 0.0);
+    WinUI3::Private::framePropertyRegistry().set(view.viewport(), "_winui_press_progress",
+                                                 interaction == 2 ? 1.0 : 0.0);
     const auto tokens = WinUI3::Private::tokens(option.palette);
     const QColor expectedFill = interaction == 1 ? tokens.subtlePressed : tokens.subtleHover;
     QCOMPARE(option.rect.height(), itemHeight);
     QCOMPARE(tokens.subtleHover.alpha(), dark ? 15 : 9);
     QCOMPARE(tokens.subtlePressed.alpha(), dark ? 10 : 6);
-    QCOMPARE(frameReal(view.viewport(), "_winui_press_progress"),
-             interaction == 2 ? 1.0 : 0.0);
+    QCOMPARE(frameReal(view.viewport(), "_winui_press_progress"), interaction == 2 ? 1.0 : 0.0);
 
     const QColor base = tokens.surface;
     QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
@@ -250,8 +248,7 @@ void WinUI3NavigationTest::navigationIconlessTextInset_data()
         for (bool compact : { false, true }) {
             for (bool rtl : { false, true }) {
                 const QByteArray name = QByteArray(dark ? "dark" : "light")
-                        + (compact ? "-compact" : "-standard")
-                        + (rtl ? "-rtl" : "-ltr");
+                        + (compact ? "-compact" : "-standard") + (rtl ? "-rtl" : "-ltr");
                 QTest::newRow(name.constData()) << dark << compact << rtl;
             }
         }
@@ -286,8 +283,8 @@ void WinUI3NavigationTest::navigationIconlessTextInset()
     option.rect = QRect(0, 0, 220, compact ? 32 : 40);
     option.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver | QStyle::State_Sunken
                       | QStyle::State_HasFocus);
-    const QRect expectedTextRect = QStyle::visualRect(
-            option.direction, option.rect, option.rect.adjusted(18, 0, -12, 0));
+    const QRect expectedTextRect =
+            QStyle::visualRect(option.direction, option.rect, option.rect.adjusted(18, 0, -12, 0));
     QCOMPARE(rtl ? option.rect.right() - expectedTextRect.right()
                  : expectedTextRect.left() - option.rect.left(),
              18);
@@ -304,11 +301,11 @@ void WinUI3NavigationTest::navigationIconlessTextInset()
         QPainter painter(&expected);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
-        painter.drawText(expectedTextRect,
-                         QStyle::visualAlignment(option.direction,
-                                                 Qt::AlignLeft | Qt::AlignVCenter),
-                         option.fontMetrics.elidedText(QStringLiteral("Home"), Qt::ElideRight,
-                                                       expectedTextRect.width()));
+        painter.drawText(
+                expectedTextRect,
+                QStyle::visualAlignment(option.direction, Qt::AlignLeft | Qt::AlignVCenter),
+                option.fontMetrics.elidedText(QStringLiteral("Home"), Qt::ElideRight,
+                                              expectedTextRect.width()));
     }
     QVERIFY(actual == expected);
 }

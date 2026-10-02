@@ -651,8 +651,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->drawText(
                     textRect,
                     QStyle::visualAlignment(tab->direction, Qt::AlignLeft | Qt::AlignVCenter),
-                    painter->fontMetrics().elidedText(tab->text, Qt::ElideRight,
-                                                     textRect.width()));
+                    painter->fontMetrics().elidedText(tab->text, Qt::ElideRight, textRect.width()));
             painter->restore();
             return true;
         }
@@ -735,7 +734,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                     QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
                             | Qt::TextSingleLine,
                     painter->fontMetrics().elidedText(header->text, Qt::ElideRight,
-                                                     content.width()));
+                                                      content.width()));
             painter->restore();
             return true;
         }

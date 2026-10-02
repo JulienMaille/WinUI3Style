@@ -26,9 +26,10 @@ int main(int argc, char *argv[])
                                      QStringLiteral("Write deterministic light/dark gallery PNGs."),
                                      QStringLiteral("directory"));
     parser.addOption(captureOption);
-    QCommandLineOption fontPixelSizeOption(QStringLiteral("font-pixel-size"),
-                                           QStringLiteral("Override the application font size for visual QA."),
-                                           QStringLiteral("pixels"));
+    QCommandLineOption fontPixelSizeOption(
+            QStringLiteral("font-pixel-size"),
+            QStringLiteral("Override the application font size for visual QA."),
+            QStringLiteral("pixels"));
     parser.addOption(fontPixelSizeOption);
     parser.process(application);
 
