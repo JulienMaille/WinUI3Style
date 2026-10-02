@@ -7,6 +7,8 @@
 #include <QDir>
 #include <QFile>
 #include <QLineEdit>
+#include <QScrollArea>
+#include <QSignalSpy>
 #include <QTextStream>
 #include <QTest>
 
@@ -17,6 +19,8 @@ class WinUI3AutoSuggestNativeTest final : public QObject
 private slots:
     void galleryAutoSuggestPrintWindow_data();
     void galleryAutoSuggestPrintWindow();
+    void galleryAutoSuggestInteraction_data();
+    void galleryAutoSuggestInteraction();
 };
 
 void WinUI3AutoSuggestNativeTest::galleryAutoSuggestPrintWindow_data()
@@ -157,6 +161,102 @@ void WinUI3AutoSuggestNativeTest::galleryAutoSuggestPrintWindow()
     QCOMPARE(hoveredFrame.pixelColor(edgeProbe * dpr), expectedBase);
     QCOMPARE(leftFrame.pixelColor(edgeProbe * dpr), expectedBase);
     popup->hide();
+}
+
+void WinUI3AutoSuggestNativeTest::galleryAutoSuggestInteraction_data()
+{
+    QTest::addColumn<int>("theme");
+    QTest::addColumn<bool>("compact");
+    for (int theme : { 1, 2 }) {
+        for (bool compact : { false, true }) {
+            const QByteArray name = QByteArray(theme == 1 ? "light" : "dark")
+                    + (compact ? "-compact" : "-standard");
+            QTest::newRow(name.constData()) << theme << compact;
+        }
+    }
+}
+
+void WinUI3AutoSuggestNativeTest::galleryAutoSuggestInteraction()
+{
+    if (qEnvironmentVariable("WINUI3STYLE_AUTOSUGGEST_CAPTURE_DIR").isEmpty())
+        QSKIP("Set WINUI3STYLE_AUTOSUGGEST_CAPTURE_DIR for a focused native interaction run");
+
+    QFETCH(int, theme);
+    QFETCH(bool, compact);
+    qApp->setStyle(new WinUI3::Style(theme == 1 ? WinUI3::ThemeMode::Light
+                                               : WinUI3::ThemeMode::Dark));
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Compact
+                                  : WinUI3::DensityMode::Standard);
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.move(60, 60);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.raise();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    SetForegroundWindow(reinterpret_cast<HWND>(window.winId()));
+    DWORD foregroundPid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
+    if (foregroundPid != GetCurrentProcessId())
+        QSKIP("Windows denied OS foreground focus; SendInput would target another process");
+
+    auto *edit = window.findChild<QLineEdit *>(QStringLiteral("autoSuggestEdit"));
+    QVERIFY(edit);
+    for (QWidget *parent = edit->parentWidget(); parent; parent = parent->parentWidget()) {
+        if (auto *scroll = qobject_cast<QScrollArea *>(parent)) {
+            scroll->ensureWidgetVisible(edit);
+            break;
+        }
+    }
+    edit->setFocus();
+    QTRY_VERIFY(edit->hasFocus());
+    auto *completer = edit->completer();
+    QVERIFY(completer);
+    QSignalSpy activated(completer, QOverload<const QString &>::of(&QCompleter::activated));
+    QVERIFY(activated.isValid());
+
+    QTest::keyClicks(edit, QStringLiteral("a"));
+    QTRY_VERIFY(completer->popup()->isVisible());
+    auto *popup = completer->popup();
+    QCOMPARE(completer->completionCount(), 4);
+    QCOMPARE(popup->sizeHintForRow(0), compact ? 32 : 40);
+    foregroundPid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
+    if (foregroundPid != GetCurrentProcessId())
+        QSKIP("Popup lost OS foreground focus; keyboard input would target another process");
+    QVERIFY(sendNativeKeyPress(VK_DOWN));
+    QTRY_COMPARE(popup->currentIndex().row(), 0);
+    QCOMPARE(edit->text(), QStringLiteral("Alpha"));
+    QVERIFY(sendNativeKeyPress(VK_DOWN));
+    QTRY_COMPARE(popup->currentIndex().row(), 1);
+    QCOMPARE(edit->text(), QStringLiteral("Beta"));
+    QVERIFY(sendNativeKeyPress(VK_RETURN));
+    QTRY_COMPARE(activated.size(), 1);
+    QCOMPARE(edit->text(), QStringLiteral("Beta"));
+    QTRY_VERIFY(!popup->isVisible());
+
+    edit->clear();
+    QTest::keyClicks(edit, QStringLiteral("a"));
+    QTRY_VERIFY(popup->isVisible());
+    QVERIFY(sendNativeKeyPress(VK_ESCAPE));
+    QTRY_VERIFY(!popup->isVisible());
+    QCOMPARE(edit->text(), QStringLiteral("a"));
+    QCOMPARE(activated.size(), 1);
+
+    edit->clear();
+    QTest::keyClicks(edit, QStringLiteral("a"));
+    QTRY_VERIFY(popup->isVisible());
+    const QRect secondRow = popup->visualRect(popup->model()->index(1, 0));
+    QVERIFY(secondRow.width() > 12);
+    const QPoint leftGutter(secondRow.left() + 1, secondRow.center().y());
+    QCOMPARE(popup->indexAt(leftGutter).row(), 1);
+    QTest::mouseClick(popup->viewport(), Qt::LeftButton, Qt::NoModifier, leftGutter);
+    QTRY_COMPARE(activated.size(), 2);
+    QCOMPARE(edit->text(), QStringLiteral("Beta"));
+    QTRY_VERIFY(!popup->isVisible());
 }
 
 QTEST_MAIN(WinUI3AutoSuggestNativeTest)

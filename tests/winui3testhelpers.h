@@ -104,6 +104,18 @@
 #  include <dwmapi.h>
 #  pragma comment(lib, "dwmapi.lib")
 
+// QTest::keyClick sends a widget event, not a Windows keyboard event. Native
+// popup tests need the latter so QCompleter's focused popup can consume arrows.
+inline bool sendNativeKeyPress(WORD virtualKey)
+{
+    INPUT input[2]{};
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wVk = virtualKey;
+    input[1] = input[0];
+    input[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    return SendInput(2, input, sizeof(INPUT)) == 2;
+}
+
 // Includes the native caption, unlike QWidget::grab(). Own a copy before
 // releasing the DIB; callers pair pixel checks with same-state contracts.
 inline QImage nativeWindowFrame(WId id)

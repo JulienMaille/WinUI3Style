@@ -129,6 +129,8 @@ private slots:
     void autoSuggestMatchesCaseInsensitiveSubstrings();
     void autoSuggestPopupRebasesPaletteAndHasNoSelectionGlyph();
     void autoSuggestKeyboardSelectsCurrentRow();
+    void autoSuggestPopupHitTestAndFallback_data();
+    void autoSuggestPopupHitTestAndFallback();
     void hiddenCompleterPopupFollowsDensitySwitch();
     void suggestersCompleteAndActivateInBothDensities();
     void runtimeThemeChangeRefreshesOpenComboPopup();
@@ -494,6 +496,57 @@ void WinUI3DensityWidgetsTest::autoSuggestKeyboardSelectsCurrentRow()
     QCOMPARE(completer->currentRow(), 1);
     Q_EMIT completer->activated(QStringLiteral("Beta"));
     QTRY_COMPARE(editor.text(), QStringLiteral("Beta"));
+}
+
+void WinUI3DensityWidgetsTest::autoSuggestPopupHitTestAndFallback_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            const QByteArray name = QByteArray(dark ? "dark" : "light")
+                    + (compact ? "-compact" : "-standard");
+            QTest::newRow(name.constData()) << dark << compact;
+        }
+    }
+}
+
+void WinUI3DensityWidgetsTest::autoSuggestPopupHitTestAndFallback()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QLineEdit editor;
+    editor.setProperty(WinUI3::Style::DensityProperty,
+                       compact ? QStringLiteral("compact") : QStringLiteral("standard"));
+    auto *completer = new QCompleter(
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
+                         QStringLiteral("Gamma") }, &editor);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    editor.setCompleter(completer);
+    editor.resize(280, compact ? 24 : 32);
+    editor.show();
+    editor.setFocus();
+    QTest::keyClicks(&editor, QStringLiteral("a"));
+    QTRY_VERIFY(completer->popup()->isVisible());
+    QCOMPARE(editor.text(), QStringLiteral("a"));
+    QCOMPARE(completer->completionCount(), 3);
+    QCOMPARE(completer->popup()->model()->rowCount(), 3);
+    QAbstractItemView *popup = completer->popup();
+    QCOMPARE(popup->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(popup->viewport()->autoFillBackground(), true);
+    QCOMPARE(popup->viewport()->testAttribute(Qt::WA_OpaquePaintEvent), false);
+    QCOMPARE(rowHeight(*popup), compact ? 32 : 40);
+    const QRect secondRow = popup->visualRect(popup->model()->index(1, 0));
+    QVERIFY(secondRow.width() > 12);
+    const QPoint leftGutter(secondRow.left() + 1, secondRow.center().y());
+    const QPoint rightGutter(secondRow.right() - 1, secondRow.center().y());
+    QCOMPARE(popup->indexAt(leftGutter).row(), 1);
+    QCOMPARE(popup->indexAt(rightGutter).row(), 1);
 }
 
 void WinUI3DensityWidgetsTest::hiddenCompleterPopupFollowsDensitySwitch()
