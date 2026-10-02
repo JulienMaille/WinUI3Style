@@ -259,6 +259,24 @@ void applyMenuRoundedMask(QMenu *menu)
 {
     if (!menu || !menu->isWindow() || menu->windowType() != Qt::Popup)
         return;
+#ifdef Q_OS_WIN
+    // A granted DWM corner preference already clips the native flyout and
+    // its shadow. Stacking Qt's rasterized region over it creates short dark
+    // seams at the top/bottom edge after a Mica cycle. Keep the Qt mask only
+    // when native rounding is unavailable (including offscreen captures).
+    if (QGuiApplication::platformName() == QStringLiteral("windows")) {
+        constexpr DWORD cornerPreferenceAttribute = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
+        DWORD preference = 0;
+        if (SUCCEEDED(DwmGetWindowAttribute(reinterpret_cast<HWND>(menu->winId()),
+                                           cornerPreferenceAttribute, &preference,
+                                           sizeof(preference)))
+            && preference == 2) { // DWMWCP_ROUND
+            if (!menu->mask().isEmpty())
+                menu->clearMask();
+            return;
+        }
+    }
+#endif
     const QSize size = menu->size();
     if (size.isEmpty()) {
         // Show can arrive before QMenu computes its layout size. Retry

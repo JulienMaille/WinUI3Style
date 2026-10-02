@@ -556,10 +556,18 @@ void WinUI3StyleNativeTest::menuBarChildToggleReopenConverges()
                                     .arg(quintptr(fileMenu->internalWinId()), 0, 16);
     qWarning() << "menuBar input open1=" << (clickOpened ? "BAR-CLICK" : "KEYBOARD fallback")
                << "reopen=" << (reopenClickOpened ? "BAR-CLICK" : "KEYBOARD fallback");
-    // Fresh.
-    QCOMPARE(fileMenu->mask().boundingRect(), QRect(QPoint(0, 0), fileMenu->size()));
-    QVERIFY(!fileMenu->mask().contains(QPoint(0, 0)));
-    QVERIFY(fileMenu->mask().contains(fileMenu->rect().center()));
+    // Fresh native corners, without a second Qt region clipping the DWM
+    // stroke/shadow. This checks the actual Windows corner grant and painted
+    // corner, rather than only the old Qt-mask geometry.
+    int cornerPreference = -2;
+    readDwmWindowAttribute(fileMenu->winId(), 33, &cornerPreference);
+    QCOMPARE(cornerPreference, 2);
+    QCOMPARE(fileMenu->mask().isEmpty(), true);
+    const QImage nativeCorners = nativeWindowFrame(fileMenu->winId());
+    QVERIFY(!nativeCorners.isNull());
+    QCOMPARE(nativeCorners.size(), fileMenu->size());
+    QVERIFY(nativeCorners.pixelColor(0, 0)
+            != nativeCorners.pixelColor(nativeCorners.width() / 2, 0));
     QCOMPARE(fileMenu->property("_winui_menu_mask_retry").isValid(), false);
     QCoreApplication::processEvents();
     QTest::qWait(50);
