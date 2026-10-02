@@ -1767,10 +1767,13 @@ void Style::refreshOwnedPalettes(QWidget *window)
     // surface except the lane; phase 2 then reads the post-phase-1 bar,
     // so calendar -> bar -> lane converges in one pass. Phase-skip
     // predicates match insideCalendarNavigationBar exactly.
-    for (const QPointer<QWidget> &guarded : d->paletteOwners)
+    // PaletteChange handlers can polish or delete children synchronously,
+    // mutating the registry. Keep a stable, guarded snapshot for both phases.
+    const auto paletteOwners = d->paletteOwners;
+    for (const QPointer<QWidget> &guarded : paletteOwners)
         refreshOwnedPalette(guarded.data(), window, applicationPalette, applicationTokens,
                             applicationAccent, darkTheme);
-    refreshCalendarNavigationLanes(window, applicationPalette, d->paletteOwners);
+    refreshCalendarNavigationLanes(window, applicationPalette, paletteOwners);
     // Re-sync transparentized chrome and content islands after the recompute
     // above: the generic owner branches rebase every widget from the opaque
     // application palette, which would clobber the live-material recipe

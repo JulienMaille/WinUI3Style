@@ -21,6 +21,7 @@
 #include <QAbstractItemView>
 #include <QAccessible>
 #include <QCheckBox>
+#include <QCalendarWidget>
 #include <QComboBox>
 #include <QCommandLinkButton>
 #include <QDialog>
@@ -96,6 +97,7 @@ private slots:
     void cleanup();
     void styleMutationRestoration();
     void runtimeExplicitPaletteOwnership();
+    void ownedPaletteRefreshSurvivesOwnerRegistration();
     void accessibilityOwnershipContracts();
     void baseStyleContract();
     void settingsCardExpansion();
@@ -138,6 +140,47 @@ void WinUI3InteractionTest::cleanup()
     if (QWidget *focus = qApp->focusWidget())
         focus->clearFocus();
     qApp->processEvents();
+}
+
+void WinUI3InteractionTest::ownedPaletteRefreshSurvivesOwnerRegistration()
+{
+    // Calendar palette changes can construct/polish children synchronously.
+    // Registration must not invalidate the owner's active refresh traversal.
+    struct RegisterOnPaletteChange final : QObject
+    {
+        QWidget *host = nullptr;
+        bool fired = false;
+        bool eventFilter(QObject *, QEvent *event) override
+        {
+            if (!fired && event->type() == QEvent::PaletteChange) {
+                fired = true;
+                for (int i = 0; i < 256; ++i) {
+                    auto *child = new QLabel(QStringLiteral("New palette owner"), host);
+                    child->ensurePolished();
+                }
+            }
+            return false;
+        }
+    } registration;
+    QWidget host;
+    QCalendarWidget calendar(&host);
+    for (int i = 0; i < 32; ++i) {
+        auto *child = new QLabel(QStringLiteral("Existing palette owner"), &host);
+        child->ensurePolished();
+    }
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    registration.host = &host;
+    calendar.installEventFilter(&registration);
+    host.setProperty("_winui_backdrop", 1);
+    host.setProperty("_winui_backdrop_effective", 2);
+    QVERIFY(registration.fired);
+    QCOMPARE(host.findChildren<QLabel *>(QString(), Qt::FindDirectChildrenOnly).size(), 288);
+    host.setProperty("_winui_backdrop_effective", 0);
+    const QPalette expected = qApp->palette();
+    for (QLabel *child : host.findChildren<QLabel *>(QString(), Qt::FindDirectChildrenOnly))
+        QCOMPARE(child->palette().color(QPalette::Window), expected.color(QPalette::Window));
+    calendar.removeEventFilter(&registration);
 }
 
 void WinUI3InteractionTest::styleMutationRestoration()
