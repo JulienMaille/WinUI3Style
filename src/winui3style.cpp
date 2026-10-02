@@ -107,7 +107,6 @@ Backdrop backdropFromProperty(const QVariant &value)
 }
 
 constexpr auto wizardFooterName = "_winui_wizard_footer_surface";
-constexpr auto implicitPaletteSnapshotProperty = "_winui_implicit_palette_snapshot";
 
 bool hasRuntimePaletteOverride(const QWidget *widget)
 {

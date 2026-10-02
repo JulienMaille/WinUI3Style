@@ -60,6 +60,15 @@ using namespace PaintPrivate;
 namespace {
 
 constexpr auto contentDialogFooterName = "_winui_content_dialog_footer_surface";
+// Mica temporarily changes style-owned surfaces after polish. Its snapshot
+// must not reuse the style's original* properties: those describe the state
+// before polish, not the opaque state immediately before Mica was enabled.
+constexpr auto backdropSurfacePaletteProperty = "_winui_backdrop_surface_palette";
+constexpr auto backdropSurfacePaletteExplicitProperty = "_winui_backdrop_surface_palette_explicit";
+constexpr auto backdropSurfaceAutoFillProperty = "_winui_backdrop_surface_auto_fill";
+constexpr auto backdropSurfaceTranslucentProperty = "_winui_backdrop_surface_translucent";
+constexpr auto backdropSurfaceNoSystemBackgroundProperty = "_winui_backdrop_surface_no_system_background";
+constexpr auto backdropSurfaceStyledBackgroundProperty = "_winui_backdrop_surface_styled_background";
 
 class ContentDialogFooterSurface final : public QWidget
 {
@@ -333,20 +342,55 @@ inline QColor transparentized(const QColor &color, int alpha)
     return result;
 }
 
+void setBackdropPalette(QWidget *surface, const QPalette &palette)
+{
+    // Temporary Mica palettes are style writes, not application overrides.
+    // Keep the implicit-owner snapshot in step so the effective-surface
+    // refresh does not permanently disown scroll-area and shell palettes.
+    const QVariant snapshot = surface->property(implicitPaletteSnapshotProperty);
+    const bool styleOwned = surface->property(ownedPaletteProperty).toBool()
+            && snapshot.isValid() && surface->palette() == snapshot.value<QPalette>();
+    // A parent's Window-role change can also re-resolve palettes on its
+    // children (navigationPanel is a child of centralWidget). Remember only
+    // descendants still matching their style snapshot before that write.
+    QList<QPointer<QWidget>> inheritedOwners;
+    for (QWidget *child : surface->findChildren<QWidget *>()) {
+        const QVariant childSnapshot = child->property(implicitPaletteSnapshotProperty);
+        if (child->property(ownedPaletteProperty).toBool() && childSnapshot.isValid()
+            && child->palette() == childSnapshot.value<QPalette>())
+            inheritedOwners.append(child);
+    }
+    if (styleOwned)
+        surface->setProperty(implicitPaletteSnapshotProperty, QVariant::fromValue(palette));
+    surface->setPalette(palette);
+    if (styleOwned)
+        surface->setProperty(implicitPaletteSnapshotProperty,
+                             QVariant::fromValue(surface->palette()));
+    for (const QPointer<QWidget> &child : inheritedOwners) {
+        if (child)
+            child->setProperty(implicitPaletteSnapshotProperty,
+                               QVariant::fromValue(child->palette()));
+    }
+}
+
 void transparentizeSurface(QWidget *surface)
 {
     if (!surface)
         return;
-    rememberPalette(surface);
-    remember(surface, originalAutoFillProperty, surface->autoFillBackground());
-    remember(surface, originalTranslucentBackgroundProperty,
+    remember(surface, backdropSurfacePaletteProperty, QVariant::fromValue(surface->palette()));
+    remember(surface, backdropSurfacePaletteExplicitProperty,
+             surface->testAttribute(Qt::WA_SetPalette));
+    remember(surface, backdropSurfaceAutoFillProperty, surface->autoFillBackground());
+    remember(surface, backdropSurfaceTranslucentProperty,
              surface->testAttribute(Qt::WA_TranslucentBackground));
-    remember(surface, originalNoSystemBackgroundProperty,
+    remember(surface, backdropSurfaceNoSystemBackgroundProperty,
              surface->testAttribute(Qt::WA_NoSystemBackground));
+    remember(surface, backdropSurfaceStyledBackgroundProperty,
+             surface->testAttribute(Qt::WA_StyledBackground));
     QPalette palette = surface->palette();
     // The Window role reveals the live material; keep text roles intact.
     palette.setColor(QPalette::Window, transparentized(palette.color(QPalette::Window), 0));
-    surface->setPalette(palette);
+    setBackdropPalette(surface, palette);
     // Never auto-fill here: an opaque fill would paint a solid band over
     // the composited material (the white-veil ghost).
     surface->setAutoFillBackground(false);
@@ -356,22 +400,30 @@ void transparentizeSurface(QWidget *surface)
 
 void restoreTransparentizedSurface(QWidget *surface)
 {
-    if (!surface || !surface->property(originalPaletteProperty).isValid())
+    if (!surface || !surface->property(backdropSurfacePaletteProperty).isValid())
         return;
-    restoreRememberedPalette(surface);
-    if (surface->property(originalAutoFillProperty).isValid())
-        surface->setAutoFillBackground(surface->property(originalAutoFillProperty).toBool());
-    if (surface->property(originalTranslucentBackgroundProperty).isValid())
+    if (surface->property(backdropSurfacePaletteExplicitProperty).toBool())
+        setBackdropPalette(surface,
+                           surface->property(backdropSurfacePaletteProperty).value<QPalette>());
+    else
+        setBackdropPalette(surface, QPalette());
+    if (surface->property(backdropSurfaceAutoFillProperty).isValid())
+        surface->setAutoFillBackground(surface->property(backdropSurfaceAutoFillProperty).toBool());
+    if (surface->property(backdropSurfaceTranslucentProperty).isValid())
         surface->setAttribute(Qt::WA_TranslucentBackground,
-                              surface->property(originalTranslucentBackgroundProperty).toBool());
-    if (surface->property(originalNoSystemBackgroundProperty).isValid())
+                              surface->property(backdropSurfaceTranslucentProperty).toBool());
+    if (surface->property(backdropSurfaceNoSystemBackgroundProperty).isValid())
         surface->setAttribute(Qt::WA_NoSystemBackground,
-                              surface->property(originalNoSystemBackgroundProperty).toBool());
-    surface->setProperty(originalPaletteProperty, {});
-    surface->setProperty(originalPaletteExplicitProperty, {});
-    surface->setProperty(originalAutoFillProperty, {});
-    surface->setProperty(originalTranslucentBackgroundProperty, {});
-    surface->setProperty(originalNoSystemBackgroundProperty, {});
+                              surface->property(backdropSurfaceNoSystemBackgroundProperty).toBool());
+    if (surface->property(backdropSurfaceStyledBackgroundProperty).isValid())
+        surface->setAttribute(Qt::WA_StyledBackground,
+                              surface->property(backdropSurfaceStyledBackgroundProperty).toBool());
+    surface->setProperty(backdropSurfacePaletteProperty, {});
+    surface->setProperty(backdropSurfacePaletteExplicitProperty, {});
+    surface->setProperty(backdropSurfaceAutoFillProperty, {});
+    surface->setProperty(backdropSurfaceTranslucentProperty, {});
+    surface->setProperty(backdropSurfaceNoSystemBackgroundProperty, {});
+    surface->setProperty(backdropSurfaceStyledBackgroundProperty, {});
     surface->update();
 }
 
@@ -472,16 +524,13 @@ void syncContentSurfacesForBackdrop(QWidget *window)
     }
 }
 
-// restore alone leaves the content island transparent, so PE_Widget keeps
-// Source-clearing to transparent on an opaque window (retained-frame smear).
-// Restore the remembered surface state, normalize the style background flag,
-// and repaint in that order.
+// Restore the exact pre-Mica style-owned state before repainting. Reverting to
+// the pre-polish state instead would make a content island non-opaque.
 static void restoreBackdropSurface(QWidget *widget)
 {
     if (!widget)
         return;
     restoreTransparentizedForBackdrop(widget);
-    widget->setAttribute(Qt::WA_StyledBackground, false);
     widget->update();
 }
 
@@ -493,10 +542,8 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
     for (QWidget *island : islands) {
         if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
             continue;
-        // restoreTransparentizedSurface returns early for islands that were
-        // never transparentized, so no alpha pre-check is needed here. The
-        // restore helper does not track Styled; normalize back to the
-        // polish-provided opaque state.
+        // The restore helper returns early for never-transparentized islands,
+        // and leaves the style's pre-polish snapshots intact for unpolish.
         restoreBackdropSurface(island);
         // The sync above transparentized the scrolled chain alongside the
         // island: restore every link the same way (each restore is a no-op

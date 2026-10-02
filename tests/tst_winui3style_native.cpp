@@ -10,6 +10,7 @@
 #include <QDialogButtonBox>
 #include <QDockWidget>
 #include <QElapsedTimer>
+#include <QGroupBox>
 #include <QImage>
 #include <QLabel>
 #include <QMainWindow>
@@ -19,11 +20,14 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScreen>
+#include <QScrollArea>
 #include <QScrollBar>
+#include <QStackedWidget>
 #include <QParallelAnimationGroup>
 #include <QSignalSpy>
 #include <QSlider>
 #include <QStyleOptionSlider>
+#include <QStyleFactory>
 #include <QTest>
 #include <QTimer>
 #include <QToolTip>
@@ -107,6 +111,7 @@ private slots:
     void dialogThemeUpdate();
     void captionThemeAfterBackdropDisable_data();
     void captionThemeAfterBackdropDisable();
+    void backdropDisableRestoresOpaqueContent();
     void dockFloatingFocusCleanup();
     void scrollBarNativeInputDiagnostic();
     void sliderToolTipDebounceSurface();
@@ -367,6 +372,120 @@ void WinUI3StyleNativeTest::captionThemeAfterBackdropDisable()
     style->setThemeMode(changeWhileEnabled ? initial : opposite);
     QTRY_COMPARE(attribute(20), int(changeWhileEnabled ? startDark : !startDark));
     QTRY_COMPARE(caption(), style->standardPalette().color(QPalette::Window));
+}
+
+void WinUI3StyleNativeTest::backdropDisableRestoresOpaqueContent()
+{
+    QStyle *pluginStyle = QStyleFactory::create(QStringLiteral("winui3"));
+    QVERIFY(pluginStyle);
+    qApp->setStyle(pluginStyle);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+
+    QMainWindow window;
+    // This test samples the desktop, not just the backing store. Unrelated
+    // foreground windows and their DWM shadows must not cover its probe.
+    window.setWindowFlag(Qt::WindowStaysOnTopHint);
+    window.setGeometry(80, 80, 600, 400);
+    auto *shell = new QWidget(&window);
+    shell->setObjectName(QStringLiteral("centralWidget"));
+    auto *layout = new QVBoxLayout(shell);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *navigation = new QWidget(shell);
+    navigation->setObjectName(QStringLiteral("navigationPanel"));
+    layout->addWidget(navigation);
+    auto *pages = new QStackedWidget(shell);
+    pages->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    auto *area = new QScrollArea(pages);
+    area->setFrameShape(QFrame::NoFrame);
+    area->setWidgetResizable(true);
+    auto *body = new QWidget;
+    body->setMinimumHeight(700);
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->addWidget(new QLabel(QStringLiteral("Controls"), body));
+    auto *card = new QGroupBox(QStringLiteral("Buttons"), body);
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->addWidget(new QPushButton(QStringLiteral("Standard"), card));
+    bodyLayout->addWidget(card);
+    bodyLayout->addStretch();
+    area->setWidget(body);
+    pages->addWidget(area);
+    layout->addWidget(pages);
+    window.setCentralWidget(shell);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const QColor expected = style->standardPalette().color(QPalette::Window);
+    // Probe the margin beside the cards: the body does not cover missing
+    // viewport/page erasure there, unlike a card-center sample.
+    const QPoint probe = area->viewport()->mapToGlobal(
+            QPoint(3, area->viewport()->height() / 2));
+    const QSize contentSize = pages->size();
+    const bool windowPaletteExplicit = window.testAttribute(Qt::WA_SetPalette);
+    const bool pageAutoFill = pages->autoFillBackground();
+    const bool bodyAutoFill = body->autoFillBackground();
+    const bool viewportAutoFill = area->viewport()->autoFillBackground();
+    const auto presented = [&] {
+        QCoreApplication::processEvents();
+        flushNativeCompositor();
+        return DesktopTestFrame::capture(testScreen(&window)).colorAt(probe);
+    };
+    QCOMPARE(window.palette().color(QPalette::Window), expected);
+    QCOMPARE(window.testAttribute(Qt::WA_SetPalette), windowPaletteExplicit);
+    QTRY_VERIFY(colorDistance(presented(), expected) <= 2);
+    QVERIFY(pageAutoFill);
+    QVERIFY(area->property("_winui_theme_owned_palette").toBool());
+    QVERIFY(navigation->property("_winui_theme_owned_palette").toBool());
+
+    window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+    QTRY_COMPARE(window.property("_winui_backdrop_effective").toInt(), 2);
+    QVERIFY(window.property("_winui_theme_owned_palette").toBool());
+    QVERIFY(area->property("_winui_theme_owned_palette").toBool());
+    QVERIFY(navigation->property("_winui_theme_owned_palette").toBool());
+    QCOMPARE(pages->palette().color(QPalette::Window).alpha(), 0);
+    QVERIFY(!pages->autoFillBackground());
+    area->verticalScrollBar()->setValue(100);
+    QCOMPARE(area->verticalScrollBar()->value(), 100);
+    window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+    QCOMPARE(window.property("_winui_backdrop_effective").toInt(), 0);
+    QCOMPARE(window.palette().color(QPalette::Window), expected);
+    QCOMPARE(window.testAttribute(Qt::WA_SetPalette), windowPaletteExplicit);
+    QVERIFY(area->property("_winui_theme_owned_palette").toBool());
+    QVERIFY(navigation->property("_winui_theme_owned_palette").toBool());
+    QCOMPARE(pages->size(), contentSize);
+    QCOMPARE(window.testAttribute(Qt::WA_TranslucentBackground), false);
+    QCOMPARE(pages->autoFillBackground(), pageAutoFill);
+    QCOMPARE(body->autoFillBackground(), bodyAutoFill);
+    QCOMPARE(area->viewport()->autoFillBackground(), viewportAutoFill);
+    QCOMPARE(area->verticalScrollBar()->value(), 100);
+    QTest::qWait(200);
+    const QColor restoredPixel = presented();
+    QCOMPARE(restoredPixel, expected);
+
+    window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+    QTRY_COMPARE(window.property("_winui_backdrop_effective").toInt(), 2);
+    window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+    QCOMPARE(pages->autoFillBackground(), pageAutoFill);
+    QCOMPARE(window.testAttribute(Qt::WA_SetPalette), windowPaletteExplicit);
+    QCOMPARE(presented(), expected);
+
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    const QColor lightSurface = style->standardPalette().color(QPalette::Window);
+    QCOMPARE(qApp->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(window.palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(shell->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(pages->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(area->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(area->viewport()->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(body->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(card->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(navigation->palette().color(QPalette::Window), lightSurface);
+    QCOMPARE(pages->autoFillBackground(), pageAutoFill);
+    QTRY_COMPARE(presented(), lightSurface);
+    area->verticalScrollBar()->setValue(200);
+    QCOMPARE(area->verticalScrollBar()->value(), 200);
+    QTRY_COMPARE(presented(), lightSurface);
 }
 
 void WinUI3StyleNativeTest::dockFloatingFocusCleanup()

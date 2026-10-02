@@ -26,6 +26,7 @@ inline constexpr auto progressPhaseProperty = "_winui_progress_phase";
 inline constexpr auto comboChevronProperty = "_winui_combo_chevron_progress";
 inline constexpr auto originalPaletteProperty = "_winui_original_palette";
 inline constexpr auto originalPaletteExplicitProperty = "_winui_original_palette_explicit";
+inline constexpr auto implicitPaletteSnapshotProperty = "_winui_implicit_palette_snapshot";
 inline constexpr auto originalAutoFillProperty = "_winui_original_auto_fill";
 inline constexpr auto originalHoverAttributeProperty = "_winui_original_hover_attribute";
 inline constexpr auto originalMinimumSizeProperty = "_winui_original_minimum_size";

@@ -283,7 +283,7 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
             : themedWindowColor;
     windowColor.setAlpha(backdrop == Backdrop::None ? 255 : 0);
     materialPalette.setColor(QPalette::Window, windowColor);
-    window->setPalette(materialPalette);
+    Private::setBackdropPalette(window, materialPalette);
     if (backdrop != Backdrop::None && nativeSurface && window->windowType() == Qt::Popup) {
         // Popup convergence (live compositor only; the offscreen fallback
         // below keeps its opaque painted surface): resolve Window/Base on
@@ -306,7 +306,7 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         popupTint.setAlpha(qGray(themedWindowColor.rgb()) < 128 ? 178 : 242);
         materialPalette.setColor(QPalette::Window, popupTint);
         materialPalette.setColor(QPalette::Base, popupTint);
-        window->setPalette(materialPalette);
+        Private::setBackdropPalette(window, materialPalette);
     }
 
     if (!nativeSurface) {
@@ -487,7 +487,7 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
             DwmSetWindowAttribute(hwnd, redirectionBitmapAlphaAttribute, &noRedirectionAlpha,
                                   sizeof(noRedirectionAlpha));
         }
-        window->setPalette(fallback);
+        Private::setBackdropPalette(window, fallback);
     }
     return applied;
 #else

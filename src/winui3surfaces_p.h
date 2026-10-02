@@ -30,6 +30,9 @@ void remember(QWidget *widget, const char *property, const QVariant &value);
 void rememberPalette(QWidget *widget);
 void restoreRememberedPalette(QWidget *widget);
 QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback);
+// A backdrop palette write may re-resolve inherited child palettes. Preserve
+// implicit style ownership for the surface and its still-owned descendants.
+void setBackdropPalette(QWidget *surface, const QPalette &palette);
 
 void stopDialogAnimations(QDialog *dialog);
 void restoreContentDialogState(QDialog *dialog, bool clearSavedState);
