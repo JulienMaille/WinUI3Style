@@ -82,6 +82,7 @@
 #include <QTimer>
 #include <QVector>
 #include <QWidget>
+#include <QWindow>
 
 namespace WinUI3 {
 using namespace PaintPrivate;
@@ -3173,7 +3174,25 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 applyExplicitSurfacePalette(widget);
                 widget->update();
             } else if (change->propertyName() == BackdropProperty && widget->isWindow()) {
-                applyBackdrop(widget, backdropFromProperty(widget->property(BackdropProperty)));
+                const Backdrop requested = backdropFromProperty(widget->property(BackdropProperty));
+                const bool leavingCompositedBackdrop = requested == Backdrop::None
+                        && Private::backdropEffectiveSurface(widget)
+                                   == Private::BackdropSurface::Composited;
+                applyBackdrop(widget, requested);
+                if (leavingCompositedBackdrop) {
+                    // A hidden QMenu can retain its acrylic HWND across the
+                    // owner's Mica transition. DWM then keeps sampling the
+                    // old dark material on later opens even though the Qt
+                    // popup palette and the requested backdrop are unchanged.
+                    // Recreate only those hidden native windows; Qt retains
+                    // the QMenu, actions, parent, and style state.
+                    for (QMenu *menu : widget->findChildren<QMenu *>()) {
+                        if (menu->isWindow() && !menu->isVisible()) {
+                            if (QWindow *native = menu->windowHandle())
+                                native->destroy();
+                        }
+                    }
+                }
                 // Navigation surfaces are transparent only while a real
                 // backdrop is active. Refresh just the opted-in views when a
                 // window changes backdrop so offscreen/opaque windows never

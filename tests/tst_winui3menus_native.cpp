@@ -221,6 +221,7 @@ private slots:
     void initTestCase();
     void cleanup();
     void menuSurface();
+    void menuMicaToggleKeepsPaintedEdges();
     void menuBranchConvergesAcrossSubmenuAndToggle();
     void menuBarChildToggleReopenConverges();
     void menuParentWashDisambiguatesHoverVsSubmenuVsActivation();
@@ -279,6 +280,93 @@ void WinUI3StyleNativeTest::menuSurface()
     QTest::qWait(50);
     QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier, actionRect.center());
     QVERIFY(action->isChecked());
+}
+
+void WinUI3StyleNativeTest::menuMicaToggleKeepsPaintedEdges()
+{
+    // QWidget::grab() excludes DWM's contribution. PrintWindow exposes the
+    // stale acrylic HWND: the popup's native band must return to its initial
+    // color after the owner's Mica ON -> OFF cycle, with the same Qt palette.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QWidget host;
+    host.resize(400, 300);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    QMenu menu(&host);
+    menu.addAction(QStringLiteral("Run normally"));
+    menu.addAction(QStringLiteral("Run with options"));
+    bool captureAvailable = true;
+
+    auto openAndCheck = [&](QColor *presentedFill, QColor *windowRole) {
+        menu.popup(host.mapToGlobal(QPoint(60, 70)));
+        QTRY_VERIFY(menu.isVisible());
+        QVERIFY(settleMenuSweep(&menu));
+        QCOMPARE(menu.contentsMargins(), QMargins(0, 2, 0, 2));
+        int nativeCornerPreference = -2;
+        readDwmWindowAttribute(menu.winId(), 33, &nativeCornerPreference);
+        QCOMPARE(nativeCornerPreference, 2);
+        QCOMPARE(menu.mask().isEmpty(), true);
+        flushNativeCompositor();
+        const QImage frame = nativeWindowFrame(menu.winId());
+        const QImage painted = menu.grab().toImage();
+        if (!frame.isNull() && !painted.isNull())
+            QCOMPARE(frame.size(), painted.size());
+        const int x = frame.width() / 2;
+        const QColor center = frame.isNull() ? QColor() : frame.pixelColor(frame.rect().center());
+        const QColor expectedCenter =
+                painted.isNull() ? QColor() : painted.pixelColor(painted.rect().center());
+        if (!center.isValid() || !expectedCenter.isValid()
+            || qAbs(qGray(center.rgb()) - qGray(expectedCenter.rgb())) > 60) {
+            captureAvailable = false;
+            menu.hide();
+            return;
+        }
+        const QColor top = frame.pixelColor(x, 0);
+        const QColor topFill = frame.pixelColor(x, 2);
+        const QColor bottom = frame.pixelColor(x, frame.height() - 1);
+        const QColor bottomFill = frame.pixelColor(x, frame.height() - 3);
+        if (!top.isValid() || !topFill.isValid() || !bottom.isValid() || !bottomFill.isValid()) {
+            captureAvailable = false;
+            menu.hide();
+            return;
+        }
+        QVERIFY(qGray(top.rgb()) >= qGray(topFill.rgb()) - 20);
+        QVERIFY(qGray(bottom.rgb()) >= qGray(bottomFill.rgb()) - 20);
+        *presentedFill = topFill;
+        *windowRole = menu.palette().color(QPalette::Window);
+        menu.hide();
+        QTRY_VERIFY(!menu.isVisible());
+    };
+
+    QColor initialFill, initialRole, micaFill, micaRole, restoredFill, restoredRole;
+    openAndCheck(&initialFill, &initialRole);
+    if (!captureAvailable)
+        QSKIP("Native window capture unavailable");
+    host.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+    QCoreApplication::processEvents();
+    openAndCheck(&micaFill, &micaRole);
+    if (!captureAvailable)
+        QSKIP("Native window capture unavailable");
+    const WId micaHandle = menu.internalWinId();
+    host.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+    QCoreApplication::processEvents();
+    QVERIFY(menu.windowHandle());
+    QCOMPARE(menu.windowHandle()->handle(), nullptr);
+    openAndCheck(&restoredFill, &restoredRole);
+    if (!captureAvailable)
+        QSKIP("Native window capture unavailable");
+    QCOMPARE(menu.parentWidget(), &host);
+    QCOMPARE(menu.actions().size(), 2);
+    QVERIFY(menu.internalWinId() != micaHandle);
+    QCOMPARE(micaRole, initialRole);
+    QVERIFY(micaFill.isValid());
+    QCOMPARE(restoredRole, initialRole);
+    QVERIFY2(qAbs(qGray(restoredFill.rgb()) - qGray(initialFill.rgb())) <= 2,
+             qPrintable(QStringLiteral("Mica cycle: initial=%1, mica=%2, restored=%3, palette=%4")
+                                .arg(initialFill.name(), micaFill.name(), restoredFill.name(),
+                                     initialRole.name(QColor::HexArgb))));
 }
 
 void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
