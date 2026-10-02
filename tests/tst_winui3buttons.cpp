@@ -112,6 +112,8 @@ private slots:
     void buttonPressedPulseContract();
     void buttonReleaseTimerSurvivesWidgetDeletion();
     void commandLinkButtonContract();
+    void commandLinkPressKeepsContentPosition_data();
+    void commandLinkPressKeepsContentPosition();
     void disabledButtonHasNoInteractionState();
     void toolButtonIconVerticalCenter();
     void toolbarButtonCornerSymmetry();
@@ -780,6 +782,65 @@ void WinUI3ButtonsTest::commandLinkButtonContract()
     withoutDescription.show();
     QVERIFY(QTest::qWaitForWindowExposed(&withoutDescription));
     QVERIFY(withoutDescription.grab().toImage() != enabled);
+}
+
+void WinUI3ButtonsTest::commandLinkPressKeepsContentPosition_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            QTest::newRow(qPrintable(QStringLiteral("%1-%2").arg(dark).arg(compact)))
+                    << dark << compact;
+}
+
+void WinUI3ButtonsTest::commandLinkPressKeepsContentPosition()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QCommandLinkButton command(QStringLiteral("Open settings"), QStringLiteral("Description"));
+    command.setProperty(WinUI3::Style::DensityProperty,
+                        compact ? QStringLiteral("compact") : QStringLiteral("standard"));
+    QPixmap marker(16, 16);
+    marker.fill(Qt::magenta);
+    command.resize(320, 96);
+    command.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&command));
+    QSignalSpy clicked(&command, &QAbstractButton::clicked);
+    QTest::mouseMove(&command, command.rect().center());
+    QTest::qWait(150);
+    // A density StyleChange resets QCommandLinkButton's icon in Qt.
+    // Install the probe after that queued event has settled.
+    command.setIcon(QIcon(marker));
+    QCOMPARE(command.style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, nullptr, &command), 0);
+    const QImage rest = command.grab().toImage();
+    QTest::mousePress(&command, Qt::LeftButton, Qt::NoModifier, command.rect().center());
+    QVERIFY(command.isDown());
+    QCOMPARE(command.style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, nullptr, &command), 0);
+    QCOMPARE(command.style()->pixelMetric(QStyle::PM_ButtonShiftVertical, nullptr, &command), 0);
+    const QImage pressed = command.grab().toImage();
+    const auto markerBounds = [](const QImage &frame) {
+        QRect bounds;
+        for (int y = 0; y < frame.height(); ++y)
+            for (int x = 0; x < frame.width(); ++x)
+                if (frame.pixelColor(x, y) == QColor(Qt::magenta))
+                    bounds |= QRect(x, y, 1, 1);
+        return bounds;
+    };
+    QVERIFY(!markerBounds(rest).isEmpty());
+    QCOMPARE(markerBounds(pressed), markerBounds(rest));
+    QVERIFY(pressed != rest);
+    QTest::mouseRelease(&command, Qt::LeftButton, Qt::NoModifier, command.rect().center());
+    QVERIFY(!command.isDown());
+    QCOMPARE(clicked.size(), 1);
+    QTest::keyPress(&command, Qt::Key_Space);
+    QVERIFY(command.isDown());
+    QCOMPARE(command.style()->pixelMetric(QStyle::PM_ButtonShiftVertical, nullptr, &command), 0);
+    QTest::keyRelease(&command, Qt::Key_Space);
+    QCOMPARE(clicked.size(), 2);
 }
 
 void WinUI3ButtonsTest::disabledButtonHasNoInteractionState()

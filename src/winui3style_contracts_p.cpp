@@ -79,6 +79,11 @@ const QAbstractItemView *selectionMarkerView(const QWidget *widget)
 int pixelMetric(const Style *style, QStyle::PixelMetric metric, const QStyleOption *option,
                 const QWidget *widget)
 {
+    // Qt paints command-link contents itself and applies these metrics
+    // immediately on press. Fluent's button composition keeps content fixed.
+    if ((metric == QStyle::PM_ButtonShiftHorizontal || metric == QStyle::PM_ButtonShiftVertical)
+        && qobject_cast<const QCommandLinkButton *>(widget))
+        return 0;
     if (const auto value = pixelMetricValue(metric, toggleSwitch(widget), widget))
         return *value;
     return style->QProxyStyle::pixelMetric(metric, option, widget);
