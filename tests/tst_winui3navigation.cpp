@@ -100,6 +100,8 @@ private slots:
     void navigationTransition();
     void navigationSelectedStateFill_data();
     void navigationSelectedStateFill();
+    void navigationIconlessTextInset_data();
+    void navigationIconlessTextInset();
     void navigationInteractiveFrames();
     void renderCommonStates();
     void pluginFactory();
@@ -237,6 +239,78 @@ void WinUI3NavigationTest::navigationSelectedStateFill()
     const QPoint sample(150, itemHeight / 2);
     QVERIFY(option.rect.adjusted(2, 2, -2, -2).contains(sample));
     QCOMPARE(actual.pixelColor(sample), expected.pixelColor(sample));
+}
+
+void WinUI3NavigationTest::navigationIconlessTextInset_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            for (bool rtl : { false, true }) {
+                const QByteArray name = QByteArray(dark ? "dark" : "light")
+                        + (compact ? "-compact" : "-standard")
+                        + (rtl ? "-rtl" : "-ltr");
+                QTest::newRow(name.constData()) << dark << compact << rtl;
+            }
+        }
+    }
+}
+
+void WinUI3NavigationTest::navigationIconlessTextInset()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+
+    QListWidget view;
+    view.setProperty(WinUI3::Style::NavigationViewProperty, true);
+    view.setProperty(WinUI3::Style::DensityProperty,
+                     compact ? QStringLiteral("compact") : QStringLiteral("standard"));
+    view.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    view.addItem(QStringLiteral("Home"));
+    view.resize(240, 100);
+    view.show();
+    QCoreApplication::processEvents();
+    view.selectionModel()->clearCurrentIndex();
+    QCOMPARE(view.currentIndex().isValid(), false);
+    QVERIFY(view.item(0)->icon().isNull());
+
+    QStyleOptionViewItem option;
+    option.initFrom(view.viewport());
+    option.widget = view.viewport();
+    option.rect = QRect(0, 0, 220, compact ? 32 : 40);
+    option.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver | QStyle::State_Sunken
+                      | QStyle::State_HasFocus);
+    const QRect expectedTextRect = QStyle::visualRect(
+            option.direction, option.rect, option.rect.adjusted(18, 0, -12, 0));
+    QCOMPARE(rtl ? option.rect.right() - expectedTextRect.right()
+                 : expectedTextRect.left() - option.rect.left(),
+             18);
+    QCOMPARE(option.rect.height(), compact ? 32 : 40);
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(WinUI3::Private::tokens(option.palette).surface);
+    {
+        QPainter painter(&actual);
+        view.itemDelegate()->paint(&painter, option, view.model()->index(0, 0));
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(WinUI3::Private::tokens(option.palette).surface);
+    {
+        QPainter painter(&expected);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+        painter.drawText(expectedTextRect,
+                         QStyle::visualAlignment(option.direction,
+                                                 Qt::AlignLeft | Qt::AlignVCenter),
+                         option.fontMetrics.elidedText(QStringLiteral("Home"), Qt::ElideRight,
+                                                       expectedTextRect.width()));
+    }
+    QVERIFY(actual == expected);
 }
 
 void WinUI3NavigationTest::navigationInteractiveFrames()

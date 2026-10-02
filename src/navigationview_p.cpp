@@ -164,8 +164,11 @@ public:
                             option.state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled);
         }
         painter->setPen(option.state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled);
+        // WinUI's IconCollapsed state narrows IconColumn to 8 px; preserve
+        // the mapped content inset and RTL mirroring at both sites.
+        const int textInset = itemIcon.isNull() ? 18 : 42;
         const QRect textRect = QStyle::visualRect(option.direction, option.rect,
-                                                  option.rect.adjusted(42, 0, -12, 0));
+                                                  option.rect.adjusted(textInset, 0, -12, 0));
         painter->drawText(
                 textRect,
                 QStyle::visualAlignment(option.direction, Qt::AlignLeft | Qt::AlignVCenter),
