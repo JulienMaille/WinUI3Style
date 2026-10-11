@@ -92,8 +92,15 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // explicitly on a direct backdrop: neither this fill nor Qt's
         // auto-fill (deliberately disabled there) erases stale pixels, so
         // resize/expose frames would otherwise leave permanent ghosts.
-        if (eraseForBackdrop(painter, widget, option->rect))
+        // In-card samples keep the card's veiled fill (same guard as the
+        // button panel Fix B): rebuild the card tone after the erase instead
+        // of the recipe-2 transparent return the shell chrome keeps.
+        if (eraseForBackdrop(painter, widget, option->rect)) {
+            if (insideOpaqueCard(widget)) {
+                painter->fillRect(option->rect, cardRefillTone(option->palette, true));
+            }
             return true;
+        }
         painter->fillRect(option->rect, option->palette.brush(QPalette::Window));
         return true;
     }
@@ -142,6 +149,17 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
     }
 
     if (element == QStyle::CE_MenuBarEmptyArea) {
+        // Recipe 2 (mirror PE_PanelMenuBar): on a direct backdrop the erase
+        // reveals the live material, so return with no fill. The
+        // SurfaceProperty-gated Window fill below is the non-Composited
+        // fallback. In-card samples rebuild the card tone instead (same
+        // guard as the button panel Fix B).
+        if (eraseForBackdrop(painter, widget, option->rect)) {
+            if (insideOpaqueCard(widget)) {
+                painter->fillRect(option->rect, cardRefillTone(option->palette, true));
+            }
+            return true;
+        }
         if (widget && widget->property(Style::SurfaceProperty).isValid())
             painter->fillRect(option->rect, widget->palette().color(QPalette::Window));
         return true;
@@ -151,7 +169,15 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
 
     if (element == QStyle::CE_MenuBarItem) {
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
-            if (widget && widget->property(Style::SurfaceProperty).isValid())
+            // Recipe 2 erase-then-fall-through (no early return): clear to
+            // transparent on a direct backdrop, then keep the pill/text
+            // paint below. The opaque rest-fill is the fallback-only path
+            // when the erase gate did not run. In-card samples rebuild the
+            // card tone first (same guard as the button panel Fix B).
+            const bool onBackdrop = eraseForBackdrop(painter, widget, item->rect);
+            if (onBackdrop && insideOpaqueCard(widget))
+                painter->fillRect(item->rect, cardRefillTone(option->palette, true));
+            if (!onBackdrop && widget && widget->property(Style::SurfaceProperty).isValid())
                 painter->fillRect(item->rect, widget->palette().color(QPalette::Window));
             // QMenuBar owns the animation properties, while this option is
             // painted once per QAction. Never let the shared bar progress

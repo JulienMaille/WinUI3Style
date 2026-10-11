@@ -112,6 +112,7 @@ private slots:
     void menuMnemonicConsumesAmpersand();
     void compactMenuBarTextFits();
     void menuBarOnlyActiveActionIsHighlighted();
+    void micaChromePaintersStayTransparent();
     void groupBoxContract();
     void splitterHandleContract();
     void splitterGripPixelAlignment();
@@ -493,6 +494,153 @@ void WinUI3MenusTest::menuBarOnlyActiveActionIsHighlighted()
     const QColor navigationWindow = navigation.palette().color(QPalette::Window);
     QCOMPARE(navigation.palette().color(QPalette::Base), navigationWindow);
     QCOMPARE(navigationWindow.alpha(), 255);
+}
+
+void WinUI3MenusTest::micaChromePaintersStayTransparent()
+{
+    // Recipe-2 chrome contract (mirror PE_PanelMenuBar): the status bar,
+    // tool bar, menu-bar empty area and menu-bar rest item reveal the live
+    // Mica material (transparent rest pixels) under a Composited backdrop
+    // and keep the opaque Window fill without one. Standard/Compact (the
+    // menu-bar row compacts 32 -> 24) x mica off/on; the chrome rects are
+    // explicit option rects so the Compact pass repaints the same states
+    // with Compact insets. Every pixelColor assertion pairs with a
+    // resolved-role alpha QCOMPARE plus a paintsDirectlyOnBackdrop QCOMPARE
+    // on the same mica + density state.
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const auto transparentize = [](QWidget *surface) {
+        QPalette palette = surface->palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        windowColor.setAlpha(0);
+        palette.setColor(QPalette::Window, windowColor);
+        surface->setPalette(palette);
+    };
+    for (const WinUI3::DensityMode density :
+         { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        style->setDensityMode(density);
+        const int expectedRowHeight = density == WinUI3::DensityMode::Compact ? 24 : 32;
+        for (const bool mica : { false, true }) {
+            QMainWindow window;
+            if (mica) {
+                window.setProperty("_winui_backdrop", 1);
+                window.setProperty("_winui_backdrop_effective", 2); // Composited
+            }
+            QMenuBar *menuBar = window.menuBar();
+            QToolBar *toolBar = window.addToolBar(QStringLiteral("Tools"));
+            QStatusBar *statusBar = window.statusBar();
+            menuBar->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("layer"));
+            toolBar->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("layer"));
+            if (mica) {
+                // The backdrop sync transparentizes chrome palettes; emulate it
+                // directly (the DWM-applied branch never runs offscreen).
+                transparentize(menuBar);
+                transparentize(toolBar);
+                transparentize(statusBar);
+            }
+            QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(menuBar), mica);
+            QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(toolBar), mica);
+            QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(statusBar), mica);
+
+            QStyleOption statusOption;
+            statusOption.initFrom(statusBar);
+            statusOption.rect = QRect(0, 0, 120, 20);
+            QImage statusFrame(statusOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            statusFrame.fill(mica ? QColor(255, 0, 0, 255) : Qt::transparent);
+            {
+                QPainter painter(&statusFrame);
+                style->drawPrimitive(QStyle::PE_PanelStatusBar, &statusOption, &painter, statusBar);
+            }
+            QCOMPARE(statusBar->palette().color(QPalette::Window).alpha(), mica ? 0 : 255);
+            if (mica) {
+                // Only the 1px top stroke paints; the rest stays erased.
+                QCOMPARE(statusFrame.pixelColor(60, 10).alpha(), 0);
+                QVERIFY(statusFrame.pixelColor(60, 0).alpha() > 0);
+            } else {
+                QCOMPARE(statusFrame.pixelColor(60, 10),
+                         statusBar->palette().color(QPalette::Window));
+            }
+
+            QStyleOption toolOption;
+            toolOption.initFrom(toolBar);
+            toolOption.rect = QRect(0, 0, 120, 24);
+            QImage toolFrame(toolOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            toolFrame.fill(mica ? QColor(255, 0, 0, 255) : Qt::transparent);
+            {
+                QPainter painter(&toolFrame);
+                style->drawControl(QStyle::CE_ToolBar, &toolOption, &painter, toolBar);
+            }
+            QCOMPARE(toolBar->palette().color(QPalette::Window).alpha(), mica ? 0 : 255);
+            if (mica)
+                QCOMPARE(toolFrame.pixelColor(60, 12).alpha(), 0);
+            else
+                QCOMPARE(toolFrame.pixelColor(60, 12), toolBar->palette().color(QPalette::Window));
+
+            QStyleOption emptyArea;
+            emptyArea.initFrom(menuBar);
+            emptyArea.rect = QRect(0, 0, 160, 32);
+            QImage emptyFrame(emptyArea.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            emptyFrame.fill(mica ? QColor(255, 0, 0, 255) : Qt::transparent);
+            {
+                QPainter painter(&emptyFrame);
+                style->drawControl(QStyle::CE_MenuBarEmptyArea, &emptyArea, &painter, menuBar);
+            }
+            QCOMPARE(menuBar->palette().color(QPalette::Window).alpha(), mica ? 0 : 255);
+            if (mica)
+                QCOMPARE(emptyFrame.pixelColor(150, 16).alpha(), 0);
+            else
+                QCOMPARE(emptyFrame.pixelColor(150, 16),
+                         menuBar->palette().color(QPalette::Window));
+
+            QStyleOptionMenuItem itemOption;
+            itemOption.initFrom(menuBar);
+            // Density-paired geometry: the rest-item rect compacts with the
+            // row (32 -> 24), so Compact repaints a genuinely smaller item.
+            itemOption.rect = QRect(0, 0, 120, expectedRowHeight);
+            QCOMPARE(itemOption.rect.height(), expectedRowHeight);
+            itemOption.state = QStyle::State_Enabled;
+            itemOption.menuItemType = QStyleOptionMenuItem::Normal;
+            itemOption.font = menuBar->font();
+            itemOption.fontMetrics = QFontMetrics(itemOption.font);
+            QImage itemFrame(itemOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            itemFrame.fill(mica ? QColor(255, 0, 0, 255) : Qt::transparent);
+            {
+                QPainter painter(&itemFrame);
+                style->drawControl(QStyle::CE_MenuBarItem, &itemOption, &painter, menuBar);
+            }
+            if (mica) {
+                QCOMPARE(itemFrame.pixelColor(60, itemOption.rect.height() / 2).alpha(), 0);
+            } else {
+                QCOMPARE(itemFrame.pixelColor(60, itemOption.rect.height() / 2),
+                         menuBar->palette().color(QPalette::Window));
+            }
+            if (mica) {
+                // Erase-then-fall-through: a labeled rest item still paints
+                // its text over the freshly erased rect.
+                itemOption.text = QStringLiteral("File");
+                QImage labeledFrame(itemOption.rect.size(), QImage::Format_ARGB32_Premultiplied);
+                labeledFrame.fill(QColor(255, 0, 0, 255));
+                {
+                    QPainter painter(&labeledFrame);
+                    style->drawControl(QStyle::CE_MenuBarItem, &itemOption, &painter, menuBar);
+                }
+                QCOMPARE(labeledFrame.pixelColor(2, 2).alpha(), 0);
+                int ink = 0;
+                for (int y = 0; y < labeledFrame.height(); ++y) {
+                    for (int x = 0; x < labeledFrame.width(); ++x) {
+                        if (labeledFrame.pixelColor(x, y).alpha() > 0)
+                            ++ink;
+                    }
+                }
+                QVERIFY2(ink > 0, "labeled rest item must paint text over the erased rect");
+                // Density pairing: the labeled item keeps its Compact row
+                // height (the insets that compact are inside the same rect).
+                QCOMPARE(itemOption.rect.height(), expectedRowHeight);
+            }
+        }
+    }
+    style->setDensityMode(WinUI3::DensityMode::Standard);
 }
 
 void WinUI3MenusTest::groupBoxContract()

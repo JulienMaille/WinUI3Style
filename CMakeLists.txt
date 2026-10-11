@@ -94,6 +94,14 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
             "Pillow is required for the mandatory WinUI3Style snapshot oracle")
     endif()
     add_test(
+        NAME winui3style_image_comparison_contract
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_image_comparison.py
+    )
+    set_tests_properties(winui3style_image_comparison_contract PROPERTIES
+        LABELS "snapshot;contract"
+    )
+    add_test(
             NAME winui3style_snapshot_matrix
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_snapshot_matrix.py

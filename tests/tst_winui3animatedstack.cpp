@@ -7,8 +7,11 @@
 #include <winui3style/animatedstack.h>
 #include <winui3style/winui3style.h>
 
+#include "winui3testhelpers.h"
+
 #include <QCoreApplication>
 #include <QGraphicsOpacityEffect>
+#include <QImage>
 #include <QLabel>
 #include <QParallelAnimationGroup>
 #include <QPointer>
@@ -26,6 +29,7 @@ private slots:
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
     void animatedStackDeferredReplay();
+    void animatedStackOverlayOverCompositedStaysTransparent();
 };
 
 void WinUI3AnimatedStackTest::initTestCase()
@@ -247,6 +251,95 @@ void WinUI3AnimatedStackTest::animatedStackDeferredReplay()
     // so the original page 2 now lives at index 1.
     QCOMPARE(stack.currentIndex(), 1);
     QCOMPARE(static_cast<QLabel *>(stack.currentWidget())->text(), QStringLiteral("2"));
+}
+
+void WinUI3AnimatedStackTest::animatedStackOverlayOverCompositedStaysTransparent()
+{
+    // Recipe 1 regression: the SnapshotOverlay used to fill an opaque
+    // resolved Window band over a Composited-effective live material during
+    // transitions. Offscreen the compositor never grants Mica, so the test
+    // drives the same state through the published properties: an opaque
+    // page stack on a Composited-effective window (the granted-Mica Gallery
+    // shape: the stack island keeps its opaque Window role while the window
+    // composites the material). The incoming page is a transparentized
+    // content surface (zero-alpha Window role, like a Mica-revealing page),
+    // so its snapshot carries translucent pixels and the overlay must not
+    // force them opaque: no opaque Window band, and the animation must
+    // clean up after itself.
+    // NOTE: window is declared before stack so scope-exit destroys the
+    // child stack first (reparented below), then the window.
+    QWidget window;
+    WinUI3::AnimatedStack stack;
+    stack.setDuration(1000);
+    stack.addWidget(new QLabel(QStringLiteral("First")));
+    auto *incoming = new QLabel(QStringLiteral("Second"));
+    QPalette incomingPalette = incoming->palette();
+    QColor incomingWindow = incomingPalette.color(QPalette::Window);
+    incomingWindow.setAlpha(0);
+    incomingPalette.setColor(QPalette::Window, incomingWindow);
+    incoming->setPalette(incomingPalette);
+    stack.addWidget(incoming);
+    stack.resize(240, 80);
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    stack.setParent(&window);
+    window.resize(320, 160);
+    stack.setGeometry(40, 40, 240, 80);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QCoreApplication::processEvents();
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&stack));
+
+    stack.setCurrentIndex(1);
+    QVERIFY(stack.isAnimating());
+    auto overlays = stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                                  Qt::FindDirectChildrenOnly);
+    QCOMPARE(overlays.size(), 1);
+    QWidget *overlay = overlays.constFirst();
+    // Gate assert paired with the pixel contract below: the transient
+    // overlay paints straight onto the Composited live material, so the
+    // recipe-1 erase must run and the alpha fallback must not force
+    // opaque. The overlay palette itself stays resolved (transient —
+    // never transparentized, so nothing leaks after the animation).
+    QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(overlay), true);
+
+    // Pixel contract: the overlay grab must keep transparent pixels (the
+    // erased backdrop), not an opaque Window band. Paired with the token
+    // assert above and the geometry assert below per the grab() policy.
+    const QPixmap shot = overlay->grab();
+    QVERIFY(!shot.isNull());
+    const QImage frame = shot.toImage();
+    bool hasTransparent = false;
+    for (int y = 0; y < frame.height(); y += 4) {
+        for (int x = 0; x < frame.width(); x += 4) {
+            if (frame.pixelColor(x, y).alpha() < 255) {
+                hasTransparent = true;
+                break;
+            }
+        }
+        if (hasTransparent)
+            break;
+    }
+    QVERIFY2(hasTransparent, "overlay presents an opaque Window band over live Mica");
+
+    // Geometry assert: overlay tracks the stack rect during the transition.
+    QCOMPARE(overlay->geometry(), stack.rect());
+
+    // Animation completes and transient state cleans up.
+    if (auto *group = stack.findChild<QParallelAnimationGroup *>(
+                QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly)) {
+        group->setCurrentTime(group->duration());
+        QCoreApplication::processEvents();
+    }
+    QTRY_VERIFY(!stack.isAnimating());
+    QCOMPARE(stack.findChildren<QParallelAnimationGroup *>(
+                          QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly)
+                     .size(),
+             0);
+    QCOMPARE(stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),
+                                           Qt::FindDirectChildrenOnly)
+                     .size(),
+             0);
 }
 
 QTEST_MAIN(WinUI3AnimatedStackTest)

@@ -45,6 +45,7 @@
 #include <QScrollBar>
 #include <QSlider>
 #include <QStyleOptionSlider>
+#include <QTabWidget>
 #include <QTimer>
 #include <QWidget>
 #include <QWindow>
@@ -458,31 +459,190 @@ void restoreTransparentizedForBackdrop(QWidget *surface)
     restoreTransparentizedSurface(surface);
 }
 
+// Defined below (after the sync entry points): restores the exact pre-Mica
+// style-owned state before repainting. Forward-declared here so the shared
+// scroll-chain/container helpers above can mirror every sync link.
+static void restoreBackdropSurface(QWidget *widget);
+
 void makeChromeSurfacesTransparent(QWidget *window)
 {
     if (!window)
         return;
     // Menu bar, tool bars, status bar: WinUI draws no chrome panels over
-    // Mica; the material shows through and controls float on it.
-    if (QMenuBar *menuBar = window->findChild<QMenuBar *>())
+    // Mica; the material shows through and controls float on it. Every menu
+    // bar is visited (not just the first): nested demo windows carry their
+    // own bars and a singular findChild would arm whichever bar the object
+    // tree yields first, leaving the real menuBar opaque over the material.
+    // In-card samples are skipped: they sit on the card's veiled fill
+    // (recipe 1), so transparentizing them would punch the card to alpha 0.
+    for (QMenuBar *menuBar : window->findChildren<QMenuBar *>()) {
+        if (insideOpaqueCard(menuBar))
+            continue;
         transparentizeSurface(menuBar);
-    for (QToolBar *toolBar : window->findChildren<QToolBar *>())
+    }
+    for (QToolBar *toolBar : window->findChildren<QToolBar *>()) {
+        if (insideOpaqueCard(toolBar))
+            continue;
         transparentizeSurface(toolBar);
-    for (QStatusBar *statusBar : window->findChildren<QStatusBar *>())
+    }
+    for (QStatusBar *statusBar : window->findChildren<QStatusBar *>()) {
+        if (insideOpaqueCard(statusBar))
+            continue;
         transparentizeSurface(statusBar);
+    }
 }
 
 void restoreChromeSurfaces(QWidget *window)
 {
     if (!window)
         return;
-    if (QMenuBar *menuBar = window->findChild<QMenuBar *>())
+    // Restore the saved recipe, even if the application has since reparented
+    // a bar into a card. Never-armed bars are already a no-op.
+    for (QMenuBar *menuBar : window->findChildren<QMenuBar *>()) {
         restoreTransparentizedSurface(menuBar);
-    for (QToolBar *toolBar : window->findChildren<QToolBar *>())
+    }
+    for (QToolBar *toolBar : window->findChildren<QToolBar *>()) {
         restoreTransparentizedSurface(toolBar);
-    for (QStatusBar *statusBar : window->findChildren<QStatusBar *>())
+    }
+    for (QStatusBar *statusBar : window->findChildren<QStatusBar *>()) {
         restoreTransparentizedSurface(statusBar);
+    }
 }
+
+namespace {
+
+// One visual surface for the scrolled chain: the area frame, its viewport,
+// both bars, and the QScrollArea container widget each paint PE_Widget over
+// the live material, so every link gets the same no-fill recipe. The scroll
+// bars join the chain too: bars carry style-owned explicit palettes (polish
+// registers palette owners, the theme refresh writes them), so they never
+// inherit the island's transparentized roles. An unarmed bar keeps its opaque
+// Window role and the CC_ScrollBar painter takes the Window-fill fallback
+// over the live material.
+// Card interiors take a partial arm (reviewer 2026-10-06 tree-selection
+// overlay): the viewport's auto-filled Base layer would double over the card
+// veil, so only the autofill stops (roles stay intact for tone reads) and
+// the viewport repaints the card tone itself via PE (erase + Source refill,
+// smear-safe). Bars keep their own paint paths untouched.
+constexpr auto cardViewportAutoFillProperty = "_winui_card_viewport_autofill";
+constexpr auto cardViewportStyledProperty = "_winui_card_viewport_styled";
+constexpr auto cardViewportOpaqueProperty = "_winui_card_viewport_opaque";
+
+void restoreScrollChain(QAbstractScrollArea *area);
+
+void transparentizeScrollChain(QAbstractScrollArea *area)
+{
+    if (!area)
+        return;
+    // A reparent can change the recipe during an active backdrop. Return the
+    // old arm first so the next snapshot never captures temporary attributes.
+    const bool inCard = insideOpaqueCard(area);
+    if ((inCard && area->property(backdropSurfacePaletteProperty).isValid())
+        || (!inCard && area->viewport()
+            && area->viewport()->property(cardViewportAutoFillProperty).isValid()))
+        restoreScrollChain(area);
+    if (inCard) {
+        // NavigationView-marked views keep their own recipe
+        // (prepareNavigationSurface leaves in-card nav opaque + autofilled):
+        // never second-guess it here.
+        if (!area->property(Style::NavigationViewProperty).toBool()) {
+            if (QWidget *viewport = area->viewport()) {
+                remember(viewport, cardViewportAutoFillProperty, viewport->autoFillBackground());
+                remember(viewport, cardViewportStyledProperty,
+                         viewport->testAttribute(Qt::WA_StyledBackground));
+                remember(viewport, cardViewportOpaqueProperty,
+                         viewport->testAttribute(Qt::WA_OpaquePaintEvent));
+                viewport->setAutoFillBackground(false);
+                viewport->setAttribute(Qt::WA_StyledBackground, true);
+                viewport->setAttribute(Qt::WA_OpaquePaintEvent, false);
+                viewport->update();
+            }
+        }
+        return;
+    }
+    guardIslandScrollArea(area);
+    transparentizeForBackdrop(area);
+    if (QWidget *viewport = area->viewport())
+        transparentizeForBackdrop(viewport);
+    if (QScrollBar *verticalBar = area->verticalScrollBar())
+        transparentizeForBackdrop(verticalBar);
+    if (QScrollBar *horizontalBar = area->horizontalScrollBar())
+        transparentizeForBackdrop(horizontalBar);
+    if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
+        if (QWidget *container = scrollArea->widget())
+            transparentizeForBackdrop(container);
+    }
+}
+
+void restoreScrollChain(QAbstractScrollArea *area)
+{
+    // Mirror of the partial in-card arm above: every restore is likewise a
+    // no-op for widgets that were never armed.
+    if (!area)
+        return;
+    if (QWidget *viewport = area->viewport()) {
+        if (viewport->property(cardViewportAutoFillProperty).isValid())
+            viewport->setAutoFillBackground(
+                    viewport->property(cardViewportAutoFillProperty).toBool());
+        if (viewport->property(cardViewportStyledProperty).isValid())
+            viewport->setAttribute(Qt::WA_StyledBackground,
+                                   viewport->property(cardViewportStyledProperty).toBool());
+        if (viewport->property(cardViewportOpaqueProperty).isValid())
+            viewport->setAttribute(Qt::WA_OpaquePaintEvent,
+                                   viewport->property(cardViewportOpaqueProperty).toBool());
+        viewport->setProperty(cardViewportAutoFillProperty, {});
+        viewport->setProperty(cardViewportStyledProperty, {});
+        viewport->setProperty(cardViewportOpaqueProperty, {});
+        viewport->update();
+    }
+    // Each restore is a no-op for widgets that were never transparentized.
+    restoreBackdropSurface(area);
+    if (QWidget *viewport = area->viewport())
+        restoreBackdropSurface(viewport);
+    if (QScrollBar *verticalBar = area->verticalScrollBar())
+        restoreBackdropSurface(verticalBar);
+    if (QScrollBar *horizontalBar = area->horizontalScrollBar())
+        restoreBackdropSurface(horizontalBar);
+    if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
+        if (QWidget *container = scrollArea->widget())
+            restoreBackdropSurface(container);
+    }
+    area->update();
+}
+
+// Card keep-opaque gate for the generic container walk below: group cards,
+// SettingsCards, the explicit palette preview, the inline calendar frame and
+// the QTabWidget pane/pages own their surface fill by design and must never
+// punch through to Mica. Delegates to the shared structural card walk so the
+// sync, the PE_Widget erase guard and the range-control erases agree on one
+// definition.
+bool keepOpaqueContainer(const QWidget *widget)
+{
+    if (!widget)
+        return true;
+    return isCardSurface(widget);
+}
+
+// Generic container links that sit directly on the material with no card:
+// plain QFrame panels inside the dockHost subtree and bare StyledPanel links.
+// Links inside a card (QTabWidget pane/pages, viewports under a group card)
+// are gated out too: the card fill owns that surface. Each link is
+// transparentized through the same helper so toggle-off restore returns it.
+void transparentizeBareContainer(QWidget *widget)
+{
+    if (!widget || keepOpaqueContainer(widget) || insideOpaqueCard(widget))
+        return;
+    transparentizeForBackdrop(widget);
+}
+
+void restoreBareContainer(QWidget *widget)
+{
+    if (!widget)
+        return;
+    restoreBackdropSurface(widget);
+}
+
+} // namespace
 
 void syncContentSurfacesForBackdrop(QWidget *window)
 {
@@ -497,36 +657,39 @@ void syncContentSurfacesForBackdrop(QWidget *window)
     for (QWidget *island : islands) {
         if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
             continue;
-        for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>()) {
-            guardIslandScrollArea(area);
-            // The area frame, its viewport, and its container widget are one
-            // visual surface with the island: every link paints PE_Widget over
-            // the live material, so every link gets the same no-fill recipe.
-            // Without this the Controls-heading band above the first card
-            // keeps its opaque fill and ghosts exactly like the island did
-            // (healed only by resize). Scroll areas and viewports are armed,
-            // not skipped: the queued guard repaint covers their blit smear,
-            // and the toggle-off restore below returns every link.
-            // The scroll bars join the chain too: bars carry style-owned
-            // explicit palettes (polish registers palette owners, the theme
-            // refresh writes them), so they never inherit the island's
-            // transparentized roles. An unarmed bar keeps its opaque Window
-            // role and the CC_ScrollBar painter takes the Window-fill
-            // fallback over the live material.
-            transparentizeForBackdrop(area);
-            if (QWidget *viewport = area->viewport())
-                transparentizeForBackdrop(viewport);
-            if (QScrollBar *verticalBar = area->verticalScrollBar())
-                transparentizeForBackdrop(verticalBar);
-            if (QScrollBar *horizontalBar = area->horizontalScrollBar())
-                transparentizeForBackdrop(horizontalBar);
-            if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
-                if (QWidget *container = scrollArea->widget())
-                    transparentizeForBackdrop(container);
-            }
-        }
+        // The area frame, its viewport, and its container widget are one
+        // visual surface with the island: without the chain the
+        // Controls-heading band above the first card keeps its opaque fill
+        // and ghosts exactly like the island did (healed only by resize).
+        // Scroll areas and viewports are armed, not skipped: the queued
+        // guard repaint covers their blit smear, and the toggle-off restore
+        // below returns every link.
+        for (QAbstractScrollArea *area : island->findChildren<QAbstractScrollArea *>())
+            transparentizeScrollChain(area);
         if (auto *islandArea = qobject_cast<QAbstractScrollArea *>(island))
             guardIslandScrollArea(islandArea);
+        // Generic container links under the island (plain dockHost frames,
+        // bare StyledPanel links): same recipe so they stop banding over the
+        // live material. Cards keep their fill by design — that now includes
+        // the QTabWidget pane/pages visited below (gated out inside the
+        // helper), whose PE_FrameTabWidget lays the veiled card tone.
+        for (QTabWidget *tabs : island->findChildren<QTabWidget *>()) {
+            transparentizeBareContainer(tabs);
+            if (QWidget *pane = tabs->widget(tabs->currentIndex()))
+                transparentizeBareContainer(pane);
+        }
+        if (QWidget *dockHost = island->findChild<QWidget *>(QStringLiteral("dockHost"))) {
+            for (QFrame *frame : dockHost->findChildren<QFrame *>())
+                transparentizeBareContainer(frame);
+        }
+        // Bare QFrame::StyledPanel links (gallery density/footer panels):
+        // neither QTabWidget panes, nor dockHost frames, nor card-gated
+        // containers, so the QCommonStyle Window-role fill would stay opaque
+        // over the material. Same card gate via the helper.
+        for (QFrame *frame : island->findChildren<QFrame *>()) {
+            if (frame->frameShape() == QFrame::StyledPanel)
+                transparentizeBareContainer(frame);
+        }
         if (island->palette().color(QPalette::Window).alpha() == 0)
             continue;
         transparentizeSurface(island);
@@ -542,6 +705,28 @@ void syncContentSurfacesForBackdrop(QWidget *window)
         transparentizeForBackdrop(central);
         if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel")))
             transparentizeForBackdrop(nav);
+        // Bare scroll areas under the shell (navigationList and friends):
+        // not under any opted-in island, so the loop above never visits
+        // them. Same scrolled-chain recipe with the blit guard on each area.
+        for (QAbstractScrollArea *area : central->findChildren<QAbstractScrollArea *>())
+            transparentizeScrollChain(area);
+        // Tab panes (card surfaces) and dock frames under the shell follow
+        // the same card gate as the island links above.
+        for (QTabWidget *tabs : central->findChildren<QTabWidget *>()) {
+            transparentizeBareContainer(tabs);
+            if (QWidget *pane = tabs->widget(tabs->currentIndex()))
+                transparentizeBareContainer(pane);
+        }
+        if (QWidget *dockHost = central->findChild<QWidget *>(QStringLiteral("dockHost"))) {
+            for (QFrame *frame : dockHost->findChildren<QFrame *>())
+                transparentizeBareContainer(frame);
+        }
+        // Bare QFrame::StyledPanel links under the shell (same gallery
+        // panels when no opted-in island covers them).
+        for (QFrame *frame : central->findChildren<QFrame *>()) {
+            if (frame->frameShape() == QFrame::StyledPanel)
+                transparentizeBareContainer(frame);
+        }
     }
 }
 
@@ -570,25 +755,21 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
         // island: restore every link the same way (each restore is a no-op
         // for widgets that were never transparentized).
         const QList<QAbstractScrollArea *> areas = island->findChildren<QAbstractScrollArea *>();
-        for (QAbstractScrollArea *area : areas) {
-            restoreBackdropSurface(area);
-            if (QWidget *viewport = area->viewport()) {
-                restoreBackdropSurface(viewport);
-            }
-            // Every bar armed by the sync above is returned the same way
-            // (each restore is a no-op for bars that were never armed).
-            if (QScrollBar *verticalBar = area->verticalScrollBar()) {
-                restoreBackdropSurface(verticalBar);
-            }
-            if (QScrollBar *horizontalBar = area->horizontalScrollBar()) {
-                restoreBackdropSurface(horizontalBar);
-            }
-            if (auto *scrollArea = qobject_cast<QScrollArea *>(area)) {
-                if (QWidget *container = scrollArea->widget()) {
-                    restoreBackdropSurface(container);
-                }
-            }
-            area->update();
+        for (QAbstractScrollArea *area : areas)
+            restoreScrollChain(area);
+        for (QTabWidget *tabs : island->findChildren<QTabWidget *>()) {
+            restoreBareContainer(tabs);
+            for (int index = 0; index < tabs->count(); ++index)
+                restoreBareContainer(tabs->widget(index));
+        }
+        if (QWidget *dockHost = island->findChild<QWidget *>(QStringLiteral("dockHost"))) {
+            for (QFrame *frame : dockHost->findChildren<QFrame *>())
+                restoreBareContainer(frame);
+        }
+        // Mirrors the bare StyledPanel sync above (no-op if never armed).
+        for (QFrame *frame : island->findChildren<QFrame *>()) {
+            if (frame->frameShape() == QFrame::StyledPanel)
+                restoreBareContainer(frame);
         }
     }
     // Shell links transparentized by the sync above (no-ops if never armed).
@@ -596,6 +777,22 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
         restoreBackdropSurface(central);
         if (auto *nav = central->findChild<QWidget *>(QStringLiteral("navigationPanel"))) {
             restoreBackdropSurface(nav);
+        }
+        for (QAbstractScrollArea *area : central->findChildren<QAbstractScrollArea *>())
+            restoreScrollChain(area);
+        for (QTabWidget *tabs : central->findChildren<QTabWidget *>()) {
+            restoreBareContainer(tabs);
+            for (int index = 0; index < tabs->count(); ++index)
+                restoreBareContainer(tabs->widget(index));
+        }
+        if (QWidget *dockHost = central->findChild<QWidget *>(QStringLiteral("dockHost"))) {
+            for (QFrame *frame : dockHost->findChildren<QFrame *>())
+                restoreBareContainer(frame);
+        }
+        // Mirrors the bare StyledPanel shell sync above.
+        for (QFrame *frame : central->findChildren<QFrame *>()) {
+            if (frame->frameShape() == QFrame::StyledPanel)
+                restoreBareContainer(frame);
         }
     }
 }
@@ -1394,15 +1591,8 @@ void preparePopupSurface(QWidget *widget)
     }
     const bool comboPopup = qobject_cast<QComboBox *>(popup->parentWidget());
     if (comboPopup) {
-        // WinUI DropdownContentMargin: the popup surface has a four-pixel
-        // breathing room above and below the first/last item. Keep this on
-        // the popup window so the view's item geometry stays stable between
-        // first show and subsequent popup cycles.
-        remember(popup, originalMarginsProperty, QVariant::fromValue(popup->contentsMargins()));
-        popup->setContentsMargins(0, 4, 0, 4);
-        // The selected-row anchor is computed in the same Show dispatch. Make
-        // the new inset effective now so the first opening uses the exact same
-        // viewport offset as every later opening.
+        // The inset is installed by polish before Qt computes the height.
+        // Flush layout before anchoring without changing policy during Show.
         if (QLayout *layout = popup->layout())
             layout->activate();
     }

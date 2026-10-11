@@ -36,10 +36,12 @@ def compare(reference: Path, candidate: Path, diff: Path | None) -> Metrics:
         1 for pixel in pixels if pixel != (0, 0, 0, 0)
     )
     max_delta = max((max(pixel) for pixel in pixels), default=0)
+    # Include all RGBA channels: equal alpha must not hide RGB changes,
+    # and an RGB projection must not discard alpha-only or mixed bounds.
     if diff:
         diff.parent.mkdir(parents=True, exist_ok=True)
         delta.save(diff)
-    return Metrics(rms, differing_pixels, max_delta, delta.getbbox(), expected.size)
+    return Metrics(rms, differing_pixels, max_delta, delta.getbbox(alpha_only=False), expected.size)
 
 
 def main() -> int:

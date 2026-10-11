@@ -136,7 +136,7 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                  ancestor = ancestor->parentWidget()) {
                 if (!qobject_cast<const QGroupBox *>(ancestor))
                     continue;
-                roundedRect(painter, QRectF(option->rect), veiledCard(t.layer, true),
+                roundedRect(painter, QRectF(option->rect), cardRefillTone(option->palette, true),
                             Qt::transparent, ControlRadius);
                 break;
             }
@@ -160,8 +160,22 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         // No radius clip: the fill below repaints the full frame shape every
         // pass, so a clipped erase would leave stale hover pixels outside
         // the rounded path (the accumulate-contract failure).
-        if (!calendarPopupButton)
-            eraseForBackdrop(painter, widget, option->rect);
+        const bool erasedForBackdrop =
+                !calendarPopupButton && eraseForBackdrop(painter, widget, option->rect);
+        // Cards carry no SurfaceProperty, so the gate inside eraseForBackdrop
+        // cannot see them (same blind spot as the slider/scrollbar and
+        // PE_Widget erases): when the Source-clear DID run it just dropped the
+        // card tone this button sits on, and the translucent control fill
+        // below would composite over alpha 0 instead of the card's veiled
+        // layer (the Dialogs-page band reads white@15 over bare material in
+        // Dark Mica). Rebuild the card tone first — full rect, so the corner
+        // pixels the rounded control surface does not reach keep the card fill
+        // too — then lay the state surface on top, exactly like the
+        // Subtle/Navigation rest branch above. When no erase ran (NONE, a
+        // refused/painted backdrop, a card in an opaque window) nothing is
+        // repainted and the card's own fill keeps compositing unchanged.
+        if (erasedForBackdrop && insideOpaqueCard(widget))
+            painter->fillRect(option->rect, cardRefillTone(option->palette, true));
         const bool textHelper = textBoxHelperButton(widget);
         const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
                 && qobject_cast<const QToolBar *>(widget->parentWidget());

@@ -578,9 +578,7 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
     } else {
         const QPalette palette = ownedPaletteForWidget(widget, window, applicationPalette,
                                                        applicationTokens, applicationAccent);
-        if (widget->property(implicitPaletteSnapshotProperty).isValid())
-            widget->setProperty(implicitPaletteSnapshotProperty, QVariant::fromValue(palette));
-        widget->setPalette(palette);
+        Private::setBackdropPalette(widget, palette);
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
     }
@@ -2048,9 +2046,37 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         return;
     }
 
+    if (element == PE_Widget && widget && Private::isCardViewport(widget)
+        && Private::eraseForBackdrop(painter, widget, option->rect)) {
+        // In-card scroll viewport (reviewer 2026-10-06 tree-selection
+        // overlay): the viewport's auto-filled Base layer would double over
+        // the card veil, so the sync stops the autofill and the viewport
+        // repaints the card tone itself here — erase plus Source replace
+        // (exact tone, never layered, smear-safe on scroll exposes).
+        // Roles stay intact for tone reads; bars and plain containers keep
+        // their own paths. Must precede the card-interior guard below,
+        // which would otherwise return without painting (stale blits).
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(option->rect, Private::veiledCard(t.layer, true));
+        painter->restore();
+        return;
+    }
+
+    if (element == PE_Widget && widget && Private::insideOpaqueCard(widget)) {
+        // Card interiors own their surface: the card already painted its
+        // veiled fill (CC_GroupBox / PE_FrameTabWidget / the SettingsCard
+        // frame), and Qt dispatches PE_Widget here for any child with
+        // WA_StyledBackground. The Source-clear below would punch that fill
+        // to alpha 0 (the Dialogs-page holes; same guard as the slider and
+        // scrollbar erases). Return without painting so the card fill the
+        // parent already laid survives, and so this skipped primitive never
+        // falls through to the coveredPrimitive assert.
+        return;
+    }
+
     if (element == PE_Widget && widget
         && Private::eraseForBackdrop(painter, widget, option->rect, Private::ControlRadius)) {
-        // Erase to transparent on every paint over a live material: Qt's
         // erase is disabled here (StyledBackground, no autofill) and neither
         // the island nor its descendants repaint fully on scroll/hover/page
         // switches, so shifted frames accumulate as permanent smear until a
@@ -2064,6 +2090,32 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         // for them.
         if (widget->palette().color(QPalette::Window).alpha() == 0)
             return;
+        if (widget->window()->windowType() == Qt::Popup) {
+            // Recipe 1 completion for a granted popup backdrop: PE_PanelMenu
+            // has already laid the ONE popup tint over the DWM acrylic
+            // (preparePopupSurface re-tints Window/Base to it, 178 Dark /
+            // 242 Light) and this erase just Source-cleared a child rect
+            // inside it. Without the refill the view/viewport tail stays
+            // alpha 0 — the fully transparent band behind the last
+            // combo-popup rows. Source-fill the SAME tint, clipped to the
+            // popup's rounded surface (OverlayRadius, mapped into widget
+            // coordinates) so the corner cutouts outside the flyout keep
+            // their transparency, then return; NONE never reaches this
+            // branch because the gate is false without a granted backdrop.
+            const QColor tint = widget->palette().color(QPalette::Window);
+            const QWidget *popup = widget->window();
+            const QPoint origin = widget->mapTo(popup, QPoint(0, 0));
+            const QRect surface(-origin, popup->size());
+            painter->save();
+            QPainterPath clip;
+            clip.addRoundedRect(QRectF(surface), Private::OverlayRadius, Private::OverlayRadius);
+            // Intersect, never replace: dirty-region clips arrive already set.
+            painter->setClipPath(clip, Qt::IntersectClip);
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(option->rect, tint);
+            painter->restore();
+            return;
+        }
     }
 
     if (element == PE_FrameFocusRect) {
@@ -2088,6 +2140,15 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     }
 
     if (element == PE_PanelStatusBar) {
+        // Recipe 2 (mirror PE_PanelMenuBar): reveal the live material under
+        // a composited backdrop. Erase first; on a direct backdrop paint
+        // only the 1px top stroke and return transparent with no Window
+        // fill. The opaque fill below is the non-Composited fallback.
+        if (Private::eraseForBackdrop(painter, widget, option->rect)) {
+            painter->setPen(QPen(t.stroke, 1));
+            painter->drawLine(option->rect.topLeft(), option->rect.topRight());
+            return;
+        }
         painter->fillRect(option->rect, option->palette.color(QPalette::Window));
         painter->setPen(QPen(t.stroke, 1));
         painter->drawLine(option->rect.topLeft(), option->rect.topRight());
@@ -2125,7 +2186,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
             const QColor fill = !editorEnabled ? t.controlDisabled
                     : focused                  ? t.editorFocusedFill
                               : (option->state & State_MouseOver ? t.controlHover : t.control);
-            controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
+            Private::eraseForBackdrop(painter, widget, option->rect, Private::ControlRadius);
+            controlSurface(painter, option->rect,
+                           Private::veiledCard(fill, Private::paintsDirectlyOnBackdrop(widget)),
+                           t.stroke, t.strokeSecondary, Private::ControlRadius);
             if (focused)
                 drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill,
                                          ControlRadius);
@@ -2160,6 +2224,7 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     if (Private::drawButtonControl(this, element, option, painter, widget))
         return;
     using namespace Private;
+    const Tokens t = tokens(option->palette);
     // Same erase as PE_Widget below: any control painting straight onto the
     // live material through a translucent island must rebuild from
     // transparent first. CE paths never reach the PE_Widget branch, so the
@@ -2168,9 +2233,15 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     // non-Composited fallbacks, so unrelated controls are untouched.
     if (element == CE_PushButton || element == CE_PushButtonLabel || element == CE_CheckBox
         || element == CE_CheckBoxLabel || element == CE_RadioButton
-        || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel)
-        Private::eraseForBackdrop(painter, widget, option->rect);
-    const Tokens t = tokens(option->palette);
+        || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel) {
+        // Same erase as PE_Widget below (see above): this must run even
+        // when the widget sits inside an opaque card, because the card
+        // tone it just cleared is rebuilt below (the button Fix-B mirror):
+        // without the refill the indicator/text paint leaves alpha 0.
+        const bool erasedForBackdrop = Private::eraseForBackdrop(painter, widget, option->rect);
+        if (erasedForBackdrop && Private::insideOpaqueCard(widget))
+            painter->fillRect(option->rect, Private::cardRefillTone(option->palette, true));
+    }
     if (element == CE_ProgressBar) {
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
             drawControl(CE_ProgressBarGroove, bar, painter, widget);
@@ -2206,6 +2277,13 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
                 : 0.0;
         QColor fill = mix(t.control, t.controlHover, hover * (1.0 - press));
         fill = mix(fill, t.controlPressed, press);
+        // Cards veil over a live material (VeiledCardAlpha, same recipe as
+        // CC_GroupBox): an opaque card bands over Mica. Erase first so
+        // hover frames cannot accumulate, then veil; off-material the fill
+        // stays opaque as before.
+        Private::eraseForBackdrop(painter, widget, option->rect, Private::OverlayRadius);
+        if (Private::paintsDirectlyOnBackdrop(widget))
+            fill.setAlpha(qMin(fill.alpha(), Private::VeiledCardAlpha));
         controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
         if (keyboardFocusVisible(widget)) {
             painter->save();
@@ -2378,6 +2456,12 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
     }
 
     if (element == CE_ToolBar) {
+        // Recipe 2 (mirror PE_PanelMenuBar): on a direct backdrop the erase
+        // reveals the live material, so return with no fill. The
+        // SurfaceProperty-gated Window fill below is the non-Composited
+        // fallback.
+        if (Private::eraseForBackdrop(painter, widget, option->rect))
+            return;
         if (widget && widget->property(SurfaceProperty).isValid())
             painter->fillRect(option->rect, widget->palette().color(QPalette::Window));
         return;
@@ -2580,8 +2664,14 @@ void Style::polish(QWidget *widget)
 
     polishCalendarWidget(widget);
 
-    if (qobject_cast<QComboBox *>(widget))
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
         framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
+        // Install DropdownContentMargin before Qt negotiates popup geometry.
+        // Mutating it during Show clips rows and requires a second resize.
+        QWidget *popup = combo->view()->window();
+        remember(popup, originalMarginsProperty, QVariant::fromValue(popup->contentsMargins()));
+        popup->setContentsMargins(0, 4, 0, 4);
+    }
 
     polishMenuMargins(widget);
 
@@ -2640,8 +2730,11 @@ void Style::polishTableViewSelectionPalette(QWidget *widget)
 
 void Style::polishNavigationView(QWidget *widget)
 {
-    if (auto *view = qobject_cast<QAbstractItemView *>(widget))
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+        d->registerPaletteOwner(view);
+        d->registerPaletteOwner(view->viewport());
         NavigationPrivate::prepareNavigationView(view);
+    }
 }
 
 void Style::polishProgressBar(QWidget *widget)
@@ -3037,8 +3130,10 @@ void Style::unpolish(QWidget *widget)
         if (widget->property(originalNoSystemBackgroundProperty).isValid())
             widget->setAttribute(Qt::WA_NoSystemBackground,
                                  widget->property(originalNoSystemBackgroundProperty).toBool());
-        if (widget->property(originalMarginsProperty).isValid() && !qobject_cast<QDialog *>(widget))
+        if (widget->property(originalMarginsProperty).isValid()
+            && !qobject_cast<QDialog *>(widget)) {
             widget->setContentsMargins(widget->property(originalMarginsProperty).value<QMargins>());
+        }
         if (auto *list = qobject_cast<QListView *>(widget))
             if (widget->property(originalListSpacingProperty).isValid())
                 list->setSpacing(widget->property(originalListSpacingProperty).toInt());

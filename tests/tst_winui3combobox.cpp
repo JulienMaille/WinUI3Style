@@ -99,6 +99,8 @@ private slots:
     void cleanup();
     void themeComboSizingContract();
     void comboPopupContract();
+    void comboPopupOuterGeometry_data();
+    void comboPopupOuterGeometry();
     void comboPopupSelectedItemKeepsIcon();
     void comboReleaseActivationAndMarkerMotion();
     void comboPopupAssociationLifecycle();
@@ -383,6 +385,74 @@ void WinUI3ComboBoxTest::comboPopupContract()
     QTest::mouseClick(combo.view()->viewport(), Qt::LeftButton, Qt::NoModifier, second.center());
     QCOMPARE(combo.currentIndex(), 1);
     style->setAccentColor({});
+}
+
+void WinUI3ComboBoxTest::comboPopupOuterGeometry_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("count");
+    QTest::addColumn<int>("selected");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            for (int count : { 2, 3 })
+                for (int selected : { 0, 1 }) {
+                    const QByteArray name = QByteArray(dark ? "dark" : "light")
+                            + (compact ? "-compact-" : "-standard-") + QByteArray::number(count)
+                            + "-selected-" + QByteArray::number(selected);
+                    QTest::newRow(name.constData()) << dark << compact << count << selected;
+                }
+}
+
+void WinUI3ComboBoxTest::comboPopupOuterGeometry()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(int, count);
+    QFETCH(int, selected);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QWidget host;
+    host.resize(560, 440);
+    QComboBox combo(&host);
+    WinUI3::Style::setDensityMode(
+            &combo, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    for (int i = 0; i < count; ++i)
+        combo.addItem(QStringLiteral("Item %1").arg(i));
+    combo.setCurrentIndex(selected);
+    combo.setGeometry(120, 180, 200, compact ? 24 : 32);
+    host.show();
+    QTRY_VERIFY(host.isVisible());
+    auto *view = combo.view();
+    auto *popup = view->window();
+    PopupGeometryProbe probe;
+    probe.combo = &combo;
+    probe.popup = popup;
+    popup->installEventFilter(&probe);
+    const int rowHeight = compact ? 32 : 40;
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        probe.reset();
+        combo.showPopup();
+        QTRY_VERIFY(view->isVisible());
+        QTest::qWait(300);
+        const QRect viewport(view->viewport()->mapTo(popup, QPoint()), view->viewport()->size());
+        QCOMPARE(popup->contentsMargins(), QMargins(0, 4, 0, 4));
+        QCOMPARE(popup->height(), count * rowHeight + 8);
+        QCOMPARE(viewport.top(), 4);
+        QCOMPARE(popup->height() - viewport.bottom() - 1, 4);
+        QCOMPARE(viewport.height(), count * rowHeight);
+        QCOMPARE(view->verticalScrollBar()->maximum(), 0);
+        for (int i = 0; i < count; ++i) {
+            const QRect row = view->visualRect(combo.model()->index(i, 0));
+            QCOMPARE(row.top(), i * rowHeight);
+            QCOMPARE(row.height(), rowHeight);
+            QVERIFY(view->viewport()->rect().contains(row));
+        }
+        QCOMPARE(popup->height(), probe.geometryAtShow.height());
+        QCOMPARE(probe.resizesAfterShow, 0);
+        combo.hidePopup();
+    }
 }
 
 void WinUI3ComboBoxTest::comboPopupSelectedItemKeepsIcon()

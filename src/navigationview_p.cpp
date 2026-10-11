@@ -6,6 +6,7 @@
 #include "winui3density_p.h"
 #include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
+#include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
 
 #include <winui3style/winui3icons.h>
@@ -140,7 +141,11 @@ public:
         // delegate to repaint them, so the previous selection fill/indicator
         // otherwise remains in the backing store after currentRow changes.
         // Clear this row's pixels with Source composition before rebuilding it.
-        if (m_view && m_view->palette().color(QPalette::Base).alpha() == 0)
+        // In-card samples keep the card's veiled fill (never transparentized
+        // by prepareNavigationSurface): a Source-clear there would punch the
+        // card tone to alpha 0, so skip the erase inside an opaque card.
+        if (m_view && !Private::insideOpaqueCard(m_view)
+            && m_view->palette().color(QPalette::Base).alpha() == 0)
             Private::eraseForBackdrop(painter, m_view, option.rect);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
@@ -282,6 +287,13 @@ void prepareNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !view->viewport() || !state)
         return;
+    // In-card samples sit on the card's veiled fill, never on the bare
+    // material: never transparentize them. Restore a previously saved surface
+    // (a no-op when nothing was saved) so a reparented view converges.
+    if (Private::insideOpaqueCard(view)) {
+        restoreNavigationSurface(view, state);
+        return;
+    }
     // An explicit surface is an application override (for example a list on
     // an opaque content card).  Only the default NavigationView surface is
     // transparent so a top-level Mica backdrop can show through.
@@ -309,11 +321,12 @@ void prepareNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
     state->surfaceStateSaved = true;
 
     QPalette transparent = view->palette();
-    transparent.setColor(QPalette::Base, Qt::transparent);
-    transparent.setColor(QPalette::Window, Qt::transparent);
-    view->setPalette(transparent);
+    transparent.setColor(QPalette::Base, Private::withAlpha(transparent.color(QPalette::Base), 0));
+    transparent.setColor(QPalette::Window,
+                         Private::withAlpha(transparent.color(QPalette::Window), 0));
+    Private::setBackdropPalette(view, transparent);
     view->setFrameShape(QFrame::NoFrame);
-    view->viewport()->setPalette(transparent);
+    Private::setBackdropPalette(view->viewport(), transparent);
     view->viewport()->setAutoFillBackground(false);
     view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
 }
@@ -322,11 +335,12 @@ void restoreNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !state || !state->surfaceStateSaved)
         return;
-    view->setPalette(state->viewPaletteExplicit ? state->viewPalette : QPalette());
+    Private::setBackdropPalette(view, state->viewPaletteExplicit ? state->viewPalette : QPalette());
     view->setFrameShape(state->frameShape);
     if (view->viewport()) {
-        view->viewport()->setPalette(state->viewportPaletteExplicit ? state->viewportPalette
-                                                                    : QPalette());
+        Private::setBackdropPalette(view->viewport(),
+                                    state->viewportPaletteExplicit ? state->viewportPalette
+                                                                   : QPalette());
         view->viewport()->setAutoFillBackground(state->viewportAutoFill);
         view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, state->viewportOpaque);
     }
@@ -385,8 +399,25 @@ void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *stat
 
 void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
 {
+    if (!view || !view->viewport())
+        return;
     auto *state = navigationState(view, false);
-    if (!state || !state->surfaceStateSaved || !view->viewport())
+    if (!state || !state->surfaceStateSaved) {
+        // A restored style-owned palette remains explicit and must follow
+        // later theme changes. Keep inherited surfaces inherited: installing
+        // their palette here changes WA_SetPalette and breaks restoration.
+        if (view->property(Private::ownedPaletteProperty).toBool()
+            && view->testAttribute(Qt::WA_SetPalette))
+            Private::setBackdropPalette(view, palette);
+        if (view->viewport()->property(Private::ownedPaletteProperty).toBool()
+            && view->viewport()->testAttribute(Qt::WA_SetPalette))
+            Private::setBackdropPalette(view->viewport(), palette);
+        return;
+    }
+    // In-card samples were never transparentized (see prepare above): a
+    // rebase must not arm them here (e.g. a view moved into a card after a
+    // top-level transparentize).
+    if (Private::insideOpaqueCard(view))
         return;
     // Keep the saved ownership flags: rebasing a temporary material palette
     // must not turn inherited colors into application overrides on restore.
@@ -397,9 +428,11 @@ void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
     const auto refresh = [&palette](QWidget *widget, const QPalette &saved) {
         QPalette transparent =
                 widget->property(WinUI3::Private::ownedPaletteProperty).toBool() ? palette : saved;
-        transparent.setColor(QPalette::Base, Qt::transparent);
-        transparent.setColor(QPalette::Window, Qt::transparent);
-        widget->setPalette(transparent);
+        transparent.setColor(QPalette::Base,
+                             Private::withAlpha(transparent.color(QPalette::Base), 0));
+        transparent.setColor(QPalette::Window,
+                             Private::withAlpha(transparent.color(QPalette::Window), 0));
+        Private::setBackdropPalette(widget, transparent);
     };
     refresh(view, state->viewPalette);
     refresh(view->viewport(), state->viewportPalette);

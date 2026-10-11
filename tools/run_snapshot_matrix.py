@@ -44,7 +44,8 @@ def compare_images(left: Path, right: Path, name: str) -> None:
                 f"{name}: dimension mismatch {left_rgba.size} != {right_rgba.size}"
             )
         delta = ImageChops.difference(left_rgba, right_rgba)
-        bbox = delta.getbbox()
+        # Include RGB and alpha changes in the same bounds.
+        bbox = delta.getbbox(alpha_only=False)
         if bbox is None:
             return
         pixels = delta.get_flattened_data()

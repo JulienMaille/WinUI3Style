@@ -28,6 +28,7 @@
 #include <QHoverEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
+#include <QLayout>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMouseEvent>
@@ -717,18 +718,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             }
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
+            const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
             if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
-                // Qt computes the container height from its rows before the
-                // WinUI 4px top/bottom inset is installed. Extend the outer
-                // popup during Show so the inset cannot shrink the viewport
-                // and force a late selected-row scroll.
-                const bool offscreen =
-                        QGuiApplication::platformName() == QStringLiteral("offscreen");
-                if (!offscreen) {
-                    const QMargins margins = widget->contentsMargins();
-                    widget->resize(widget->width(),
-                                   widget->height() + margins.top() + margins.bottom());
-                }
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
                 if (!offscreen)

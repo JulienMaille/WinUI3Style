@@ -30,7 +30,19 @@ inline QColor veiledCard(const QColor &layer, bool onBackdrop)
     card.setAlpha(qMin(card.alpha(), VeiledCardAlpha));
     return card;
 }
-
+// In-card erase-then-fill refill tone: the card parent paints while enabled,
+// so its fill resolves Active Base with a min-clamp veil (veiledCard, the
+// same recipe CC_GroupBox paints). The child option palette may carry the
+// Disabled group (dark Disabled Base is white@8); force-clamping that role
+// would produce white@178 — an opaque light slab over dark Mica. Reading the
+// Active group reproduces the card tone exactly. Same faint-role caution as
+// the scrollbar groove
+// (disabledBarGrooveKeepsRoleAlpha): never force alpha onto a faint role,
+// never read tone from a Disabled-group palette.
+inline QColor cardRefillTone(const QPalette &palette, bool onBackdrop)
+{
+    return veiledCard(palette.color(QPalette::Active, QPalette::Base), onBackdrop);
+}
 struct Tokens
 {
     bool dark = false;

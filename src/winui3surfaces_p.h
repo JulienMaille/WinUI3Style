@@ -61,8 +61,11 @@ void applyMenuRoundedMask(QMenu *menu);
 // islands follow under the full-Mica contract. Both are no-ops for
 // windows without matching descendants, and restore returns every
 // touched widget to its remembered palette, attributes and autofill.
-void makeChromeSurfacesTransparent(QWidget *window);
-void restoreChromeSurfaces(QWidget *window);
+// Exported for the offscreen mechanism tests (same seam as the content
+// sync below): the DWM-applied branch that calls the chrome chain never
+// runs offscreen, so tests drive make/restore directly.
+WINUI3STYLE_EXPORT void makeChromeSurfacesTransparent(QWidget *window);
+WINUI3STYLE_EXPORT void restoreChromeSurfaces(QWidget *window);
 // Exported for the offscreen mechanism tests (same seam as the exported
 // FramePropertyRegistry): the DWM-applied branch that calls the chain below
 // never runs offscreen, so tests drive sync/restore directly.
