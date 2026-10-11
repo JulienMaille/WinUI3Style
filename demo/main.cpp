@@ -26,14 +26,14 @@ int main(int argc, char *argv[])
                                      QStringLiteral("Write deterministic light/dark gallery PNGs."),
                                      QStringLiteral("directory"));
     parser.addOption(captureOption);
-    QCommandLineOption fontPixelSizeOption(QStringLiteral("font-pixel-size"),
-                                           QStringLiteral("Override the application font size for visual QA."),
-                                           QStringLiteral("pixels"));
+    QCommandLineOption fontPixelSizeOption(
+            QStringLiteral("font-pixel-size"),
+            QStringLiteral("Override the application font size for visual QA."),
+            QStringLiteral("pixels"));
     parser.addOption(fontPixelSizeOption);
     QCommandLineOption backdropOption(QStringLiteral("backdrop"),
                                       QStringLiteral("Backdrop type: none or mica."),
-                                      QStringLiteral("type"),
-                                      QStringLiteral("none"));
+                                      QStringLiteral("type"), QStringLiteral("none"));
     parser.addOption(backdropOption);
     parser.process(application);
 
@@ -62,11 +62,12 @@ int main(int argc, char *argv[])
     window.resize(1180, 780);
     window.show();
     if (captureMode) {
-        QTimer::singleShot(250, &application, [&application, &window, &parser, captureOption, backdropOption] {
-            const bool saved = window.saveSnapshots(parser.value(captureOption),
-                                                   parser.value(backdropOption));
-            application.exit(saved ? 0 : 2);
-        });
+        QTimer::singleShot(250, &application,
+                           [&application, &window, &parser, captureOption, backdropOption] {
+                               const bool saved = window.saveSnapshots(
+                                       parser.value(captureOption), parser.value(backdropOption));
+                               application.exit(saved ? 0 : 2);
+                           });
     }
     return application.exec();
 }

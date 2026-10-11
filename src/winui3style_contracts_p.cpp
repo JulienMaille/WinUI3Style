@@ -114,10 +114,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size.setWidth(qMax(size.width(), 32));
         // Preserve the WinUI template for its default font, but an
         // application-supplied larger font needs enough room for its ink.
-        size.setHeight(qMax(density.buttonHeight,
-                            option ? option->fontMetrics.height()
-                                            + 2 * density.buttonVerticalPadding
-                                   : size.height()));
+        size.setHeight(
+                qMax(density.buttonHeight,
+                     option ? option->fontMetrics.height() + 2 * density.buttonVerticalPadding
+                            : size.height()));
         break;
     case QStyle::CT_ComboBox:
         if (densityModeFor(widget) == DensityMode::Compact) {
@@ -132,10 +132,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         } else {
             // Preserve the established Standard geometry pixel-for-pixel.
             size += QSize(2 * density.comboHorizontalPadding, 2 * density.comboVerticalPadding);
-            size.setHeight(qMax(density.comboBoxHeight,
-                                option ? option->fontMetrics.height()
-                                                + 2 * density.comboVerticalPadding
-                                       : size.height()));
+            size.setHeight(
+                    qMax(density.comboBoxHeight,
+                         option ? option->fontMetrics.height() + 2 * density.comboVerticalPadding
+                                : size.height()));
         }
         if (const auto *combo = qobject_cast<const QComboBox *>(widget);
             combo && option && size.width() > 0) {
@@ -177,10 +177,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         } else {
             size += QSize(2 * density.lineEditHorizontalPadding,
                           2 * density.lineEditVerticalPadding);
-            size.setHeight(qMax(density.textBoxHeight,
-                                option ? option->fontMetrics.height()
-                                                + 2 * density.lineEditVerticalPadding
-                                       : size.height()));
+            size.setHeight(
+                    qMax(density.textBoxHeight,
+                         option ? option->fontMetrics.height() + 2 * density.lineEditVerticalPadding
+                                : size.height()));
         }
         break;
     case QStyle::CT_SpinBox:

@@ -247,8 +247,7 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                 // transparentized, only Window is, so the tone is intact),
                 // then lay the pill over it. Outside cards the bare erase
                 // stands (recipe-2 material reveal).
-                if (eraseForBackdrop(painter, widget, option->rect)
-                    && insideOpaqueCard(widget)) {
+                if (eraseForBackdrop(painter, widget, option->rect) && insideOpaqueCard(widget)) {
                     // Source (replace), not SourceOver: the erase above may
                     // have been clipped away at rounded corners elsewhere in
                     // the frame, and layering the tone over the card's own
@@ -569,8 +568,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->save();
             // Veil over a live material (VeiledCardAlpha, same recipe as
             // CC_GroupBox): erase-then-opaque still bands over Mica.
-            painter->fillRect(dock->rect,
-                              veiledCard(t.layer, paintsDirectlyOnBackdrop(widget)));
+            painter->fillRect(dock->rect, veiledCard(t.layer, paintsDirectlyOnBackdrop(widget)));
             painter->setPen(t.stroke);
             if (dock->verticalTitleBar)
                 painter->drawLine(dock->rect.topRight(), dock->rect.bottomRight());
@@ -699,8 +697,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->drawText(
                     textRect,
                     QStyle::visualAlignment(tab->direction, Qt::AlignLeft | Qt::AlignVCenter),
-                    painter->fontMetrics().elidedText(tab->text, Qt::ElideRight,
-                                                     textRect.width()));
+                    painter->fontMetrics().elidedText(tab->text, Qt::ElideRight, textRect.width()));
             painter->restore();
             return true;
         }
@@ -785,7 +782,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                     QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
                             | Qt::TextSingleLine,
                     painter->fontMetrics().elidedText(header->text, Qt::ElideRight,
-                                                     content.width()));
+                                                      content.width()));
             painter->restore();
             return true;
         }

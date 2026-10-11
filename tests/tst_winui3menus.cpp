@@ -575,8 +575,7 @@ void WinUI3MenusTest::micaChromePaintersStayTransparent()
             if (mica)
                 QCOMPARE(toolFrame.pixelColor(60, 12).alpha(), 0);
             else
-                QCOMPARE(toolFrame.pixelColor(60, 12),
-                         toolBar->palette().color(QPalette::Window));
+                QCOMPARE(toolFrame.pixelColor(60, 12), toolBar->palette().color(QPalette::Window));
 
             QStyleOption emptyArea;
             emptyArea.initFrom(menuBar);

@@ -183,12 +183,11 @@ void WinUI3AutoSuggestNativeTest::galleryAutoSuggestInteraction()
 
     QFETCH(int, theme);
     QFETCH(bool, compact);
-    qApp->setStyle(new WinUI3::Style(theme == 1 ? WinUI3::ThemeMode::Light
-                                               : WinUI3::ThemeMode::Dark));
+    qApp->setStyle(
+            new WinUI3::Style(theme == 1 ? WinUI3::ThemeMode::Light : WinUI3::ThemeMode::Dark));
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
-    style->setDensityMode(compact ? WinUI3::DensityMode::Compact
-                                  : WinUI3::DensityMode::Standard);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     GalleryWindow window;
     window.resize(1180, 780);
     window.move(60, 60);

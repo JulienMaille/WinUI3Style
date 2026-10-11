@@ -333,7 +333,7 @@ void WinUI3AnimatedStackTest::animatedStackOverlayOverCompositedStaysTransparent
     }
     QTRY_VERIFY(!stack.isAnimating());
     QCOMPARE(stack.findChildren<QParallelAnimationGroup *>(
-                         QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly)
+                          QStringLiteral("_winui_animated_stack_group"), Qt::FindDirectChildrenOnly)
                      .size(),
              0);
     QCOMPARE(stack.findChildren<QWidget *>(QStringLiteral("_winui_animated_stack_overlay"),

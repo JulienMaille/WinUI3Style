@@ -97,8 +97,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // of the recipe-2 transparent return the shell chrome keeps.
         if (eraseForBackdrop(painter, widget, option->rect)) {
             if (insideOpaqueCard(widget)) {
-                painter->fillRect(option->rect,
-                                  cardRefillTone(option->palette, true));
+                painter->fillRect(option->rect, cardRefillTone(option->palette, true));
             }
             return true;
         }
@@ -157,8 +156,7 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
         // guard as the button panel Fix B).
         if (eraseForBackdrop(painter, widget, option->rect)) {
             if (insideOpaqueCard(widget)) {
-                painter->fillRect(option->rect,
-                                  cardRefillTone(option->palette, true));
+                painter->fillRect(option->rect, cardRefillTone(option->palette, true));
             }
             return true;
         }

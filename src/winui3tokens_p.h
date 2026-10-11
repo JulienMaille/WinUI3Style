@@ -30,37 +30,19 @@ inline QColor veiledCard(const QColor &layer, bool onBackdrop)
     card.setAlpha(qMin(card.alpha(), VeiledCardAlpha));
     return card;
 }
-// Card fills over a live material composite to the designed veil exactly:
-// the standard Base layer is itself translucent (76 dark / 128 light), so
-// min-clamping would wash the card out to raw wallpaper instead of reading
-// as a card. Off-material the layer passes through unchanged, like
-// veiledCard. Only for card containers and the in-card refills that rebuild
-// their tone; generic translucent surfaces keep veiledCard.
-inline QColor cardVeil(const QColor &layer, bool onBackdrop)
-{
-    if (!onBackdrop)
-        return layer;
-    QColor card = layer;
-    card.setAlpha(VeiledCardAlpha);
-    return card;
-}
 // In-card erase-then-fill refill tone: the card parent paints while enabled,
 // so its fill resolves Active Base with a min-clamp veil (veiledCard, the
 // same recipe CC_GroupBox paints). The child option palette may carry the
-// Disabled group (dark Disabled Base is white@8); feeding that to cardVeil()
-// forces white@178 — the opaque light slab over dark Mica (disabled button /
-// command-link defect). Reading the Active group reproduces the card tone
-// exactly. Same faint-role caution as the scrollbar groove
+// Disabled group (dark Disabled Base is white@8); force-clamping that role
+// would produce white@178 — an opaque light slab over dark Mica. Reading the
+// Active group reproduces the card tone exactly. Same faint-role caution as
+// the scrollbar groove
 // (disabledBarGrooveKeepsRoleAlpha): never force alpha onto a faint role,
 // never read tone from a Disabled-group palette.
 inline QColor cardRefillTone(const QPalette &palette, bool onBackdrop)
 {
     return veiledCard(palette.color(QPalette::Active, QPalette::Base), onBackdrop);
 }
-// Shell navigation pane veil was retired 2026-10-06 (reviewer: uniform
-// mica): the pane and the palette preview stay on the bare material like
-// every surface whose NONE background is implicit.
-
 struct Tokens
 {
     bool dark = false;
@@ -143,16 +125,6 @@ inline bool windowIsDark(const QColor &window)
 {
     const qreal luma = 0.2126 * window.red() + 0.7152 * window.green() + 0.0722 * window.blue();
     return luma < 128.0;
-}
-// Theme truth for transparentized palettes: backdrop syncs zero the Window
-// role (often to Qt::transparent, luma 0) while text roles stay intact, so
-// windowIsDark over such a palette always misreads dark. Standard themes use
-// black-on-light / white-on-dark ink, hence the inversion. Use ONLY where
-// the Window role may be transparentized (nav/pane veils); opaque palettes
-// keep windowIsDark.
-inline bool navThemeDark(const QColor &ink)
-{
-    return !windowIsDark(ink);
 }
 // Opaque flyout/toolbar surface, derived from the palette Window color with a
 // fixed per-theme lift so popup and window fills keep their WinUI relationship

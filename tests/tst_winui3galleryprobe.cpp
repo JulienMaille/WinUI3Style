@@ -85,14 +85,12 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         qApp->processEvents();
         auto *nav = mica.findChild<QListWidget *>(QStringLiteral("standardDensityNav"));
         auto *menu = mica.findChild<QMenuBar *>(QStringLiteral("standardDensityMenu"));
-        auto *password =
-                mica.findChild<QLineEdit *>(QStringLiteral("standardDensityPassword"));
+        auto *password = mica.findChild<QLineEdit *>(QStringLiteral("standardDensityPassword"));
         auto *compactNav = mica.findChild<QListWidget *>(QStringLiteral("compactDensityNav"));
         auto *compactMenu = mica.findChild<QMenuBar *>(QStringLiteral("compactDensityMenu"));
         auto *compactPassword =
                 mica.findChild<QLineEdit *>(QStringLiteral("compactDensityPassword"));
-        auto *group =
-                mica.findChild<QGroupBox *>(QStringLiteral("densityComparisonGroup"));
+        auto *group = mica.findChild<QGroupBox *>(QStringLiteral("densityComparisonGroup"));
         auto *search = mica.findChild<QLineEdit *>(QStringLiteral("searchSettings"));
         auto *preview = mica.findChild<QWidget *>(QStringLiteral("palettePreview"));
         auto *previewEdit = mica.findChild<QLineEdit *>(QStringLiteral("previewEdit"));
@@ -113,8 +111,8 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         QVERIFY(!WinUI3::Private::insideOpaqueCard(previewEdit));
         // Token pair: the group card tone is the min-clamp veil of the Base
         // layer (dedicated CC_GroupBox painter, reverted 178 experiment).
-        const QColor cardTone = WinUI3::Private::veiledCard(
-                WinUI3::Private::tokens(group->palette()).layer, true);
+        const QColor cardTone =
+                WinUI3::Private::veiledCard(WinUI3::Private::tokens(group->palette()).layer, true);
         QCOMPARE(cardTone.alpha(), group->palette().color(QPalette::Base).alpha());
         // NONE twin: same construction, no backdrop path at all.
         GalleryWindow none;
@@ -170,7 +168,7 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         QImage grab = renderWindow();
         QCOMPARE(grab.size(), mica.size());
         QVERIFY(grab.pixelColor(probeInWindow(nav->viewport(), QPoint(4, rowRect.center().y())))
-                       .alpha()
+                        .alpha()
                 != 0);
         // Row 8 sample: menu bar keeps its fill over the card.
         QAction *fileAction = menu->actions().value(0);
@@ -186,10 +184,9 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         controlsPage->ensureWidgetVisible(password);
         qApp->processEvents();
         grab = renderWindow();
-        QVERIFY(
-                grab.pixelColor(probeInWindow(password, passwordRect.center())).alpha() != 0);
+        QVERIFY(grab.pixelColor(probeInWindow(password, passwordRect.center())).alpha() != 0);
         QVERIFY(grab.pixelColor(probeInWindow(password, QPoint(0, passwordRect.height() / 2)))
-                       .alpha()
+                        .alpha()
                 != 0);
         // Compact twins (same densityComparisonGroup card): rest row, menu
         // action, and password editor keep the card composite in Compact
@@ -202,7 +199,7 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         grab = renderWindow();
         QVERIFY(grab.pixelColor(probeInWindow(compactNav->viewport(),
                                               QPoint(4, compactRowRect.center().y())))
-                       .alpha()
+                        .alpha()
                 != 0);
         QAction *compactFileAction = compactMenu->actions().value(0);
         QVERIFY(compactFileAction);
@@ -218,30 +215,29 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         qApp->processEvents();
         grab = renderWindow();
         QVERIFY(grab.pixelColor(probeInWindow(compactPassword, compactPasswordRect.center()))
-                               .alpha()
-                       != 0);
+                        .alpha()
+                != 0);
         QVERIFY(grab.pixelColor(probeInWindow(compactPassword,
                                               QPoint(0, compactPasswordRect.height() / 2)))
-                       .alpha()
+                        .alpha()
                 != 0);
         // Shell search box: border + fill present under Mica (never scrolled).
         grab = renderWindow();
         QVERIFY(grab.pixelColor(probeInWindow(search, QPoint(0, search->rect().height() / 2)))
-                       .alpha()
+                        .alpha()
                 != 0);
         QVERIFY(grab.pixelColor(probeInWindow(search, search->rect().center())).alpha() != 0);
         // Live interaction states take different paint branches (hover
         // fills). Hover a nav row with real events, then re-probe: any
         // in-card branch that erases without the card refill shows here.
         controlsPage->ensureWidgetVisible(nav);
-        QTest::mouseMove(nav->viewport(),
-                         nav->visualItemRect(nav->item(0)).center());
+        QTest::mouseMove(nav->viewport(), nav->visualItemRect(nav->item(0)).center());
         qApp->processEvents();
         QImage liveGrab(mica.size(), QImage::Format_ARGB32_Premultiplied);
         liveGrab.fill(Qt::transparent);
         mica.render(&liveGrab);
         QVERIFY(liveGrab.pixelColor(probeInWindow(nav->viewport(), QPoint(4, rowRect.center().y())))
-                       .alpha()
+                        .alpha()
                 != 0);
         // Palette Lab page: the preview card + editor keep the card tone.
         QStackedWidget *nonePages = none.findChild<QStackedWidget *>(QStringLiteral("pages"));
@@ -260,8 +256,8 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         const QPoint editCenter = previewEdit->mapTo(&mica, previewEdit->rect().center());
         QVERIFY(QRect(QPoint(0, 0), mica.size()).contains(editCenter));
         QVERIFY(labGrab.pixelColor(editCenter).alpha() != 0);
-        const QPoint bareCard = preview->mapTo(
-                &mica, QPoint(preview->width() / 2, preview->height() - 8));
+        const QPoint bareCard =
+                preview->mapTo(&mica, QPoint(preview->width() / 2, preview->height() - 8));
         QVERIFY(QRect(QPoint(0, 0), mica.size()).contains(bareCard));
         // Bare preview strip: uniform material, never a veil.
         QCOMPARE(labGrab.pixelColor(bareCard).alpha(), 0);

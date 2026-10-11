@@ -68,8 +68,10 @@ constexpr auto backdropSurfacePaletteProperty = "_winui_backdrop_surface_palette
 constexpr auto backdropSurfacePaletteExplicitProperty = "_winui_backdrop_surface_palette_explicit";
 constexpr auto backdropSurfaceAutoFillProperty = "_winui_backdrop_surface_auto_fill";
 constexpr auto backdropSurfaceTranslucentProperty = "_winui_backdrop_surface_translucent";
-constexpr auto backdropSurfaceNoSystemBackgroundProperty = "_winui_backdrop_surface_no_system_background";
-constexpr auto backdropSurfaceStyledBackgroundProperty = "_winui_backdrop_surface_styled_background";
+constexpr auto backdropSurfaceNoSystemBackgroundProperty =
+        "_winui_backdrop_surface_no_system_background";
+constexpr auto backdropSurfaceStyledBackgroundProperty =
+        "_winui_backdrop_surface_styled_background";
 
 class ContentDialogFooterSurface final : public QWidget
 {
@@ -269,8 +271,8 @@ void applyMenuRoundedMask(QMenu *menu)
         constexpr DWORD cornerPreferenceAttribute = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
         DWORD preference = 0;
         if (SUCCEEDED(DwmGetWindowAttribute(reinterpret_cast<HWND>(menu->winId()),
-                                           cornerPreferenceAttribute, &preference,
-                                           sizeof(preference)))
+                                            cornerPreferenceAttribute, &preference,
+                                            sizeof(preference)))
             && preference == 2) { // DWMWCP_ROUND
             if (!menu->mask().isEmpty())
                 menu->clearMask();
@@ -367,8 +369,8 @@ void setBackdropPalette(QWidget *surface, const QPalette &palette)
     // Keep the implicit-owner snapshot in step so the effective-surface
     // refresh does not permanently disown scroll-area and shell palettes.
     const QVariant snapshot = surface->property(implicitPaletteSnapshotProperty);
-    const bool styleOwned = surface->property(ownedPaletteProperty).toBool()
-            && snapshot.isValid() && surface->palette() == snapshot.value<QPalette>();
+    const bool styleOwned = surface->property(ownedPaletteProperty).toBool() && snapshot.isValid()
+            && surface->palette() == snapshot.value<QPalette>();
     // A parent's Window-role change can also re-resolve palettes on its
     // children (navigationPanel is a child of centralWidget). Remember only
     // descendants still matching their style snapshot before that write.
@@ -432,8 +434,9 @@ void restoreTransparentizedSurface(QWidget *surface)
         surface->setAttribute(Qt::WA_TranslucentBackground,
                               surface->property(backdropSurfaceTranslucentProperty).toBool());
     if (surface->property(backdropSurfaceNoSystemBackgroundProperty).isValid())
-        surface->setAttribute(Qt::WA_NoSystemBackground,
-                              surface->property(backdropSurfaceNoSystemBackgroundProperty).toBool());
+        surface->setAttribute(
+                Qt::WA_NoSystemBackground,
+                surface->property(backdropSurfaceNoSystemBackgroundProperty).toBool());
     if (surface->property(backdropSurfaceStyledBackgroundProperty).isValid())
         surface->setAttribute(Qt::WA_StyledBackground,
                               surface->property(backdropSurfaceStyledBackgroundProperty).toBool());

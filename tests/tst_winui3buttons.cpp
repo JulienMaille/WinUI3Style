@@ -1144,8 +1144,7 @@ void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
     // veiled refill CC_GroupBox paints — cardRefillTone, not a forced-178
     // veil) instead of an opaque button fill: the group card shows straight
     // through, never a wiped mica hole.
-    QCOMPARE(image.pixelColor(6, 6),
-             WinUI3::Private::cardRefillTone(subtle.palette(), true));
+    QCOMPARE(image.pixelColor(6, 6), WinUI3::Private::cardRefillTone(subtle.palette(), true));
     QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer, QColor::fromRgb(255, 255, 255, 128));
 }
 

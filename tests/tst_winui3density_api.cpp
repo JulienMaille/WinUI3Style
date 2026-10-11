@@ -195,8 +195,8 @@ void WinUI3DensityApiTest::largeFontControlSizing_data()
 void WinUI3DensityApiTest::largeFontControlSizing()
 {
     QFETCH(bool, compact);
-    WinUI3::Style style(WinUI3::ThemeMode::Light, compact ? WinUI3::DensityMode::Compact
-                                                        : WinUI3::DensityMode::Standard);
+    WinUI3::Style style(WinUI3::ThemeMode::Light,
+                        compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     QWidget parent;
     parent.setStyle(&style);
     QFont large = parent.font();
@@ -237,10 +237,12 @@ void WinUI3DensityApiTest::largeFontControlSizing()
     QCOMPARE(tabOption.fontMetrics.height(), inkHeight);
     QCOMPARE(headerOption.fontMetrics.height(), inkHeight);
     QVERIFY(style.sizeFromContents(QStyle::CT_HeaderSection, &headerOption, QSize(80, inkHeight),
-                                   table.horizontalHeader()).height() >= inkHeight + 8);
+                                   table.horizontalHeader())
+                    .height()
+            >= inkHeight + 8);
 
-    const auto paintedInkHeight = [&](QStyle::ControlElement element,
-                                      const QStyleOption &option, QWidget *target) {
+    const auto paintedInkHeight = [&](QStyle::ControlElement element, const QStyleOption &option,
+                                      QWidget *target) {
         QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::white);
         QPainter painter(&image);
@@ -261,8 +263,7 @@ void WinUI3DensityApiTest::largeFontControlSizing()
     };
     QVERIFY2(paintedInkHeight(QStyle::CE_TabBarTabLabel, tabOption, &tabs) >= 17,
              "TabView still paints its 12 px font despite an explicit large font");
-    QVERIFY2(paintedInkHeight(QStyle::CE_HeaderLabel, headerOption,
-                              table.horizontalHeader()) >= 17,
+    QVERIFY2(paintedInkHeight(QStyle::CE_HeaderLabel, headerOption, table.horizontalHeader()) >= 17,
              "header still paints its 12 px font despite an explicit large font");
 }
 
@@ -280,8 +281,8 @@ void WinUI3DensityApiTest::verticalSizeHints()
 {
     QFETCH(bool, compact);
     QFETCH(bool, progress);
-    WinUI3::Style style(WinUI3::ThemeMode::Light, compact ? WinUI3::DensityMode::Compact
-                                                        : WinUI3::DensityMode::Standard);
+    WinUI3::Style style(WinUI3::ThemeMode::Light,
+                        compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     QWidget parent;
     parent.setStyle(&style);
     if (progress) {

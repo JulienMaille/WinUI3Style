@@ -292,8 +292,7 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     // Reopen stability (bottom-margin regression): the cached popup keeps
     // the (0,4,0,4) inset, so the second open must reuse the settled height
     // (rows + 8) with no viewport tail from a repeated +8 compensation.
-    const int settledRowHeight =
-            combo->view()->visualRect(combo->model()->index(0, 0)).height();
+    const int settledRowHeight = combo->view()->visualRect(combo->model()->index(0, 0)).height();
     QVERIFY(settledRowHeight > 0);
     QCOMPARE(popup->contentsMargins(), QMargins(0, 4, 0, 4));
     QCOMPARE(settledGeometry.height(), combo->count() * settledRowHeight + 8);
@@ -434,8 +433,7 @@ void WinUI3StyleNativeTest::backdropDisableRestoresOpaqueContent()
     const QColor expected = style->standardPalette().color(QPalette::Window);
     // Probe the margin beside the cards: the body does not cover missing
     // viewport/page erasure there, unlike a card-center sample.
-    const QPoint probe = area->viewport()->mapToGlobal(
-            QPoint(3, area->viewport()->height() / 2));
+    const QPoint probe = area->viewport()->mapToGlobal(QPoint(3, area->viewport()->height() / 2));
     const QSize contentSize = pages->size();
     const bool windowPaletteExplicit = window.testAttribute(Qt::WA_SetPalette);
     const bool pageAutoFill = pages->autoFillBackground();

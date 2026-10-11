@@ -504,8 +504,8 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupHitTestAndFallback_data()
     QTest::addColumn<bool>("compact");
     for (bool dark : { false, true }) {
         for (bool compact : { false, true }) {
-            const QByteArray name = QByteArray(dark ? "dark" : "light")
-                    + (compact ? "-compact" : "-standard");
+            const QByteArray name =
+                    QByteArray(dark ? "dark" : "light") + (compact ? "-compact" : "-standard");
             QTest::newRow(name.constData()) << dark << compact;
         }
     }
@@ -522,8 +522,8 @@ void WinUI3DensityWidgetsTest::autoSuggestPopupHitTestAndFallback()
     editor.setProperty(WinUI3::Style::DensityProperty,
                        compact ? QStringLiteral("compact") : QStringLiteral("standard"));
     auto *completer = new QCompleter(
-            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"),
-                         QStringLiteral("Gamma") }, &editor);
+            QStringList{ QStringLiteral("Alpha"), QStringLiteral("Beta"), QStringLiteral("Gamma") },
+            &editor);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
     completer->setCompletionMode(QCompleter::PopupCompletion);

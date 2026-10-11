@@ -205,8 +205,8 @@ void WinUI3MicaBackdropTest::tabPaneCardLinksStayOpaqueWhileIslandSharesMaterial
     // Group cards veil over a live material by design (VeiledCardAlpha 178),
     // opaque only off it. Assert the veiled token ink, paired with the
     // no-transparentize state above.
-    const QColor veiled = WinUI3::Private::veiledCard(
-            WinUI3::Private::tokens(card->palette()).layer, true);
+    const QColor veiled =
+            WinUI3::Private::veiledCard(WinUI3::Private::tokens(card->palette()).layer, true);
     QCOMPARE(cardFrame.pixelColor(cardFrame.rect().center()), veiled);
     const QImage tabsGrab = tabs->grab().toImage();
     QVERIFY(!tabsGrab.isNull());
@@ -249,8 +249,8 @@ void WinUI3MicaBackdropTest::tabPaneCardVeilsOverComposited()
     WinUI3::Private::syncContentSurfacesForBackdrop(&window);
     // Token/geometry pairs for the pixel asserts below: the pane card tone
     // is the veiled Base layer (t.layer), at the exact card geometry.
-    const QColor cardTone = WinUI3::Private::veiledCard(
-            WinUI3::Private::tokens(tabs->palette()).layer, true);
+    const QColor cardTone =
+            WinUI3::Private::veiledCard(WinUI3::Private::tokens(tabs->palette()).layer, true);
     QCOMPARE(cardTone.alpha(), tabs->palette().color(QPalette::Base).alpha());
     QCOMPARE(tabs->geometry(), QRect(40, 40, 300, 200));
     // Mechanism: PE_FrameTabWidget over the live material paints the veiled
@@ -357,8 +357,8 @@ void WinUI3MicaBackdropTest::groupCardChildKeepsCardFillOverComposited()
     // card carries no SurfaceProperty), so only the card guard can keep the
     // fill; the card tone is the veiled Base layer at the card's geometry.
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(list->viewport()));
-    const QColor cardTone = WinUI3::Private::veiledCard(
-            WinUI3::Private::tokens(card->palette()).layer, true);
+    const QColor cardTone =
+            WinUI3::Private::veiledCard(WinUI3::Private::tokens(card->palette()).layer, true);
     QCOMPARE(cardTone.alpha(), card->palette().color(QPalette::Base).alpha());
     QCOMPARE(splitter->geometry(), QRect(20, 50, 360, 150));
     // Mechanism: a directly dispatched PE_Widget erase for a child inside
@@ -392,8 +392,8 @@ void WinUI3MicaBackdropTest::groupCardChildKeepsCardFillOverComposited()
     const QPoint listProbe = list->viewport()->mapTo(&window, QPoint(20, 70));
     QVERIFY(QRect(QPoint(0, 0), grab.size()).contains(listProbe));
     QVERIFY(grab.pixelColor(listProbe).alpha() != 0);
-    const QPoint editProbe = edit->viewport()->mapTo(
-            &window, QPoint(10, edit->viewport()->height() - 10));
+    const QPoint editProbe =
+            edit->viewport()->mapTo(&window, QPoint(10, edit->viewport()->height() - 10));
     QVERIFY(QRect(QPoint(0, 0), grab.size()).contains(editProbe));
     QVERIFY(grab.pixelColor(editProbe).alpha() != 0);
     // State pairs: the card itself carries no StyledBackground/erase recipe;
@@ -553,8 +553,7 @@ void WinUI3MicaBackdropTest::standardButtonInsideCardKeepsCardFillOverComposited
         // defect).
         QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(button), composited);
         QVERIFY(WinUI3::Private::insideOpaqueCard(button));
-        const QColor cardTone =
-                WinUI3::Private::cardRefillTone(button->palette(), composited);
+        const QColor cardTone = WinUI3::Private::cardRefillTone(button->palette(), composited);
         QCOMPARE(cardTone.alpha(), card->palette().color(QPalette::Base).alpha());
         QCOMPARE(button->geometry(), QRect(60, 140, 160, 32));
         // Mechanism: the real CE_PushButton path over a seeded card canvas
@@ -622,8 +621,7 @@ void WinUI3MicaBackdropTest::alternateRowErasesBeforeFill()
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(list.viewport()));
     const auto paintRow = [&](QImage &image) {
         QPainter painter(&image);
-        list.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter,
-                                  list.viewport());
+        list.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, list.viewport());
     };
     QImage first(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
     first.fill(Qt::red);
@@ -766,8 +764,8 @@ void WinUI3MicaBackdropTest::dockTitleVeilsOverComposited()
         QPainter painter(&frame);
         style->drawControl(QStyle::CE_DockWidgetTitle, &option, &painter, &dock);
     }
-    const QColor expected = WinUI3::Private::veiledCard(
-            WinUI3::Private::tokens(option.palette).layer, true);
+    const QColor expected =
+            WinUI3::Private::veiledCard(WinUI3::Private::tokens(option.palette).layer, true);
     QCOMPARE(frame.pixelColor(140, 4), expected);
 }
 
@@ -801,8 +799,8 @@ void WinUI3MicaBackdropTest::headerRestVeilsOverComposited()
             style->drawControl(QStyle::CE_HeaderSection, &option, &painter,
                                table.horizontalHeader());
         }
-        const QColor expected = WinUI3::Private::veiledCard(
-                WinUI3::Private::tokens(option.palette).layer, true);
+        const QColor expected =
+                WinUI3::Private::veiledCard(WinUI3::Private::tokens(option.palette).layer, true);
         QCOMPARE(frame.pixelColor(70, 16), expected);
     }
     style->setProperty("densityMode", 0);
@@ -829,8 +827,8 @@ void WinUI3MicaBackdropTest::tabHoverPillVeilsOverComposited()
     hover.shape = QTabBar::RoundedNorth;
     hover.palette = bar->palette();
     hover.state = QStyle::State_Enabled | QStyle::State_MouseOver;
-    const QColor expected = WinUI3::Private::veiledCard(
-            WinUI3::Private::tokens(hover.palette).layer, true);
+    const QColor expected =
+            WinUI3::Private::veiledCard(WinUI3::Private::tokens(hover.palette).layer, true);
     QImage first(hover.rect.size(), QImage::Format_ARGB32_Premultiplied);
     first.fill(Qt::red);
     {
@@ -866,8 +864,8 @@ void WinUI3MicaBackdropTest::richTextFrameVeilsOverComposited()
     option.initFrom(&editor);
     option.rect = QRect(0, 0, 320, 120);
     option.state = QStyle::State_Enabled;
-    const QColor expected = WinUI3::Private::veiledCard(
-            WinUI3::Private::tokens(option.palette).control, true);
+    const QColor expected =
+            WinUI3::Private::veiledCard(WinUI3::Private::tokens(option.palette).control, true);
     QCOMPARE(expected.alpha(), WinUI3::Private::VeiledCardAlpha);
     QImage frame(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
     frame.fill(Qt::red);
@@ -918,14 +916,13 @@ void WinUI3MicaBackdropTest::alternateRowVeilsOverComposited()
     QPalette pinned = option.palette;
     pinned.setColor(QPalette::AlternateBase, pinned.color(QPalette::Window));
     option.palette = pinned;
-    const QColor expected = WinUI3::Private::veiledCard(
-            option.palette.color(QPalette::AlternateBase), true);
+    const QColor expected =
+            WinUI3::Private::veiledCard(option.palette.color(QPalette::AlternateBase), true);
     QCOMPARE(expected.alpha(), WinUI3::Private::VeiledCardAlpha);
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(list.viewport()));
     const auto paintRow = [&](QImage &image) {
         QPainter painter(&image);
-        list.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter,
-                                  list.viewport());
+        list.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, list.viewport());
     };
     QImage first(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
     first.fill(Qt::red);
@@ -1029,8 +1026,8 @@ void WinUI3MicaBackdropTest::scrollBarHoverTrackVeilsOverComposited()
         QPalette pinned = option.palette;
         pinned.setColor(QPalette::Base, pinned.color(QPalette::Window));
         option.palette = pinned;
-        const QColor expected = WinUI3::Private::veiledCard(
-                WinUI3::Private::tokens(option.palette).layer, true);
+        const QColor expected =
+                WinUI3::Private::veiledCard(WinUI3::Private::tokens(option.palette).layer, true);
         QCOMPARE(expected.alpha(), WinUI3::Private::VeiledCardAlpha);
         const QRect thumb = style->subControlRect(QStyle::CC_ScrollBar, &option,
                                                   QStyle::SC_ScrollBarSlider, &bar);

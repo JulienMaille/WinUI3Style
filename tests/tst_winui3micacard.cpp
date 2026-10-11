@@ -103,8 +103,7 @@ void WinUI3MicaCardTest::navSampleInCardKeepsCardFillOverComposited()
             WinUI3::Private::syncContentSurfacesForBackdrop(&window);
             QVERIFY(WinUI3::Private::insideOpaqueCard(nav));
             QVERIFY(!WinUI3::Private::insideOpaqueCard(shellNav));
-            const QColor cardTone =
-                    WinUI3::Private::cardRefillTone(card->palette(), true);
+            const QColor cardTone = WinUI3::Private::cardRefillTone(card->palette(), true);
             QCOMPARE(cardTone.alpha(), card->palette().color(QPalette::Base).alpha());
             const QRect rowRect = nav->visualItemRect(nav->item(0));
             QCOMPARE(rowRect.height(), density == WinUI3::DensityMode::Standard ? 40 : 32);
@@ -199,8 +198,7 @@ void WinUI3MicaCardTest::menuSampleInCardKeepsCardFillOverComposited()
             WinUI3::Private::makeChromeSurfacesTransparent(&window);
             QVERIFY(WinUI3::Private::insideOpaqueCard(bar));
             QVERIFY(!WinUI3::Private::insideOpaqueCard(shellBar));
-            const QColor cardTone =
-                    WinUI3::Private::cardRefillTone(card->palette(), true);
+            const QColor cardTone = WinUI3::Private::cardRefillTone(card->palette(), true);
             QCOMPARE(cardTone.alpha(), card->palette().color(QPalette::Base).alpha());
             const QRect actionRect = bar->actionGeometry(file);
             QVERIFY(!actionRect.isEmpty());
@@ -216,8 +214,7 @@ void WinUI3MicaCardTest::menuSampleInCardKeepsCardFillOverComposited()
                 QPainter painter(&emptyFrame);
                 style->drawControl(QStyle::CE_MenuBarEmptyArea, &emptyArea, &painter, bar);
             }
-            const QColor emptyInk =
-                    emptyFrame.pixelColor(bar->width() - 8, bar->height() / 2);
+            const QColor emptyInk = emptyFrame.pixelColor(bar->width() - 8, bar->height() / 2);
             QCOMPARE(emptyInk.alpha(), cardTone.alpha());
             QVERIFY(colorDistance(emptyInk, cardTone) <= 4);
             QStyleOptionMenuItem itemOption;
@@ -255,11 +252,9 @@ void WinUI3MicaCardTest::menuSampleInCardKeepsCardFillOverComposited()
             passwordFrame.fill(QColor(255, 0, 0, 255));
             {
                 QPainter painter(&passwordFrame);
-                style->drawPrimitive(QStyle::PE_PanelLineEdit, &passwordOption, &painter,
-                                     password);
+                style->drawPrimitive(QStyle::PE_PanelLineEdit, &passwordOption, &painter, password);
             }
-            const QColor editorFill =
-                    WinUI3::Private::tokens(password->palette()).control;
+            const QColor editorFill = WinUI3::Private::tokens(password->palette()).control;
             QCOMPARE(passwordFrame.pixelColor(passwordFrame.rect().center()).alpha(),
                      editorFill.alpha());
             QImage grab(window.size(), QImage::Format_ARGB32_Premultiplied);
@@ -440,20 +435,17 @@ void WinUI3MicaCardTest::palettePreviewCardKeepsCardFillOverComposited()
             // The card center sits inside the edit: the editor's own fill
             // covers it. The bare bottom strip has no child cover and must
             // stay cleared (RED pre-revert: the recipe-1 refill veiled it).
-            QVERIFY(
-                    grab.pixelColor(card->mapTo(&window, card->rect().center())).alpha() != 0);
+            QVERIFY(grab.pixelColor(card->mapTo(&window, card->rect().center())).alpha() != 0);
             const QPoint bareCardProbe =
                     card->mapTo(&window, QPoint(card->width() / 2, card->height() - 8));
             QCOMPARE(grab.pixelColor(bareCardProbe).alpha(), 0);
-            QVERIFY(grab.pixelColor(edit->mapTo(&window, edit->rect().center())).alpha()
-                    != 0);
+            QVERIFY(grab.pixelColor(edit->mapTo(&window, edit->rect().center())).alpha() != 0);
             // Real-render mirror of the stroke probes: the live border
             // pixels stay opaque under Mica at the twin's positions.
             QImage noneGrab(noneWindow.size(), QImage::Format_ARGB32_Premultiplied);
             noneGrab.fill(Qt::transparent);
             noneWindow.render(&noneGrab);
-            const QPoint micaEditBorder =
-                    edit->mapTo(&window, QPoint(0, edit->height() / 2));
+            const QPoint micaEditBorder = edit->mapTo(&window, QPoint(0, edit->height() / 2));
             const QPoint noneEditBorder =
                     noneEdit->mapTo(&noneWindow, QPoint(0, noneEdit->height() / 2));
             QVERIFY(grab.pixelColor(micaEditBorder).alpha() != 0);
@@ -488,169 +480,170 @@ void WinUI3MicaCardTest::galleryTreeKeepsCardFillOverComposited()
         for (const WinUI3::DensityMode density : densities) {
             style->setDensityMode(density);
             QMainWindow window;
-        Ui::GalleryWindow ui;
-        ui.setupUi(&window);
-        for (QListWidget *nav : { ui.standardDensityNav, ui.compactDensityNav })
-            nav->addItems({ QStringLiteral("Home"), QStringLiteral("Collections") });
-        window.resize(1180, 780);
-        window.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&window));
-        window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
-        QPalette material = window.palette();
-        QColor windowColor = material.color(QPalette::Window);
-        windowColor.setAlpha(0);
-        material.setColor(QPalette::Window, windowColor);
-        window.setPalette(material);
-        window.setAttribute(Qt::WA_NoSystemBackground, true);
-        window.setAttribute(Qt::WA_OpaquePaintEvent, false);
-        window.setAutoFillBackground(false);
-        window.setProperty("_winui_backdrop", 1);
-        window.setProperty("_winui_backdrop_effective", 2); // Composited
-        WinUI3::Private::makeChromeSurfacesTransparent(&window);
-        WinUI3::Private::syncContentSurfacesForBackdrop(&window);
-        qApp->processEvents();
-        QVERIFY(WinUI3::Private::insideOpaqueCard(ui.standardDensityNav));
-        QVERIFY(WinUI3::Private::insideOpaqueCard(ui.standardDensityMenu));
-        // palettePreview is deliberately NOT a card (uniform-mica design):
-        // no fill of its own, uniform with the material page, so its
-        // children paint their own fills without card-tone refills.
-        QVERIFY(!WinUI3::Private::insideOpaqueCard(ui.previewCheck));
-        QVERIFY(!WinUI3::Private::insideOpaqueCard(ui.previewEdit));
-        QVERIFY(!WinUI3::Private::insideOpaqueCard(ui.previewButton));
-        const QColor cardTone = WinUI3::Private::cardRefillTone(
-                ui.densityComparisonGroup->palette(), true);
-        QCOMPARE(cardTone.alpha(),
-                 ui.densityComparisonGroup->palette().color(QPalette::Base).alpha());
-        const QRect rowRect = ui.standardDensityNav->visualItemRect(
-                ui.standardDensityNav->item(0));
-        QVERIFY(!rowRect.isEmpty());
-        QAction *fileAction = ui.standardDensityMenu->actions().value(0);
-        QVERIFY(fileAction);
-        const QRect actionRect = ui.standardDensityMenu->actionGeometry(fileAction);
-        QVERIFY(!actionRect.isEmpty());
-        QImage grab(window.size(), QImage::Format_ARGB32_Premultiplied);
-        grab.fill(Qt::transparent);
-        window.render(&grab);
-        QCOMPARE(grab.size(), window.size());
-        const QPoint rowProbe = ui.standardDensityNav->viewport()->mapTo(
-                &window, QPoint(4, rowRect.center().y()));
-        QVERIFY(grab.pixelColor(rowProbe).alpha() != 0);
-        QVERIFY(grab.pixelColor(ui.standardDensityMenu->mapTo(&window, actionRect.center()))
-                        .alpha()
-                != 0);
-        QVERIFY(WinUI3::Private::insideOpaqueCard(ui.compactDensityNav));
-        const QRect compactRowRect =
-                ui.compactDensityNav->visualItemRect(ui.compactDensityNav->item(0));
-        QVERIFY(!compactRowRect.isEmpty());
-        QCOMPARE(compactRowRect.height(), 32);
-        ui.pages->setCurrentWidget(ui.paletteLabPage);
-        qApp->processEvents();
-        QImage labGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
-        labGrab.fill(Qt::transparent);
-        window.render(&labGrab);
-        QCOMPARE(labGrab.size(), window.size());
-        QVERIFY(labGrab.pixelColor(ui.previewEdit->mapTo(&window, ui.previewEdit->rect().center()))
-                        .alpha()
-                != 0);
-        // The edit's rounded corner never reaches (0,0): uniform material.
-        QCOMPARE(labGrab.pixelColor(ui.previewEdit->mapTo(&window, QPoint(0, 0))).alpha(), 0);
-        // Bare preview strip (no child covers the panel's bottom): uniform
-        // material, never a veil (RED pre-revert: recipe-1 refill). The
-        // viewport/menu filler probes below stay veiled (real card parents).
-        const QPoint bareCard = ui.palettePreview->mapTo(
-                &window, QPoint(ui.palettePreview->width() / 2,
-                                ui.palettePreview->height() - 8));
-        QCOMPARE(labGrab.pixelColor(bareCard).alpha(), 0);
-        const QPoint bareView = ui.standardDensityNav->viewport()->mapTo(
-                &window,
-                QPoint(4, ui.standardDensityNav->viewport()->height() - 4));
-        if (ui.standardDensityNav->visualItemRect(ui.standardDensityNav->item(
-                    ui.standardDensityNav->count() - 1))
-                    .bottom()
-            < ui.standardDensityNav->viewport()->height() - 8) {
-            QVERIFY(grab.pixelColor(bareView).alpha() != 0);
-        }
-        // The standard panel pins Standard rows through winuiDensity no
-        // matter the global mode (per-widget walk beats the global mode).
-        QCOMPARE(rowRect.height(), 40);
-        // Live-vs-harness state pins: the sync must never transparentize
-        // anything inside the card chain (roles stay opaque; only islands
-        // and chrome go material). Compact twins probed too Ã¢â‚¬â€ they share
-        // the live page.
-        QVERIFY(ui.standardDensityNav->palette().color(QPalette::Base).alpha() != 0);
-        QVERIFY(ui.standardDensityNav->viewport()->palette().color(QPalette::Base).alpha()
-                != 0);
-        QVERIFY(ui.standardDensityNav->viewport()->autoFillBackground());
-        QVERIFY(ui.standardDensityMenu->palette().color(QPalette::Base).alpha() != 0);
-        QVERIFY(ui.standardDensityPassword->palette().color(QPalette::Base).alpha() != 0);
-        QVERIFY(!ui.standardDensityPanel->testAttribute(Qt::WA_StyledBackground));
-        // Live-only actions the static probes above never perform. Rows 7-9
-        // sit below the fold: scroll the page there (blit + exposed-strip
-        // repaints, scrollbar heal guard) and probe the revealed
-        // Navigation/MenuBar/Password samples, then toggle the backdrop off
-        // and on again (restore mirror + re-arm) and re-probe everything.
-        // Render-based probes repaint fully, so any persistent hole they
-        // show is paint state, not a transient blit.
-        ui.pages->setCurrentWidget(ui.controlsPage);
-        qApp->processEvents();
-        auto *controlsScroll = ui.controlsPage;
-        QVERIFY(controlsScroll->verticalScrollBar());
-        controlsScroll->verticalScrollBar()->setValue(
-                controlsScroll->verticalScrollBar()->maximum());
-        qApp->processEvents();
-        const QRect scrolledRowRect = ui.standardDensityNav->visualItemRect(
-                ui.standardDensityNav->item(0));
-        QVERIFY(!scrolledRowRect.isEmpty());
-        QImage scrolledGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
-        scrolledGrab.fill(Qt::transparent);
-        window.render(&scrolledGrab);
-        const QPoint scrolledRowProbe = ui.standardDensityNav->viewport()->mapTo(
-                &window, QPoint(4, scrolledRowRect.center().y()));
-        if (ui.standardDensityNav->viewport()->rect().contains(
-                    ui.standardDensityNav->viewport()->mapFrom(
-                            &window, scrolledRowProbe))) {
-            QVERIFY(scrolledGrab.pixelColor(scrolledRowProbe).alpha() != 0);
-        }
-        // Same-row twin in the compact panel, now scrolled into view.
-        const QPoint compactRowProbe = ui.compactDensityNav->viewport()->mapTo(
-                &window, QPoint(4, compactRowRect.center().y()));
-        if (QRect(QPoint(0, 0), window.size()).contains(compactRowProbe))
-            QVERIFY(scrolledGrab.pixelColor(compactRowProbe).alpha() != 0);
-        QVERIFY(grab.pixelColor(ui.standardDensityMenu->mapTo(&window, actionRect.center()))
-                        .alpha()
-                != 0);
-        const QPoint passwordProbe = ui.standardDensityPassword->mapTo(
-                &window, ui.standardDensityPassword->rect().center());
-        if (ui.standardDensityPassword->isVisibleTo(&window)
-            && QRect(QPoint(0, 0), window.size()).contains(passwordProbe)) {
-            QVERIFY(scrolledGrab.pixelColor(passwordProbe).alpha() != 0);
-        }
-        WinUI3::Private::restoreChromeSurfaces(&window);
-        WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
-        qApp->processEvents();
-        QVERIFY(!ui.palettePreview->testAttribute(Qt::WA_StyledBackground));
-        window.setProperty("_winui_backdrop", 1);
-        window.setProperty("_winui_backdrop_effective", 2); // Composited
-        WinUI3::Private::makeChromeSurfacesTransparent(&window);
-        WinUI3::Private::syncContentSurfacesForBackdrop(&window);
-        qApp->processEvents();
-        // No veil arm anymore: the bare panel never gains StyledBackground.
-        QVERIFY(!ui.palettePreview->testAttribute(Qt::WA_StyledBackground));
-        ui.pages->setCurrentWidget(ui.paletteLabPage);
-        qApp->processEvents();
-        QImage retoggledGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
-        retoggledGrab.fill(Qt::transparent);
-        window.render(&retoggledGrab);
-        QVERIFY(retoggledGrab.pixelColor(ui.previewEdit->mapTo(&window, ui.previewEdit->rect().center()))
-                        .alpha()
-                != 0);
-        QVERIFY(retoggledGrab.pixelColor(bareCard).alpha() == 0);
+            Ui::GalleryWindow ui;
+            ui.setupUi(&window);
+            for (QListWidget *nav : { ui.standardDensityNav, ui.compactDensityNav })
+                nav->addItems({ QStringLiteral("Home"), QStringLiteral("Collections") });
+            window.resize(1180, 780);
+            window.show();
+            QVERIFY(QTest::qWaitForWindowExposed(&window));
+            window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+            QPalette material = window.palette();
+            QColor windowColor = material.color(QPalette::Window);
+            windowColor.setAlpha(0);
+            material.setColor(QPalette::Window, windowColor);
+            window.setPalette(material);
+            window.setAttribute(Qt::WA_NoSystemBackground, true);
+            window.setAttribute(Qt::WA_OpaquePaintEvent, false);
+            window.setAutoFillBackground(false);
+            window.setProperty("_winui_backdrop", 1);
+            window.setProperty("_winui_backdrop_effective", 2); // Composited
+            WinUI3::Private::makeChromeSurfacesTransparent(&window);
+            WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+            qApp->processEvents();
+            QVERIFY(WinUI3::Private::insideOpaqueCard(ui.standardDensityNav));
+            QVERIFY(WinUI3::Private::insideOpaqueCard(ui.standardDensityMenu));
+            // palettePreview is deliberately NOT a card (uniform-mica design):
+            // no fill of its own, uniform with the material page, so its
+            // children paint their own fills without card-tone refills.
+            QVERIFY(!WinUI3::Private::insideOpaqueCard(ui.previewCheck));
+            QVERIFY(!WinUI3::Private::insideOpaqueCard(ui.previewEdit));
+            QVERIFY(!WinUI3::Private::insideOpaqueCard(ui.previewButton));
+            const QColor cardTone =
+                    WinUI3::Private::cardRefillTone(ui.densityComparisonGroup->palette(), true);
+            QCOMPARE(cardTone.alpha(),
+                     ui.densityComparisonGroup->palette().color(QPalette::Base).alpha());
+            const QRect rowRect =
+                    ui.standardDensityNav->visualItemRect(ui.standardDensityNav->item(0));
+            QVERIFY(!rowRect.isEmpty());
+            QAction *fileAction = ui.standardDensityMenu->actions().value(0);
+            QVERIFY(fileAction);
+            const QRect actionRect = ui.standardDensityMenu->actionGeometry(fileAction);
+            QVERIFY(!actionRect.isEmpty());
+            QImage grab(window.size(), QImage::Format_ARGB32_Premultiplied);
+            grab.fill(Qt::transparent);
+            window.render(&grab);
+            QCOMPARE(grab.size(), window.size());
+            const QPoint rowProbe = ui.standardDensityNav->viewport()->mapTo(
+                    &window, QPoint(4, rowRect.center().y()));
+            QVERIFY(grab.pixelColor(rowProbe).alpha() != 0);
+            QVERIFY(grab.pixelColor(ui.standardDensityMenu->mapTo(&window, actionRect.center()))
+                            .alpha()
+                    != 0);
+            QVERIFY(WinUI3::Private::insideOpaqueCard(ui.compactDensityNav));
+            const QRect compactRowRect =
+                    ui.compactDensityNav->visualItemRect(ui.compactDensityNav->item(0));
+            QVERIFY(!compactRowRect.isEmpty());
+            QCOMPARE(compactRowRect.height(), 32);
+            ui.pages->setCurrentWidget(ui.paletteLabPage);
+            qApp->processEvents();
+            QImage labGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
+            labGrab.fill(Qt::transparent);
+            window.render(&labGrab);
+            QCOMPARE(labGrab.size(), window.size());
+            QVERIFY(labGrab.pixelColor(
+                                   ui.previewEdit->mapTo(&window, ui.previewEdit->rect().center()))
+                            .alpha()
+                    != 0);
+            // The edit's rounded corner never reaches (0,0): uniform material.
+            QCOMPARE(labGrab.pixelColor(ui.previewEdit->mapTo(&window, QPoint(0, 0))).alpha(), 0);
+            // Bare preview strip (no child covers the panel's bottom): uniform
+            // material, never a veil (RED pre-revert: recipe-1 refill). The
+            // viewport/menu filler probes below stay veiled (real card parents).
+            const QPoint bareCard = ui.palettePreview->mapTo(
+                    &window,
+                    QPoint(ui.palettePreview->width() / 2, ui.palettePreview->height() - 8));
+            QCOMPARE(labGrab.pixelColor(bareCard).alpha(), 0);
+            const QPoint bareView = ui.standardDensityNav->viewport()->mapTo(
+                    &window, QPoint(4, ui.standardDensityNav->viewport()->height() - 4));
+            if (ui.standardDensityNav
+                        ->visualItemRect(
+                                ui.standardDensityNav->item(ui.standardDensityNav->count() - 1))
+                        .bottom()
+                < ui.standardDensityNav->viewport()->height() - 8) {
+                QVERIFY(grab.pixelColor(bareView).alpha() != 0);
+            }
+            // The standard panel pins Standard rows through winuiDensity no
+            // matter the global mode (per-widget walk beats the global mode).
+            QCOMPARE(rowRect.height(), 40);
+            // Live-vs-harness state pins: the sync must never transparentize
+            // anything inside the card chain (roles stay opaque; only islands
+            // and chrome go material). Compact twins probed too Ã¢â‚¬â€ they share
+            // the live page.
+            QVERIFY(ui.standardDensityNav->palette().color(QPalette::Base).alpha() != 0);
+            QVERIFY(ui.standardDensityNav->viewport()->palette().color(QPalette::Base).alpha()
+                    != 0);
+            QVERIFY(ui.standardDensityNav->viewport()->autoFillBackground());
+            QVERIFY(ui.standardDensityMenu->palette().color(QPalette::Base).alpha() != 0);
+            QVERIFY(ui.standardDensityPassword->palette().color(QPalette::Base).alpha() != 0);
+            QVERIFY(!ui.standardDensityPanel->testAttribute(Qt::WA_StyledBackground));
+            // Live-only actions the static probes above never perform. Rows 7-9
+            // sit below the fold: scroll the page there (blit + exposed-strip
+            // repaints, scrollbar heal guard) and probe the revealed
+            // Navigation/MenuBar/Password samples, then toggle the backdrop off
+            // and on again (restore mirror + re-arm) and re-probe everything.
+            // Render-based probes repaint fully, so any persistent hole they
+            // show is paint state, not a transient blit.
+            ui.pages->setCurrentWidget(ui.controlsPage);
+            qApp->processEvents();
+            auto *controlsScroll = ui.controlsPage;
+            QVERIFY(controlsScroll->verticalScrollBar());
+            controlsScroll->verticalScrollBar()->setValue(
+                    controlsScroll->verticalScrollBar()->maximum());
+            qApp->processEvents();
+            const QRect scrolledRowRect =
+                    ui.standardDensityNav->visualItemRect(ui.standardDensityNav->item(0));
+            QVERIFY(!scrolledRowRect.isEmpty());
+            QImage scrolledGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
+            scrolledGrab.fill(Qt::transparent);
+            window.render(&scrolledGrab);
+            const QPoint scrolledRowProbe = ui.standardDensityNav->viewport()->mapTo(
+                    &window, QPoint(4, scrolledRowRect.center().y()));
+            if (ui.standardDensityNav->viewport()->rect().contains(
+                        ui.standardDensityNav->viewport()->mapFrom(&window, scrolledRowProbe))) {
+                QVERIFY(scrolledGrab.pixelColor(scrolledRowProbe).alpha() != 0);
+            }
+            // Same-row twin in the compact panel, now scrolled into view.
+            const QPoint compactRowProbe = ui.compactDensityNav->viewport()->mapTo(
+                    &window, QPoint(4, compactRowRect.center().y()));
+            if (QRect(QPoint(0, 0), window.size()).contains(compactRowProbe))
+                QVERIFY(scrolledGrab.pixelColor(compactRowProbe).alpha() != 0);
+            QVERIFY(grab.pixelColor(ui.standardDensityMenu->mapTo(&window, actionRect.center()))
+                            .alpha()
+                    != 0);
+            const QPoint passwordProbe = ui.standardDensityPassword->mapTo(
+                    &window, ui.standardDensityPassword->rect().center());
+            if (ui.standardDensityPassword->isVisibleTo(&window)
+                && QRect(QPoint(0, 0), window.size()).contains(passwordProbe)) {
+                QVERIFY(scrolledGrab.pixelColor(passwordProbe).alpha() != 0);
+            }
+            WinUI3::Private::restoreChromeSurfaces(&window);
+            WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
+            qApp->processEvents();
+            QVERIFY(!ui.palettePreview->testAttribute(Qt::WA_StyledBackground));
+            window.setProperty("_winui_backdrop", 1);
+            window.setProperty("_winui_backdrop_effective", 2); // Composited
+            WinUI3::Private::makeChromeSurfacesTransparent(&window);
+            WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+            qApp->processEvents();
+            // No veil arm anymore: the bare panel never gains StyledBackground.
+            QVERIFY(!ui.palettePreview->testAttribute(Qt::WA_StyledBackground));
+            ui.pages->setCurrentWidget(ui.paletteLabPage);
+            qApp->processEvents();
+            QImage retoggledGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
+            retoggledGrab.fill(Qt::transparent);
+            window.render(&retoggledGrab);
+            QVERIFY(retoggledGrab
+                            .pixelColor(
+                                    ui.previewEdit->mapTo(&window, ui.previewEdit->rect().center()))
+                            .alpha()
+                    != 0);
+            QVERIFY(retoggledGrab.pixelColor(bareCard).alpha() == 0);
         }
     }
     style->setDensityMode(previousDensity);
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
-
 
 void WinUI3MicaCardTest::treeSelectionKeepsCardFillOverComposited()
 {
@@ -681,9 +674,9 @@ void WinUI3MicaCardTest::treeSelectionKeepsCardFillOverComposited()
             tree->setHeaderHidden(true);
             tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
             tree->setGeometry(10, 30, 280, 180);
-            for (const QString &track : { QStringLiteral("01 — First track"),
-                                          QStringLiteral("02 — Second track"),
-                                          QStringLiteral("03 — Third track") }) {
+            for (const QString &track :
+                 { QStringLiteral("01 — First track"), QStringLiteral("02 — Second track"),
+                   QStringLiteral("03 — Third track") }) {
                 auto *item = new QTreeWidgetItem(tree, { track });
                 item->setSelected(true);
             }
@@ -771,9 +764,9 @@ void WinUI3MicaCardTest::disabledInCardButtonKeepsCardToneOverComposited()
             auto *button = new QPushButton(QStringLiteral("Disabled"), card);
             button->setEnabled(false);
             button->setGeometry(10, 30, 160, 32);
-            auto *commandLink = new QCommandLinkButton(QStringLiteral("Unavailable command"),
-                                                       QStringLiteral("This operation is disabled."),
-                                                       card);
+            auto *commandLink =
+                    new QCommandLinkButton(QStringLiteral("Unavailable command"),
+                                           QStringLiteral("This operation is disabled."), card);
             commandLink->setEnabled(false);
             commandLink->setGeometry(10, 80, 280, 64);
             window.resize(480, 360);
@@ -795,10 +788,8 @@ void WinUI3MicaCardTest::disabledInCardButtonKeepsCardToneOverComposited()
             disabledOption.rect = button->rect();
             disabledOption.state &= ~QStyle::State_Enabled;
             disabledOption.text = button->text();
-            const QColor disabledLayer =
-                    WinUI3::Private::tokens(disabledOption.palette).layer;
-            QCOMPARE(disabledLayer,
-                     button->palette().color(QPalette::Disabled, QPalette::Base));
+            const QColor disabledLayer = WinUI3::Private::tokens(disabledOption.palette).layer;
+            QCOMPARE(disabledLayer, button->palette().color(QPalette::Disabled, QPalette::Base));
             if (dark)
                 QCOMPARE(disabledLayer.alpha(), 8);
             // Geometry pin: the button rect is the erase/refill site.
@@ -823,8 +814,7 @@ void WinUI3MicaCardTest::disabledInCardButtonKeepsCardToneOverComposited()
             // SourceOver the exact card refill — faint lightening, never a
             // slab. Pin the composite, not a radius: a token change must
             // update this test explicitly.
-            const QColor centerInk =
-                    buttonFrame.pixelColor(buttonFrame.rect().center());
+            const QColor centerInk = buttonFrame.pixelColor(buttonFrame.rect().center());
             QVERIFY(centerInk.alpha() != 0);
             const QColor disabledInk =
                     WinUI3::Private::tokens(disabledOption.palette).controlDisabled;
@@ -833,14 +823,11 @@ void WinUI3MicaCardTest::disabledInCardButtonKeepsCardToneOverComposited()
             const qreal aOut = aS + aD * (1.0 - aS);
             QColor expectedCenter;
             expectedCenter.setAlphaF(aOut);
-            expectedCenter.setRedF((disabledInk.redF() * aS
-                                    + cardTone.redF() * aD * (1.0 - aS))
+            expectedCenter.setRedF((disabledInk.redF() * aS + cardTone.redF() * aD * (1.0 - aS))
                                    / aOut);
-            expectedCenter.setGreenF((disabledInk.greenF() * aS
-                                      + cardTone.greenF() * aD * (1.0 - aS))
-                                     / aOut);
-            expectedCenter.setBlueF((disabledInk.blueF() * aS
-                                     + cardTone.blueF() * aD * (1.0 - aS))
+            expectedCenter.setGreenF(
+                    (disabledInk.greenF() * aS + cardTone.greenF() * aD * (1.0 - aS)) / aOut);
+            expectedCenter.setBlueF((disabledInk.blueF() * aS + cardTone.blueF() * aD * (1.0 - aS))
                                     / aOut);
             QVERIFY(colorDistance(centerInk, expectedCenter) <= 8);
             QStyleOptionButton linkOption;
