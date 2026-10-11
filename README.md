@@ -16,6 +16,12 @@ Deterministic offscreen captures from `winui3style_snapshot_matrix` (gallery pag
 The project deliberately contains no QSS. All visuals are produced by
 `QStyle`, widget painting, palettes, and native Windows backdrop APIs.
 
+## First experimental PoC
+
+Version 0.1.0 is an experimental preview, not a claim of complete WinUI parity.
+See [the PoC instructions](tools/poc/README.md) for the portable Windows x64
+gallery package, deployment requirements, limitations, and publication checks.
+
 ## Build
 
 ```powershell
@@ -26,13 +32,21 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 The `winui3style_gallery` executable is the interactive reference application.
-Its widget hierarchy lives in `demo/gallerywindow.ui`: it links only Qt
-Widgets and uses no `WinUI3::*` API, so it is an executable example for an
-existing Designer-based application. The style loads via
-`QStyleFactory::create("winui3")` from Qt's `styles` plugin directory; the
-`winui3compact` key is an alias that defaults to Compact, not a second
-implementation. The public CMake target is `WinUI3::Widgets`; `QCommonStyle`
-is only a fallback for text/icon layout and unsupported controls (see `spec/`).
+Its widget hierarchy lives in `demo/gallerywindow.ui`. The gallery
+loads the style plugin through Qt's factory; it also links `WinUI3::Widgets`
+for diagnostic/capture support. An independent Qt-only application is checked
+by `tools/install_smoke.ps1`, demonstrating plugin deployment without linking
+or recompiling the application against WinUI3Style.
+The style can also be loaded through `QStyleFactory::create("winui3")` when the
+plugin is deployed under Qt's `styles` plugin directory. The optional
+`winui3compact` factory key creates the same style with Compact as its global
+default; it is an alias, not a second implementation.
+
+The visual comparison workflow and pinned Microsoft sources are documented in
+`spec/`. The public CMake target is `WinUI3::Widgets`. The implementation uses
+`QCommonStyle` only as a small, public Qt fallback for semantic text/icon
+layout and explicitly unsupported controls; all covered visual and interaction
+contracts live in `WinUI3::Style`.
 
 ## Opt-in render benchmark
 

@@ -13,7 +13,7 @@ suite; a configuration not listed here is not claimed as supported.
 | 5.12.12 | MinGW 7.3 32-bit (`win32_mingw73` + `tools_win32_mingw730`) | `windows-2022` | Build only (`MinGW Makefiles`, Release, benchmarks and native tests off). No snapshot or DPI gate: offscreen fidelity and the Pillow matrix belong to the MSVC jobs |
 
 Local development uses Qt 6.9.2 (MSVC x64). The `CMakeLists.txt` floor is
-Qt 6.5 (`find_package(Qt6 6.5 QUIET ...)`), falling back to Qt 5.5.12 when
+Qt 6.5 (`find_package(Qt6 6.5 QUIET ...)`), falling back to Qt 5.12 when
 Qt 6 is absent; Qt 5.12 is the only Qt 5 version exercised in CI.
 
 `windows-2022` is pinned because it still ships VS17 with its setup
