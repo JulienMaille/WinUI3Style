@@ -303,6 +303,22 @@ void WinUI3StyleNativeTest::comboPopupSurface()
     QVERIFY(settleMenuSweep(popup));
     QTest::qWait(60);
     QCOMPARE(popup->height(), settledGeometry.height());
+    // Outer geometry, not just row sizing: late margins used to reserve a
+    // spurious 10 px scroller and clip the last row of this three-item flyout.
+    const QRect viewport(combo->view()->viewport()->mapTo(popup, QPoint()),
+                         combo->view()->viewport()->size());
+    QCOMPARE(popup->height(), 3 * 40 + 8);
+    QCOMPARE(viewport.top(), 4);
+    QCOMPARE(viewport.height(), 3 * 40);
+    QCOMPARE(popup->height() - viewport.bottom() - 1, 4);
+    QCOMPARE(combo->view()->verticalScrollBar()->maximum(), 0);
+    const QString capture = qEnvironmentVariable("WINUI3STYLE_COMBO_CAPTURE_FILE");
+    if (!capture.isEmpty()) {
+        const QImage frame = nativeWindowFrame(popup->winId());
+        QCOMPARE(popup->height(), 128);
+        QVERIFY(!frame.isNull());
+        QVERIFY(frame.save(capture));
+    }
     QTest::keyClick(combo->view(), Qt::Key_Escape);
     QTRY_VERIFY(!combo->view()->isVisible());
 }

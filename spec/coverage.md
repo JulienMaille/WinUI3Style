@@ -155,6 +155,46 @@ alpha-0 asserts restored, `palettePreview` transparent-design asserts (bare
 strip/corner alpha 0, children keep their own fills, no veil arm).
 Full-page snapshot baselines shift back; re-approval required.
 
+### Reopened evidence — ComboBox popup outer geometry (2026-10-02)
+
+The direct ComboBox/ComboBox-item mappings are unchanged, but their geometry
+evidence is reopened: live Standard/Compact density popups have a larger lower
+band than QMenu and split-button menus. Row-height tests do not establish the
+full popup layout. `comboPopupOuterGeometry` checks exact 4 px outer bands,
+complete visible rows, zero unnecessary scrolling, first-show height and
+reopen stability in Light/Dark × Standard/Compact with two/three items and
+initial selections 0/1. QMenu geometry and the pinned 40/32 px row sizes remain
+outside this correction's scope.
+
+RED: `build/combo-outer-red.txt` fails all 16 cases on first-open height
+(80 instead of 88 for two Standard rows), with scrollbar maximum 1 and a
+10 px scroller consuming viewport space. Installing the inset at polish,
+before Qt's size negotiation, repairs this. Native validation then rejected
+the old Show-only +8 px workaround (`build/combo-outer-windows.txt`, 16 failures);
+removing that resize repairs the excess bottom space without changing tokens.
+Final native/offscreen matrix passes all 16 cases across three opens each;
+`comboPopupSurface` now also asserts exact outer/viewport geometry and captures
+the native popup through PrintWindow (`build/combo-outer-native.png`).
+
+The rebuilt Gallery DLL matches the library (SHA256 starts `186A1D16809F4BD8`).
+Live local density/theme flyouts were replayed in System/Dark and Light,
+Standard/Compact, including mouse selection, Escape and Up/Enter selection;
+the extra band is no longer observed. This is not an official side-by-side
+Verified pass. Release configure/build and all 23 domain suites pass. Full
+CTest is 53/54: only the pre-existing strict RGB baseline mismatch remains
+(dark-combo-popup, 6804 differing pixels, max delta 12). All 66 deterministic
+captures are byte-identical to the pre-fix PoC captures, so no out-of-scope
+visual change or baseline replacement was claimed at that time.
+
+Superseding integration evidence, 2026-10-12: the popup sizing fix is committed
+and the user-approved reference is now 70 frames, including Palette Lab.
+Official Qt 6.11.1 Release passes 59/59 CTest and all 26 domain binaries;
+the native outer/viewport assertions below remain intact. The former
+selected-row background discrepancy was reviewed and the user retained the
+accent marker alone at rest, with the fill on hover/keyboard traversal.
+Earlier counts and DLL hashes above are historical evidence, not the current
+release gate. No mapping, token or Verified status is changed.
+
 ### Reopened evidence — Mica palette registry traversal (2026-10-01)
 
 The Dark/System Gallery crashed on Mica activation in `refreshOwnedPalettes`.
