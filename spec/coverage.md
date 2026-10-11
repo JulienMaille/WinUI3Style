@@ -1,5 +1,36 @@
 # Control coverage ledger
 
+## Integration review — 2026-10-11
+
+NavigationView's existing runtime-theme/backdrop mapping is reopened for
+Dark/System → Mica ON → Compact → scroll → Mica OFF → Light. Live A/B on
+the unmodified remote SHA `a96b4a8` and the integration build, both Qt 6.8.3,
+shows white navigation ink left on a light shell. The Gallery mechanism test
+`galleryNavigationPaletteFollowsThemeAfterMicaDisable` is RED on lost palette
+ownership with either DLL: style palette writes and parent re-resolution leave
+stale child snapshots that are mistaken for application overrides. Both paths
+reuse `setBackdropPalette` to preserve ownership snapshots; application palette
+overrides and the NavigationView inheritance/lifecycle assertions remain intact.
+
+The branch's non-material rendering was approved as the new visual reference
+by the user on 2026-10-11. All 70 offscreen frames from the pure remote SHA and
+the integration build are pixel-identical under official Qt 6.8.3, including
+the four newly enumerated Palette Lab captures. The approved matrix remains
+strict (RGB and alpha); neither tolerances nor assertions were relaxed.
+
+The existing Top-level backdrop / Mica lifecycle mapping is reopened for
+reparenting while active. `reparentedBackdropSurfacesRestore` reproduces the
+lost palette/viewport attributes in both directions (bare ↔ opaque card),
+Light/Dark × Standard/Compact, and checks disable with and without a resync.
+Restoration follows saved state rather than current ancestry. No token values
+or Qt→WinUI mappings change; live compositor evidence remains required.
+
+The existing ComboBox mapping also covers `comboPopupOuterGeometry`: 16
+theme/density/count/selection cases, three opens each. RED shows an 8 px resize
+after Show. DropdownContentMargin is now installed before Qt sizes and places
+the container; the Show-time row loop, resize and scroll-range override are
+removed. All row, inset, viewport and first-Show assertions remain intact.
+
 Status meanings are defined in `METHODOLOGY.md`. `Verified` requires live mouse,
 keyboard, theme, and motion evidence. Automated tests alone can raise a row only
 to `source-audited`; missing evidence remains explicit in the last column.
