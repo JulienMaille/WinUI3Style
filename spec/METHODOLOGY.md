@@ -205,6 +205,11 @@ directory so Segoe and Fluent glyphs cannot silently become tofu boxes.
 never resizes inputs and reports dimensions, RMS, differing-pixel count,
 maximum channel delta, and the difference bounding box.
 
+`winui3style_image_comparison_contract` tests the oracle itself: RGB differences
+must be rejected even when alpha is identical, including fully transparent
+pixels; bounds include changes in every RGBA channel. Identical images pass
+and dimension mismatches fail. No channel may silently mask another.
+
 `winui3style_native` is a serial Windows CTest using the native platform
 plugin. It exercises real tooltip, menu, ComboBox popup, dialog theme/accent
 updates, and floating-dock cleanup/focus where the interactive desktop grants

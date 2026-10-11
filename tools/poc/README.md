@@ -1,8 +1,15 @@
 # WinUI3Style 0.1.0 — experimental PoC
 
-Windows x64, MSVC 2022, Qt 6.9.2. This is a preview for evaluating a QStyle
+Windows x64, MSVC 2022, official Qt 6.11.1 for the current local validation.
+The package manifest is authoritative for the actual Qt version.
+This is a preview for evaluating a QStyle
 on stock Qt Widgets, not a production release or a Microsoft product.
 The package manifest records the exact source revision and binary hashes.
+
+WinUI3Style does not require a patched Qt. Prefer an official, unmodified Qt
+distribution for published builds. The original local preview used an existing
+developer Qt installation whose build recipe applies Qt patches; that is a
+property of that runtime/package, not a WinUI3Style installation requirement.
 
 ## Run the portable gallery
 
@@ -50,15 +57,19 @@ Build Release and run the normal CTest suite first, then:
 
 ```powershell
 ./tools/package_poc.ps1 -BuildDir build `
-  -QtRoot C:/Qt/6-build/qt-6.9.2-dynamic-msvc-x64 `
-  -QtSourceRoot C:/qt-6.9.2
+  -QtRoot C:/Qt/6.11.1/msvc2022_64 `
+  -QtSourceRoot C:/Qt/qt-everywhere-src-6.11.1
 ```
 
 The script creates a fresh folder under `build/poc`, deploys Qt, copies
 licenses/third-party attribution files and SBOMs, includes a WinUI3Style
 source archive, and writes the package manifest and ZIP SHA-256. It refuses
-textual tracked-source changes so the source archive matches the product
-revision. It checks startup with only Windows on PATH and no Qt plugin-path
+tracked-source changes so the source archive matches the product revision.
+Untracked source files are rejected too, since `git archive HEAD`
+would omit them. Before staging any files, the script rebuilds with tests
+enabled and requires the complete Release CTest suite to pass (including the
+strict approved-baseline check and native suites); it does not skip failures
+for packaging. It checks startup with only Windows on PATH and no Qt plugin-path
 override; this is a local isolation test, not a clean-machine certification.
 It never tags, pushes, uploads or publishes a release.
 
@@ -69,22 +80,26 @@ Test the extracted ZIP on a Windows machine without Qt/developer tools and
 exercise both themes, both densities, menus, suggestions, dialogs and repeated
 Mica on/off cycles. Confirm the exact candidate commit's hosted CI is green.
 
-The local packaged gallery produces the same 66 PNGs as the current build.
-However, a direct image comparison still detects RGB differences against the
-approved baseline while the existing snapshot CTest passes: its RGBA
-`getbbox()` check can overlook RGB-only differences with identical alpha.
-This pre-existing oracle defect must be reproduced and repaired in a separate
-test batch; do not treat the current green snapshot gate as pixel-parity proof.
+Current local validation passes 59/59 CTest entries and 26 domain binaries
+with official Qt 6.11.1. The strict matrix contains 70 approved PNGs, including
+the four Palette Lab frames. A newly generated archive must reproduce this
+matrix; the old 66-frame preview is not evidence for the current candidate.
+The RGB/alpha comparison oracle now checks all four channels. Its former
+alpha-only bounds check hid real differences against the approved baseline.
+The old preview ZIP predates this fix. Review the newly exposed differences
+before accepting any replacement baseline; do not weaken the pixel-exact gate
+to make the preview pass.
 
 Qt is dynamically linked and replaceable. Review its LGPL/GPL license texts,
 third-party notices and corresponding-source requirements before distributing
 the bundled runtime: https://www.qt.io/licensing/open-source-lgpl-obligations
-Supply the exact corresponding Qt sources, including local modifications and
+Supply the exact corresponding Qt sources, including any local modifications and
 build instructions, through the release's source-download mechanism. Installed
 SBOM provenance alone is not a substitute for those sources. The source tree
 passed to the script supplies notice files; its mere existence does not prove
-that it matches the compiled Qt libraries. The local Qt SBOM records a modified
-build, so an unmodified upstream 6.9.2 download must not be claimed to match it.
+that it matches the compiled Qt libraries. The earlier developer-runtime SBOM
+records a modified build; do not reuse that provenance for the new official-Qt
+artifact or claim an upstream download matches a different compiled runtime.
 
 WinUI3Style's license is included in `licenses/WinUI3Style-LGPL-2.1.txt` and its
 sources in `WinUI3Style-source.zip`. Microsoft reference resources are not

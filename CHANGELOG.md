@@ -8,6 +8,25 @@ remain `source-audited` until a live WinUI comparison promotes them).
 
 ## Unreleased
 
+- First experimental distribution candidate (`0.1.0-experimental.1`, not yet
+  tagged or published): portable gallery, style DLL/plugin, dependency and
+  license manifests, installation instructions and explicit release gates.
+- ComboBox popup geometry: install the 4 px top/bottom inset before Qt sizes
+  the container; remove the native Show-time extra resize. Exact outer and
+  viewport geometry, complete rows, scrolling and three reopenings are tested
+  in Light/Dark × Standard/Compact with two/three rows and selections 0/1.
+- Image comparison now includes all RGBA channels in its difference bounds;
+  equal alpha no longer masks real RGB differences. New oracle tests cover
+  RGB-only, transparent, alpha-only, mixed, identical and size-mismatch cases.
+  The user-reviewed 70-frame reference is adopted without relaxing pixel
+  comparisons; calendar capture state is pinned against day rollover.
+- Whole-tree formatting is pinned to clang-format 18.1.8, matching hosted CI.
+- Distribution preflight rejects untracked sources as well as tracked changes,
+  keeping binaries and `git archive HEAD` consistent. Five temporary-repository
+  tests cover clean, staged, unstaged, untracked and ignored-output cases.
+  Packaging rebuilds with tests enabled and stops before staging if any Release
+  CTest fails; an empty test suite cannot pass the gate.
+
 - File-menu reopen defect (wrong background + ugly shadow after clicking an
   item and reopening): the refused DWM acrylic re-attempt on a reused popup
   HWND now converges the popup `Window`/`Base` roles on the flyout surface
