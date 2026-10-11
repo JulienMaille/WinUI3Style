@@ -13,7 +13,7 @@ class GalleryWindow final : public QMainWindow
 public:
     explicit GalleryWindow(QWidget *parent = nullptr);
     ~GalleryWindow() override;
-    bool saveSnapshots(const QString &directory);
+    bool saveSnapshots(const QString &directory, const QString &backdrop = QStringLiteral("none"));
 
 private:
     void configureGallery();

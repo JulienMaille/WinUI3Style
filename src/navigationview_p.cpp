@@ -140,7 +140,11 @@ public:
         // delegate to repaint them, so the previous selection fill/indicator
         // otherwise remains in the backing store after currentRow changes.
         // Clear this row's pixels with Source composition before rebuilding it.
-        if (m_view && m_view->palette().color(QPalette::Base).alpha() == 0)
+        // In-card samples keep the card's veiled fill (never transparentized
+        // by prepareNavigationSurface): a Source-clear there would punch the
+        // card tone to alpha 0, so skip the erase inside an opaque card.
+        if (m_view && !Private::insideOpaqueCard(m_view)
+            && m_view->palette().color(QPalette::Base).alpha() == 0)
             Private::eraseForBackdrop(painter, m_view, option.rect);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
@@ -282,6 +286,13 @@ void prepareNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !view->viewport() || !state)
         return;
+    // In-card samples sit on the card's veiled fill, never on the bare
+    // material: never transparentize them. Restore a previously saved surface
+    // (a no-op when nothing was saved) so a reparented view converges.
+    if (Private::insideOpaqueCard(view)) {
+        restoreNavigationSurface(view, state);
+        return;
+    }
     // An explicit surface is an application override (for example a list on
     // an opaque content card).  Only the default NavigationView surface is
     // transparent so a top-level Mica backdrop can show through.
@@ -387,6 +398,11 @@ void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
 {
     auto *state = navigationState(view, false);
     if (!state || !state->surfaceStateSaved || !view->viewport())
+        return;
+    // In-card samples were never transparentized (see prepare above): a
+    // rebase must not arm them here (e.g. a view moved into a card after a
+    // top-level transparentize).
+    if (Private::insideOpaqueCard(view))
         return;
     // Keep the saved ownership flags: rebasing a temporary material palette
     // must not turn inherited colors into application overrides on restore.

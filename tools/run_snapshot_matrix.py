@@ -44,9 +44,14 @@ def compare_images(left: Path, right: Path, name: str) -> None:
                 f"{name}: dimension mismatch {left_rgba.size} != {right_rgba.size}"
             )
         delta = ImageChops.difference(left_rgba, right_rgba)
-        bbox = delta.getbbox()
-        if bbox is None:
+        # Pillow's RGBA getbbox() returns None when the alpha band is all
+        # zero, which is always the case for opaque gallery shots even when
+        # RGB bands differ widely. Use the RGB projection for the bbox and
+        # only pass when every band is truly zero.
+        rgb_bbox = delta.convert("RGB").getbbox()
+        if all(lo == 0 and hi == 0 for lo, hi in delta.getextrema()):
             return
+        bbox = rgb_bbox if rgb_bbox is not None else delta.getbbox()
         pixels = delta.get_flattened_data()
         differing = sum(pixel != (0, 0, 0, 0) for pixel in pixels)
         maximum = max((max(pixel) for pixel in pixels), default=0)

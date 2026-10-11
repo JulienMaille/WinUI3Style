@@ -133,7 +133,21 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
 
     if (element == QStyle::PE_FrameTabWidget) {
         const Tokens t = tokens(option->palette);
-        eraseForBackdrop(painter, widget, option->rect);
+        if (eraseForBackdrop(painter, widget, option->rect)) {
+            // Recipe 1 over a live material: the pane is a card surface
+            // (QTabWidget + pages are card-gated in the sync), so erase
+            // first, then lay the veiled card tone — the same
+            // veiledCard(t.layer) recipe as CC_GroupBox — instead of the
+            // recipe-2 Source-clear that left the Collections pane at
+            // alpha 0. Keep the hairline stroke so the pane edge still
+            // reads.
+            roundedRect(painter, QRectF(option->rect).adjusted(0, 0, -1, -1),
+                        veiledCard(t.layer, true), t.stroke, ControlRadius);
+            return true;
+        }
+        // Off-material (None/refused/backdrop-never-granted): unchanged
+        // opaque t.control pane card, byte-identical for the snapshot
+        // matrix baselines.
         roundedRect(painter, QRectF(option->rect).adjusted(0, 0, -1, -1), t.control, t.stroke,
                     ControlRadius);
         return true;
@@ -224,7 +238,27 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                                   withAlpha(option->palette.color(QPalette::Base), 255));
                 painter->restore();
             } else {
-                eraseForBackdrop(painter, widget, option->rect);
+                // Erase-then-rebuild in cards (reviewer 2026-10-06
+                // tree-selection overlay): the erase above cleared the card
+                // fill across the full row rect but the pill below only
+                // covers an inset rounded rect — corners and inter-row seams
+                // would read alpha 0 as visible edges. Rebuild the veiled
+                // card tone first (the view Base role is never
+                // transparentized, only Window is, so the tone is intact),
+                // then lay the pill over it. Outside cards the bare erase
+                // stands (recipe-2 material reveal).
+                if (eraseForBackdrop(painter, widget, option->rect)
+                    && insideOpaqueCard(widget)) {
+                    // Source (replace), not SourceOver: the erase above may
+                    // have been clipped away at rounded corners elsewhere in
+                    // the frame, and layering the tone over the card's own
+                    // fill would double it (128 over 128 reads 192). The
+                    // tone IS the card fill, so replacing is exact.
+                    painter->save();
+                    painter->setCompositionMode(QPainter::CompositionMode_Source);
+                    painter->fillRect(option->rect, veiledCard(t.layer, true));
+                    painter->restore();
+                }
             }
             paintPopupRowPill(painter, itemRect, fill);
         }
@@ -396,7 +430,10 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             } else if (source->backgroundBrush.style() != Qt::NoBrush) {
                 painter->fillRect(source->rect, source->backgroundBrush);
             } else if (!calendar && source->features & QStyleOptionViewItem::Alternate) {
-                painter->fillRect(source->rect, source->palette.brush(QPalette::AlternateBase));
+                eraseForBackdrop(painter, widget, source->rect);
+                painter->fillRect(source->rect,
+                                  veiledCard(source->palette.color(QPalette::AlternateBase),
+                                             paintsDirectlyOnBackdrop(widget)));
             }
             style->drawPrimitive(QStyle::PE_PanelItemViewItem, source, painter, widget);
             const auto *tableView = qobject_cast<const QTableView *>(view);
@@ -530,7 +567,10 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             const Tokens t = tokens(option->palette);
             eraseForBackdrop(painter, widget, dock->rect);
             painter->save();
-            painter->fillRect(dock->rect, t.layer);
+            // Veil over a live material (VeiledCardAlpha, same recipe as
+            // CC_GroupBox): erase-then-opaque still bands over Mica.
+            painter->fillRect(dock->rect,
+                              veiledCard(t.layer, paintsDirectlyOnBackdrop(widget)));
             painter->setPen(t.stroke);
             if (dock->verticalTitleBar)
                 painter->drawLine(dock->rect.topRight(), dock->rect.bottomRight());
@@ -570,7 +610,11 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
         const bool north = !tab || tab->shape == QTabBar::RoundedNorth
                 || tab->shape == QTabBar::TriangularNorth;
         if (selected && north) {
-            const QColor selectedFill = t.selectedTabFill;
+            // Selected tab veils over a live material (same card recipe as
+            // CC_GroupBox): an opaque selectedTabFill bands against the
+            // transparentized pane under Mica. Off-material it stays opaque.
+            const QColor selectedFill =
+                    veiledCard(t.selectedTabFill, paintsDirectlyOnBackdrop(widget));
             const QRectF rect = QRectF(option->rect).adjusted(1, 1, -1, 0);
             const qreal radius = 8.0;
             QPainterPath surface;
@@ -583,6 +627,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             surface.lineTo(rect.left(), rect.bottom());
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
+            eraseForBackdrop(painter, widget, option->rect, radius);
             painter->fillPath(surface, selectedFill);
             QPainterPath border;
             border.moveTo(rect.left(), rect.bottom());
@@ -596,11 +641,14 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->drawPath(border);
             painter->restore();
         } else {
+            // Unselected pill veils its hover fill over a live material so
+            // it cannot band or ghost; rest stays transparent.
+            eraseForBackdrop(painter, widget, option->rect, ControlRadius);
             QColor fill = Qt::transparent;
             if (option->state & QStyle::State_Sunken)
-                fill = t.controlPressed;
+                fill = veiledCard(t.controlPressed, paintsDirectlyOnBackdrop(widget));
             else if (option->state & QStyle::State_MouseOver)
-                fill = t.layer;
+                fill = veiledCard(t.layer, paintsDirectlyOnBackdrop(widget));
             roundedRect(painter, QRectF(option->rect).adjusted(2, 2, -2, -2), fill, Qt::transparent,
                         ControlRadius);
             const bool nextTabSelected =
@@ -662,7 +710,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
     if (element == QStyle::CE_HeaderSection) {
         const Tokens t = tokens(option->palette);
         eraseForBackdrop(painter, widget, option->rect);
-        QColor fill = t.layer;
+        // Rest veils over a live material; hover/pressed are already
+        // translucent subtle fills and stay as-is.
+        QColor fill = veiledCard(t.layer, paintsDirectlyOnBackdrop(widget));
         if (option->state & QStyle::State_Sunken)
             fill = t.subtlePressed;
         else if (option->state & QStyle::State_MouseOver)

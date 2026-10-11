@@ -168,6 +168,54 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_scrollbarcard_tests winui3styleplugin)
 endif()
 
+# Mica backdrop regression binary (60 KB cap: surfaces/views have no
+# headroom). Same shape as winui3style_scrollbarcard_tests: links the public
+# library plus Qt Test/Widgets, resolves private test seams via the src
+# include directory. Card-nested backdrop samples (nav/menu in-card veils)
+# live in the separate micacard binary so this file stays under the ratchet.
+add_executable(winui3style_micabackdrop_tests tst_winui3micabackdrop.cpp)
+target_include_directories(winui3style_micabackdrop_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_micabackdrop_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_micabackdrop_tests winui3styleplugin)
+endif()
+
+# Card-nested Mica samples split (60 KB cap: micabackdrop has no headroom).
+# In-card nav/menu veils live here so the backdrop binary stays under the
+# ratchet. Same shape as winui3style_micabackdrop_tests.
+add_executable(winui3style_micacard_tests tst_winui3micacard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+set_target_properties(winui3style_micacard_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+target_include_directories(winui3style_micacard_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_micacard_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_micacard_tests winui3styleplugin)
+endif()
+
+# Exact-construction live repro: the REAL GalleryWindow class (same sources
+# the reviewer runs: gallerywindow.cpp/.h/.ui), offscreen-capable. Mirrors
+# the autosuggest-native target shape without its native-capture define.
+add_executable(winui3style_galleryprobe_tests
+    tst_winui3galleryprobe.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+set_target_properties(winui3style_galleryprobe_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+target_include_directories(winui3style_galleryprobe_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+target_link_libraries(winui3style_galleryprobe_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_galleryprobe_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -228,7 +276,10 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_popupcorners_tests
         winui3style_calendarheader_tests
         winui3style_calendarsurface_tests
-        winui3style_scrollbarcard_tests)
+        winui3style_scrollbarcard_tests
+        winui3style_micabackdrop_tests
+        winui3style_micacard_tests
+        winui3style_galleryprobe_tests)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
         list(APPEND _winui3style_linked_test_targets
@@ -289,6 +340,12 @@ add_test(NAME winui3style_calendarsurface_unit
          COMMAND winui3style_calendarsurface_tests)
 add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
+add_test(NAME winui3style_micabackdrop_unit
+         COMMAND winui3style_micabackdrop_tests)
+add_test(NAME winui3style_micacard_unit
+         COMMAND winui3style_micacard_tests)
+add_test(NAME winui3style_galleryprobe_unit
+         COMMAND winui3style_galleryprobe_tests)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -310,7 +367,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction animatedstack settings navigation)
+foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction animatedstack settings navigation micabackdrop micacard galleryprobe)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )
@@ -349,6 +406,12 @@ set_tests_properties(winui3style_calendarsurface_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_scrollbarcard_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_micabackdrop_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_micacard_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 

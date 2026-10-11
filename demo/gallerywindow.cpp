@@ -355,7 +355,7 @@ void GalleryWindow::setTheme(int index)
     qApp->style()->setProperty("themeMode", index);
 }
 
-bool GalleryWindow::saveSnapshots(const QString &directory)
+bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backdrop)
 {
     QDir output;
     if (!output.mkpath(directory))
@@ -373,9 +373,11 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
     const bool animationsWereDisabled = qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
     const QByteArray previousAnimationSetting = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
-    setProperty("winuiBackdrop", QStringLiteral("none"));
-    setPalette(QPalette());
-    setAutoFillBackground(true);
+    setProperty("winuiBackdrop", backdrop);
+    if (backdrop == QLatin1String("none")) {
+        setPalette(QPalette());
+        setAutoFillBackground(true);
+    }
     activeStyle->setProperty("accentColor", QColor(0, 120, 212));
     activeStyle->setProperty("densityMode", 0);
     const bool mouseEventsWereTransparent = testAttribute(Qt::WA_TransparentForMouseEvents);
@@ -449,10 +451,14 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         }
         ui->fileMenu->hide();
         for (int page = 0; page < ui->pages->count(); ++page) {
-            if (ui->pages->widget(page) == ui->paletteLabPage)
-                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
+            settle();
+            // A page never visited in-capture before can still be mid-layout
+            // or mid-polish after one pass (palette lab: missing headings,
+            // shifted content, light-painted editors in dark mode). A second
+            // settle round lets nested layouts converge and queued refreshes
+            // fire before the grab.
             settle();
             success = grab().save(output.filePath(
                                           QStringLiteral("%1-page-%2.png").arg(theme).arg(page)),
@@ -605,10 +611,14 @@ bool GalleryWindow::saveSnapshots(const QString &directory)
         activeStyle->setProperty("densityMode", 1);
         ui->densityCombo->setCurrentIndex(1);
         for (int page = 0; page < ui->pages->count(); ++page) {
-            if (ui->pages->widget(page) == ui->paletteLabPage)
-                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
+            settle();
+            // A page never visited in-capture before can still be mid-layout
+            // or mid-polish after one pass (palette lab: missing headings,
+            // shifted content, light-painted editors in dark mode). A second
+            // settle round lets nested layouts converge and queued refreshes
+            // fire before the grab.
             settle();
             success = grab().save(output.filePath(QStringLiteral("%1-density-compact-page-%2.png")
                                                           .arg(theme)

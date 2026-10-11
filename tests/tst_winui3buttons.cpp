@@ -1140,10 +1140,12 @@ void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
     const QImage standardImage = paintButton(&standard);
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&subtle));
     QImage image = paintButton(&subtle);
-    // The resting subtle panel repaints the veiled card tone (transparentized
-    // layer) instead of an opaque button fill: the group card shows straight
+    // The resting subtle panel repaints the card tone (the same Active-group
+    // veiled refill CC_GroupBox paints — cardRefillTone, not a forced-178
+    // veil) instead of an opaque button fill: the group card shows straight
     // through, never a wiped mica hole.
-    QCOMPARE(image.pixelColor(6, 6), QColor::fromRgb(255, 255, 255, 128));
+    QCOMPARE(image.pixelColor(6, 6),
+             WinUI3::Private::cardRefillTone(subtle.palette(), true));
     QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer, QColor::fromRgb(255, 255, 255, 128));
 }
 

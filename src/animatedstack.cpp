@@ -2,6 +2,8 @@
 #include <winui3style/animatedstack.h>
 #include <winui3style/winui3style.h>
 
+#include "winui3helpers_p.h"
+
 #include <QHideEvent>
 #include <QLayout>
 #include <QPainter>
@@ -24,7 +26,14 @@ public:
         setObjectName(QStringLiteral("_winui_animated_stack_overlay"));
         const QImage image = m_pixmap.toImage();
         m_background = image.isNull() ? palette().color(QPalette::Window) : image.pixelColor(0, 0);
-        if (m_background.alpha() < 255)
+        // Gate the opaque fallback: over a live material a translucent
+        // snapshot must keep its translucency, otherwise the fill below
+        // bands opaque Window over Mica for the whole transition. Off the
+        // material (or a null snapshot) the opaque Window role still backs
+        // the pixmap. The overlay palette itself stays resolved — it is
+        // transient and must not leak a transparentized role after the
+        // animation.
+        if (m_background.alpha() < 255 && !Private::paintsDirectlyOnBackdrop(this))
             m_background = palette().color(QPalette::Window);
     }
 
@@ -38,6 +47,12 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
+        // Recipe 1 (erase-then-fill): clear stale backing-store rows over a
+        // live material first — the sliding pixmap would otherwise smear a
+        // translucent resolved surface across frames — then rebuild the
+        // resolved surface under the pixmap. Off the material the erase is
+        // a gated no-op and the opaque fill backs the pixmap as before.
+        Private::eraseForBackdrop(&painter, this, rect());
         painter.fillRect(rect(), m_background);
         const QSize target(qRound(width() * devicePixelRatioF()),
                            qRound(height() * devicePixelRatioF()));

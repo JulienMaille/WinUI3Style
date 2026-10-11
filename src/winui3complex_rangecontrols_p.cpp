@@ -16,22 +16,6 @@
 namespace WinUI3::Private {
 using namespace PaintPrivate;
 
-namespace {
-
-bool isInsideOpaqueCard(const QWidget *widget)
-{
-    for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
-         ancestor = ancestor->parentWidget()) {
-        if (qobject_cast<const QGroupBox *>(ancestor)
-            && ancestor->palette().color(QPalette::Window).alpha() != 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-} // namespace
-
 bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
                              const QStyleOptionComplex *option, QPainter *painter,
                              const QWidget *widget, const Tokens &t)
@@ -40,13 +24,13 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
         if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
             // Sliders paint only groove/thumb/focus: no opaque fill of their
             // own. Erasing to transparent is correct straight onto the live
-            // material, but inside an opaque group card it would punch a hole
-            // through the card fill (the mica-mode band). Group cards carry
-            // no SurfaceProperty, so the gate cannot see them: skip the erase
-            // when an opaque QGroupBox ancestor intervenes and keep the card
+            // material, but inside an opaque card it would punch a hole
+            // through the card fill (the mica-mode band). Cards carry no
+            // SurfaceProperty, so the gate cannot see them: skip the erase
+            // when the shared card walk finds an ancestor card and keep the
             // fill the parent already painted.
-            const bool insideOpaqueCard = isInsideOpaqueCard(widget);
-            if (!insideOpaqueCard)
+            const bool inCard = insideOpaqueCard(widget);
+            if (!inCard)
                 eraseForBackdrop(painter, widget, option->rect);
             const bool horizontal = slider->orientation == Qt::Horizontal;
             QRect groove = style->subControlRect(QStyle::CC_Slider, slider, QStyle::SC_SliderGroove,
@@ -158,19 +142,21 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
             // hover track fades out there is no fill left, so erase-only
             // with no repainted background lets the parent show through
             // instead of a mismatched Window-role band on live Mica.
-            // Group cards carry no SurfaceProperty, so the gate cannot see
-            // them (same guard as CC_Slider above): inside an opaque group
-            // card the groove is transparent to the card fill, not to the
-            // window material, and a bare erase punches a Mica hole through
-            // the veil. Rebuild the veiled card tone instead (the erase
-            // still clears stale hover/thumb frames); outer bars keep the
-            // erase-only rest. Hover track and thumb below are unchanged.
-            const bool insideOpaqueCard = isInsideOpaqueCard(widget);
+            // Cards carry no SurfaceProperty, so the gate cannot see
+            // them (shared card walk, same guard as CC_Slider above): inside
+            // an opaque card the groove is transparent to the card fill, not
+            // to the window material, and a bare erase punches a Mica hole
+            // through the veil. Rebuild the card tone with the role's own
+            // alpha (min-clamp, never exact-178: a faint Disabled Base must
+            // stay faint — forcing 178 turned the disabled groove into an
+            // opaque white band in dark Mica). Outer bars keep the erase-only
+            // rest. Hover track and thumb below are unchanged.
+            const bool inCard = insideOpaqueCard(widget);
             const bool onBackdrop = eraseForBackdrop(painter, widget, option->rect);
             const bool enabled = option->state & QStyle::State_Enabled;
             if (!onBackdrop)
                 painter->fillRect(option->rect, background);
-            else if (insideOpaqueCard)
+            else if (inCard)
                 painter->fillRect(option->rect, veiledCard(t.layer, true));
             // The WinUI ScrollBarThumb template fades the thumb to zero in its
             // Disabled state; arrows and track are suppressed with it.
@@ -182,7 +168,7 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
                                             option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
             const bool horizontal = scroll->orientation == Qt::Horizontal;
             if (expanded > 0.001) {
-                QColor track = t.layer;
+                QColor track = veiledCard(t.layer, paintsDirectlyOnBackdrop(widget));
                 track.setAlphaF(track.alphaF() * expanded);
                 roundedRect(painter, option->rect, track, Qt::transparent, 3);
             }

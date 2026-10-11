@@ -36,10 +36,14 @@ def compare(reference: Path, candidate: Path, diff: Path | None) -> Metrics:
         1 for pixel in pixels if pixel != (0, 0, 0, 0)
     )
     max_delta = max((max(pixel) for pixel in pixels), default=0)
+    # RGBA getbbox() returns None when the alpha band is all zero (always
+    # true for opaque shots), hiding real RGB differences. Report the RGB
+    # projection's bbox; rms/differing/max_delta above are unchanged.
     if diff:
         diff.parent.mkdir(parents=True, exist_ok=True)
         delta.save(diff)
-    return Metrics(rms, differing_pixels, max_delta, delta.getbbox(), expected.size)
+    rgb_bbox = delta.convert("RGB").getbbox()
+    return Metrics(rms, differing_pixels, max_delta, rgb_bbox, expected.size)
 
 
 def main() -> int:

@@ -30,6 +30,11 @@ int main(int argc, char *argv[])
                                            QStringLiteral("Override the application font size for visual QA."),
                                            QStringLiteral("pixels"));
     parser.addOption(fontPixelSizeOption);
+    QCommandLineOption backdropOption(QStringLiteral("backdrop"),
+                                      QStringLiteral("Backdrop type: none or mica."),
+                                      QStringLiteral("type"),
+                                      QStringLiteral("none"));
+    parser.addOption(backdropOption);
     parser.process(application);
 
     if (parser.isSet(fontPixelSizeOption)) {
@@ -57,8 +62,9 @@ int main(int argc, char *argv[])
     window.resize(1180, 780);
     window.show();
     if (captureMode) {
-        QTimer::singleShot(250, &application, [&application, &window, &parser, captureOption] {
-            const bool saved = window.saveSnapshots(parser.value(captureOption));
+        QTimer::singleShot(250, &application, [&application, &window, &parser, captureOption, backdropOption] {
+            const bool saved = window.saveSnapshots(parser.value(captureOption),
+                                                   parser.value(backdropOption));
             application.exit(saved ? 0 : 2);
         });
     }

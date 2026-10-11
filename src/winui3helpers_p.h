@@ -13,9 +13,12 @@
 #include <winui3style/winui3style.h>
 
 #include <QAbstractButton>
+#include <QAbstractScrollArea>
 #include <QAbstractSpinBox>
+#include <QCalendarWidget>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QGroupBox>
 #include <QLineEdit>
 #include <QPalette>
 #include <QPainter>
@@ -23,6 +26,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRect>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QWidget>
 
@@ -86,7 +90,9 @@ inline bool buttonPressPulse(const QWidget *widget)
 //
 // Recipe 1, erase-then-fill (default): eraseForBackdrop, then paint the fill.
 //   Buttons, combo/spin/slider/scrollbar frames, PE_Widget islands, CE labels,
-//   CC_ToolButton/CC_GroupBox, item rows, dock panels, navigation rows.
+//   CC_ToolButton/CC_GroupBox, item rows, dock panels, navigation rows,
+//   tab-pane cards (PE_FrameTabWidget lays veiledCard(t.layer) over the
+//   material, the group-card recipe).
 // Recipe 2, erase-means-transparent: eraseForBackdrop, then return with no
 //   fill. Menu-bar rest state, subtle-at-rest buttons outside group cards.
 // Recipe 3, Source-composite of the translucent surface (acrylic popups only):
@@ -110,6 +116,77 @@ inline bool isContentLayerSurface(const QVariant &surface, const QString &name)
 inline bool isContentLayerSurface(const QVariant &surface)
 {
     return isContentLayerSurface(surface, surface.toString());
+}
+
+// Card surfaces that own their fill by design: the backdrop sync never
+// transparentizes them, and a child that paints straight onto the material by
+// the shared gate must never Source-clear their fill (the slider/scrollbar
+// card guard, extended to the PE_Widget erase path and the sync). Structural
+// only — no Window-alpha check: group cards inherit the island's zero-alpha
+// Window role while still painting their Base-derived fill, so an alpha test
+// would misread a live card as translucent and let the erase through.
+inline bool isCardSurface(const QWidget *widget)
+{
+    if (!widget)
+        return false;
+    if (qobject_cast<const QGroupBox *>(widget))
+        return true;
+    // WinUI3::SettingsCard derives from QFrame; both the promoted widget and
+    // any .ui-declared winuiSettingsCard marker stay opaque.
+    if (widget->property(Style::SettingsCardProperty).toBool())
+        return true;
+    const QString name = widget->objectName();
+    if (qobject_cast<const QCalendarWidget *>(widget))
+        return true;
+    if (name.compare(QStringLiteral("persistentCalendar"), Qt::CaseSensitive) == 0)
+        return true;
+    // TabView card: the QTabWidget pane frame is a card (PE_FrameTabWidget
+    // lays veiledCard(t.layer)), and each direct page inherits that surface.
+    if (qobject_cast<const QTabWidget *>(widget))
+        return true;
+    return qobject_cast<const QTabWidget *>(widget->parentWidget()) != nullptr;
+}
+
+// True when an ancestor card owns the surface this widget would erase. The
+// ancestor walk is structural for the same reason as isCardSurface above: a
+// group card under a transparentized island carries the island's zero-alpha
+// Window role, yet its Base-derived fill still has to survive every child
+// paint (the mica-mode hole in the Collections/Dialogs cards). The walk stops
+// at the widget's own window: a popup (menu parented to an in-card widget)
+// is a separate backing-store surface and never inherits the main window's
+// card decision.
+inline bool insideOpaqueCard(const QWidget *widget)
+{
+    if (!widget)
+        return false;
+    const QWidget *surface = widget->window();
+    for (const QWidget *ancestor = widget->parentWidget(); ancestor;
+         ancestor = ancestor->parentWidget()) {
+        if (ancestor->window() != surface)
+            break;
+        if (isCardSurface(ancestor))
+            return true;
+    }
+    return false;
+}
+
+// True for the viewport of a scroll area inside an opaque card
+// (reviewer 2026-10-06 tree-selection overlay): the viewport's auto-filled
+// Base layer would double over the card veil (white@128 over white@128
+// reads 192), so the sync stops the autofill and the viewport repaints the
+// card tone itself (erase + Source refill, smear-safe). Roles stay intact
+// for tone reads; popups never match (separate windows). NavigationView
+// views keep their own opaque recipe and are excluded here as in the sync.
+inline bool isCardViewport(const QWidget *widget)
+{
+    if (!widget)
+        return false;
+    const auto *area = qobject_cast<const QAbstractScrollArea *>(widget->parentWidget());
+    if (!area || area->viewport() != widget)
+        return false;
+    if (area->property(Style::NavigationViewProperty).toBool())
+        return false;
+    return insideOpaqueCard(widget);
 }
 
 // True only when the widget paints straight onto the window surface: either
