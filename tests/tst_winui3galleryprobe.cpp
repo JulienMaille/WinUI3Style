@@ -16,6 +16,7 @@
 
 #include <QComboBox>
 #include <QCheckBox>
+#include <QCalendarWidget>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
@@ -24,6 +25,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QTemporaryDir>
 
 class WinUI3GalleryProbeTest final : public QObject
 {
@@ -35,6 +37,7 @@ private slots:
     void cleanup();
     void galleryProbeKeepsCardFillOverComposited();
     void galleryNavigationPaletteFollowsThemeAfterMicaDisable();
+    void gallerySnapshotPinsAndRestoresCalendarDate();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -347,6 +350,34 @@ void WinUI3GalleryProbeTest::galleryNavigationPaletteFollowsThemeAfterMicaDisabl
     // Direct palette writes in NavigationView's temporary transparent
     // surface must not make its dark style palette look application-owned.
     QCOMPARE(navigation->property(WinUI3::Private::ownedPaletteProperty).toBool(), true);
+}
+
+void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
+{
+    DisableAnimationsGuard animations;
+    GalleryWindow gallery;
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    auto *calendar = gallery.findChild<QCalendarWidget *>(QStringLiteral("persistentCalendar"));
+    QVERIFY(calendar);
+    const QDate originalDate(2035, 4, 5);
+    calendar->setSelectedDate(originalDate);
+    calendar->setCurrentPage(2034, 7);
+    QList<QDate> selectedDuringCapture;
+    const auto selectionConnection =
+            connect(calendar, &QCalendarWidget::selectionChanged, this,
+                    [&] { selectedDuringCapture.append(calendar->selectedDate()); });
+    QTemporaryDir output;
+    QVERIFY(output.isValid());
+    const bool saved = gallery.saveSnapshots(output.path());
+    disconnect(selectionConnection);
+    QVERIFY(saved);
+    QVERIFY2(selectedDuringCapture.contains(QDate(2026, 10, 11)),
+             "snapshot selection must use the approved fixture date, never the wall clock");
+    QCOMPARE(calendar->selectedDate(), originalDate);
+    QCOMPARE(calendar->yearShown(), 2034);
+    QCOMPARE(calendar->monthShown(), 7);
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)

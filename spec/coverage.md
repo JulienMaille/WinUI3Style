@@ -24,6 +24,12 @@ official Qt 6.8.3; the Qt 6.11.1 integration captures are also pixel-identical,
 including the four newly enumerated Palette Lab captures. The matrix remains
 strict (RGB and alpha); neither tolerances nor assertions were relaxed.
 
+Calendar capture state is pinned to the approved 2026-10-11 fixture. The
+midnight rollover to October 12 reproduced a 1,712-pixel selection change,
+not a QStyle rendering change. `gallerySnapshotPinsAndRestoresCalendarDate`
+is RED before pinning and checks the fixed capture selection plus restoration
+of the live selected date and displayed month. Mapping and rendering stay intact.
+
 The existing Top-level backdrop / Mica lifecycle mapping is reopened for
 reparenting while active. `reparentedBackdropSurfacesRestore` reproduces the
 lost palette/viewport attributes in both directions (bare ↔ opaque card),

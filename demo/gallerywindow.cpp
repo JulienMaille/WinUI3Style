@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QApplication>
+#include <QCalendarWidget>
 #include <QColorDialog>
 #include <QCompleter>
 #include <QDialog>
@@ -370,6 +371,9 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
     const QVariant previousBackdrop = property("winuiBackdrop");
     const QPalette previousPalette = palette();
     const bool previousAutoFill = autoFillBackground();
+    const QDate previousCalendarDate = ui->persistentCalendar->selectedDate();
+    const int previousCalendarYear = ui->persistentCalendar->yearShown();
+    const int previousCalendarMonth = ui->persistentCalendar->monthShown();
     const bool animationsWereDisabled = qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
     const QByteArray previousAnimationSetting = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
@@ -394,8 +398,15 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         setPalette(previousPalette);
         setAutoFillBackground(previousAutoFill);
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
+        ui->persistentCalendar->setSelectedDate(previousCalendarDate);
+        ui->persistentCalendar->setCurrentPage(previousCalendarYear, previousCalendarMonth);
         QCursor::setPos(previousCursorPosition);
     });
+    // Preserve the reviewed calendar fixture across midnight/day changes.
+    // This is capture state only; the live Gallery retains its own date/page.
+    const QDate calendarFixture(2026, 10, 11);
+    ui->persistentCalendar->setSelectedDate(calendarFixture);
+    ui->persistentCalendar->setCurrentPage(calendarFixture.year(), calendarFixture.month());
     if (QScreen *screen = QGuiApplication::primaryScreen())
         QCursor::setPos(screen->availableGeometry().bottomRight());
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
