@@ -578,9 +578,7 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
     } else {
         const QPalette palette = ownedPaletteForWidget(widget, window, applicationPalette,
                                                        applicationTokens, applicationAccent);
-        if (widget->property(implicitPaletteSnapshotProperty).isValid())
-            widget->setProperty(implicitPaletteSnapshotProperty, QVariant::fromValue(palette));
-        widget->setPalette(palette);
+        Private::setBackdropPalette(widget, palette);
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
     }
@@ -2732,8 +2730,11 @@ void Style::polishTableViewSelectionPalette(QWidget *widget)
 
 void Style::polishNavigationView(QWidget *widget)
 {
-    if (auto *view = qobject_cast<QAbstractItemView *>(widget))
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+        d->registerPaletteOwner(view);
+        d->registerPaletteOwner(view->viewport());
         NavigationPrivate::prepareNavigationView(view);
+    }
 }
 
 void Style::polishProgressBar(QWidget *widget)

@@ -15,12 +15,14 @@
 #include "../src/winui3tokens_p.h"
 
 #include <QComboBox>
+#include <QCheckBox>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenuBar>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStackedWidget>
 
 class WinUI3GalleryProbeTest final : public QObject
@@ -32,6 +34,7 @@ private slots:
     void init();
     void cleanup();
     void galleryProbeKeepsCardFillOverComposited();
+    void galleryNavigationPaletteFollowsThemeAfterMicaDisable();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -269,11 +272,81 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         focusGrab.fill(Qt::transparent);
         mica.render(&focusGrab);
         QVERIFY(focusGrab.pixelColor(probeInWindow(previewEdit, previewEdit->rect().center()))
-                       .alpha()
+                        .alpha()
                 != 0);
         QCOMPARE(focusGrab.pixelColor(probeInWindow(previewEdit, QPoint(0, 0))).alpha(), 0);
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+void WinUI3GalleryProbeTest::galleryNavigationPaletteFollowsThemeAfterMicaDisable()
+{
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+
+    GalleryWindow gallery;
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    auto *navigation = gallery.findChild<QListWidget *>(QStringLiteral("navigationList"));
+    auto *density = gallery.findChild<QComboBox *>(QStringLiteral("densityCombo"));
+    auto *micaToggle = gallery.findChild<QCheckBox *>(QStringLiteral("micaToggle"));
+    auto *controls = gallery.findChild<QScrollArea *>(QStringLiteral("controlsPage"));
+    QVERIFY(navigation && density && micaToggle && controls);
+
+    const QPalette darkPalette = style->standardPalette();
+    QCOMPARE(WinUI3::Private::tokens(navigation->palette()).dark, true);
+    QCOMPARE(navigation->palette().color(QPalette::Active, QPalette::Text),
+             darkPalette.color(QPalette::Active, QPalette::Text));
+
+    // Replay the Gallery control path, then publish the compositor grant just
+    // as the existing offscreen backdrop mechanism tests do.
+    micaToggle->setChecked(true);
+    QVERIFY(navigation->property(WinUI3::Private::ownedPaletteProperty).toBool());
+    QCOMPARE(navigation->palette(),
+             navigation->property(WinUI3::Private::implicitPaletteSnapshotProperty)
+                     .value<QPalette>());
+    qApp->processEvents();
+    gallery.setProperty("_winui_backdrop", 1);
+    gallery.setProperty("_winui_backdrop_effective", 2);
+    WinUI3::Private::makeChromeSurfacesTransparent(&gallery);
+    WinUI3::Private::syncContentSurfacesForBackdrop(&gallery);
+    qApp->processEvents();
+    QCOMPARE(navigation->palette().color(QPalette::Window).alpha(), 0);
+
+    // Match the reported below-fold interaction before turning the backdrop
+    // off: density changes and scrolling must not detach the navigation view
+    // from its style-owned palette snapshot.
+    density->setCurrentIndex(1);
+    qApp->processEvents();
+    QCOMPARE(WinUI3::Style::densityMode(navigation), WinUI3::DensityMode::Compact);
+    controls->verticalScrollBar()->setValue(controls->verticalScrollBar()->maximum());
+    qApp->processEvents();
+    QVERIFY(controls->verticalScrollBar()->value() > 0);
+
+    micaToggle->setChecked(false);
+    qApp->processEvents();
+    WinUI3::Private::restoreChromeSurfaces(&gallery);
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&gallery);
+    gallery.setProperty("_winui_backdrop", 0);
+    gallery.setProperty("_winui_backdrop_effective", 0);
+    qApp->processEvents();
+
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    qApp->processEvents();
+    const QPalette lightPalette = style->standardPalette();
+    // The restored NavigationView palette and its delegate tokens must follow
+    // Light after the Mica cycle, just like other style-owned widgets.
+    QCOMPARE(WinUI3::Private::tokens(navigation->palette()).dark, false);
+    QCOMPARE(navigation->palette().color(QPalette::Active, QPalette::Text),
+             lightPalette.color(QPalette::Active, QPalette::Text));
+    QCOMPARE(navigation->viewport()->palette().color(QPalette::Active, QPalette::Text),
+             lightPalette.color(QPalette::Active, QPalette::Text));
+    // Direct palette writes in NavigationView's temporary transparent
+    // surface must not make its dark style palette look application-owned.
+    QCOMPARE(navigation->property(WinUI3::Private::ownedPaletteProperty).toBool(), true);
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)

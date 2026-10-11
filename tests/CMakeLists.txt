@@ -468,6 +468,11 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_test(NAME winui3style_menus_native COMMAND winui3style_menus_native_tests)
     add_test(NAME winui3style_autosuggest_native
         COMMAND winui3style_autosuggest_native_tests)
+    if(WINUI3STYLE_BUILD_DEMO)
+        add_test(NAME winui3style_galleryprobe_native
+            COMMAND winui3style_galleryprobe_tests
+                galleryNavigationPaletteFollowsThemeAfterMicaDisable)
+    endif()
     set(_winui3style_native_environment
         "QT_QPA_PLATFORM=windows"
         "QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"
@@ -501,4 +506,12 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         RESOURCE_LOCK winui3style_desktop
         LABELS "native;interactive;opt-in"
         TIMEOUT 180)
+    if(WINUI3STYLE_BUILD_DEMO)
+        set_tests_properties(winui3style_galleryprobe_native PROPERTIES
+            ENVIRONMENT "${_winui3style_native_environment}"
+            RUN_SERIAL TRUE
+            RESOURCE_LOCK winui3style_desktop
+            LABELS "native;interactive"
+            TIMEOUT 180)
+    endif()
 endif()
