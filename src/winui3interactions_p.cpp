@@ -718,57 +718,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             }
         }
         if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-            const bool offscreen =
-                    QGuiApplication::platformName() == QStringLiteral("offscreen");
+            const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
             if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
-                // Qt's showPopup measures the container from its rows when the
-                // container is fresh (margins not yet installed) and from
-                // rows + insets once preparePopupSurface has installed them,
-                // so the absolute rows+insets target is idempotent for both.
-                if (QAbstractItemView *view = combo->view()) {
-                    const QMargins margins = widget->contentsMargins();
-                    int rows = 0;
-                    const QModelIndex root = combo->rootModelIndex();
-                    for (int i = 0; i < combo->model()->rowCount(root); ++i) {
-                        rows += view->visualRect(
-                                                 combo->model()->index(i, combo->modelColumn(),
-                                                                       root))
-                                        .height();
-                    }
-                    const int wanted = rows + margins.top() + margins.bottom();
-                    // Extend only when the whole list fits the screen. Qt
-                    // clamps a tall list to the available height, and forcing
-                    // rows+insets there would push the popup off-screen (cut
-                    // inset, stroke and corner arcs); Qt's clamp stands and a
-                    // scrolling viewport keeps its range.
-                    if (wanted > 0) {
-                        const int available = widgetScreen(widget)
-                                ? widgetScreen(widget)->availableGeometry().height()
-                                : wanted;
-                        if (wanted <= available) {
-                            const int settledViewport =
-                                    wanted - margins.top() - margins.bottom();
-                            widget->resize(widget->width(), wanted);
-                            // The child view was laid out for the pre-resize
-                            // container, so it must take the new geometry or
-                            // the popup shows an empty tint band below the
-                            // last row.
-                            if (QLayout *layout = widget->layout())
-                                layout->activate();
-                            // Qt arms a 10px QComboBoxPrivateScroller band
-                            // whenever the view's scroll range is above zero;
-                            // that band erases its own rect (wallpaper shows
-                            // through under Mica) and eats 10px, clipping the
-                            // last row. With the rows settled the range
-                            // collapses to 0..0 so no scroller is armed;
-                            // a viewport that still cannot show every row
-                            // keeps its range so the list stays scrollable.
-                            if (rows <= settledViewport)
-                                if (QScrollBar *vertical = view->verticalScrollBar())
-                                    vertical->setRange(0, 0);
-                        }
-                    }
-                }
                 m_callbacks.prepareComboPopupFirstFrame(combo);
                 centerPendingComboPopup(widget, combo);
                 if (!offscreen)

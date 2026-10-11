@@ -2666,18 +2666,21 @@ void Style::polish(QWidget *widget)
 
     polishCalendarWidget(widget);
 
-    if (qobject_cast<QComboBox *>(widget))
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
         framePropertyRegistry().set(widget, comboChevronProperty, 0.0);
+        // Install DropdownContentMargin before Qt negotiates popup geometry.
+        // Mutating it during Show clips rows and requires a second resize.
+        QWidget *popup = combo->view()->window();
+        remember(popup, originalMarginsProperty, QVariant::fromValue(popup->contentsMargins()));
+        popup->setContentsMargins(0, 4, 0, 4);
+    }
 
     polishMenuMargins(widget);
 
     polishContentDialog(widget);
-    if (!widget->testAttribute(Qt::WA_SetPalette)
-        && widget->property(ownedPaletteProperty).toBool()
-        && widget->window()->windowType() != Qt::Popup
-        && !qobject_cast<QWizard *>(widget->window())
-        && !insideCalendarWidget(widget)
-        && !widget->property(BackdropProperty).isValid())
+    if (!widget->testAttribute(Qt::WA_SetPalette) && widget->property(ownedPaletteProperty).toBool()
+        && widget->window()->windowType() != Qt::Popup && !qobject_cast<QWizard *>(widget->window())
+        && !insideCalendarWidget(widget) && !widget->property(BackdropProperty).isValid())
         widget->setProperty(implicitPaletteSnapshotProperty,
                             QVariant::fromValue(widget->palette()));
 }
