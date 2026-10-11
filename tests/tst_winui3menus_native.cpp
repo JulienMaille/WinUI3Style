@@ -406,7 +406,9 @@ void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
     QVERIFY2(snapCycleSnapshot("open1", fileMenu, window, &open1),
              "open1 snapshot failed (hidden or unsettled)");
 
-    // Hover-open Export; re-assert hover, fallback to popup at row.
+    // Hover-open Export; if pointer delivery is blocked, use the same
+    // nested-menu lifecycle through keyboard input. A standalone popup()
+    // closes the parent and invalidates the parent snapshot below.
     const QRect exportRect = fileMenu.actionGeometry(exportMenu->menuAction());
     QVERIFY(exportRect.isValid());
     QElapsedTimer submenuWait;
@@ -417,10 +419,12 @@ void WinUI3StyleNativeTest::menuBranchConvergesAcrossSubmenuAndToggle()
     }
     bool hoverOpened = exportMenu->isVisible();
     if (!hoverOpened) {
-        qWarning("submenu hover BLOCKED/unverifiable: using programmatic popup fallback");
-        exportMenu->popup(fileMenu.mapToGlobal(exportRect.topRight()));
+        qWarning("submenu hover BLOCKED/unverifiable: using nested keyboard fallback");
+        fileMenu.setActiveAction(exportMenu->menuAction());
+        QTest::keyClick(&fileMenu, Qt::Key_Right);
     }
     QTRY_VERIFY(exportMenu->isVisible());
+    QVERIFY(fileMenu.isVisible());
     CycleSnapshot afterSubmenu;
     QVERIFY2(snapCycleSnapshot("afterSubmenu", fileMenu, window, &afterSubmenu),
              "afterSubmenu snapshot failed (hidden or unsettled)");
