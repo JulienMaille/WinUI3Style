@@ -101,6 +101,18 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
     set_tests_properties(winui3style_image_comparison_contract PROPERTIES
         LABELS "snapshot;contract"
     )
+    if(WIN32)
+        find_program(WINUI3STYLE_POWERSHELL NAMES pwsh powershell REQUIRED)
+        add_test(
+            NAME winui3style_package_preflight_contract
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_package_preflight.py
+                --powershell ${WINUI3STYLE_POWERSHELL}
+        )
+        set_tests_properties(winui3style_package_preflight_contract PROPERTIES
+            LABELS "distribution;contract"
+        )
+    endif()
     add_test(
             NAME winui3style_snapshot_matrix
             COMMAND ${Python3_EXECUTABLE}

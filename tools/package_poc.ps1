@@ -21,9 +21,9 @@ foreach ($required in @($cache, $gallery, $runtime, $plugin, $deployTool,
         throw "Missing prerequisite: $required"
     }
 }
-$dirty = @(git -C $repoRoot diff HEAD --numstat)
+$dirty = @(git -C $repoRoot status --porcelain --untracked-files=all)
 if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
-    throw 'Commit tracked source/document changes before packaging (no revision mismatch).'
+    throw 'Commit all tracked and untracked source/document changes before packaging (no revision mismatch).'
 }
 $revision = (git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot identify source revision.' }
@@ -45,10 +45,15 @@ if (-not (Select-String -LiteralPath $cache -Pattern '^CMAKE_GENERATOR_PLATFORM:
     throw 'This package requires a configured Visual Studio x64 build.'
 }
 # Rebuild the committed revision; never bundle binaries from an earlier checkout.
-& $cmake -S $repoRoot -B $buildPath
+& $cmake -S $repoRoot -B $buildPath -DWINUI3STYLE_BUILD_TESTS=ON `
+    -DWINUI3STYLE_BUILD_NATIVE_TESTS=ON
 if ($LASTEXITCODE -ne 0) { throw 'Release configuration failed.' }
 & $cmake --build $buildPath --config Release
 if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
+$ctest = Join-Path (Split-Path $cmake -Parent) 'ctest.exe'
+if (-not (Test-Path -LiteralPath $ctest -PathType Leaf)) { throw 'CTest is required for packaging.' }
+& $ctest --test-dir $buildPath -C Release --output-on-failure --no-tests=error
+if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; no distribution archive created.' }
 
 $name = "WinUI3Style-$version-win-x64-msvc-qt$qtVersion-experimental"
 $output = Join-Path $buildPath ('poc/' + [guid]::NewGuid().ToString())
