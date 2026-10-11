@@ -314,7 +314,9 @@ foreach(_split_target IN ITEMS
     add_test(NAME winui3style_${_suffix}_unit
         COMMAND ${CMAKE_COMMAND} -E env
             --unset=WINUI3STYLE_DISABLE_ANIMATIONS
-            $<TARGET_FILE:${_split_target}>)
+            $<TARGET_FILE:${_split_target}>
+            -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_${_suffix}_unit.txt,txt
+            -o -,txt)
 endforeach()
 add_test(NAME winui3style_frameproperties_unit
          COMMAND winui3style_frameproperties_tests)
@@ -464,8 +466,10 @@ foreach(_pair IN ITEMS "100:1" "125:1.25" "150:1.5" "200:2")
 endforeach()
 
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
-    add_test(NAME winui3style_native COMMAND winui3style_native_tests)
-    add_test(NAME winui3style_menus_native COMMAND winui3style_menus_native_tests)
+    add_test(NAME winui3style_native COMMAND winui3style_native_tests
+        -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_native.txt,txt -o -,txt)
+    add_test(NAME winui3style_menus_native COMMAND winui3style_menus_native_tests
+        -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_menus_native.txt,txt -o -,txt)
     add_test(NAME winui3style_autosuggest_native
         COMMAND winui3style_autosuggest_native_tests)
     if(WINUI3STYLE_BUILD_DEMO)
