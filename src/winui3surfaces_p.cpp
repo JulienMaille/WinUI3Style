@@ -496,22 +496,15 @@ void restoreChromeSurfaces(QWidget *window)
 {
     if (!window)
         return;
-    // Mirror of the sync above: every bar armed there is returned the same
-    // way (each restore is a no-op for bars that were never armed; the card
-    // gate keeps the mirror exact for bars that were never armed by design).
+    // Restore the saved recipe, even if the application has since reparented
+    // a bar into a card. Never-armed bars are already a no-op.
     for (QMenuBar *menuBar : window->findChildren<QMenuBar *>()) {
-        if (insideOpaqueCard(menuBar))
-            continue;
         restoreTransparentizedSurface(menuBar);
     }
     for (QToolBar *toolBar : window->findChildren<QToolBar *>()) {
-        if (insideOpaqueCard(toolBar))
-            continue;
         restoreTransparentizedSurface(toolBar);
     }
     for (QStatusBar *statusBar : window->findChildren<QStatusBar *>()) {
-        if (insideOpaqueCard(statusBar))
-            continue;
         restoreTransparentizedSurface(statusBar);
     }
 }
@@ -535,18 +528,26 @@ constexpr auto cardViewportAutoFillProperty = "_winui_card_viewport_autofill";
 constexpr auto cardViewportStyledProperty = "_winui_card_viewport_styled";
 constexpr auto cardViewportOpaqueProperty = "_winui_card_viewport_opaque";
 
+void restoreScrollChain(QAbstractScrollArea *area);
+
 void transparentizeScrollChain(QAbstractScrollArea *area)
 {
     if (!area)
         return;
-    if (insideOpaqueCard(area)) {
+    // A reparent can change the recipe during an active backdrop. Return the
+    // old arm first so the next snapshot never captures temporary attributes.
+    const bool inCard = insideOpaqueCard(area);
+    if ((inCard && area->property(backdropSurfacePaletteProperty).isValid())
+        || (!inCard && area->viewport()
+            && area->viewport()->property(cardViewportAutoFillProperty).isValid()))
+        restoreScrollChain(area);
+    if (inCard) {
         // NavigationView-marked views keep their own recipe
         // (prepareNavigationSurface leaves in-card nav opaque + autofilled):
         // never second-guess it here.
         if (!area->property(Style::NavigationViewProperty).toBool()) {
             if (QWidget *viewport = area->viewport()) {
-                remember(viewport, cardViewportAutoFillProperty,
-                         viewport->autoFillBackground());
+                remember(viewport, cardViewportAutoFillProperty, viewport->autoFillBackground());
                 remember(viewport, cardViewportStyledProperty,
                          viewport->testAttribute(Qt::WA_StyledBackground));
                 remember(viewport, cardViewportOpaqueProperty,
@@ -579,23 +580,20 @@ void restoreScrollChain(QAbstractScrollArea *area)
     // no-op for widgets that were never armed.
     if (!area)
         return;
-    if (insideOpaqueCard(area)) {
-        if (QWidget *viewport = area->viewport()) {
-            if (viewport->property(cardViewportAutoFillProperty).isValid())
-                viewport->setAutoFillBackground(
-                        viewport->property(cardViewportAutoFillProperty).toBool());
-            if (viewport->property(cardViewportStyledProperty).isValid())
-                viewport->setAttribute(Qt::WA_StyledBackground,
-                                       viewport->property(cardViewportStyledProperty).toBool());
-            if (viewport->property(cardViewportOpaqueProperty).isValid())
-                viewport->setAttribute(Qt::WA_OpaquePaintEvent,
-                                       viewport->property(cardViewportOpaqueProperty).toBool());
-            viewport->setProperty(cardViewportAutoFillProperty, {});
-            viewport->setProperty(cardViewportStyledProperty, {});
-            viewport->setProperty(cardViewportOpaqueProperty, {});
-            viewport->update();
-        }
-        return;
+    if (QWidget *viewport = area->viewport()) {
+        if (viewport->property(cardViewportAutoFillProperty).isValid())
+            viewport->setAutoFillBackground(
+                    viewport->property(cardViewportAutoFillProperty).toBool());
+        if (viewport->property(cardViewportStyledProperty).isValid())
+            viewport->setAttribute(Qt::WA_StyledBackground,
+                                   viewport->property(cardViewportStyledProperty).toBool());
+        if (viewport->property(cardViewportOpaqueProperty).isValid())
+            viewport->setAttribute(Qt::WA_OpaquePaintEvent,
+                                   viewport->property(cardViewportOpaqueProperty).toBool());
+        viewport->setProperty(cardViewportAutoFillProperty, {});
+        viewport->setProperty(cardViewportStyledProperty, {});
+        viewport->setProperty(cardViewportOpaqueProperty, {});
+        viewport->update();
     }
     // Each restore is a no-op for widgets that were never transparentized.
     restoreBackdropSurface(area);
@@ -639,7 +637,7 @@ void transparentizeBareContainer(QWidget *widget)
 
 void restoreBareContainer(QWidget *widget)
 {
-    if (!widget || keepOpaqueContainer(widget) || insideOpaqueCard(widget))
+    if (!widget)
         return;
     restoreBackdropSurface(widget);
 }

@@ -33,6 +33,8 @@ private slots:
     void treeSelectionKeepsCardFillOverComposited();
     void galleryTreeKeepsCardFillOverComposited();
     void disabledInCardButtonKeepsCardToneOverComposited();
+    void reparentedBackdropSurfacesRestore_data();
+    void reparentedBackdropSurfacesRestore();
 };
 
 void WinUI3MicaCardTest::initTestCase()
@@ -61,6 +63,109 @@ void WinUI3MicaCardTest::cleanup()
     if (QWidget *focus = qApp->focusWidget())
         focus->clearFocus();
     qApp->processEvents();
+}
+
+void WinUI3MicaCardTest::reparentedBackdropSurfacesRestore_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("startsInCard");
+    QTest::addColumn<bool>("resync");
+    for (const bool dark : { false, true }) {
+        for (const bool compact : { false, true }) {
+            for (const bool inCard : { false, true }) {
+                const QByteArray name = QByteArray(dark ? "dark" : "light")
+                        + (compact ? "-compact" : "-standard")
+                        + (inCard ? "-card-to-bare" : "-bare-to-card");
+                for (const bool resync : { false, true }) {
+                    const QByteArray scenario = name + (resync ? "-resync" : "-disable");
+                    QTest::newRow(scenario.constData()) << dark << compact << inCard << resync;
+                }
+            }
+        }
+    }
+}
+
+void WinUI3MicaCardTest::reparentedBackdropSurfacesRestore()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, startsInCard);
+    QFETCH(bool, resync);
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QMainWindow window;
+    window.setProperty(WinUI3::Style::DensityProperty,
+                       compact ? QStringLiteral("compact") : QStringLiteral("standard"));
+    auto *central = new QWidget;
+    central->setObjectName(QStringLiteral("centralWidget"));
+    window.setCentralWidget(central);
+    auto *card = new QGroupBox(QStringLiteral("Card"), central);
+    auto *frame = new QFrame(startsInCard ? static_cast<QWidget *>(card) : central);
+    frame->setFrameShape(QFrame::StyledPanel);
+    auto *area = new QScrollArea(frame);
+    area->setWidget(new QWidget);
+    auto *menu = new QMenuBar(frame);
+    menu->addAction(QStringLiteral("File"));
+    const QList<QWidget *> surfaces = { frame,
+                                        area,
+                                        area->viewport(),
+                                        area->widget(),
+                                        area->verticalScrollBar(),
+                                        area->horizontalScrollBar(),
+                                        menu };
+    window.resize(480, 320);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    struct SavedSurface
+    {
+        QWidget *widget;
+        QPalette palette;
+        bool explicitPalette;
+        bool autoFill;
+        bool styled;
+        bool opaque;
+    };
+    QList<SavedSurface> saved;
+    for (QWidget *surface : surfaces) {
+        // Explicit palettes make the restoration expectation independent of
+        // inherited colors changing when the application reparents a widget.
+        surface->setPalette(style->standardPalette());
+        saved.append({ surface, surface->palette(), surface->testAttribute(Qt::WA_SetPalette),
+                       surface->autoFillBackground(),
+                       surface->testAttribute(Qt::WA_StyledBackground),
+                       surface->testAttribute(Qt::WA_OpaquePaintEvent) });
+    }
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2);
+    WinUI3::Private::makeChromeSurfacesTransparent(&window);
+    WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+    QCOMPARE(WinUI3::Private::insideOpaqueCard(area), startsInCard);
+    QCOMPARE(area->viewport()->autoFillBackground(), false);
+    if (!startsInCard)
+        QCOMPARE(area->palette().color(QPalette::Window).alpha(), 0);
+    frame->setParent(startsInCard ? central : static_cast<QWidget *>(card));
+    frame->show();
+    QCOMPARE(WinUI3::Private::insideOpaqueCard(area), !startsInCard);
+    if (resync) {
+        WinUI3::Private::makeChromeSurfacesTransparent(&window);
+        WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+    }
+    // Teardown must use saved state, not the application's new ancestry.
+    window.setProperty("_winui_backdrop", 0);
+    WinUI3::Private::restoreChromeSurfaces(&window);
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
+    for (const SavedSurface &state : saved) {
+        QCOMPARE(state.widget->palette(), state.palette);
+        QCOMPARE(state.widget->testAttribute(Qt::WA_SetPalette), state.explicitPalette);
+        QCOMPARE(state.widget->autoFillBackground(), state.autoFill);
+        QCOMPARE(state.widget->testAttribute(Qt::WA_StyledBackground), state.styled);
+        QCOMPARE(state.widget->testAttribute(Qt::WA_OpaquePaintEvent), state.opaque);
+        QVERIFY(!state.widget->property("_winui_backdrop_surface_palette").isValid());
+        QVERIFY(!state.widget->property("_winui_card_viewport_autofill").isValid());
+    }
 }
 
 void WinUI3MicaCardTest::navSampleInCardKeepsCardFillOverComposited()
