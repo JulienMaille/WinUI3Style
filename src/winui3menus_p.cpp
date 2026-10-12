@@ -95,10 +95,8 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // In-card samples keep the card's veiled fill (same guard as the
         // button panel Fix B): rebuild the card tone after the erase instead
         // of the recipe-2 transparent return the shell chrome keeps.
-        if (eraseForBackdrop(painter, widget, option->rect)) {
-            if (insideOpaqueCard(widget)) {
-                painter->fillRect(option->rect, cardRefillTone(option->palette, true));
-            }
+        if (eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                           cardRefillTone(option->palette, true))) {
             return true;
         }
         painter->fillRect(option->rect, option->palette.brush(QPalette::Window));
@@ -154,10 +152,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
         // SurfaceProperty-gated Window fill below is the non-Composited
         // fallback. In-card samples rebuild the card tone instead (same
         // guard as the button panel Fix B).
-        if (eraseForBackdrop(painter, widget, option->rect)) {
-            if (insideOpaqueCard(widget)) {
-                painter->fillRect(option->rect, cardRefillTone(option->palette, true));
-            }
+        if (eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                           cardRefillTone(option->palette, true))) {
             return true;
         }
         if (widget && widget->property(Style::SurfaceProperty).isValid())
@@ -174,9 +170,8 @@ bool drawMenuControl(const Style *, QStyle::ControlElement element, const QStyle
             // paint below. The opaque rest-fill is the fallback-only path
             // when the erase gate did not run. In-card samples rebuild the
             // card tone first (same guard as the button panel Fix B).
-            const bool onBackdrop = eraseForBackdrop(painter, widget, item->rect);
-            if (onBackdrop && insideOpaqueCard(widget))
-                painter->fillRect(item->rect, cardRefillTone(option->palette, true));
+            const bool onBackdrop = eraseForBackdropWithCardRefill(
+                    painter, widget, item->rect, cardRefillTone(option->palette, true));
             if (!onBackdrop && widget && widget->property(Style::SurfaceProperty).isValid())
                 painter->fillRect(item->rect, widget->palette().color(QPalette::Window));
             // QMenuBar owns the animation properties, while this option is

@@ -292,6 +292,30 @@ inline bool eraseForBackdrop(QPainter *painter, const QWidget *widget, const QRe
     return true;
 }
 
+// Card branch of recipe 1 (erase-then-fill): Source-clear the rect over the
+// live material, then rebuild the card tone the erase just dropped so a
+// translucent fill composites over the veil instead of alpha 0. Outside a
+// card the bare erase stands (recipe-2 material reveal) and the function
+// still returns true: every caller below branches on "erase ran" first and
+// decides itself whether to return or fall through. The tone is a parameter:
+// control surfaces rebuild cardRefillTone (Active Base, never a faint
+// Disabled role), faint roles keep their own alpha. Source (not SourceOver):
+// the rect was just cleared, so replacing is exact and can never double a
+// card fill the parent already laid (128 over 128 would read 192).
+inline bool eraseForBackdropWithCardRefill(QPainter *painter, const QWidget *widget,
+                                           const QRect &rect, const QColor &tone)
+{
+    if (!eraseForBackdrop(painter, widget, rect))
+        return false;
+    if (!insideOpaqueCard(widget))
+        return true;
+    painter->save();
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
+    painter->fillRect(rect, tone);
+    painter->restore();
+    return true;
+}
+
 // Recipe 3 implementation: Source-blend the translucent popup surface so a
 // state pill composites exactly one layer over acrylic. Gated the same way
 // as eraseForBackdrop; returns true when the fill ran. Pass the popup

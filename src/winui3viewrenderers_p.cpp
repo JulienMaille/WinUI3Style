@@ -247,17 +247,8 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                 // transparentized, only Window is, so the tone is intact),
                 // then lay the pill over it. Outside cards the bare erase
                 // stands (recipe-2 material reveal).
-                if (eraseForBackdrop(painter, widget, option->rect) && insideOpaqueCard(widget)) {
-                    // Source (replace), not SourceOver: the erase above may
-                    // have been clipped away at rounded corners elsewhere in
-                    // the frame, and layering the tone over the card's own
-                    // fill would double it (128 over 128 reads 192). The
-                    // tone IS the card fill, so replacing is exact.
-                    painter->save();
-                    painter->setCompositionMode(QPainter::CompositionMode_Source);
-                    painter->fillRect(option->rect, veiledCard(t.layer, true));
-                    painter->restore();
-                }
+                eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                               veiledCard(t.layer, true));
             }
             paintPopupRowPill(painter, itemRect, fill);
         }

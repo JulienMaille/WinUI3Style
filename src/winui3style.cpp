@@ -2244,9 +2244,8 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
         // when the widget sits inside an opaque card, because the card
         // tone it just cleared is rebuilt below (the button Fix-B mirror):
         // without the refill the indicator/text paint leaves alpha 0.
-        const bool erasedForBackdrop = Private::eraseForBackdrop(painter, widget, option->rect);
-        if (erasedForBackdrop && Private::insideOpaqueCard(widget))
-            painter->fillRect(option->rect, Private::cardRefillTone(option->palette, true));
+        Private::eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                                Private::cardRefillTone(option->palette, true));
     }
     if (element == CE_ProgressBar) {
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
