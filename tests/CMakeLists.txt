@@ -228,6 +228,26 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryprobe_tests winui3styleplugin)
 endif()
 
+# Native live repro of the reported theme-while-granted regression
+# (WIN32 native suite, skipped offscreen): REAL GalleryWindow toggles, REAL
+# DWM grant, verdict on presented pixels. Same shape as
+# winui3style_galleryprobe_tests.
+add_executable(winui3style_micanative_tests
+    tst_winui3micanative.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+set_target_properties(winui3style_micanative_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+target_include_directories(winui3style_micanative_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+target_link_libraries(winui3style_micanative_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_micanative_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -262,6 +282,10 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     if(WINUI3STYLE_BUILD_PLUGIN)
         add_dependencies(winui3style_autosuggest_native_tests winui3styleplugin)
     endif()
+
+    add_test(NAME winui3style_micanative
+        COMMAND winui3style_micanative_tests
+            -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_micanative.txt,txt -o -,txt)
 endif()
 
 # On Windows the executable directory is searched before PATH. Keep the
@@ -290,8 +314,10 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_calendarsurface_tests
         winui3style_scrollbarcard_tests
         winui3style_micabackdrop_tests
+        winui3style_micatheme_tests
         winui3style_micacard_tests
-        winui3style_galleryprobe_tests)
+        winui3style_galleryprobe_tests
+        winui3style_micanative_tests)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
         list(APPEND _winui3style_linked_test_targets
@@ -531,6 +557,12 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         RUN_SERIAL TRUE
         RESOURCE_LOCK winui3style_desktop
         LABELS "native;interactive;opt-in"
+        TIMEOUT 180)
+    set_tests_properties(winui3style_micanative PROPERTIES
+        ENVIRONMENT "${_winui3style_native_environment}"
+        RUN_SERIAL TRUE
+        RESOURCE_LOCK winui3style_desktop
+        LABELS "native;interactive"
         TIMEOUT 180)
     if(WINUI3STYLE_BUILD_DEMO)
         set_tests_properties(winui3style_galleryprobe_native PROPERTIES
