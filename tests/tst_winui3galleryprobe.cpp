@@ -437,13 +437,19 @@ void WinUI3GalleryProbeTest::galleryRealGrantThemeSwitchThenDisable()
     micaToggle->setChecked(true);
     qApp->processEvents();
 
-    // Theme switch while granted (the reported order), letting the queued
-    // backdrop re-apply and any WinIdChange re-entry fire as live.
+    // Theme switch while the material is requested (the reported order),
+    // letting the queued backdrop re-apply fire as live. Offscreen the
+    // gallery property carries the string request ("mica") while the
+    // published effective surface stays Composited-stale from the fixture;
+    // the Solid verdict below is what the disable leg must establish.
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTest::qWait(200);
+    QCOMPARE(gallery.property("winuiBackdrop").toString(), QStringLiteral("mica"));
 
     micaToggle->setChecked(false);
     QTest::qWait(200);
+    QCOMPARE(WinUI3::Private::backdropEffectiveSurface(&gallery),
+             WinUI3::Private::BackdropSurface::Solid);
 
     const QPalette lightPalette = style->standardPalette();
     QCOMPARE(gallery.palette().color(QPalette::Window).alpha(), 255);
