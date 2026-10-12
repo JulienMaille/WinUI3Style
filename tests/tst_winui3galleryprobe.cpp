@@ -37,6 +37,9 @@ private slots:
     void cleanup();
     void galleryProbeKeepsCardFillOverComposited();
     void galleryNavigationPaletteFollowsThemeAfterMicaDisable();
+    void galleryThemeSwitchWhileGrantedThenDisable();
+    void galleryRealGrantThemeSwitchThenDisable();
+    void galleryStaleReapplyAfterDisable();
     void gallerySnapshotPinsAndRestoresCalendarDate();
 };
 
@@ -350,6 +353,132 @@ void WinUI3GalleryProbeTest::galleryNavigationPaletteFollowsThemeAfterMicaDisabl
     // Direct palette writes in NavigationView's temporary transparent
     // surface must not make its dark style palette look application-owned.
     QCOMPARE(navigation->property(WinUI3::Private::ownedPaletteProperty).toBool(), true);
+}
+
+void WinUI3GalleryProbeTest::galleryThemeSwitchWhileGrantedThenDisable()
+{
+    // Live defect (Gallery 2026-10-12, Qt 6.12 x64): Dark + Mica ON, switch
+    // to Light while granted, then Mica OFF leaves the navigation pane gray
+    // and client chrome on the wrong theme. Unlike
+    // galleryNavigationPaletteFollowsThemeAfterMicaDisable (disable first,
+    // switch after), the theme moves while the material is granted, so every
+    // transparentized shell/island surface must rebase and still restore the
+    // current theme on disable.
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+
+    GalleryWindow gallery;
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    auto *navigation = gallery.findChild<QListWidget *>(QStringLiteral("navigationList"));
+    auto *menuBar = gallery.findChild<QMenuBar *>();
+    auto *controls = gallery.findChild<QScrollArea *>(QStringLiteral("controlsPage"));
+    auto *micaToggle = gallery.findChild<QCheckBox *>(QStringLiteral("micaToggle"));
+    QVERIFY(navigation && menuBar && controls && micaToggle);
+
+    micaToggle->setChecked(true);
+    qApp->processEvents();
+    gallery.setProperty("_winui_backdrop", 1);
+    gallery.setProperty("_winui_backdrop_effective", 2);
+    WinUI3::Private::makeChromeSurfacesTransparent(&gallery);
+    WinUI3::Private::syncContentSurfacesForBackdrop(&gallery);
+    qApp->processEvents();
+
+    // Theme switch while granted (the reported order), letting the queued
+    // backdrop re-apply fire as in the live Gallery.
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    qApp->processEvents();
+
+    micaToggle->setChecked(false);
+    qApp->processEvents();
+    WinUI3::Private::restoreChromeSurfaces(&gallery);
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&gallery);
+    gallery.setProperty("_winui_backdrop", 0);
+    gallery.setProperty("_winui_backdrop_effective", 0);
+    qApp->processEvents();
+
+    const QPalette lightPalette = style->standardPalette();
+    QCOMPARE(WinUI3::Private::tokens(navigation->palette()).dark, false);
+    QCOMPARE(navigation->palette().color(QPalette::Active, QPalette::Text),
+             lightPalette.color(QPalette::Active, QPalette::Text));
+    QCOMPARE(menuBar->palette().color(QPalette::Window), lightPalette.color(QPalette::Window));
+    QCOMPARE(controls->viewport()->palette().color(QPalette::Base),
+             lightPalette.color(QPalette::Base));
+}
+
+void WinUI3GalleryProbeTest::galleryRealGrantThemeSwitchThenDisable()
+{
+    // Live replay intent (Gallery 2026-10-12, Qt 6.12 x64, Dark + Mica ON,
+    // switch to Light while granted, then Mica OFF): shares the toggle path
+    // and the theme-while-granted order with the live report. Offscreen the
+    // DWM grant falls back to the opaque Painted surface, so no Composited
+    // state is asserted here; the palette recipe below is the offscreen
+    // contract. The granted-material pass is covered live by the reviewer.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+
+    GalleryWindow gallery;
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    auto *navigation = gallery.findChild<QListWidget *>(QStringLiteral("navigationList"));
+    auto *menuBar = gallery.findChild<QMenuBar *>();
+    auto *micaToggle = gallery.findChild<QCheckBox *>(QStringLiteral("micaToggle"));
+    QVERIFY(navigation && menuBar && micaToggle);
+
+    // Real grant through the Gallery's own toggle path. Offscreen there is
+    // no DWM: the grant path falls back to the opaque Painted surface and
+    // Composited must NOT be asserted here (native-only evidence). The
+    // palette/attribute recipe below is what this offscreen pass checks.
+    micaToggle->setChecked(true);
+    qApp->processEvents();
+
+    // Theme switch while granted (the reported order), letting the queued
+    // backdrop re-apply and any WinIdChange re-entry fire as live.
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    QTest::qWait(200);
+
+    micaToggle->setChecked(false);
+    QTest::qWait(200);
+
+    const QPalette lightPalette = style->standardPalette();
+    QCOMPARE(gallery.palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(navigation->palette().color(QPalette::Active, QPalette::Text),
+             lightPalette.color(QPalette::Active, QPalette::Text));
+    QCOMPARE(menuBar->palette().color(QPalette::Window), lightPalette.color(QPalette::Window));
+}
+
+void WinUI3GalleryProbeTest::galleryStaleReapplyAfterDisable()
+{
+    // The theme switch queues a deferred backdrop re-apply. If disabling
+    // happens before that shot fires, the stale shot must not re-enable the
+    // material behind the unchecked toggle: the window stays opaque on the
+    // current theme with a Solid effective surface.
+    // Offscreen there is no DWM grant, so this test drives the request state
+    // directly: after a switch, a same-value "none" request must still leave
+    // the window opaque and Solid instead of re-arming a material.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+
+    GalleryWindow gallery;
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    WinUI3::applyBackdrop(&gallery, WinUI3::Backdrop::None);
+    QTest::qWait(300);
+
+    QCOMPARE(WinUI3::Private::backdropEffectiveSurface(&gallery),
+             WinUI3::Private::BackdropSurface::Solid);
+    QCOMPARE(gallery.palette().color(QPalette::Window).alpha(), 255);
+    const QPalette lightPalette = style->standardPalette();
+    QCOMPARE(gallery.palette().color(QPalette::Window), lightPalette.color(QPalette::Window));
 }
 
 void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()

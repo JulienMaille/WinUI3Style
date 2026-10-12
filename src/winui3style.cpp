@@ -534,6 +534,10 @@ bool refreshNestedPopupCalendarPalette(QWidget *widget, const QPalette &applicat
 
 void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &applicationPalette,
                          const Private::Tokens &applicationTokens, const QColor &applicationAccent,
+                         bool darkTheme);
+
+void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &applicationPalette,
+                         const Private::Tokens &applicationTokens, const QColor &applicationAccent,
                          bool darkTheme)
 {
     if (!widget)
@@ -1711,8 +1715,16 @@ void Style::refreshApplicationAppearance()
     for (QWidget *window : qApp->topLevelWidgets()) {
         const QVariant backdrop = window->property("_winui_backdrop");
         if (backdrop.isValid()) {
-            QTimer::singleShot(0, window, [window, backdrop] {
-                applyBackdrop(window, static_cast<Backdrop>(backdrop.toInt()));
+            // The shot fires a full event-loop turn later: revalidate the
+            // request then, or a backdrop disabled in between would be
+            // re-enabled behind the application's back (stale re-apply).
+            const QPointer<QWidget> guarded = window;
+            const int requested = backdrop.toInt();
+            QTimer::singleShot(0, window, [guarded, requested] {
+                if (!guarded || !guarded->property("_winui_backdrop").isValid()
+                    || guarded->property("_winui_backdrop").toInt() != requested)
+                    return;
+                applyBackdrop(guarded.data(), static_cast<Backdrop>(requested));
             });
         } else if (auto *wizard = qobject_cast<QWizard *>(window)) {
             refreshWizardSurface(wizard, applicationPalette);

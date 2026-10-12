@@ -3,7 +3,9 @@
 // group-card child fill, alternate-row and
 // selected-tab erase-before-fill, plus rich-text frame, alternate-row,
 // tab-pressed and scrollbar-track veils. Split out of tst_winui3surfaces.cpp /
-// tst_winui3views.cpp per the 60 KB test-size ratchet. Every
+// tst_winui3views.cpp per the 60 KB test-size ratchet. Theme-switch lifecycle
+// (rebase, disable, re-apply) lives in tst_winui3micatheme.cpp so this file
+// stays under the ratchet. Every
 // grab()/pixelColor() assertion pairs with a QCOMPARE token/geometry
 // assertion on the same state.
 #include <winui3style/winui3backdrop.h>

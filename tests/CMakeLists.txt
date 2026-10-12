@@ -172,7 +172,8 @@ endif()
 # headroom). Same shape as winui3style_scrollbarcard_tests: links the public
 # library plus Qt Test/Widgets, resolves private test seams via the src
 # include directory. Card-nested backdrop samples (nav/menu in-card veils)
-# live in the separate micacard binary so this file stays under the ratchet.
+# live in the separate micacard binary, and the theme-switch lifecycle in
+# the micatheme binary, so this file stays under the ratchet.
 add_executable(winui3style_micabackdrop_tests tst_winui3micabackdrop.cpp)
 target_include_directories(winui3style_micabackdrop_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src)
@@ -180,6 +181,17 @@ target_link_libraries(winui3style_micabackdrop_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_micabackdrop_tests winui3styleplugin)
+endif()
+
+# Mica theme-switch lifecycle split (60 KB cap: micabackdrop has no
+# headroom). Same shape as winui3style_micabackdrop_tests.
+add_executable(winui3style_micatheme_tests tst_winui3micatheme.cpp)
+target_include_directories(winui3style_micatheme_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_micatheme_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_micatheme_tests winui3styleplugin)
 endif()
 
 # Card-nested Mica samples split (60 KB cap: micabackdrop has no headroom).
@@ -344,10 +356,17 @@ add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
 add_test(NAME winui3style_micabackdrop_unit
          COMMAND winui3style_micabackdrop_tests)
+add_test(NAME winui3style_micatheme_unit
+         COMMAND winui3style_micatheme_tests)
 add_test(NAME winui3style_micacard_unit
          COMMAND winui3style_micacard_tests)
 add_test(NAME winui3style_galleryprobe_unit
-         COMMAND winui3style_galleryprobe_tests)
+         COMMAND ${CMAKE_COMMAND} -E env
+             --unset=WINUI3STYLE_DISABLE_ANIMATIONS
+             $<TARGET_FILE:winui3style_galleryprobe_tests>
+             -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryprobe_unit.txt,txt
+             -o -,txt)
+set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 180)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -369,7 +388,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction animatedstack settings navigation micabackdrop micacard galleryprobe)
+foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction animatedstack settings navigation micabackdrop micatheme micacard galleryprobe)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )
@@ -411,6 +430,9 @@ set_tests_properties(winui3style_scrollbarcard_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_micabackdrop_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_micatheme_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_micacard_unit PROPERTIES
