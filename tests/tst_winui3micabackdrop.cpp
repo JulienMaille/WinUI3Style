@@ -42,6 +42,8 @@ private slots:
     void tabPressedPillVeilsOverComposited();
     void scrollBarHoverTrackVeilsOverComposited();
     void bareStyledPanelSyncSharesMaterial();
+    void lateScrollChainArmedAtPolish();
+    void reparentedChainReconvergesWithoutSync();
 };
 
 void WinUI3MicaBackdropTest::initTestCase()
@@ -75,8 +77,9 @@ void WinUI3MicaBackdropTest::cleanup()
 void WinUI3MicaBackdropTest::shellScrollChainSharesMaterial()
 {
     // Bare QListWidget under the centralWidget/navigationPanel shell: the
-    // shell sync arms the full scrolled chain (area, viewport, both bars)
-    // with the no-fill recipe; toggle-off restore returns every link.
+    // chain arrives armed from polish (area, viewport, both bars share the
+    // material with the no-fill recipe); the explicit sync below is
+    // idempotent and toggle-off restore returns every link.
     DisableAnimationsGuard animations;
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
@@ -95,7 +98,7 @@ void WinUI3MicaBackdropTest::shellScrollChainSharesMaterial()
     window.resize(480, 320);
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
-    QCOMPARE(list->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(list->palette().color(QPalette::Window).alpha(), 0);
     WinUI3::Private::syncContentSurfacesForBackdrop(&window);
     QCOMPARE(central->palette().color(QPalette::Window).alpha(), 0);
     QCOMPARE(nav->palette().color(QPalette::Window).alpha(), 0);
@@ -119,10 +122,10 @@ void WinUI3MicaBackdropTest::shellScrollChainSharesMaterial()
 void WinUI3MicaBackdropTest::chromeLoopCoversAllMenuBars()
 {
     // Chrome loop (menu bars, tool bars, status bar) visits EVERY bar, not
-    // just the first: the main-window bar and a nested bar both reach alpha
-    // 0, and toggle-off restore returns every bar opaque. Driven through the
-    // public theme refresh (Composited re-runs the shell sync) and the
-    // public applyBackdrop(None) teardown; same state, token asserts.
+    // just the first: the main-window bar and a nested bar arrive armed from
+    // polish and toggle-off restore returns every bar opaque. Driven through
+    // the public theme refresh (which must preserve the armed recipe) and
+    // the public applyBackdrop(None) teardown; same state, token asserts.
     DisableAnimationsGuard animations;
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
@@ -137,8 +140,8 @@ void WinUI3MicaBackdropTest::chromeLoopCoversAllMenuBars()
     window.resize(480, 320);
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
-    QCOMPARE(menuBar->palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(nestedBar->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(menuBar->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(nestedBar->palette().color(QPalette::Window).alpha(), 0);
     style->setThemeMode(WinUI3::ThemeMode::Dark);
     const QList<QMenuBar *> bars = window.findChildren<QMenuBar *>();
     QCOMPARE(bars.size(), 2);
@@ -1058,8 +1061,8 @@ void WinUI3MicaBackdropTest::scrollBarHoverTrackVeilsOverComposited()
 void WinUI3MicaBackdropTest::bareStyledPanelSyncSharesMaterial()
 {
     // Bare QFrame::StyledPanel links (gallery density/footer panels) share
-    // the material under a content island and under the centralWidget
-    // shell: the sync transparentizes the Window role with no autofill,
+    // the material under a content island and under the centralWidget shell:
+    // they arrive armed from polish, the explicit sync below is idempotent,
     // and toggle-off restore returns every link opaque. Tab-pane twin.
     DisableAnimationsGuard animations;
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
@@ -1080,8 +1083,8 @@ void WinUI3MicaBackdropTest::bareStyledPanelSyncSharesMaterial()
     window.resize(480, 320);
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
-    QCOMPARE(islandPanel->palette().color(QPalette::Window).alpha(), 255);
-    QCOMPARE(shellPanel->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(islandPanel->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(shellPanel->palette().color(QPalette::Window).alpha(), 0);
     WinUI3::Private::syncContentSurfacesForBackdrop(&window);
     QCOMPARE(islandPanel->palette().color(QPalette::Window).alpha(), 0);
     QCOMPARE(shellPanel->palette().color(QPalette::Window).alpha(), 0);
@@ -1096,6 +1099,80 @@ void WinUI3MicaBackdropTest::bareStyledPanelSyncSharesMaterial()
     WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
     QCOMPARE(islandPanel->palette().color(QPalette::Window).alpha(), 255);
     QCOMPARE(shellPanel->palette().color(QPalette::Window).alpha(), 255);
+}
+
+void WinUI3MicaBackdropTest::lateScrollChainArmedAtPolish()
+{
+    // A scroll area created after the material was granted must join the
+    // live recipe at polish time, without waiting for the next theme refresh
+    // or an explicit sync: otherwise it keeps its opaque fill over the
+    // material until something else converges it (ghost band).
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    QWidget island(&window);
+    island.setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    window.resize(480, 320);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    // Late arrival: built and shown after the grant, no theme switch, no sync.
+    auto *area = new QScrollArea(&island);
+    auto *content = new QWidget;
+    content->resize(760, 620);
+    area->setWidget(content);
+    area->resize(240, 160);
+    area->show();
+    QTRY_VERIFY(area->verticalScrollBar()->isVisible());
+    QTRY_VERIFY(area->horizontalScrollBar()->isVisible());
+    QCOMPARE(area->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(area->viewport()->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(area->verticalScrollBar()->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(area->horizontalScrollBar()->palette().color(QPalette::Window).alpha(), 0);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(area->viewport()));
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
+    QCOMPARE(area->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(area->viewport()->palette().color(QPalette::Window).alpha(), 255);
+}
+
+void WinUI3MicaBackdropTest::reparentedChainReconvergesWithoutSync()
+{
+    // Moving a scroll chain between a bare shell and a card while the
+    // material is granted reconverges both directions at reparent time, with
+    // no explicit sync and no theme switch: bare keeps the full no-fill
+    // recipe, in-card keeps the card fill with the partial viewport arm.
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    auto *central = new QWidget(&window);
+    central->setObjectName(QStringLiteral("centralWidget"));
+    auto *card = new QGroupBox(QStringLiteral("Card"), central);
+    auto *area = new QScrollArea(central);
+    auto *content = new QWidget;
+    content->resize(760, 620);
+    area->setWidget(content);
+    area->resize(240, 160);
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTRY_VERIFY(area->verticalScrollBar()->isVisible());
+    QCOMPARE(area->palette().color(QPalette::Window).alpha(), 0);
+    area->setParent(card);
+    QVERIFY(WinUI3::Private::insideOpaqueCard(area));
+    QCOMPARE(area->palette().color(QPalette::Window).alpha(), 255);
+    QCOMPARE(area->viewport()->autoFillBackground(), false);
+    QCOMPARE(area->verticalScrollBar()->palette().color(QPalette::Window).alpha(), 255);
+    QVERIFY(!area->verticalScrollBar()->testAttribute(Qt::WA_StyledBackground));
+    area->setParent(central);
+    QVERIFY(!WinUI3::Private::insideOpaqueCard(area));
+    QCOMPARE(area->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(area->viewport()->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(area->verticalScrollBar()->palette().color(QPalette::Window).alpha(), 0);
 }
 
 QTEST_MAIN(WinUI3MicaBackdropTest)

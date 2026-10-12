@@ -78,6 +78,15 @@ WINUI3STYLE_EXPORT void restoreContentSurfacesForBackdrop(QWidget *window);
 // winui3helpers_p.h). State is remembered so toggle-off restores exactly.
 void transparentizeForBackdrop(QWidget *surface);
 void restoreTransparentizedForBackdrop(QWidget *surface);
+bool isTransparentizedForBackdrop(const QWidget *surface);
+// Arms one freshly polished widget when its window already presents a live
+// material (Composited): chrome, islands, scroll chains and bare containers
+// converge without waiting for the next theme refresh. Same remember-once
+// helpers and scope rules as the window sync below; no-op otherwise.
+// Re-runs one subtree after a reparent: restore first (no-op if never
+// armed), then arm, so a recipe change in either direction converges.
+void armPolishedSurfaceForBackdrop(QWidget *widget);
+void reconvergeSurfaceForBackdrop(QWidget *widget);
 // Small-delta scrolls inside a translucent content/layer island smear: Qt
 // scrolls the viewport backing store with a blit and only repaints the
 // exposed strip, so shifted pixels accumulate over the live material. Armed

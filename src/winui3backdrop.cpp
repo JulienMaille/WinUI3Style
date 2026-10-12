@@ -282,32 +282,20 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
             ? window->property(originalWindowColorProperty).value<QColor>()
             : themedWindowColor;
     windowColor.setAlpha(backdrop == Backdrop::None ? 255 : 0);
-    materialPalette.setColor(QPalette::Window, windowColor);
-    Private::setBackdropPalette(window, materialPalette);
+    // Single palette write: popups converge Window/Base on the flyout tint
+    // (alpha 178 dark / 242 light, the recipe preparePopupSurface paints)
+    // so Show-time prep, WinIdChange re-entry and reopen resolve identically.
+    // Main-window Mica keeps the transparent Window role.
     if (backdrop != Backdrop::None && nativeSurface && window->windowType() == Qt::Popup) {
-        // Popup convergence (live compositor only; the offscreen fallback
-        // below keeps its opaque painted surface): resolve Window/Base on
-        // that preparePopupSurface's composited branch paints from (popup
-        // surface, alpha 178 dark / 242 light). applyBackdrop is re-entered
-        // from the WinIdChange handler when the Show-time winId() creates
-        // the popup HWND; that re-entry used to leave Window fully
-        // transparent, so the first open settled on a different grey than
-        // the reopen (whose HWND already exists, keeping the Show-time
-        // tint). Converging here makes every entry point — Show-time prep,
-        // WinIdChange re-entry, reopen — resolve identical roles, and the
-        // composited branch in preparePopupSurface re-asserts the same tint
-        // idempotently. The base mirrors preparePopupSurface exactly
-        // (remembered original resolved over the application palette), so
-        // the WinIdChange value is bit-identical to the Show-time value.
-        // Main-window Mica keeps the transparent Window role (the live
-        // material shows through), so this stays popup-only.
         const QPalette popupBase = Private::effectivePopupPalette(window, QApplication::palette());
         QColor popupTint = Private::popupSurfaceColor(popupBase);
         popupTint.setAlpha(qGray(themedWindowColor.rgb()) < 128 ? 178 : 242);
         materialPalette.setColor(QPalette::Window, popupTint);
         materialPalette.setColor(QPalette::Base, popupTint);
-        Private::setBackdropPalette(window, materialPalette);
+    } else {
+        materialPalette.setColor(QPalette::Window, windowColor);
     }
+    Private::setBackdropPalette(window, materialPalette);
 
     if (!nativeSurface) {
         if (backdrop == Backdrop::None) {

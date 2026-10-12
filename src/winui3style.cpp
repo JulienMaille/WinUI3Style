@@ -365,6 +365,12 @@ void rebaseBackdropIslands(QWidget *window, const QPalette &applicationPalette)
     if (!window->property("_winui_backdrop").isValid())
         return;
 
+    // Islands transparentized by syncContentSurfacesForBackdrop carry no
+    // palette-owner registration, so the owner loop below never visits them.
+    // Rebase their Window RGB here, preserving the live alpha: opaque islands
+    // follow the theme, transparent live-material islands keep revealing DWM
+    // with fresh RGB. Runs before the owner loop so registered owners keep
+    // the last word on their own recipe below.
     const QList<QWidget *> islands = window->findChildren<QWidget *>();
     for (QWidget *island : islands) {
         if (!isContentLayerSurface(island->property(Style::SurfaceProperty)))
@@ -576,8 +582,16 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
         // only records the factory palette Qt set before polish.
         return;
     } else {
-        const QPalette palette = ownedPaletteForWidget(widget, window, applicationPalette,
-                                                       applicationTokens, applicationAccent);
+        QPalette palette = ownedPaletteForWidget(widget, window, applicationPalette,
+                                                 applicationTokens, applicationAccent);
+        // Single-pass theme refresh: a surface the backdrop sync already
+        // transparentized keeps its live-material recipe (alpha 0) while its
+        // RGB follows the new theme. Attributes (no autofill, StyledBackground)
+        // are untouched by this pass, so no corrective re-sync is needed.
+        if (Private::backdropEffectiveSurface(window) == Private::BackdropSurface::Composited
+            && Private::isTransparentizedForBackdrop(widget))
+            palette.setColor(QPalette::Window,
+                             withAlpha(palette.color(QPalette::Window), 0));
         Private::setBackdropPalette(widget, palette);
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
@@ -1770,19 +1784,11 @@ void Style::refreshOwnedPalettes(QWidget *window)
         refreshOwnedPalette(guarded.data(), window, applicationPalette, applicationTokens,
                             applicationAccent, darkTheme);
     refreshCalendarNavigationLanes(window, applicationPalette, paletteOwners);
-    // Re-sync transparentized chrome and content islands after the recompute
-    // above: the generic owner branches rebase every widget from the opaque
-    // application palette, which would clobber the live-material recipe
-    // (alpha 0) the backdrop sync established for opted-in islands and
-    // chrome. Re-running the sync under a granted backdrop restores alpha 0
-    // idempotently (remember-once state); the calendar keeps the veiled
-    // surface computed above since it carries no island property and the
-    // sync never visits it. Other effective states keep the recomputed
-    // opaque recipe untouched.
-    if (Private::backdropEffectiveSurface(window) == Private::BackdropSurface::Composited) {
-        Private::makeChromeSurfacesTransparent(window);
-        Private::syncContentSurfacesForBackdrop(window);
-    }
+    // No corrective re-sync here by design. The passes above preserve the
+    // live recipe (alpha-preserving owner rebase and island rebase), and
+    // newly arrived surfaces converge at their own lifecycle points: polish,
+    // reparent (ParentChange) and SurfaceProperty opt-in arm them, while
+    // applyBackdrop owns the enable transition.
 }
 
 void Style::invalidateDensity(QWidget *scope)
@@ -2681,6 +2687,9 @@ void Style::polish(QWidget *widget)
         && !insideCalendarWidget(widget) && !widget->property(BackdropProperty).isValid())
         widget->setProperty(implicitPaletteSnapshotProperty,
                             QVariant::fromValue(widget->palette()));
+    // A widget polished while its window already presents a live material
+    // joins that recipe now instead of waiting for the next theme refresh.
+    Private::armPolishedSurfaceForBackdrop(widget);
 }
 
 void Style::polishTableEditor(QWidget *widget)
@@ -3252,6 +3261,13 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
         // at which a replacement popup can first become visible.
         syncCompleterPopupDensity(editor);
     }
+    if (event->type() == QEvent::ParentChange) {
+        // A reparent can move a surface into or out of the live recipe while
+        // the material is granted. Converge the subtree without waiting for
+        // the next theme refresh (restore-first, so either direction lands).
+        if (auto *widget = qobject_cast<QWidget *>(watched))
+            Private::reconvergeSurfaceForBackdrop(widget);
+    }
     if (event->type() == QEvent::DynamicPropertyChange) {
         auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
         if (auto *widget = qobject_cast<QWidget *>(watched)) {
@@ -3263,6 +3279,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 widget->update();
             } else if (change->propertyName() == SurfaceProperty) {
                 applyExplicitSurfacePalette(widget);
+                // An island opted in while the material is already granted
+                // joins the live recipe now instead of painting opaque until
+                // the next theme refresh.
+                Private::armPolishedSurfaceForBackdrop(widget);
                 widget->update();
             } else if (change->propertyName() == BackdropProperty && widget->isWindow()) {
                 const Backdrop requested = backdropFromProperty(widget->property(BackdropProperty));
