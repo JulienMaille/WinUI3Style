@@ -648,26 +648,20 @@ void restoreBareContainer(QWidget *widget)
 // True when the widget sits under an opted-in island or the central shell:
 // the same subtree scope the window sync arms scroll chains and bare
 // containers in. Anything else keeps its opaque fill by design.
-bool underLiveScope(const QWidget *widget, const QWidget *win)
+bool underLiveScope(const QWidget *widget)
 {
-    for (const QWidget *ancestor = widget->parentWidget(); ancestor && ancestor != win;
-         ancestor = ancestor->parentWidget()) {
+    return anyAncestorToWindow(widget, [](const QWidget *ancestor) {
         if (isContentLayerSurface(ancestor->property(Style::SurfaceProperty)))
             return true;
-        if (ancestor->objectName() == QStringLiteral("centralWidget"))
-            return true;
-    }
-    return false;
+        return ancestor->objectName() == QStringLiteral("centralWidget");
+    });
 }
 
-bool underDockHost(const QWidget *widget, const QWidget *win)
+bool underDockHost(const QWidget *widget)
 {
-    for (const QWidget *ancestor = widget->parentWidget(); ancestor && ancestor != win;
-         ancestor = ancestor->parentWidget()) {
-        if (ancestor->objectName() == QStringLiteral("dockHost"))
-            return true;
-    }
-    return false;
+    return anyAncestorToWindow(widget, [](const QWidget *ancestor) {
+        return ancestor->objectName() == QStringLiteral("dockHost");
+    });
 }
 
 } // namespace
@@ -712,16 +706,16 @@ void armPolishedSurfaceForBackdrop(QWidget *widget)
         return;
     }
     if (auto *area = qobject_cast<QAbstractScrollArea *>(widget)) {
-        if (underLiveScope(widget, win))
+        if (underLiveScope(widget))
             transparentizeScrollChain(area);
         return;
     }
-    if (!underLiveScope(widget, win))
+    if (!underLiveScope(widget))
         return;
     if (qobject_cast<QTabWidget *>(widget))
         transparentizeBareContainer(widget);
     else if (auto *frame = qobject_cast<QFrame *>(widget)) {
-        if (frame->frameShape() == QFrame::StyledPanel || underDockHost(widget, win))
+        if (frame->frameShape() == QFrame::StyledPanel || underDockHost(widget))
             transparentizeBareContainer(frame);
     }
 }
@@ -1429,8 +1423,6 @@ void preparePopupSurface(QWidget *widget)
     // branch below then restores the full recipe instead of inheriting the
     // composited one (square corners, washed veil, lost shadow).
     remember(popup, originalOpaquePaintProperty, popup->testAttribute(Qt::WA_OpaquePaintEvent));
-    remember(popup, originalStyledBackgroundProperty,
-             popup->testAttribute(Qt::WA_StyledBackground));
     // Popup widgets keep an explicit palette after their first polish. Rebase
     // every show on the current application palette so runtime theme changes
     // cannot leave stale text or surface roles behind. The surface is opaque;
@@ -1649,8 +1641,6 @@ void preparePopupSurface(QWidget *widget)
                         QStringLiteral("qt_calendar_navigationbar"))) {
                 rememberPalette(bar);
                 remember(bar, originalAutoFillProperty, bar->autoFillBackground());
-                remember(bar, originalStyledBackgroundProperty,
-                         bar->testAttribute(Qt::WA_StyledBackground));
                 QPalette headerPalette = popup->palette();
                 headerPalette.setColor(QPalette::Button, surface);
                 bar->setPalette(headerPalette);

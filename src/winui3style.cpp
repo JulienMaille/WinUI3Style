@@ -3183,7 +3183,6 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalOpaquePaintProperty, {});
         widget->setProperty(originalTranslucentBackgroundProperty, {});
         widget->setProperty(originalNoSystemBackgroundProperty, {});
-        widget->setProperty("_winui_original_mouse_tracking", {});
         widget->setProperty(originalListSpacingProperty, {});
         widget->setProperty(originalMinimumSizeProperty, {});
         widget->setProperty(originalMaximumSizeProperty, {});

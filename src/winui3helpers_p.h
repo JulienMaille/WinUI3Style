@@ -147,27 +147,44 @@ inline bool isCardSurface(const QWidget *widget)
     return qobject_cast<const QTabWidget *>(widget->parentWidget()) != nullptr;
 }
 
-// True when an ancestor card owns the surface this widget would erase. The
-// ancestor walk is structural for the same reason as isCardSurface above: a
-// group card under a transparentized island carries the island's zero-alpha
-// Window role, yet its Base-derived fill still has to survive every child
-// paint (the mica-mode hole in the Collections/Dialogs cards). The walk stops
-// at the widget's own window: a popup (menu parented to an in-card widget)
-// is a separate backing-store surface and never inherits the main window's
-// card decision.
-inline bool insideOpaqueCard(const QWidget *widget)
+// Shared ancestor walk to the widget's own window for the backdrop-scope
+// predicates below. One traversal, no per-site hand-rolled loop: callers
+// only supply the predicate. includeWindow preserves the two historical
+// stop rules (card walks test the window itself, scope walks stop before
+// it); the window-differ break keeps popups on their own surface.
+template <typename Predicate>
+inline bool anyAncestorToWindow(const QWidget *widget, Predicate predicate,
+                                bool includeWindow = false)
 {
     if (!widget)
         return false;
     const QWidget *surface = widget->window();
+    if (!surface)
+        return false;
     for (const QWidget *ancestor = widget->parentWidget(); ancestor;
          ancestor = ancestor->parentWidget()) {
         if (ancestor->window() != surface)
             break;
-        if (isCardSurface(ancestor))
+        if (!includeWindow && ancestor == surface)
+            break;
+        if (predicate(ancestor))
             return true;
     }
     return false;
+}
+
+// True when an ancestor card owns the surface this widget would erase. The
+// walk is structural for the same reason as isCardSurface above: a group
+// card under a transparentized island carries the island's zero-alpha Window
+// role, yet its Base-derived fill still has to survive every child paint
+// (the mica-mode hole in the Collections/Dialogs cards). The walk stops at
+// the widget's own window: a popup (menu parented to an in-card widget) is
+// a separate backing-store surface and never inherits the main window's
+// card decision.
+inline bool insideOpaqueCard(const QWidget *widget)
+{
+    return anyAncestorToWindow(
+            widget, [](const QWidget *ancestor) { return isCardSurface(ancestor); }, true);
 }
 
 // True for the viewport of a scroll area inside an opaque card

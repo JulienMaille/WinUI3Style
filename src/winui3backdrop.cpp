@@ -42,17 +42,18 @@ QColor themedWindowColor()
 
 void rememberBackdropState(QWidget *window)
 {
-    const auto remember = [window](const char *name, const QVariant &value) {
-        if (!window->property(name).isValid())
-            window->setProperty(name, value);
-    };
-    remember(originalPaletteProperty, QVariant::fromValue(window->palette()));
-    remember(originalPaletteExplicitProperty, window->testAttribute(Qt::WA_SetPalette));
-    remember(originalTranslucentProperty, window->testAttribute(Qt::WA_TranslucentBackground));
-    remember(originalNoSystemBackgroundProperty, window->testAttribute(Qt::WA_NoSystemBackground));
-    remember(originalOpaquePaintProperty, window->testAttribute(Qt::WA_OpaquePaintEvent));
-    remember(originalAutoFillProperty, window->autoFillBackground());
-    remember(originalWindowColorProperty, window->palette().color(QPalette::Window));
+    Private::remember(window, originalPaletteProperty, QVariant::fromValue(window->palette()));
+    Private::remember(window, originalPaletteExplicitProperty,
+                      window->testAttribute(Qt::WA_SetPalette));
+    Private::remember(window, originalTranslucentProperty,
+                      window->testAttribute(Qt::WA_TranslucentBackground));
+    Private::remember(window, originalNoSystemBackgroundProperty,
+                      window->testAttribute(Qt::WA_NoSystemBackground));
+    Private::remember(window, originalOpaquePaintProperty,
+                      window->testAttribute(Qt::WA_OpaquePaintEvent));
+    Private::remember(window, originalAutoFillProperty, window->autoFillBackground());
+    Private::remember(window, originalWindowColorProperty,
+                      window->palette().color(QPalette::Window));
 }
 
 // Switching the presentation mode rebuilds the whole buffer: stale frames
