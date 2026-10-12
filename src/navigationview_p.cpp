@@ -271,13 +271,13 @@ public:
     }
     QPointer<NavigationItemDelegate> delegate;
     QPointer<QAbstractItemDelegate> original;
-    QPalette viewPalette;
-    QPalette viewportPalette;
+    // The surface snapshot (pre-material palette, explicit flags, autofill
+    // and backdrop attributes) lives in the shared backdrop-surface keys
+    // (rememberBackdropSurfaceState), not here: a view armed by both the
+    // navigation prepare and the scroll chain keeps one snapshot, so both
+    // restores stay idempotent in either order. Only the frame shape has no
+    // shared key and stays in this state object.
     QFrame::Shape frameShape = QFrame::NoFrame;
-    bool viewportAutoFill = false;
-    bool viewportOpaque = false;
-    bool viewPaletteExplicit = false;
-    bool viewportPaletteExplicit = false;
     bool surfaceStateSaved = false;
 };
 
@@ -311,14 +311,13 @@ void prepareNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
     }
     if (state->surfaceStateSaved)
         return;
-    state->viewPalette = view->palette();
-    state->viewportPalette = view->viewport()->palette();
     state->frameShape = view->frameShape();
-    state->viewportAutoFill = view->viewport()->autoFillBackground();
-    state->viewportOpaque = view->viewport()->testAttribute(Qt::WA_OpaquePaintEvent);
-    state->viewPaletteExplicit = view->testAttribute(Qt::WA_SetPalette);
-    state->viewportPaletteExplicit = view->viewport()->testAttribute(Qt::WA_SetPalette);
     state->surfaceStateSaved = true;
+    // Shared snapshot (first write wins): a later scroll-chain arm of the
+    // same view keeps this pre-material state instead of snapshotting the
+    // nav-armed palette, so either restore order converges opaque.
+    Private::rememberBackdropSurfaceState(view);
+    Private::rememberBackdropSurfaceState(view->viewport());
 
     QPalette transparent = view->palette();
     transparent.setColor(QPalette::Base, Private::withAlpha(transparent.color(QPalette::Base), 0));
@@ -335,15 +334,13 @@ void restoreNavigationSurface(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !state || !state->surfaceStateSaved)
         return;
-    Private::setBackdropPalette(view, state->viewPaletteExplicit ? state->viewPalette : QPalette());
+    // Shared snapshot restore (no-op when a chain restore already consumed
+    // it: that restore converged the same opaque recipe). The flag clears on
+    // every attempt so a consumed snapshot cannot resurrect transparency.
+    Private::restoreTransparentizedForBackdrop(view);
+    if (view->viewport())
+        Private::restoreTransparentizedForBackdrop(view->viewport());
     view->setFrameShape(state->frameShape);
-    if (view->viewport()) {
-        Private::setBackdropPalette(view->viewport(),
-                                    state->viewportPaletteExplicit ? state->viewportPalette
-                                                                   : QPalette());
-        view->viewport()->setAutoFillBackground(state->viewportAutoFill);
-        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, state->viewportOpaque);
-    }
     state->surfaceStateSaved = false;
 }
 
@@ -421,10 +418,12 @@ void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
         return;
     // Keep the saved ownership flags: rebasing a temporary material palette
     // must not turn inherited colors into application overrides on restore.
+    // The saved recipe is rebased to the new theme below so a later restore
+    // still converges opaque instead of resurrecting stale RGB.
     if (view->property(WinUI3::Private::ownedPaletteProperty).toBool())
-        state->viewPalette = palette;
+        Private::rebaseBackdropSurfaceSnapshotPalette(view, palette);
     if (view->viewport()->property(WinUI3::Private::ownedPaletteProperty).toBool())
-        state->viewportPalette = palette;
+        Private::rebaseBackdropSurfaceSnapshotPalette(view->viewport(), palette);
     const auto refresh = [&palette](QWidget *widget, const QPalette &saved) {
         QPalette transparent =
                 widget->property(WinUI3::Private::ownedPaletteProperty).toBool() ? palette : saved;
@@ -434,8 +433,8 @@ void refreshNavigationPalette(QAbstractItemView *view, const QPalette &palette)
                              Private::withAlpha(transparent.color(QPalette::Window), 0));
         Private::setBackdropPalette(widget, transparent);
     };
-    refresh(view, state->viewPalette);
-    refresh(view->viewport(), state->viewportPalette);
+    refresh(view, Private::backdropSurfaceSnapshotPalette(view));
+    refresh(view->viewport(), Private::backdropSurfaceSnapshotPalette(view->viewport()));
 }
 
 void prepareNavigationView(QAbstractItemView *view)

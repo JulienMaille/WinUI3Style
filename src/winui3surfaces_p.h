@@ -79,6 +79,17 @@ WINUI3STYLE_EXPORT void restoreContentSurfacesForBackdrop(QWidget *window);
 void transparentizeForBackdrop(QWidget *surface);
 void restoreTransparentizedForBackdrop(QWidget *surface);
 bool isTransparentizedForBackdrop(const QWidget *surface);
+// Remembers the pre-backdrop palette, explicit flag and backdrop attributes
+// once (first write wins). Shared by transparentizeSurface below and by the
+// NavigationView surface prepare, so a view armed by both keeps one snapshot
+// and both restores stay idempotent in either order.
+void rememberBackdropSurfaceState(QWidget *surface);
+// Saved pre-material palette for a surface armed through
+// rememberBackdropSurfaceState (null when never armed).
+QPalette backdropSurfaceSnapshotPalette(const QWidget *surface);
+// Rebase the saved snapshot when the runtime theme moves (style-owned
+// surfaces follow the theme while keeping their live recipe).
+void rebaseBackdropSurfaceSnapshotPalette(QWidget *surface, const QPalette &palette);
 // Arms one freshly polished widget when its window already presents a live
 // material (Composited): chrome, islands, scroll chains and bare containers
 // converge without waiting for the next theme refresh. Same remember-once

@@ -12,6 +12,8 @@
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
 #include "../src/winui3tokens_p.h"
+#include "../src/winui3surfaces_p.h"
+#include "../src/navigationview_p.h"
 
 #include <QLabel>
 #include <QListWidget>
@@ -112,6 +114,7 @@ private slots:
     void navigationBackdropToggleRevealsOneMaterial();
     void navigationBackdropDisableRepaintsOpaqueAfterRestore();
     void navigationBackdropThemeRestore();
+    void navigationSingleSnapshotRestoreOrder();
 };
 
 void WinUI3NavigationTest::initTestCase()
@@ -852,6 +855,60 @@ void WinUI3NavigationTest::navigationBackdropDisableRepaintsOpaqueAfterRestore()
     QVERIFY(viewProbe.paints > 0);
     QObject *delegate = list->property("_winui_navigation_delegate").value<QObject *>();
     QVERIFY(delegate && delegate == list->itemDelegate());
+}
+
+void WinUI3NavigationTest::navigationSingleSnapshotRestoreOrder()
+{
+    // A NavigationView polished while its window already presents a live
+    // material is snapshotted twice: prepareNavigationSurface saves the
+    // opaque recipe in NavigationViewState, then the polish-time scroll-chain
+    // arm saves the nav-armed palette (Base alpha 0) under the
+    // backdrop-surface keys. The two restores then disagree: the nav restore
+    // returns opaque, but the chain restore resurrects the transparent
+    // recipe. One shared snapshot makes both restores idempotent.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget window;
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    auto *island = new QWidget(&window);
+    island->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    auto *list = new QListWidget(island);
+    list->setProperty(WinUI3::Style::NavigationViewProperty, true);
+    list->addItems({ QStringLiteral("Controls"), QStringLiteral("Settings") });
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    // Nav recipe armed at polish through the BackdropProperty string.
+    QCOMPARE(list->palette().color(QPalette::Base).alpha(), 0);
+    QCOMPARE(list->viewport()->palette().color(QPalette::Base).alpha(), 0);
+    // First restore alone returns the saved recipe.
+    const int originalViewBase = style->standardPalette().color(QPalette::Base).alpha();
+    WinUI3::NavigationPrivate::restoreNavigationView(list);
+    QCOMPARE(list->palette().color(QPalette::Base).alpha(), originalViewBase);
+    // A later chain restore must not resurrect the transparent recipe.
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&window);
+    QCOMPARE(list->palette().color(QPalette::Base).alpha(), originalViewBase);
+    QCOMPARE(list->viewport()->palette().color(QPalette::Base).alpha(), originalViewBase);
+    // Reverse order converges identically: the chain restore consumes the
+    // shared opaque snapshot, and the later nav restore is a no-op.
+    QWidget window2;
+    window2.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    window2.setProperty("_winui_backdrop_effective", 2); // Composited
+    auto *island2 = new QWidget(&window2);
+    island2->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+    auto *list2 = new QListWidget(island2);
+    list2->setProperty(WinUI3::Style::NavigationViewProperty, true);
+    list2->addItems({ QStringLiteral("Controls"), QStringLiteral("Settings") });
+    window2.resize(640, 420);
+    window2.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window2));
+    QCOMPARE(list2->palette().color(QPalette::Base).alpha(), 0);
+    WinUI3::Private::restoreContentSurfacesForBackdrop(&window2);
+    QCOMPARE(list2->palette().color(QPalette::Base).alpha(), originalViewBase);
+    WinUI3::NavigationPrivate::restoreNavigationView(list2);
+    QCOMPARE(list2->palette().color(QPalette::Base).alpha(), originalViewBase);
+    QCOMPARE(list2->viewport()->palette().color(QPalette::Base).alpha(), originalViewBase);
 }
 
 QTEST_MAIN(WinUI3NavigationTest)

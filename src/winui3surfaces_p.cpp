@@ -395,7 +395,7 @@ void setBackdropPalette(QWidget *surface, const QPalette &palette)
     }
 }
 
-void transparentizeSurface(QWidget *surface)
+void rememberBackdropSurfaceState(QWidget *surface)
 {
     if (!surface)
         return;
@@ -411,6 +411,28 @@ void transparentizeSurface(QWidget *surface)
              surface->testAttribute(Qt::WA_StyledBackground));
     remember(surface, backdropSurfaceOpaquePaintProperty,
              surface->testAttribute(Qt::WA_OpaquePaintEvent));
+}
+
+QPalette backdropSurfaceSnapshotPalette(const QWidget *surface)
+{
+    if (!surface)
+        return QPalette();
+    const QVariant saved = surface->property(backdropSurfacePaletteProperty);
+    return saved.isValid() ? saved.value<QPalette>() : QPalette();
+}
+
+void rebaseBackdropSurfaceSnapshotPalette(QWidget *surface, const QPalette &palette)
+{
+    if (!surface)
+        return;
+    surface->setProperty(backdropSurfacePaletteProperty, QVariant::fromValue(palette));
+}
+
+void transparentizeSurface(QWidget *surface)
+{
+    if (!surface)
+        return;
+    rememberBackdropSurfaceState(surface);
     QPalette palette = surface->palette();
     // The Window role reveals the live material; keep text roles intact.
     palette.setColor(QPalette::Window, transparentized(palette.color(QPalette::Window), 0));
@@ -547,10 +569,18 @@ void transparentizeScrollChain(QAbstractScrollArea *area)
         return;
     // A reparent can change the recipe during an active backdrop. Return the
     // old arm first so the next snapshot never captures temporary attributes.
+    // Bare NavigationView areas are exempt: the navigation prepare owns their
+    // area/viewport recipe (Base alpha 0), and rolling it back here would
+    // undo settled nav state on every sync while the re-arm below cannot
+    // rebuild the Base role. In-card nav keeps its own recipe via the branch
+    // below, as before.
     const bool inCard = insideOpaqueCard(area);
-    if ((inCard && area->property(backdropSurfacePaletteProperty).isValid())
-        || (!inCard && area->viewport()
-            && area->viewport()->property(backdropSurfacePaletteProperty).isValid()))
+    const bool bareNavigation =
+            !inCard && area->property(Style::NavigationViewProperty).toBool();
+    if (!bareNavigation
+        && ((inCard && area->property(backdropSurfacePaletteProperty).isValid())
+            || (!inCard && area->viewport()
+                && area->viewport()->property(backdropSurfacePaletteProperty).isValid())))
         restoreScrollChain(area);
     if (inCard) {
         // NavigationView-marked views keep their own recipe
