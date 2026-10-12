@@ -103,6 +103,18 @@ only via `winui3helpers_p.h`; no new `QStyle` subclasses, no QSS, no new deps.
 - **S0 — Baseline (Phase 2, no code change)**: tag `refactor-baseline`;
   record Qt version, OS build, DPI, fonts; run full CTest + snapshot matrix
   twice; archive `snapshot-report.json` + hashes as the reference.
+  - *Measured 2026-10-13 (station, `build-simplify`, Qt 6.12 x86, Release)*:
+    CTest 51/52 — only `winui3style_surfaces_unit` fails on the two known
+    wizard cases (`wizardSurfaceContract`, `wizardOpenThemeSwitchLifecycle`,
+    pre-existing Qt-version palette drift, unrelated to refactoring).
+  - *Snapshot matrix: BLOCKED in this environment.* `build/` (Qt 6.9.2) is
+    stale — its Qt tree was removed, CMake re-configure fails on the Qt5
+    fallback. `build-gallery` (Qt 6.12 x64) builds, but
+    `winui3style_gallery --capture-dir` hangs after 3 files (menu captures)
+    under `QT_QPA_PLATFORM=offscreen` here, including bare `--help` with no
+    output. Last good `build/snapshot-report.json` is dated 2026-10-02
+    (Qt 6.9.2 era). **No refactor step may claim visual non-regression until
+    the matrix runs green — on the reviewer's machine or CI.**
 - **S1 — Facade thinning**: move `winui3style.cpp:2042-2137` (calendar lane,
   card viewport/interior, popup tint) into `winui3viewrenderers_p.cpp` /
   `winui3surfaces_p.cpp` helpers; move `drawControl` element branches
