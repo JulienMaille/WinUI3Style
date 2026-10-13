@@ -4,6 +4,7 @@
 #include "winui3complex_editors_p.h"
 #include "winui3complex_rangecontrols_p.h"
 #include "winui3complex_toolgroup_p.h"
+#include "winui3helpers_p.h"
 #include "winui3tokens_p.h"
 
 #include <QStyleOption>
@@ -40,6 +41,20 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
         return drawRangeComplexControl(style, control, option, painter, widget, t);
 
     return false;
+}
+
+// Shared pre-erase for the complex frames that paint straight onto the live
+// material through a translucent island and never pass the PE/CE branches, so
+// their scroll-shifted pixels smear otherwise. Kept beside the dispatch so the
+// facade stays a pure router.
+bool eraseComplexBackdrop(QStyle::ComplexControl control, const QStyleOptionComplex *option,
+                          QPainter *painter, const QWidget *widget)
+{
+    if (control != QStyle::CC_GroupBox && control != QStyle::CC_ToolButton)
+        return false;
+    if (!option || !painter)
+        return false;
+    return eraseForBackdrop(painter, widget, option->rect);
 }
 
 } // namespace WinUI3::Private

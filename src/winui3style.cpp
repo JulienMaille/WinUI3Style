@@ -2012,7 +2012,6 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (element == PE_Widget && widget && Private::drawWidgetBackdropPrimitive(this, option,
                                                                                painter, widget))
         return;
-
     if (Private::drawChromePrimitive(this, element, option, painter, widget))
         return;
 
@@ -2028,22 +2027,8 @@ void Style::drawControl(ControlElement element, const QStyleOption *option, QPai
         return;
     if (Private::drawButtonControl(this, element, option, painter, widget))
         return;
-    // Same erase as the PE_Widget path: any control painting straight onto the
-    // live material through a translucent island must rebuild from
-    // transparent first. CE paths never reach the PE_Widget branch, so the
-    // scroll-shifted pixels they leave behind smear exactly like the
-    // unguarded viewport case. The gate excludes opaque islands and
-    // non-Composited fallbacks, so unrelated controls are untouched.
-    if (element == CE_PushButton || element == CE_PushButtonLabel || element == CE_CheckBox
-        || element == CE_CheckBoxLabel || element == CE_RadioButton
-        || element == CE_RadioButtonLabel || element == CE_ToolButtonLabel) {
-        // Same erase as the PE_Widget path (see above): this must run even
-        // when the widget sits inside an opaque card, because the card
-        // tone it just cleared is rebuilt below (the button Fix-B mirror):
-        // without the refill the indicator/text paint leaves alpha 0.
-        Private::eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                                Private::cardRefillTone(option->palette, true));
-    }
+
+    Private::eraseButtonFamilyBackdrop(element, option, painter, widget);
 
     if (Private::drawViewControl(
                 this, element, option, painter, widget,
@@ -2066,11 +2051,9 @@ void Style::drawComplexControl(ComplexControl control, const QStyleOptionComplex
 {
     if (Private::drawComplexControl(this, control, option, painter, widget))
         return;
-    // Same erase as PE_Widget: group boxes and other complex frames paint
-    // straight onto the live material through a translucent island and never
-    // pass the PE/CE branches, so their scroll-shifted pixels smear.
-    if (control == CC_GroupBox || control == CC_ToolButton)
-        Private::eraseForBackdrop(painter, widget, option->rect);
+    // Uncovered complex controls keep the shared pre-erase, then fall through
+    // to the covered guard and the base style.
+    Private::eraseComplexBackdrop(control, option, painter, widget);
 
     Q_ASSERT_X(!Private::coveredComplex(control), "WinUI3::Style::drawComplexControl",
                "a covered complex control reached QCommonStyle");

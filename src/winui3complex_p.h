@@ -15,6 +15,9 @@ bool drawComplexControl(const Style *style, QStyle::ComplexControl control,
                         const QStyleOptionComplex *option, QPainter *painter,
                         const QWidget *widget);
 bool coveredComplex(QStyle::ComplexControl control);
+// Pre-erase shared by the facade's uncovered complex-control fallback path.
+bool eraseComplexBackdrop(QStyle::ComplexControl control, const QStyleOptionComplex *option,
+                          QPainter *painter, const QWidget *widget);
 
 } // namespace Private
 } // namespace WinUI3

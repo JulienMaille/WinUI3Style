@@ -19,6 +19,12 @@ bool drawButtonPrimitive(const Style *style, QStyle::PrimitiveElement element,
                          const QStyleOption *option, QPainter *painter, const QWidget *widget);
 bool drawButtonControl(const Style *style, QStyle::ControlElement element,
                        const QStyleOption *option, QPainter *painter, const QWidget *widget);
+// Shared pre-erase for the button-family control elements (panels and their
+// labels). Returns true when the element is one of them. Callers run this
+// before the per-element paint so the paint itself never has to remember the
+// backdrop contract.
+bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOption *option,
+                              QPainter *painter, const QWidget *widget);
 
 } // namespace Private
 } // namespace WinUI3

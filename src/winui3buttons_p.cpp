@@ -82,6 +82,31 @@ void drawEditorScopedClearSurface(const QStyleOption *option, QPainter *painter,
 
 } // namespace
 
+bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOption *option,
+                              QPainter *painter, const QWidget *widget)
+{
+    if (element != QStyle::CE_PushButton && element != QStyle::CE_PushButtonLabel
+        && element != QStyle::CE_CheckBox && element != QStyle::CE_CheckBoxLabel
+        && element != QStyle::CE_RadioButton && element != QStyle::CE_RadioButtonLabel
+        && element != QStyle::CE_ToolButtonLabel)
+        return false;
+    if (!option || !painter)
+        return false;
+    // Same erase as the PE_Widget path: any control painting straight onto the
+    // live material through a translucent island must rebuild from
+    // transparent first. CE paths never reach the PE_Widget branch, so the
+    // scroll-shifted pixels they leave behind smear exactly like the
+    // unguarded viewport case. The gate excludes opaque islands and
+    // non-Composited fallbacks, so unrelated controls are untouched.
+    //
+    // This must run even when the widget sits inside an opaque card, because
+    // the card tone it just cleared is rebuilt here (the button Fix-B
+    // mirror): without the refill the indicator/text paint leaves alpha 0.
+    eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                   cardRefillTone(option->palette, true));
+    return true;
+}
+
 bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
                          const QStyleOption *option, QPainter *painter, const QWidget *widget)
 {
