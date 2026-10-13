@@ -12,6 +12,15 @@
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
 
+#include <QLayout>
+#include <QPlainTextEdit>
+#include <QProgressBar>
+#include <QStyle>
+#include <QStyleOptionComboBox>
+#include <QStyleOptionProgressBar>
+#include <QStyleOptionSizeGrip>
+#include <QTextEdit>
+
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QCalendarWidget>
@@ -20,9 +29,13 @@
 #include <QListView>
 #include <QPainter>
 #include <QPainterPath>
+#include <QProgressBar>
 #include <QStyleOptionButton>
+#include <QStyleOptionComboBox>
 #include <QStyleOptionDockWidget>
 #include <QStyleOptionHeader>
+#include <QStyleOptionProgressBar>
+#include <QStyleOptionSizeGrip>
 #include <QStyleOptionTab>
 #include <QStyleOptionViewItem>
 #include <QTableView>
@@ -120,6 +133,475 @@ QRect selectionMarkerRect(const QStyleOptionViewItem &option, const QAbstractIte
 }
 
 } // namespace
+
+bool calendarNavigationBarWidget(const QWidget *widget)
+{
+    return widget && widget->objectName() == QStringLiteral("qt_calendar_navigationbar")
+            && qobject_cast<const QCalendarWidget *>(widget->parentWidget());
+}
+
+bool drawWidgetBackdropPrimitive(const Style *style, const QStyleOption *option, QPainter *painter,
+                                 const QWidget *widget)
+{
+    if (!option || !painter)
+        return false;
+    if (calendarNavigationBarWidget(widget)) {
+        if (widget->window()->windowType() == Qt::Popup) {
+            const QColor surface = widget->window()->palette().color(QPalette::Window);
+            if (!clearForBackdropFill(painter, widget, option->rect, surface))
+                painter->fillRect(option->rect, surface);
+            return true;
+        }
+        // Inline lane under a granted backdrop must read the same
+        // single-composite ink as the day cells: Source-fill the resolved bar
+        // surface instead of layering a second SourceOver fill over the
+        // calendar fill beneath (which drifts toward opaque). Refused and
+        // offscreen fallbacks keep the plain fill.
+        const QColor lane = widget->palette().color(QPalette::Window);
+        if (!clearForBackdropFill(painter, widget, option->rect, lane))
+            painter->fillRect(option->rect, lane);
+        return true;
+    }
+
+    if (isCardViewport(widget) && eraseForBackdrop(painter, widget, option->rect)) {
+        // In-card scroll viewport (reviewer 2026-10-06 tree-selection
+        // overlay): the viewport's auto-filled Base layer would double over
+        // the card veil, so the sync stops the autofill and the viewport
+        // repaints the card tone itself here — erase plus Source replace
+        // (exact tone, never layered, smear-safe on scroll exposes).
+        // Roles stay intact for tone reads; bars and plain containers keep
+        // their own paths. Must precede the card-interior guard below,
+        // which would otherwise return without painting (stale blits).
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(option->rect, veiledCard(tokens(option->palette).layer, true));
+        painter->restore();
+        return true;
+    }
+
+    if (insideOpaqueCard(widget)) {
+        // Card interiors own their surface: the card already painted its
+        // veiled fill (CC_GroupBox / PE_FrameTabWidget / the SettingsCard
+        // frame), and Qt dispatches PE_Widget here for any child with
+        // WA_StyledBackground. The Source-clear below would punch that fill
+        // to alpha 0 (the Dialogs-page holes; same guard as the slider and
+        // scrollbar erases). Return without painting so the card fill the
+        // parent already laid survives, and so this skipped primitive never
+        // falls through to the coveredPrimitive assert.
+        return true;
+    }
+
+    if (eraseForBackdrop(painter, widget, option->rect, ControlRadius)) {
+        // erase is disabled here (StyledBackground, no autofill) and neither
+        // the island nor its descendants repaint fully on scroll/hover/page
+        // switches, so shifted frames accumulate as permanent smear until a
+        // resize reallocates the buffer. DWM composites the material
+        // underneath. The island itself (zero-alpha Window role) clears and
+        // returns; descendants clear the same way and fall through so their
+        // content paints over the freshly erased rect (the island has no
+        // fill to punch through). Unrelated widgets keep Qt's default erase
+        // path: the paintsDirectlyOnBackdrop gate already excluded opaque
+        // islands and non-Composited fallbacks, so this branch never runs
+        // for them.
+        if (widget->palette().color(QPalette::Window).alpha() == 0)
+            return true;
+        if (widget->window()->windowType() == Qt::Popup) {
+            // Recipe 1 completion for a granted popup backdrop: PE_PanelMenu
+            // has already laid the ONE popup tint over the DWM acrylic
+            // (preparePopupSurface re-tints Window/Base to it, 178 Dark /
+            // 242 Light) and this erase just Source-cleared a child rect
+            // inside it. Without the refill the view/viewport tail stays
+            // alpha 0 — the fully transparent band behind the last
+            // combo-popup rows. Source-fill the SAME tint, clipped to the
+            // popup's rounded surface (OverlayRadius, mapped into widget
+            // coordinates) so the corner cutouts outside the flyout keep
+            // their transparency, then return; NONE never reaches this
+            // branch because the gate is false without a granted backdrop.
+            const QColor tint = widget->palette().color(QPalette::Window);
+            const QWidget *popup = widget->window();
+            const QPoint origin = widget->mapTo(popup, QPoint(0, 0));
+            const QRect surface(-origin, popup->size());
+            painter->save();
+            QPainterPath clip;
+            clip.addRoundedRect(QRectF(surface), OverlayRadius, OverlayRadius);
+            // Intersect, never replace: dirty-region clips arrive already set.
+            painter->setClipPath(clip, Qt::IntersectClip);
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(option->rect, tint);
+            painter->restore();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool drawChromePrimitive(const Style *style, QStyle::PrimitiveElement element,
+                         const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    if (!option || !painter)
+        return false;
+    if (element != QStyle::PE_FrameFocusRect && element != QStyle::PE_PanelTipLabel
+        && element != QStyle::PE_PanelStatusBar && element != QStyle::PE_IndicatorArrowDown
+        && element != QStyle::PE_IndicatorArrowLeft && element != QStyle::PE_IndicatorArrowRight
+        && element != QStyle::PE_IndicatorArrowUp && element != QStyle::PE_Frame
+        && element != QStyle::PE_IndicatorToolBarSeparator)
+        return false;
+    using namespace WinUI3::Private;
+    const WinUI3::Private::Tokens t = tokens(option->palette);
+    const bool enabled = option->state & QStyle::State_Enabled;
+
+    if (element == QStyle::PE_FrameFocusRect) {
+        if (!keyboardFocusVisible(widget))
+            return true;
+        const qreal focus =
+                progress(widget, focusProperty, option->state & QStyle::State_HasFocus ? 1.0 : 0.0);
+        if (focus <= 0.01)
+            return true;
+        QColor outer = t.focusOuter;
+        QColor inner = t.focusInner;
+        outer.setAlphaF(outer.alphaF() * focus);
+        inner.setAlphaF(inner.alphaF() * focus);
+        paintFocusRing(painter, option->rect, outer, inner, 1, 3, ControlRadius + 2, ControlRadius);
+        return true;
+    }
+
+    if (element == QStyle::PE_PanelTipLabel) {
+        const QColor fill = t.tooltipFill;
+        roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1), fill, t.tooltipStroke, 4);
+        return true;
+    }
+
+    if (element == QStyle::PE_PanelStatusBar) {
+        // Recipe 2 (mirror PE_PanelMenuBar): reveal the live material under
+        // a composited backdrop. Erase first; on a direct backdrop paint
+        // only the 1px top stroke and return transparent with no Window
+        // fill. The opaque fill below is the non-Composited fallback.
+        if (eraseForBackdrop(painter, widget, option->rect)) {
+            painter->setPen(QPen(t.stroke, 1));
+            painter->drawLine(option->rect.topLeft(), option->rect.topRight());
+            return true;
+        }
+        painter->fillRect(option->rect, option->palette.color(QPalette::Window));
+        painter->setPen(QPen(t.stroke, 1));
+        painter->drawLine(option->rect.topLeft(), option->rect.topRight());
+        return true;
+    }
+
+    if (element == QStyle::PE_IndicatorArrowDown || element == QStyle::PE_IndicatorArrowLeft
+        || element == QStyle::PE_IndicatorArrowRight || element == QStyle::PE_IndicatorArrowUp) {
+        WinUI3::icon(arrowIcon(element), enabled ? t.textPrimary : t.textDisabled)
+                .paint(painter, option->rect, Qt::AlignCenter,
+                       enabled ? QIcon::Normal : QIcon::Disabled);
+        return true;
+    }
+
+    if (element == QStyle::PE_Frame && widget && widget->window()
+        && widget->window()->windowType() == Qt::Popup) {
+        // preparePopupSurface already rebound the popup palette's Window role
+        // to the raised translucent-layer stand-in color.
+        const QColor popupSurface = option->palette.color(QPalette::Window);
+        controlSurface(painter, option->rect, popupSurface, t.flyoutStroke, t.flyoutStroke,
+                       OverlayRadius);
+        return true;
+    }
+
+    if (element == QStyle::PE_Frame && qobject_cast<const QAbstractItemView *>(widget)) {
+        roundedRect(painter, QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5), Qt::transparent,
+                    t.stroke, ControlRadius);
+        return true;
+    }
+
+    if (element == QStyle::PE_Frame) {
+        if (const QWidget *editor = richTextEditor(widget)) {
+            const bool focused = editor->hasFocus();
+            const bool editorEnabled = option->state & QStyle::State_Enabled;
+            const QColor fill = !editorEnabled ? t.controlDisabled
+                    : focused                  ? t.editorFocusedFill
+                              : (option->state & QStyle::State_MouseOver ? t.controlHover : t.control);
+            eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+            controlSurface(painter, option->rect,
+                           veiledCard(fill, paintsDirectlyOnBackdrop(widget)), t.stroke,
+                           t.strokeSecondary, ControlRadius);
+            if (focused)
+                drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill, ControlRadius);
+            return true;
+        }
+        return false;
+    }
+
+    // PE_IndicatorToolBarSeparator
+    painter->save();
+    painter->setPen(QPen(t.stroke, 1));
+    if (option->state & QStyle::State_Horizontal) {
+        const int x = option->rect.center().x();
+        painter->drawLine(x, option->rect.top() + 8, x, option->rect.bottom() - 8);
+    } else {
+        const int y = option->rect.center().y();
+        painter->drawLine(option->rect.left() + 8, y, option->rect.right() - 8, y);
+    }
+    painter->restore();
+    return true;
+}
+
+bool drawChromeControl(const Style *style, QStyle::ControlElement element,
+                       const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    if (!option || !painter)
+        return false;
+    if (element != QStyle::CE_ShapedFrame && element != QStyle::CE_ComboBoxLabel
+        && element != QStyle::CE_ProgressBar && element != QStyle::CE_ProgressBarGroove
+        && element != QStyle::CE_ProgressBarContents && element != QStyle::CE_ProgressBarLabel
+        && element != QStyle::CE_ToolBar && element != QStyle::CE_SizeGrip)
+        return false;
+    using namespace WinUI3::Private;
+    const Tokens t = tokens(option->palette);
+
+    if (element == QStyle::CE_ShapedFrame && widget && widget->property(WinUI3::Style::SettingsCardProperty).toBool()) {
+        // Card-interactive iff an expandable child is bound: trailing-only
+        // cards (Notifications/Updates) keep the resting control fill and
+        // never show hover/press. The expandable child lives under the
+        // _winui_settings_card_expandableHost, so presence of that host's
+        // layout marks interactivity without including settingscard.h here.
+        const QWidget *host =
+                widget->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
+        const bool interactive = host && host->layout() && host->layout()->count() > 0;
+        const qreal hover = interactive
+                ? progress(widget, hoverProperty, option->state & QStyle::State_MouseOver ? 1.0 : 0.0)
+                : 0.0;
+        const qreal press = interactive
+                ? progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0)
+                : 0.0;
+        QColor fill = mix(t.control, t.controlHover, hover * (1.0 - press));
+        fill = mix(fill, t.controlPressed, press);
+        // Cards veil over a live material (VeiledCardAlpha, same recipe as
+        // CC_GroupBox): an opaque card bands over Mica. Erase first so
+        // hover frames cannot accumulate, then veil; off-material the fill
+        // stays opaque as before.
+        eraseForBackdrop(painter, widget, option->rect, OverlayRadius);
+        if (paintsDirectlyOnBackdrop(widget))
+            fill.setAlpha(qMin(fill.alpha(), VeiledCardAlpha));
+        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
+        if (keyboardFocusVisible(widget)) {
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setBrush(Qt::NoBrush);
+            painter->setPen(QPen(t.focusOuter, 2.0));
+            painter->drawRoundedRect(QRectF(option->rect).adjusted(2, 2, -3, -3), 6, 6);
+            painter->setPen(QPen(t.focusInner, 1.0));
+            painter->drawRoundedRect(QRectF(option->rect).adjusted(4, 4, -5, -5), 5, 5);
+            painter->restore();
+        }
+        return true;
+    }
+
+    if (element == QStyle::CE_ComboBoxLabel) {
+        if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
+            if (combo->editable)
+                return true;
+            QRect content = style->subControlRect(QStyle::CC_ComboBox, combo,
+                                                  QStyle::SC_ComboBoxEditField, widget);
+            if (!combo->currentIcon.isNull()) {
+                const QSize iconSize = combo->iconSize.isValid() ? combo->iconSize : QSize(16, 16);
+                const QRect logicalIcon(content.left(),
+                                        content.center().y() - iconSize.height() / 2,
+                                        iconSize.width(), iconSize.height());
+                const QRect iconRect = QStyle::visualRect(option->direction, content, logicalIcon);
+                paintThemedIcon(painter, combo->currentIcon, iconRect, Qt::AlignCenter,
+                                option->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
+                                option->state & QStyle::State_Enabled ? QIcon::Normal
+                                                                     : QIcon::Disabled);
+                if (option->direction == Qt::RightToLeft)
+                    content.setRight(iconRect.left() - 8);
+                else
+                    content.setLeft(iconRect.right() + 8);
+            }
+            painter->setPen(option->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled);
+            painter->drawText(content,
+                              QStyle::visualAlignment(option->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                              option->fontMetrics.elidedText(combo->currentText, Qt::ElideRight,
+                                                             content.width()));
+            return true;
+        }
+        return false;
+    }
+
+    if (element == QStyle::CE_ProgressBar) {
+        if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
+            style->drawControl(QStyle::CE_ProgressBarGroove, bar, painter, widget);
+            style->drawControl(QStyle::CE_ProgressBarContents, bar, painter, widget);
+            if (bar->textVisible)
+                style->drawControl(QStyle::CE_ProgressBarLabel, bar, painter, widget);
+            return true;
+        }
+        return false;
+    }
+
+    if (element == QStyle::CE_ProgressBarGroove) {
+        const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
+        const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
+        const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
+        const bool textAboveLine = horizontal && bar && bar->textVisible && !bar->text.isEmpty();
+        const QRect groove = horizontal
+                ? (textAboveLine
+                           // The label owns the bar's body; the track becomes a thin
+                           // underline so the text never overlaps the fill.
+                           ? QRect(option->rect.left(), option->rect.bottom() - 2,
+                                   option->rect.width(), 3)
+                           : QRect(option->rect.left(), option->rect.center().y() - 2,
+                                   option->rect.width(), 4))
+                : QRect(option->rect.center().x() - 2, option->rect.top(), 4,
+                        option->rect.height());
+        roundedRect(painter, groove, t.stroke, Qt::transparent, 2);
+        return true;
+    }
+
+    if (element == QStyle::CE_ProgressBarContents) {
+        if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
+            const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
+            const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
+            const bool inverted =
+                    progressBar ? progressBar->invertedAppearance() : bar->invertedAppearance;
+            const bool textAboveLine = horizontal && bar && bar->textVisible && !bar->text.isEmpty();
+            const QRect track = horizontal
+                    ? (textAboveLine ? QRect(option->rect.left(), option->rect.bottom() - 2,
+                                             option->rect.width(), 3)
+                                     : QRect(option->rect.left(), option->rect.center().y() - 2,
+                                             option->rect.width(), 4))
+                    : QRect(option->rect.center().x() - 2, option->rect.top(), 4,
+                            option->rect.height());
+            const QColor indicatorColor =
+                    bar->state & QStyle::State_Enabled ? t.accentFill : t.accentFillDisabled;
+            if (bar->minimum == 0 && bar->maximum == 0) {
+                // ProgressRing-style indeterminate progress uses two
+                // independently moving indicators.  The phase is advanced
+                // by a widget-owned timer, so every repaint is intentional
+                // and capture mode can freeze it at a stable value.
+                const qreal phase = Style::animationsAllowed()
+                        ? qBound<qreal>(0.0, progress(widget, progressPhaseProperty, 0.0), 1.0)
+                        : 0.35;
+                const int axis = horizontal ? track.width() : track.height();
+                const int firstLength = qMax(12, axis / 4);
+                const int secondLength = qMax(10, axis / 6);
+                const bool reverse = horizontal
+                        ? (inverted != (bar->direction == Qt::RightToLeft))
+                        : !bar->invertedAppearance;
+                const auto drawIndicator = [&](int length, qreal offset) {
+                    const qreal travel = axis + length;
+                    const int distance = qRound(travel * std::fmod(phase + offset, 1.0));
+                    QRect indicator = track;
+                    if (horizontal) {
+                        const int left = reverse ? axis - distance : distance - length;
+                        indicator.setLeft(track.left() + left);
+                        indicator.setWidth(length);
+                    } else {
+                        const int top = reverse ? axis - distance : distance - length;
+                        indicator.setTop(track.top() + top);
+                        indicator.setHeight(length);
+                    }
+                    indicator = indicator.intersected(track);
+                    if (!indicator.isEmpty())
+                        roundedRect(painter, indicator, indicatorColor, Qt::transparent, 2);
+                };
+                drawIndicator(firstLength, 0.0);
+                drawIndicator(secondLength, 0.5);
+                return true;
+            }
+            const qint64 range = qint64(bar->maximum) - qint64(bar->minimum);
+            const qint64 value = qint64(bar->progress) - qint64(bar->minimum);
+            const qreal ratio = range > 0 ? qBound<qreal>(0, qreal(value) / qreal(range), 1) : 0;
+            QRect fill = track;
+            if (horizontal) {
+                const int length = qRound(track.width() * ratio);
+                if (inverted != (bar->direction == Qt::RightToLeft))
+                    fill.setLeft(track.right() - length + 1);
+                else
+                    fill.setWidth(length);
+            } else {
+                // Qt fills a vertical, non-inverted bar from the bottom up
+                // (QCommonStyle flips "reverse" for vertical orientation), so
+                // invertedAppearance must grow from the top instead.
+                const int length = qRound(track.height() * ratio);
+                if (inverted)
+                    fill.setHeight(length);
+                else
+                    fill.setTop(track.bottom() - length + 1);
+            }
+            if (!fill.isEmpty())
+                roundedRect(painter, fill, indicatorColor, Qt::transparent, 2);
+            return true;
+        }
+        return false;
+    }
+
+    if (element == QStyle::CE_ProgressBarLabel) {
+        // WinUI's ProgressBar shows no inline percentage text, but Qt-based
+        // applications may render meaningful information there with
+        // textVisible=true. Keep their label: paint
+        // it centered over the bar using the style's text color.
+        if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
+            if (bar->textVisible && !bar->text.isEmpty()) {
+                painter->save();
+                const QPalette &pal = option->palette;
+                const QPalette::ColorGroup group = !(bar->state & QStyle::State_Enabled)
+                        ? QPalette::Disabled
+                        : (bar->state & QStyle::State_Active ? QPalette::Active
+                                                             : QPalette::Inactive);
+                const QColor fg = pal.color(group, QPalette::WindowText);
+                painter->setPen(QPen(fg));
+                const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
+                const bool horizontal =
+                        !progressBar || progressBar->orientation() == Qt::Horizontal;
+                if (horizontal) {
+                    // The thin track sits at the bottom of the rect; the label
+                    // owns the area above it.  Elide so long transfer strings
+                    // (e.g. "2,513,696 (22.0%)") never bleed past the bar.
+                    const QRect labelRect = bar->rect.adjusted(0, 0, 0, -6);
+                    painter->drawText(labelRect, Qt::AlignCenter,
+                                      option->fontMetrics.elidedText(bar->text, Qt::ElideRight,
+                                                                     labelRect.width()));
+                } else {
+                    painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
+                }
+                painter->restore();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    if (element == QStyle::CE_ToolBar) {
+        // Recipe 2 (mirror PE_PanelMenuBar): on a direct backdrop the erase
+        // reveals the live material, so return with no fill. The
+        // SurfaceProperty-gated Window fill below is the non-Composited
+        // fallback.
+        if (eraseForBackdrop(painter, widget, option->rect))
+            return true;
+        if (widget && widget->property(Style::SurfaceProperty).isValid())
+            painter->fillRect(option->rect, widget->palette().color(QPalette::Window));
+        return true;
+    }
+
+    // CE_SizeGrip
+    const auto *grip = qstyleoption_cast<const QStyleOptionSizeGrip *>(option);
+    const Qt::Corner corner = grip ? grip->corner : Qt::BottomRightCorner;
+    const bool right = corner == Qt::TopRightCorner || corner == Qt::BottomRightCorner;
+    const bool bottom = corner == Qt::BottomLeftCorner || corner == Qt::BottomRightCorner;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(t.textTertiary);
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column <= row; ++column) {
+            const int dx = 3 + column * 4;
+            const int dy = 3 + row * 4;
+            const qreal x = right ? option->rect.right() - dx : option->rect.left() + dx;
+            const qreal y = bottom ? option->rect.bottom() - dy : option->rect.top() + dy;
+            painter->drawEllipse(QPointF(x, y), 1.0, 1.0);
+        }
+    }
+    painter->restore();
+    return true;
+}
 
 bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                        const QStyleOption *option, QPainter *painter, const QWidget *widget)
