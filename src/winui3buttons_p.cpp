@@ -107,15 +107,12 @@ bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOptio
     return true;
 }
 
-bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
-                         const QStyleOption *option, QPainter *painter, const QWidget *widget)
+// Button panels (PushButton / ToolButton): role-driven fill, backdrop
+// recipes, toolbar/text-helper surface geometry.
+static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement element,
+                                     const QStyleOption *option, QPainter *painter,
+                                     const QWidget *widget)
 {
-    if (element != QStyle::PE_PanelButtonCommand && element != QStyle::PE_PanelButtonTool
-        && element != QStyle::PE_IndicatorCheckBox && element != QStyle::PE_IndicatorRadioButton
-        && element != QStyle::PE_PanelLineEdit && element != QStyle::PE_FrameLineEdit) {
-        return false;
-    }
-
     const Tokens t = tokens(option->palette);
     const bool enabled = option->state & QStyle::State_Enabled;
     const bool hovered = enabled && (option->state & QStyle::State_MouseOver);
@@ -128,285 +125,313 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
             ? qMax(progress(widget, pressProperty, pressed ? 1.0 : 0.0), pressed ? 1.0 : 0.0)
             : 0.0;
 
-    if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool) {
-        const ControlRole role = Style::controlRole(widget);
-        const QWidget *parent = widget ? widget->parentWidget() : nullptr;
-        const bool calendarPopupButton = parent
-                && parent->objectName() == QStringLiteral("qt_calendar_navigationbar")
-                && parent->parentWidget() && parent->parentWidget()->inherits("QCalendarWidget")
-                && role == ControlRole::Subtle;
-        // Calendar buttons sit on a tinted popup, not bare Mica. Restore
-        // exactly one effective surface layer before the unchanged state
-        // overlay; an idle Source-clear would punch a button-shaped hole.
-        if (calendarPopupButton) {
-            const QColor surface = widget->window()->windowType() == Qt::Popup
-                    ? widget->window()->palette().color(QPalette::Window)
-                    : parent->palette().color(QPalette::Window);
-            if (!clearForBackdropFill(painter, widget, option->rect, surface))
-                painter->fillRect(option->rect, surface);
+    const ControlRole role = Style::controlRole(widget);
+    const QWidget *parent = widget ? widget->parentWidget() : nullptr;
+    const bool calendarPopupButton = parent
+            && parent->objectName() == QStringLiteral("qt_calendar_navigationbar")
+            && parent->parentWidget() && parent->parentWidget()->inherits("QCalendarWidget")
+            && role == ControlRole::Subtle;
+    // Calendar buttons sit on a tinted popup, not bare Mica. Restore
+    // exactly one effective surface layer before the unchanged state
+    // overlay; an idle Source-clear would punch a button-shaped hole.
+    if (calendarPopupButton) {
+        const QColor surface = widget->window()->windowType() == Qt::Popup
+                ? widget->window()->palette().color(QPalette::Window)
+                : parent->palette().color(QPalette::Window);
+        if (!clearForBackdropFill(painter, widget, option->rect, surface))
+            painter->fillRect(option->rect, surface);
+    }
+    // Subtle-at-rest is the WinUI no-fill case: the parent surface must
+    // show straight through. Erase the hover ghost, then repaint the
+    // parent card tone when inside a group card (directly on the
+    // material transparent is correct). Interactive states keep the
+    // standard erase-then-fill path below.
+    if (!calendarPopupButton && (role == ControlRole::Subtle || role == ControlRole::Navigation)
+        && paintsDirectlyOnBackdrop(widget)
+        && !(option->state
+             & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
+        && progress(widget, hoverProperty, 0.0) < 0.01
+        && progress(widget, pressProperty, 0.0) < 0.01) {
+        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+        for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
+             ancestor = ancestor->parentWidget()) {
+            if (!qobject_cast<const QGroupBox *>(ancestor))
+                continue;
+            roundedRect(painter, QRectF(option->rect), cardRefillTone(option->palette, true),
+                        Qt::transparent, ControlRadius);
+            break;
         }
-        // Subtle-at-rest is the WinUI no-fill case: the parent surface must
-        // show straight through. Erase the hover ghost, then repaint the
-        // parent card tone when inside a group card (directly on the
-        // material transparent is correct). Interactive states keep the
-        // standard erase-then-fill path below.
-        if (!calendarPopupButton && (role == ControlRole::Subtle || role == ControlRole::Navigation)
-            && paintsDirectlyOnBackdrop(widget)
-            && !(option->state
-                 & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
-            && progress(widget, hoverProperty, 0.0) < 0.01
-            && progress(widget, pressProperty, 0.0) < 0.01) {
-            eraseForBackdrop(painter, widget, option->rect, ControlRadius);
-            for (const QWidget *ancestor = widget ? widget->parentWidget() : nullptr; ancestor;
-                 ancestor = ancestor->parentWidget()) {
-                if (!qobject_cast<const QGroupBox *>(ancestor))
-                    continue;
-                roundedRect(painter, QRectF(option->rect), cardRefillTone(option->palette, true),
-                            Qt::transparent, ControlRadius);
-                break;
-            }
-            return true;
+        return true;
+    }
+    // The private clear button of a QLineEdit must not paint its own
+    // small hover surface: PE_PanelLineEdit already paints the
+    // editor-scoped full-height clear surface, so a per-button surface
+    // shows up as an unwanted little square around the glyph.
+    if (const auto *widgetButton = qobject_cast<const QAbstractButton *>(widget)) {
+        if (const auto *lineEdit =
+                    qobject_cast<const QLineEdit *>(widgetButton->parentWidget())) {
+            if (lineEditClearButton(lineEdit) == widgetButton)
+                return true;
         }
-        // The private clear button of a QLineEdit must not paint its own
-        // small hover surface: PE_PanelLineEdit already paints the
-        // editor-scoped full-height clear surface, so a per-button surface
-        // shows up as an unwanted little square around the glyph.
-        if (const auto *widgetButton = qobject_cast<const QAbstractButton *>(widget)) {
-            if (const auto *lineEdit =
-                        qobject_cast<const QLineEdit *>(widgetButton->parentWidget())) {
-                if (lineEditClearButton(lineEdit) == widgetButton)
-                    return true;
-            }
-        }
-        // A translucent QWidget backing store retains previous SourceOver
-        // pixels. Rebuild button frames from transparent when the button sits
-        // directly on DWM Mica; otherwise repeated hover frames accumulate
-        // into a visible ghost. Opaque content/layer ancestors are excluded.
-        // No radius clip: the fill below repaints the full frame shape every
-        // pass, so a clipped erase would leave stale hover pixels outside
-        // the rounded path (the accumulate-contract failure).
-        // Card-tone rebuild after the erase (Dialogs-page band defect):
-        // eraseForBackdropWithCardRefill covers the erase, the in-card
-        // refill and the erased/unerased fallthrough below.
-        if (!calendarPopupButton)
-            eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                           cardRefillTone(option->palette, true));
-        const bool textHelper = textBoxHelperButton(widget);
-        const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
-                && qobject_cast<const QToolBar *>(widget->parentWidget());
-        // Subtle toolbar buttons intentionally have a transparent resting
-        // fill. On a native backdrop that transparency cannot erase the
-        // previous animated hover frame, so restore the declared opaque
-        // parent surface before painting the new state.
-        if (element == QStyle::PE_PanelButtonTool && widget && widget->parentWidget()
-            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
-            painter->fillRect(option->rect,
-                              widget->parentWidget()->palette().color(QPalette::Window));
-        }
-        QColor fill = t.control;
-        QColor stroke = t.stroke;
+    }
+    // A translucent QWidget backing store retains previous SourceOver
+    // pixels. Rebuild button frames from transparent when the button sits
+    // directly on DWM Mica; otherwise repeated hover frames accumulate
+    // into a visible ghost. Opaque content/layer ancestors are excluded.
+    // No radius clip: the fill below repaints the full frame shape every
+    // pass, so a clipped erase would leave stale hover pixels outside
+    // the rounded path (the accumulate-contract failure).
+    // Card-tone rebuild after the erase (Dialogs-page band defect):
+    // eraseForBackdropWithCardRefill covers the erase, the in-card
+    // refill and the erased/unerased fallthrough below.
+    if (!calendarPopupButton)
+        eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                       cardRefillTone(option->palette, true));
+    const bool textHelper = textBoxHelperButton(widget);
+    const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
+            && qobject_cast<const QToolBar *>(widget->parentWidget());
+    // Subtle toolbar buttons intentionally have a transparent resting
+    // fill. On a native backdrop that transparency cannot erase the
+    // previous animated hover frame, so restore the declared opaque
+    // parent surface before painting the new state.
+    if (element == QStyle::PE_PanelButtonTool && widget && widget->parentWidget()
+        && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
+        painter->fillRect(option->rect,
+                          widget->parentWidget()->palette().color(QPalette::Window));
+    }
+    QColor fill = t.control;
+    QColor stroke = t.stroke;
 
-        if (role == ControlRole::Accent) {
+    if (role == ControlRole::Accent) {
+        fill = enabled ? t.accentFill : t.accentFillDisabled;
+        fill = mix(fill, t.accentFillHover, hover);
+        fill = mix(fill, t.accentFillPressed, press);
+        stroke = fill.darker(t.dark ? 90 : 112);
+    } else if (role == ControlRole::Destructive) {
+        fill = enabled ? t.danger : mix(t.surface, t.danger, 0.35);
+        fill = mix(fill, fill.lighter(112), hover);
+        fill = mix(fill, fill.darker(112), press);
+        stroke = fill.darker(112);
+    } else if (role == ControlRole::Subtle || role == ControlRole::Navigation
+               || (element == QStyle::PE_PanelButtonTool && widget
+                   && (toolbarButton || textHelper))) {
+        if (option->state & QStyle::State_On) {
+            // Command-bar toggle buttons retain a quiet selected surface,
+            // but PointerOver/Pressed remain distinct visual states.  The
+            // previous late assignment erased both interaction states.
+            const QColor checked = mix(t.subtleHover, t.accentFill, 0.14);
+            const QColor checkedHover = mix(t.subtleHover, t.accentFillHover, 0.14);
+            const QColor checkedPressed = mix(t.subtlePressed, t.accentFillPressed, 0.14);
+            fill = mix(checked, checkedHover, hover);
+            fill = mix(fill, checkedPressed, press);
+        } else {
+            fill = Qt::transparent;
+            fill = mix(fill, t.subtleHover, hover);
+            fill = mix(fill, t.subtlePressed, press);
+        }
+        stroke = Qt::transparent;
+    } else {
+        if (option->state & QStyle::State_On) {
             fill = enabled ? t.accentFill : t.accentFillDisabled;
             fill = mix(fill, t.accentFillHover, hover);
             fill = mix(fill, t.accentFillPressed, press);
-            stroke = fill.darker(t.dark ? 90 : 112);
-        } else if (role == ControlRole::Destructive) {
-            fill = enabled ? t.danger : mix(t.surface, t.danger, 0.35);
-            fill = mix(fill, fill.lighter(112), hover);
-            fill = mix(fill, fill.darker(112), press);
-            stroke = fill.darker(112);
-        } else if (role == ControlRole::Subtle || role == ControlRole::Navigation
-                   || (element == QStyle::PE_PanelButtonTool && widget
-                       && (toolbarButton || textHelper))) {
-            if (option->state & QStyle::State_On) {
-                // Command-bar toggle buttons retain a quiet selected surface,
-                // but PointerOver/Pressed remain distinct visual states.  The
-                // previous late assignment erased both interaction states.
-                const QColor checked = mix(t.subtleHover, t.accentFill, 0.14);
-                const QColor checkedHover = mix(t.subtleHover, t.accentFillHover, 0.14);
-                const QColor checkedPressed = mix(t.subtlePressed, t.accentFillPressed, 0.14);
-                fill = mix(checked, checkedHover, hover);
-                fill = mix(fill, checkedPressed, press);
-            } else {
-                fill = Qt::transparent;
-                fill = mix(fill, t.subtleHover, hover);
-                fill = mix(fill, t.subtlePressed, press);
-            }
-            stroke = Qt::transparent;
+            stroke = fill;
         } else {
-            if (option->state & QStyle::State_On) {
-                fill = enabled ? t.accentFill : t.accentFillDisabled;
-                fill = mix(fill, t.accentFillHover, hover);
-                fill = mix(fill, t.accentFillPressed, press);
-                stroke = fill;
-            } else {
-                fill = enabled ? fill : t.controlDisabled;
-                fill = mix(fill, t.controlHover, hover);
-                fill = mix(fill, t.controlPressed, press);
-            }
+            fill = enabled ? fill : t.controlDisabled;
+            fill = mix(fill, t.controlHover, hover);
+            fill = mix(fill, t.controlPressed, press);
         }
-
-        QRectF surfaceRect = option->rect;
-        if (textHelper) {
-            // Keep a local fallback for the private child and action-backed
-            // helpers; the private clear button also gets its full-height
-            // editor-scoped surface from PE_PanelLineEdit above.
-            const QRect logical = option->rect.adjusted(0, 3, -3, -3);
-            surfaceRect = QStyle::visualRect(option->direction, option->rect, logical);
-        } else if (toolbarButton) {
-            // A fill-only rounded rect drawn exactly on a QWidget backing-
-            // store boundary can lose the antialiased half-pixel on one side,
-            // making one pair of corners look square.  Keep the 4 px WinUI
-            // radius but place all four edges on equivalent device-pixel
-            // centres at fractional scaling factors.
-            surfaceRect = devicePixelCenteredRect(painter, surfaceRect);
-        }
-        if (stroke.alpha() == 0) {
-            roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
-        } else if (role == ControlRole::Accent || role == ControlRole::Destructive
-                   || ((option->state & QStyle::State_On) && role == ControlRole::Standard)) {
-            controlSurface(painter, surfaceRect.toRect(), fill, t.accentStroke,
-                           t.accentStrokeSecondary, ControlRadius);
-        } else {
-            controlSurface(painter, surfaceRect.toRect(), fill, t.stroke, t.strokeSecondary,
-                           ControlRadius);
-        }
-        return true;
     }
 
-    if (element == QStyle::PE_IndicatorCheckBox || element == QStyle::PE_IndicatorRadioButton) {
-        const bool checked = option->state & (QStyle::State_On | QStyle::State_NoChange);
-        const qreal checkAmount = progress(widget, checkProperty, checked ? 1.0 : 0.0);
-        // WinUI changes the rectangle's fill and stroke with discrete
-        // keyframes at state entry. Only AnimatedAcceptVisualSource is
-        // progressive; fading the accent surface made the whole control feel
-        // slower even with the correct 167 ms glyph duration.
-        const qreal stateAmount = checked ? 1.0 : 0.0;
-        // WinUI's template owns a 20 x 20 logical indicator. Do not shrink
-        // that layout slot before painting it: the one-pixel border is part
-        // of the template geometry and UseLayoutRounding is disabled there.
-        const QRectF indicator(option->rect);
-        const qreal indicatorHover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
-        const qreal indicatorPress =
-                progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0);
-        QColor fill = mix(t.layer, t.accentFill, stateAmount);
-        QColor stroke = mix(t.strokeStrong, t.accentFill, stateAmount);
-        if (!enabled) {
-            fill = mix(t.controlDisabled, t.accentFillDisabled, stateAmount);
-            stroke = mix(t.textDisabled, t.accentFillDisabled, stateAmount);
-        } else {
-            const QColor hoverFill =
-                    mix(mix(t.layer, t.textPrimary, 0.05), t.accentFillHover, stateAmount);
-            const QColor pressedFill = mix(t.controlPressed, t.accentFillPressed, stateAmount);
-            fill = mix(fill, hoverFill, indicatorHover);
-            fill = mix(fill, pressedFill, indicatorPress);
-            if (!checked)
-                stroke = mix(stroke, t.textDisabled, indicatorPress);
-        }
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        painter->setBrush(fill);
-        painter->setPen(QPen(stroke, 1));
-        if (element == QStyle::PE_IndicatorRadioButton)
-            // Inset the centered one-pixel border inside the 20 px slot,
-            // matching the CheckBox ring for equal edge sharpness.
-            painter->drawEllipse(indicator.adjusted(0.5, 0.5, -0.5, -0.5));
-        else
-            // Keep the template slot at 20 px while keeping the centered
-            // one-pixel border inside that slot, as the XAML Rectangle does.
-            painter->drawRoundedRect(indicator.adjusted(0.5, 0.5, -0.5, -0.5), 3, 3);
+    QRectF surfaceRect = option->rect;
+    if (textHelper) {
+        // Keep a local fallback for the private child and action-backed
+        // helpers; the private clear button also gets its full-height
+        // editor-scoped surface from PE_PanelLineEdit above.
+        const QRect logical = option->rect.adjusted(0, 3, -3, -3);
+        surfaceRect = QStyle::visualRect(option->direction, option->rect, logical);
+    } else if (toolbarButton) {
+        // A fill-only rounded rect drawn exactly on a QWidget backing-
+        // store boundary can lose the antialiased half-pixel on one side,
+        // making one pair of corners look square.  Keep the 4 px WinUI
+        // radius but place all four edges on equivalent device-pixel
+        // centres at fractional scaling factors.
+        surfaceRect = devicePixelCenteredRect(painter, surfaceRect);
+    }
+    if (stroke.alpha() == 0) {
+        roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
+    } else if (role == ControlRole::Accent || role == ControlRole::Destructive
+               || ((option->state & QStyle::State_On) && role == ControlRole::Standard)) {
+        controlSurface(painter, surfaceRect.toRect(), fill, t.accentStroke,
+                       t.accentStrokeSecondary, ControlRadius);
+    } else {
+        controlSurface(painter, surfaceRect.toRect(), fill, t.stroke, t.strokeSecondary,
+                       ControlRadius);
+    }
+    return true;
+}
 
-        if (checkAmount > 0.001) {
-            const QColor onAccent = enabled ? t.controlOnAccentPrimary : t.controlOnAccentDisabled;
-            if (element == QStyle::PE_IndicatorRadioButton) {
-                painter->setBrush(onAccent);
-                painter->setPen(Qt::NoPen);
-                // WinUI: 12 px at rest, 14 px on pointer-over, 10 px pressed.
-                const qreal diameter = ((12.0 + 2.0 * indicatorHover) * (1.0 - indicatorPress)
-                                        + 10.0 * indicatorPress)
-                        * checkAmount;
-                painter->drawEllipse(snappedEllipseRect(indicator, diameter, painter));
-            } else if (option->state & QStyle::State_NoChange) {
-                painter->setPen(
-                        QPen(onAccent, 1.1666667, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-                const qreal halfWidth = 5.0 * checkAmount;
-                painter->drawLine(
-                        QPointF(indicator.center().x() - halfWidth, indicator.center().y()),
-                        QPointF(indicator.center().x() + halfWidth, indicator.center().y()));
-            } else {
-                // Port the generated AnimatedAcceptVisualSource geometry:
-                // a 48 px canvas, 0.7 scale, (24,23) offset, rounded 4-unit
-                // stroke. AnimatedIcon jumps to the Start marker (frame 15)
-                // before playback, so the visible frame-15..34 reveal maps
-                // directly onto this transition with no additional hold.
-                const qreal reveal = checkAmount;
-                painter->setPen(QPen(onAccent, 4.0 * 0.7 * 20.0 / 48.0, Qt::SolidLine, Qt::RoundCap,
-                                     Qt::RoundJoin));
-                if (reveal > 0.0) {
-                    // The generated accept glyph is anchored slightly above the
-                    // indicator's geometric center; nudge it down one logical
-                    // pixel to match WinUI's optical centering.
-                    painter->translate(0.0, 1.0);
-                    painter->drawPath(animatedAcceptTrimmedPath(indicator, reveal));
-                }
+// CheckBox / RadioButton indicators: discrete state keyframes plus the
+// animated accept glyph (CheckBox) and the growing dot (RadioButton).
+static bool drawIndicatorPrimitive(const Style *, QStyle::PrimitiveElement element,
+                                   const QStyleOption *option, QPainter *painter,
+                                   const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    const bool enabled = option->state & QStyle::State_Enabled;
+    const bool hovered = enabled && (option->state & QStyle::State_MouseOver);
+    const bool checked = option->state & (QStyle::State_On | QStyle::State_NoChange);
+    const qreal checkAmount = progress(widget, checkProperty, checked ? 1.0 : 0.0);
+    // WinUI changes the rectangle's fill and stroke with discrete
+    // keyframes at state entry. Only AnimatedAcceptVisualSource is
+    // progressive; fading the accent surface made the whole control feel
+    // slower even with the correct 167 ms glyph duration.
+    const qreal stateAmount = checked ? 1.0 : 0.0;
+    // WinUI's template owns a 20 x 20 logical indicator. Do not shrink
+    // that layout slot before painting it: the one-pixel border is part
+    // of the template geometry and UseLayoutRounding is disabled there.
+    const QRectF indicator(option->rect);
+    const qreal indicatorHover = progress(widget, hoverProperty, hovered ? 1.0 : 0.0);
+    const qreal indicatorPress =
+            progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0);
+    QColor fill = mix(t.layer, t.accentFill, stateAmount);
+    QColor stroke = mix(t.strokeStrong, t.accentFill, stateAmount);
+    if (!enabled) {
+        fill = mix(t.controlDisabled, t.accentFillDisabled, stateAmount);
+        stroke = mix(t.textDisabled, t.accentFillDisabled, stateAmount);
+    } else {
+        const QColor hoverFill =
+                mix(mix(t.layer, t.textPrimary, 0.05), t.accentFillHover, stateAmount);
+        const QColor pressedFill = mix(t.controlPressed, t.accentFillPressed, stateAmount);
+        fill = mix(fill, hoverFill, indicatorHover);
+        fill = mix(fill, pressedFill, indicatorPress);
+        if (!checked)
+            stroke = mix(stroke, t.textDisabled, indicatorPress);
+    }
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setBrush(fill);
+    painter->setPen(QPen(stroke, 1));
+    if (element == QStyle::PE_IndicatorRadioButton)
+        // Inset the centered one-pixel border inside the 20 px slot,
+        // matching the CheckBox ring for equal edge sharpness.
+        painter->drawEllipse(indicator.adjusted(0.5, 0.5, -0.5, -0.5));
+    else
+        // Keep the template slot at 20 px while keeping the centered
+        // one-pixel border inside that slot, as the XAML Rectangle does.
+        painter->drawRoundedRect(indicator.adjusted(0.5, 0.5, -0.5, -0.5), 3, 3);
+
+    if (checkAmount > 0.001) {
+        const QColor onAccent = enabled ? t.controlOnAccentPrimary : t.controlOnAccentDisabled;
+        if (element == QStyle::PE_IndicatorRadioButton) {
+            painter->setBrush(onAccent);
+            painter->setPen(Qt::NoPen);
+            // WinUI: 12 px at rest, 14 px on pointer-over, 10 px pressed.
+            const qreal diameter = ((12.0 + 2.0 * indicatorHover) * (1.0 - indicatorPress)
+                                    + 10.0 * indicatorPress)
+                    * checkAmount;
+            painter->drawEllipse(snappedEllipseRect(indicator, diameter, painter));
+        } else if (option->state & QStyle::State_NoChange) {
+            painter->setPen(
+                    QPen(onAccent, 1.1666667, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            const qreal halfWidth = 5.0 * checkAmount;
+            painter->drawLine(
+                    QPointF(indicator.center().x() - halfWidth, indicator.center().y()),
+                    QPointF(indicator.center().x() + halfWidth, indicator.center().y()));
+        } else {
+            // Port the generated AnimatedAcceptVisualSource geometry:
+            // a 48 px canvas, 0.7 scale, (24,23) offset, rounded 4-unit
+            // stroke. AnimatedIcon jumps to the Start marker (frame 15)
+            // before playback, so the visible frame-15..34 reveal maps
+            // directly onto this transition with no additional hold.
+            const qreal reveal = checkAmount;
+            painter->setPen(QPen(onAccent, 4.0 * 0.7 * 20.0 / 48.0, Qt::SolidLine, Qt::RoundCap,
+                                 Qt::RoundJoin));
+            if (reveal > 0.0) {
+                // The generated accept glyph is anchored slightly above the
+                // indicator's geometric center; nudge it down one logical
+                // pixel to match WinUI's optical centering.
+                painter->translate(0.0, 1.0);
+                painter->drawPath(animatedAcceptTrimmedPath(indicator, reveal));
             }
         }
-        painter->restore();
+    }
+    painter->restore();
+    return true;
+}
+
+// TextBox panels (QLineEdit standalone; suppressed for spin-box and editable
+// combo editors, whose owners paint the whole surface).
+static bool drawLineEditPanelPrimitive(const Style *, const QStyleOption *option, QPainter *painter,
+                                       const QWidget *widget)
+{
+    const Tokens t = tokens(option->palette);
+    const bool enabled = option->state & QStyle::State_Enabled;
+    // QAbstractSpinBox owns the complete NumberBox surface. Its private
+    // QLineEdit must paint only text, cursor and selection; painting a
+    // second TextBox panel here creates a nested rectangular "cell" on
+    // hover and focus.
+    if (spinBoxEditor(widget))
         return true;
+    // The same applies to the QLineEdit embedded in an editable
+    // QComboBox: CC_ComboBox paints the whole surface (including the
+    // focus underline), so a second panel here shows up as a nested
+    // "double outline".
+    if (comboBoxEditor(widget))
+        return true;
+    // Same erase as buttons/combos/groups: the editor sits directly
+    // on the live material and Qt keeps backing-store rows between
+    // repaints (blit + partial expose). Without a clear the fill
+    // re-blends over stale light rows: white field on hover in dark,
+    // and a stuck light fossil after a Light->Dark switch (only a
+    // resize reallocates and heals).
+    eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+    if (widget && widget->parentWidget()
+        && widget->parentWidget()->property(Style::SurfaceProperty).isValid()
+        && !paintsDirectlyOnBackdrop(widget)) {
+        painter->fillRect(option->rect,
+                          widget->parentWidget()->palette().color(QPalette::Window));
+    }
+    const bool focused = option->state & QStyle::State_HasFocus;
+    const qreal lineEditHover = progress(widget, hoverProperty,
+                                         option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+    // Keep the focused surface opaque (see CC_ComboBox): the old
+    // translucent dark fill washed out toward white over a light
+    // material.
+    QColor fill = !enabled ? t.controlDisabled : focused ? t.editorFocusedFill : t.control;
+    if (enabled && !focused)
+        fill = mix(fill, t.controlHover, lineEditHover);
+    controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
+    if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget)) {
+        const auto *clearButton = lineEditClearButton(lineEdit);
+        const qreal clearHover = progress(clearButton, hoverProperty, 0.0);
+        const qreal clearPress = progress(clearButton, pressProperty, 0.0);
+        QColor clearFill = mix(Qt::transparent, t.subtleHover, clearHover);
+        clearFill = mix(clearFill, t.subtlePressed, clearPress);
+        if (clearHover > 0.001 || clearPress > 0.001)
+            drawEditorScopedClearSurface(option, painter, lineEdit, clearFill);
+    }
+    if (focused)
+        drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill, ControlRadius);
+    return true;
+}
+
+bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
+                         const QStyleOption *option, QPainter *painter, const QWidget *widget)
+{
+    if (element != QStyle::PE_PanelButtonCommand && element != QStyle::PE_PanelButtonTool
+        && element != QStyle::PE_IndicatorCheckBox && element != QStyle::PE_IndicatorRadioButton
+        && element != QStyle::PE_PanelLineEdit && element != QStyle::PE_FrameLineEdit) {
+        return false;
     }
 
-    if (element == QStyle::PE_PanelLineEdit || element == QStyle::PE_FrameLineEdit) {
-        // QAbstractSpinBox owns the complete NumberBox surface. Its private
-        // QLineEdit must paint only text, cursor and selection; painting a
-        // second TextBox panel here creates a nested rectangular "cell" on
-        // hover and focus.
-        if (spinBoxEditor(widget))
-            return true;
-        // The same applies to the QLineEdit embedded in an editable
-        // QComboBox: CC_ComboBox paints the whole surface (including the
-        // focus underline), so a second panel here shows up as a nested
-        // "double outline".
-        if (comboBoxEditor(widget))
-            return true;
-        // Same erase as buttons/combos/groups: the editor sits directly
-        // on the live material and Qt keeps backing-store rows between
-        // repaints (blit + partial expose). Without a clear the fill
-        // re-blends over stale light rows: white field on hover in dark,
-        // and a stuck light fossil after a Light->Dark switch (only a
-        // resize reallocates and heals).
-        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
-        if (widget && widget->parentWidget()
-            && widget->parentWidget()->property(Style::SurfaceProperty).isValid()
-            && !paintsDirectlyOnBackdrop(widget)) {
-            painter->fillRect(option->rect,
-                              widget->parentWidget()->palette().color(QPalette::Window));
-        }
-        const bool focused = option->state & QStyle::State_HasFocus;
-        const qreal lineEditHover = progress(widget, hoverProperty,
-                                             option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
-        // Keep the focused surface opaque (see CC_ComboBox): the old
-        // translucent dark fill washed out toward white over a light
-        // material.
-        QColor fill = !enabled ? t.controlDisabled : focused ? t.editorFocusedFill : t.control;
-        if (enabled && !focused)
-            fill = mix(fill, t.controlHover, lineEditHover);
-        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
-        if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget)) {
-            const auto *clearButton = lineEditClearButton(lineEdit);
-            const qreal clearHover = progress(clearButton, hoverProperty, 0.0);
-            const qreal clearPress = progress(clearButton, pressProperty, 0.0);
-            QColor clearFill = mix(Qt::transparent, t.subtleHover, clearHover);
-            clearFill = mix(clearFill, t.subtlePressed, clearPress);
-            if (clearHover > 0.001 || clearPress > 0.001)
-                drawEditorScopedClearSurface(option, painter, lineEdit, clearFill);
-        }
-        if (focused)
-            drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill, ControlRadius);
-        return true;
-    }
+    if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool)
+        return drawButtonPanelPrimitive(nullptr, element, option, painter, widget);
 
-    return false;
+    if (element == QStyle::PE_IndicatorCheckBox || element == QStyle::PE_IndicatorRadioButton)
+        return drawIndicatorPrimitive(nullptr, element, option, painter, widget);
+
+    return drawLineEditPanelPrimitive(nullptr, option, painter, widget);
 }
 
 static bool drawPushButtonControl(const Style *style, const QStyleOption *option, QPainter *painter,

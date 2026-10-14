@@ -603,6 +603,157 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
     return true;
 }
 
+// Item-view row: calendar day circles, popup pills (combo / menu / AutoSuggest),
+// the selection check and the accent marker. Split out of drawViewPrimitive so
+// the row contract is readable (and testable) on its own.
+static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *painter,
+                                      const QWidget *widget)
+{
+    const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+    const QAbstractItemView *view = itemView(widget);
+    const bool calendar = calendarPopupView(widget);
+    const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
+            && !calendar;
+    const auto *popupCombo = popup && widget->window()->parentWidget()
+            ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
+            : nullptr;
+    const bool comboPopup = popupCombo;
+    const bool autoSuggestPopup = popup && completerPopupView(view);
+    const Tokens t = tokens(option->palette);
+    const bool enabled = option->state & QStyle::State_Enabled;
+    const bool tree = qobject_cast<const QTreeView *>(view);
+    const bool table = qobject_cast<const QTableView *>(view);
+    const bool selected = option->state & QStyle::State_Selected;
+    const bool hovered = option->state & QStyle::State_MouseOver;
+    const bool pressedItem = hovered && (option->state & QStyle::State_Sunken);
+    // Keyboard current is hover: arrows move view->currentIndex() with no
+    // MouseOver, and QCompleter drives selection the same way. The
+    // current row must read exactly like the hovered row.
+    const bool keyboardCurrent = popup && view && viewOption && viewOption->index.isValid()
+            && viewOption->index == view->currentIndex();
+    const bool calendarHeader = calendar && viewOption && viewOption->index.isValid()
+            && viewOption->index.row() == 0;
+    if (calendar) {
+        if (calendarHeader)
+            return true;
+        QColor calendarFill = Qt::transparent;
+        if (selected)
+            calendarFill = enabled ? t.accentFill : t.accentFillDisabled;
+        else if (pressedItem)
+            calendarFill = t.subtlePressed;
+        else if (hovered)
+            calendarFill = t.subtleHover;
+        if (calendarFill.alpha() > 0) {
+            const int side =
+                    qMin(32, qMin(option->rect.width() - 4, option->rect.height() - 4));
+            const QRectF circle(option->rect.center().x() - side / 2.0,
+                                option->rect.center().y() - side / 2.0, side, side);
+            roundedRect(painter, circle, calendarFill, Qt::transparent, side / 2.0);
+        }
+        return true;
+    }
+    QColor fill = Qt::transparent;
+    if (pressedItem)
+        fill = t.subtlePressed;
+    else if (selected && hovered)
+        fill = t.subtlePressed;
+    else if (selected || hovered || keyboardCurrent)
+        fill = t.subtleHover;
+
+    // Pointer events and animation invalidation belong to the viewport.
+    // Delegates may invoke the style with either the view or its viewport,
+    // so resolve the actual event surface explicitly.
+    const QWidget *popupInteractionSurface =
+            popupCombo && popupCombo->view() && popupCombo->view()->viewport()
+            ? popupCombo->view()->viewport()
+            : view && view->viewport() ? view->viewport()
+                                       : widget;
+    const qreal popupPress = comboPopup
+            ? progress(popupInteractionSurface, pressProperty, pressedItem ? 1.0 : 0.0)
+            : 0.0;
+    // ComboBoxItem LayoutRoot carries the official Margin="5,2,5,2",
+    // so the PointerOver/Selected SubtleFill sits 5px inside the row
+    // on both sides. Plain MenuFlyoutItem uses Margin="4,2,4,2".
+    // Shared with the CE_MenuItem path via popupRowPillRect so the two
+    // popup renderers cannot drift apart. Non-popup rows keep their own
+    // tree/table/plain geometry untouched.
+    QRectF itemRect = popup ? popupRowPillRect(option->rect, comboPopup)
+            : tree          ? QRectF(option->rect).adjusted(4, 2, -4, -2)
+            : table         ? QRectF(option->rect)
+                            : QRectF(option->rect).adjusted(2, 1, -2, -1);
+    if (fill.alpha() > 0) {
+        // AutoSuggest rows must keep the opaque CE frame under the shared
+        // hover pill. Other popup types retain their material erase recipe.
+        if (autoSuggestPopup) {
+            // Base already owns the resolved flyout RGB. Normalize only
+            // alpha: resolving popupSurfaceColor again would lift it twice.
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(option->rect,
+                              withAlpha(option->palette.color(QPalette::Base), 255));
+            painter->restore();
+        } else {
+            // Erase-then-rebuild in cards (reviewer 2026-10-06
+            // tree-selection overlay): the erase above cleared the card
+            // fill across the full row rect but the pill below only
+            // covers an inset rounded rect — corners and inter-row seams
+            // would read alpha 0 as visible edges. Rebuild the veiled
+            // card tone first (the view Base role is never
+            // transparentized, only Window is, so the tone is intact),
+            // then lay the pill over it. Outside cards the bare erase
+            // stands (recipe-2 material reveal).
+            eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                           veiledCard(t.layer, true));
+        }
+        paintPopupRowPill(painter, itemRect, fill);
+    }
+    const bool firstColumn =
+            !viewOption || !viewOption->index.isValid() || viewOption->index.column() == 0;
+    if (selected && comboPopup && firstColumn) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
+        // WinUI's selected-item pill compresses to 62.5% while the
+        // pointer is held. The interaction controller uses the same
+        // 167 ms transition as the current DropdownContent template.
+        const qreal indicatorWidth = 3.0;
+        const qreal indicatorHeight = 16.0 * (1.0 - 0.375 * popupPress);
+        const qreal indicatorX = option->direction == Qt::RightToLeft
+                ? itemRect.right() - indicatorWidth
+                : itemRect.left();
+        // The pill is aligned to the content slot created by the
+        // ComboBoxItem's 5px/7px vertical padding.  At the normal 16px
+        // height this is visually the same center as the row, while the
+        // explicit slot keeps the compressed 0.625 state deterministic
+        // at fractional device-pixel ratios.
+        const QRectF itemContent =
+                itemRect.adjusted(comboPopupItemPaddingLeft, comboPopupItemPaddingTop,
+                                  -comboPopupItemPaddingRight, -comboPopupItemPaddingBottom);
+        painter->drawRoundedRect(QRectF(indicatorX,
+                                        itemContent.center().y() - indicatorHeight / 2.0,
+                                        indicatorWidth, indicatorHeight),
+                                 1.5, 1.5);
+        painter->restore();
+    } else if (selected && popup && !autoSuggestPopup && firstColumn) {
+        const QRect checkRect = QStyle::visualRect(
+                option->direction, option->rect,
+                QRect(option->rect.left() + 12, option->rect.center().y() - 8, 16, 16));
+        icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled)
+                .paint(painter, checkRect, Qt::AlignCenter,
+                       enabled ? QIcon::Normal : QIcon::Disabled);
+    } else if (selected && viewOption && selectionMarkerView(widget) && firstColumn) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
+        const QRectF indicator = selectionMarkerRect(*viewOption, view);
+        painter->drawRoundedRect(indicator, 1.5, 1.5);
+        painter->restore();
+    }
+    return true;
+}
+
 bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
                        const QStyleOption *option, QPainter *painter, const QWidget *widget)
 {
@@ -635,151 +786,9 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         return true;
     }
 
-    if (element == QStyle::PE_PanelItemViewItem) {
-        const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
-        const QAbstractItemView *view = itemView(widget);
-        const bool calendar = calendarPopupView(widget);
-        const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
-                && !calendar;
-        const auto *popupCombo = popup && widget->window()->parentWidget()
-                ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
-                : nullptr;
-        const bool comboPopup = popupCombo;
-        const bool autoSuggestPopup = popup && completerPopupView(view);
-        const Tokens t = tokens(option->palette);
-        const bool enabled = option->state & QStyle::State_Enabled;
-        const bool tree = qobject_cast<const QTreeView *>(view);
-        const bool table = qobject_cast<const QTableView *>(view);
-        const bool selected = option->state & QStyle::State_Selected;
-        const bool hovered = option->state & QStyle::State_MouseOver;
-        const bool pressedItem = hovered && (option->state & QStyle::State_Sunken);
-        // Keyboard current is hover: arrows move view->currentIndex() with no
-        // MouseOver, and QCompleter drives selection the same way. The
-        // current row must read exactly like the hovered row.
-        const bool keyboardCurrent = popup && view && viewOption && viewOption->index.isValid()
-                && viewOption->index == view->currentIndex();
-        const bool calendarHeader = calendar && viewOption && viewOption->index.isValid()
-                && viewOption->index.row() == 0;
-        if (calendar) {
-            if (calendarHeader)
-                return true;
-            QColor calendarFill = Qt::transparent;
-            if (selected)
-                calendarFill = enabled ? t.accentFill : t.accentFillDisabled;
-            else if (pressedItem)
-                calendarFill = t.subtlePressed;
-            else if (hovered)
-                calendarFill = t.subtleHover;
-            if (calendarFill.alpha() > 0) {
-                const int side =
-                        qMin(32, qMin(option->rect.width() - 4, option->rect.height() - 4));
-                const QRectF circle(option->rect.center().x() - side / 2.0,
-                                    option->rect.center().y() - side / 2.0, side, side);
-                roundedRect(painter, circle, calendarFill, Qt::transparent, side / 2.0);
-            }
-            return true;
-        }
-        QColor fill = Qt::transparent;
-        if (pressedItem)
-            fill = t.subtlePressed;
-        else if (selected && hovered)
-            fill = t.subtlePressed;
-        else if (selected || hovered || keyboardCurrent)
-            fill = t.subtleHover;
+    if (element == QStyle::PE_PanelItemViewItem)
+        return drawItemViewItemPrimitive(option, painter, widget);
 
-        // Pointer events and animation invalidation belong to the viewport.
-        // Delegates may invoke the style with either the view or its viewport,
-        // so resolve the actual event surface explicitly.
-        const QWidget *popupInteractionSurface =
-                popupCombo && popupCombo->view() && popupCombo->view()->viewport()
-                ? popupCombo->view()->viewport()
-                : view && view->viewport() ? view->viewport()
-                                           : widget;
-        const qreal popupPress = comboPopup
-                ? progress(popupInteractionSurface, pressProperty, pressedItem ? 1.0 : 0.0)
-                : 0.0;
-        // ComboBoxItem LayoutRoot carries the official Margin="5,2,5,2",
-        // so the PointerOver/Selected SubtleFill sits 5px inside the row
-        // on both sides. Plain MenuFlyoutItem uses Margin="4,2,4,2".
-        // Shared with the CE_MenuItem path via popupRowPillRect so the two
-        // popup renderers cannot drift apart. Non-popup rows keep their own
-        // tree/table/plain geometry untouched.
-        QRectF itemRect = popup ? popupRowPillRect(option->rect, comboPopup)
-                : tree          ? QRectF(option->rect).adjusted(4, 2, -4, -2)
-                : table         ? QRectF(option->rect)
-                                : QRectF(option->rect).adjusted(2, 1, -2, -1);
-        if (fill.alpha() > 0) {
-            // AutoSuggest rows must keep the opaque CE frame under the shared
-            // hover pill. Other popup types retain their material erase recipe.
-            if (autoSuggestPopup) {
-                // Base already owns the resolved flyout RGB. Normalize only
-                // alpha: resolving popupSurfaceColor again would lift it twice.
-                painter->save();
-                painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(option->rect,
-                                  withAlpha(option->palette.color(QPalette::Base), 255));
-                painter->restore();
-            } else {
-                // Erase-then-rebuild in cards (reviewer 2026-10-06
-                // tree-selection overlay): the erase above cleared the card
-                // fill across the full row rect but the pill below only
-                // covers an inset rounded rect — corners and inter-row seams
-                // would read alpha 0 as visible edges. Rebuild the veiled
-                // card tone first (the view Base role is never
-                // transparentized, only Window is, so the tone is intact),
-                // then lay the pill over it. Outside cards the bare erase
-                // stands (recipe-2 material reveal).
-                eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                               veiledCard(t.layer, true));
-            }
-            paintPopupRowPill(painter, itemRect, fill);
-        }
-        const bool firstColumn =
-                !viewOption || !viewOption->index.isValid() || viewOption->index.column() == 0;
-        if (selected && comboPopup && firstColumn) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
-            // WinUI's selected-item pill compresses to 62.5% while the
-            // pointer is held. The interaction controller uses the same
-            // 167 ms transition as the current DropdownContent template.
-            const qreal indicatorWidth = 3.0;
-            const qreal indicatorHeight = 16.0 * (1.0 - 0.375 * popupPress);
-            const qreal indicatorX = option->direction == Qt::RightToLeft
-                    ? itemRect.right() - indicatorWidth
-                    : itemRect.left();
-            // The pill is aligned to the content slot created by the
-            // ComboBoxItem's 5px/7px vertical padding.  At the normal 16px
-            // height this is visually the same center as the row, while the
-            // explicit slot keeps the compressed 0.625 state deterministic
-            // at fractional device-pixel ratios.
-            const QRectF itemContent =
-                    itemRect.adjusted(comboPopupItemPaddingLeft, comboPopupItemPaddingTop,
-                                      -comboPopupItemPaddingRight, -comboPopupItemPaddingBottom);
-            painter->drawRoundedRect(QRectF(indicatorX,
-                                            itemContent.center().y() - indicatorHeight / 2.0,
-                                            indicatorWidth, indicatorHeight),
-                                     1.5, 1.5);
-            painter->restore();
-        } else if (selected && popup && !autoSuggestPopup && firstColumn) {
-            const QRect checkRect = QStyle::visualRect(
-                    option->direction, option->rect,
-                    QRect(option->rect.left() + 12, option->rect.center().y() - 8, 16, 16));
-            icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled)
-                    .paint(painter, checkRect, Qt::AlignCenter,
-                           enabled ? QIcon::Normal : QIcon::Disabled);
-        } else if (selected && viewOption && selectionMarkerView(widget) && firstColumn) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(enabled ? t.selectionAccent : t.accentFillDisabled);
-            const QRectF indicator = selectionMarkerRect(*viewOption, view);
-            painter->drawRoundedRect(indicator, 1.5, 1.5);
-            painter->restore();
-        }
-        return true;
-    }
 
     if (element == QStyle::PE_IndicatorBranch) {
         const Tokens t = tokens(option->palette);
@@ -864,6 +873,141 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     return false;
 }
 
+// Item-view delegate row (CE_ItemViewItem): background, check/roles, text and
+// decoration for list/tree/table rows. Split out of drawViewControl.
+static bool drawItemViewItemControl(const Style *style, const QStyleOption *option,
+                                    QPainter *painter, const QWidget *widget,
+                                    const TableEditorOverlap &tableEditorOverlap)
+{
+    if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
+        const bool calendar = calendarPopupView(widget);
+        const QAbstractItemView *view = itemView(widget);
+        const bool popup = widget && widget->window()
+                && widget->window()->windowType() == Qt::Popup && !calendar;
+        const bool comboPopup = popup && widget->window()->parentWidget()
+                && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
+        const bool autoSuggestPopup = popup && completerPopupView(view);
+        if (calendar || autoSuggestPopup) {
+            // Source replaces retained row pixels; SourceOver would blend
+            // with the previous frame. AutoSuggest Base already contains
+            // the resolved flyout RGB, even when its material tint has
+            // alpha. Match PE's opaque frame without a second color lift.
+            // Calendar keeps its own Base and material policy unchanged.
+            QColor rowBase = source->palette.color(QPalette::Base);
+            if (autoSuggestPopup)
+                rowBase = withAlpha(rowBase, 255);
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(source->rect, rowBase);
+            painter->restore();
+        } else if (source->backgroundBrush.style() != Qt::NoBrush) {
+            painter->fillRect(source->rect, source->backgroundBrush);
+        } else if (!calendar && source->features & QStyleOptionViewItem::Alternate) {
+            eraseForBackdrop(painter, widget, source->rect);
+            painter->fillRect(source->rect,
+                              veiledCard(source->palette.color(QPalette::AlternateBase),
+                                         paintsDirectlyOnBackdrop(widget)));
+        }
+        style->drawPrimitive(QStyle::PE_PanelItemViewItem, source, painter, widget);
+        const auto *tableView = qobject_cast<const QTableView *>(view);
+        const Tokens t = tokens(option->palette);
+        const bool enabled = source->state & QStyle::State_Enabled;
+        const bool calendarHeader =
+                calendar && source->index.isValid() && source->index.row() == 0;
+        const bool checkedPopupSelection = popup && !comboPopup && !autoSuggestPopup
+                && (source->state & QStyle::State_Selected);
+
+        if (source->features & QStyleOptionViewItem::HasCheckIndicator) {
+            QStyleOptionButton check;
+            check.rect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, source,
+                                               widget);
+            check.palette = source->palette;
+            check.state = source->state;
+            check.state.setFlag(QStyle::State_Selected, false);
+            check.state.setFlag(QStyle::State_On, source->checkState == Qt::Checked);
+            check.state.setFlag(QStyle::State_NoChange,
+                                source->checkState == Qt::PartiallyChecked);
+            check.state.setFlag(QStyle::State_Off, source->checkState == Qt::Unchecked);
+            style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &check, painter, widget);
+        }
+
+        if ((source->features & QStyleOptionViewItem::HasDecoration) && !source->icon.isNull()
+            && !checkedPopupSelection) {
+            const QRect decoration =
+                    style->subElementRect(QStyle::SE_ItemViewItemDecoration, source, widget);
+            paintThemedIcon(painter, source->icon, decoration, source->decorationAlignment,
+                            enabled ? t.textPrimary : t.textDisabled,
+                            enabled ? QIcon::Normal : QIcon::Disabled,
+                            source->state & QStyle::State_Selected ? QIcon::On : QIcon::Off);
+        }
+
+        const bool tableEditing = tableView && tableEditorOverlap
+                && tableEditorOverlap(tableView, source->index, source->rect);
+        if ((source->features & QStyleOptionViewItem::HasDisplay) && !tableEditing) {
+            const bool hasLeadingContent =
+                    (source->features & QStyleOptionViewItem::HasDecoration)
+                    || (source->features & QStyleOptionViewItem::HasCheckIndicator);
+            // The leading 42px reservation must follow the reading
+            // direction, otherwise RTL popup text overlaps the icon and
+            // marker zone painted on the right edge.
+            const int leading = (comboPopup || autoSuggestPopup) && !hasLeadingContent
+                    ? comboPopupItemPaddingLeft + 5
+                    : 42;
+            const int trailing = (comboPopup || autoSuggestPopup) && !hasLeadingContent
+                    ? comboPopupItemPaddingRight + 5
+                    : 12;
+            QRect textRect = popup
+                    ? QStyle::visualRect(source->direction, source->rect,
+                                         source->rect.adjusted(leading, 0, -trailing, 0))
+                    : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
+            painter->save();
+            painter->setFont(source->font);
+            QColor textColor = enabled ? t.textPrimary : t.textDisabled;
+            if (calendarHeader) {
+                textColor = enabled ? t.textSecondary : t.textDisabled;
+            } else if (calendar && (source->state & QStyle::State_Selected)) {
+                textColor = enabled ? t.textOnAccentPrimary : t.controlOnAccentDisabled;
+            } else if (calendar && source->index.isValid()) {
+                // QCalendarWidget injects platform-specific weekday
+                // colors (notably red weekends). WinUI uses the normal
+                // foreground and only dims days outside the shown month.
+                bool numberOk = false;
+                const int day = source->text.toInt(&numberOk);
+                const int row = source->index.row();
+                const bool outsideMonth =
+                        numberOk && ((row == 1 && day > 7) || (row >= 5 && day < 15));
+                if (outsideMonth)
+                    textColor = t.textDisabled;
+            }
+            painter->setPen(textColor);
+            Qt::Alignment alignment =
+                    Qt::Alignment(source->displayAlignment) | Qt::AlignVCenter;
+            alignment = QStyle::visualAlignment(source->direction, alignment);
+            const bool wraps = source->features & QStyleOptionViewItem::WrapText;
+            const int textFlags =
+                    int(alignment) | (wraps ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine));
+            const QString text = wraps
+                    ? source->text
+                    : source->fontMetrics.elidedText(source->text, source->textElideMode,
+                                                     textRect.width());
+            painter->drawText(textRect, textFlags, text);
+            painter->restore();
+        }
+
+        if ((source->state & QStyle::State_HasFocus) && keyboardFocusVisible(view)) {
+            const bool tree = qobject_cast<const QTreeView *>(view);
+            const bool table = qobject_cast<const QTableView *>(view);
+            const QRectF focusRect = tree ? QRectF(source->rect).adjusted(4, 2, -4, -2)
+                    : table               ? QRectF(source->rect).adjusted(1, 1, -1, -1)
+                                          : QRectF(source->rect).adjusted(2, 1, -2, -1);
+            paintFocusRing(painter, focusRect, t.focusOuter, t.focusInner, 1, 3,
+                           table ? 0.0 : 5.0, table ? 0.0 : 3.0);
+        }
+        return true;
+    }
+    return false;
+}
+
 bool drawViewControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option,
                      QPainter *painter, const QWidget *widget,
                      const TableEditorOverlap &tableEditorOverlap)
@@ -877,135 +1021,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
         return false;
     }
 
-    if (element == QStyle::CE_ItemViewItem) {
-        if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
-            const bool calendar = calendarPopupView(widget);
-            const QAbstractItemView *view = itemView(widget);
-            const bool popup = widget && widget->window()
-                    && widget->window()->windowType() == Qt::Popup && !calendar;
-            const bool comboPopup = popup && widget->window()->parentWidget()
-                    && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
-            const bool autoSuggestPopup = popup && completerPopupView(view);
-            if (calendar || autoSuggestPopup) {
-                // Source replaces retained row pixels; SourceOver would blend
-                // with the previous frame. AutoSuggest Base already contains
-                // the resolved flyout RGB, even when its material tint has
-                // alpha. Match PE's opaque frame without a second color lift.
-                // Calendar keeps its own Base and material policy unchanged.
-                QColor rowBase = source->palette.color(QPalette::Base);
-                if (autoSuggestPopup)
-                    rowBase = withAlpha(rowBase, 255);
-                painter->save();
-                painter->setCompositionMode(QPainter::CompositionMode_Source);
-                painter->fillRect(source->rect, rowBase);
-                painter->restore();
-            } else if (source->backgroundBrush.style() != Qt::NoBrush) {
-                painter->fillRect(source->rect, source->backgroundBrush);
-            } else if (!calendar && source->features & QStyleOptionViewItem::Alternate) {
-                eraseForBackdrop(painter, widget, source->rect);
-                painter->fillRect(source->rect,
-                                  veiledCard(source->palette.color(QPalette::AlternateBase),
-                                             paintsDirectlyOnBackdrop(widget)));
-            }
-            style->drawPrimitive(QStyle::PE_PanelItemViewItem, source, painter, widget);
-            const auto *tableView = qobject_cast<const QTableView *>(view);
-            const Tokens t = tokens(option->palette);
-            const bool enabled = source->state & QStyle::State_Enabled;
-            const bool calendarHeader =
-                    calendar && source->index.isValid() && source->index.row() == 0;
-            const bool checkedPopupSelection = popup && !comboPopup && !autoSuggestPopup
-                    && (source->state & QStyle::State_Selected);
+    if (element == QStyle::CE_ItemViewItem)
+        return drawItemViewItemControl(style, option, painter, widget, tableEditorOverlap);
 
-            if (source->features & QStyleOptionViewItem::HasCheckIndicator) {
-                QStyleOptionButton check;
-                check.rect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, source,
-                                                   widget);
-                check.palette = source->palette;
-                check.state = source->state;
-                check.state.setFlag(QStyle::State_Selected, false);
-                check.state.setFlag(QStyle::State_On, source->checkState == Qt::Checked);
-                check.state.setFlag(QStyle::State_NoChange,
-                                    source->checkState == Qt::PartiallyChecked);
-                check.state.setFlag(QStyle::State_Off, source->checkState == Qt::Unchecked);
-                style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &check, painter, widget);
-            }
-
-            if ((source->features & QStyleOptionViewItem::HasDecoration) && !source->icon.isNull()
-                && !checkedPopupSelection) {
-                const QRect decoration =
-                        style->subElementRect(QStyle::SE_ItemViewItemDecoration, source, widget);
-                paintThemedIcon(painter, source->icon, decoration, source->decorationAlignment,
-                                enabled ? t.textPrimary : t.textDisabled,
-                                enabled ? QIcon::Normal : QIcon::Disabled,
-                                source->state & QStyle::State_Selected ? QIcon::On : QIcon::Off);
-            }
-
-            const bool tableEditing = tableView && tableEditorOverlap
-                    && tableEditorOverlap(tableView, source->index, source->rect);
-            if ((source->features & QStyleOptionViewItem::HasDisplay) && !tableEditing) {
-                const bool hasLeadingContent =
-                        (source->features & QStyleOptionViewItem::HasDecoration)
-                        || (source->features & QStyleOptionViewItem::HasCheckIndicator);
-                // The leading 42px reservation must follow the reading
-                // direction, otherwise RTL popup text overlaps the icon and
-                // marker zone painted on the right edge.
-                const int leading = (comboPopup || autoSuggestPopup) && !hasLeadingContent
-                        ? comboPopupItemPaddingLeft + 5
-                        : 42;
-                const int trailing = (comboPopup || autoSuggestPopup) && !hasLeadingContent
-                        ? comboPopupItemPaddingRight + 5
-                        : 12;
-                QRect textRect = popup
-                        ? QStyle::visualRect(source->direction, source->rect,
-                                             source->rect.adjusted(leading, 0, -trailing, 0))
-                        : style->subElementRect(QStyle::SE_ItemViewItemText, source, widget);
-                painter->save();
-                painter->setFont(source->font);
-                QColor textColor = enabled ? t.textPrimary : t.textDisabled;
-                if (calendarHeader) {
-                    textColor = enabled ? t.textSecondary : t.textDisabled;
-                } else if (calendar && (source->state & QStyle::State_Selected)) {
-                    textColor = enabled ? t.textOnAccentPrimary : t.controlOnAccentDisabled;
-                } else if (calendar && source->index.isValid()) {
-                    // QCalendarWidget injects platform-specific weekday
-                    // colors (notably red weekends). WinUI uses the normal
-                    // foreground and only dims days outside the shown month.
-                    bool numberOk = false;
-                    const int day = source->text.toInt(&numberOk);
-                    const int row = source->index.row();
-                    const bool outsideMonth =
-                            numberOk && ((row == 1 && day > 7) || (row >= 5 && day < 15));
-                    if (outsideMonth)
-                        textColor = t.textDisabled;
-                }
-                painter->setPen(textColor);
-                Qt::Alignment alignment =
-                        Qt::Alignment(source->displayAlignment) | Qt::AlignVCenter;
-                alignment = QStyle::visualAlignment(source->direction, alignment);
-                const bool wraps = source->features & QStyleOptionViewItem::WrapText;
-                const int textFlags =
-                        int(alignment) | (wraps ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine));
-                const QString text = wraps
-                        ? source->text
-                        : source->fontMetrics.elidedText(source->text, source->textElideMode,
-                                                         textRect.width());
-                painter->drawText(textRect, textFlags, text);
-                painter->restore();
-            }
-
-            if ((source->state & QStyle::State_HasFocus) && keyboardFocusVisible(view)) {
-                const bool tree = qobject_cast<const QTreeView *>(view);
-                const bool table = qobject_cast<const QTableView *>(view);
-                const QRectF focusRect = tree ? QRectF(source->rect).adjusted(4, 2, -4, -2)
-                        : table               ? QRectF(source->rect).adjusted(1, 1, -1, -1)
-                                              : QRectF(source->rect).adjusted(2, 1, -2, -1);
-                paintFocusRing(painter, focusRect, t.focusOuter, t.focusInner, 1, 3,
-                               table ? 0.0 : 5.0, table ? 0.0 : 3.0);
-            }
-            return true;
-        }
-        return false;
-    }
 
     if (element == QStyle::CE_Splitter) {
         const Tokens t = tokens(option->palette);
