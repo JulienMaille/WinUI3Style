@@ -419,6 +419,29 @@ foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces i
         ENVIRONMENT "${_winui3style_test_environment}"
     )
 endforeach()
+
+# Phase 4 gate: an element a renderer claims must be listed in
+# coveredPrimitive / coveredControl / coveredComplex, otherwise the
+# Q_ASSERT_X in Style::draw* cannot fire and a covered control could silently
+# reach QCommonStyle (METHODOLOGY section 1). Registered after the shared test
+# environment so the binary finds the Qt runtime DLL.
+add_executable(winui3style_covered_elements_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tools/covered_elements_check.cpp)
+target_link_libraries(winui3style_covered_elements_check PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core)
+add_test(NAME winui3style_covered_elements
+    COMMAND winui3style_covered_elements_check
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3style.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3buttons_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3menus_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3viewrenderers_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3complex_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3surfaces_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3popupsurface_p.cpp)
+set_tests_properties(winui3style_covered_elements PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+    LABELS "contract")
+
 set_tests_properties(winui3style_frameproperties_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )

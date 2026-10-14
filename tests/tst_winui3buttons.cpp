@@ -714,8 +714,10 @@ void WinUI3ButtonsTest::buttonPressedPulseContract()
             QVERIFY2(pressed != rest, "a left press must produce a visible frame");
             QTest::mouseRelease(&button, Qt::LeftButton, Qt::NoModifier, button.rect().center());
         }
-        QTest::qWait(130);
-        QVERIFY(frameReal(&button, "_winui_press_progress") < 0.1);
+        // The release animates over FasterDuration (83 ms) on its own timer;
+        // wait for the settle instead of a fixed delay (a mid-decay exact 0.0
+        // read is a load artefact, not a defect).
+        QTRY_COMPARE(frameReal(&button, "_winui_press_progress"), 0.0);
 
         QTest::mousePress(&button, Qt::RightButton, Qt::NoModifier, button.rect().center());
         QCOMPARE(frameReal(&button, "_winui_press_progress"), 0.0);

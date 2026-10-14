@@ -816,6 +816,25 @@ void invalidateDensityTree(QWidget *root)
     invalidateWidget(root);
 }
 
+// Elements the style owns end to end: their paint paths never fall through to
+// QCommonStyle, so Style::drawPrimitive asserts on any that does.
+//
+// Rule for adding one: list an element here only when EVERY case reaches a
+// renderer. An element handled just for specific widget conditions must NOT be
+// listed — falling through to the base style is the intended behavior for the
+// remaining cases, and the assert would fire on a legitimate fallback. Today
+// those deliberately partial elements are:
+//   * PE_Frame — owned for popup windows, item views and rich-text editors;
+//     a generic QFrame keeps the base frame;
+//   * CE_ShapedFrame — owned only for winuiSettingsCard widgets;
+//   * CE_CheckBoxLabel / CE_RadioButtonLabel — never painted, they only
+//     receive the shared button-family backdrop pre-erase;
+//   * the CE_* buttons dispatched through the renderer seams — a seam returns
+//     false when it does not handle the element, which is a fallthrough, not a
+//     missed case.
+// The rule is checked mechanically by tools/covered_elements_check.cpp, wired
+// as the winui3style_covered_elements CTest, so a newly claimed element cannot
+// be added silently.
 bool coveredPrimitive(QStyle::PrimitiveElement element)
 {
     switch (element) {
