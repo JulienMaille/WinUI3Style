@@ -27,6 +27,8 @@ class Style;
 namespace Private {
 
 void remember(QWidget *widget, const char *property, const QVariant &value);
+// True for a QCalendarWidget or any of its descendants.
+bool calendarView(const QWidget *widget);
 void rememberPalette(QWidget *widget);
 void restoreRememberedPalette(QWidget *widget);
 QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback);
@@ -48,13 +50,11 @@ const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit);
 void showSliderValueToolTip(QSlider *slider);
 void hideSliderValueToolTip(QSlider *slider);
 
-void preparePopupSurface(QWidget *widget);
-void prepareComboPopupFirstFrameImpl(QComboBox *combo);
-QComboBox *comboForPopupWidget(QWidget *widget);
-// Qt-mask form of the DWM corner preference for QMenu popups (see the
-// helper in winui3surfaces_p.cpp): rounds submenus whose native HWND
-// materializes after Show, where the Resize re-apply never fires.
 void applyMenuRoundedMask(QMenu *menu);
+// Popup surface lifecycle (palette/attribute ownership, DWM acrylic grant
+// readback, first-show anchoring) lives in winui3popupsurface_p.h.
+// Popup surface lifecycle (palette/attribute ownership, DWM acrylic grant
+// readback, first-show anchoring) lives in winui3popupsurface_p.h.
 
 // Window chrome (menu bar, tool bars, status bar) reveals the live DWM
 // material instead of painting opaque panels over it. Content/layer

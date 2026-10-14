@@ -8,6 +8,7 @@
 #include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
+#include "winui3popupsurface_p.h"
 #include "winui3tokens_p.h"
 
 #include <winui3style/winui3style.h>
