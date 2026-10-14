@@ -10,6 +10,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
+#include "../src/winui3style_properties_p.h"
 #include "../src/winui3tokens_p.h"
 
 #include <QLabel>
@@ -96,6 +97,7 @@ private slots:
     void init();
     void cleanup();
     void styleMutationRestoration();
+    void polishUnpolishRestoresEverySavedAttribute();
     void runtimeExplicitPaletteOwnership();
     void ownedPaletteRefreshSurvivesOwnerRegistration();
     void accessibilityOwnershipContracts();
@@ -325,6 +327,90 @@ void WinUI3InteractionTest::styleMutationRestoration()
     unknownSurface.setProperty("winuiSurface", QStringLiteral("marble"));
     style->polish(&unknownSurface);
     style->unpolish(&unknownSurface);
+}
+
+void WinUI3InteractionTest::polishUnpolishRestoresEverySavedAttribute()
+{
+    // S4 gate: Style::polish() saves a fixed set of widget state (palette,
+    // autofill, WA_Hover, WA_OpaquePaintEvent, WA_TranslucentBackground,
+    // WA_NoSystemBackground, contents margins, list spacing, frame shape,
+    // control role); unpolish() must restore each from its pre-polish value.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    QWidget widget;
+    const QPalette originalPalette = widget.palette();
+    widget.setAutoFillBackground(true);
+    widget.setAttribute(Qt::WA_Hover, false);
+    widget.setAttribute(Qt::WA_OpaquePaintEvent, false);
+    widget.setAttribute(Qt::WA_TranslucentBackground, false);
+    widget.setAttribute(Qt::WA_NoSystemBackground, false);
+    widget.setContentsMargins(11, 12, 13, 14);
+    const bool originalAutoFill = widget.autoFillBackground();
+    const bool originalOpaque = widget.testAttribute(Qt::WA_OpaquePaintEvent);
+    const bool originalTranslucent = widget.testAttribute(Qt::WA_TranslucentBackground);
+    const bool originalNoSystem = widget.testAttribute(Qt::WA_NoSystemBackground);
+    const bool originalHover = widget.testAttribute(Qt::WA_Hover);
+    const QMargins originalMargins = widget.contentsMargins();
+    QVERIFY(originalAutoFill);
+    QVERIFY(!originalHover);
+    QCOMPARE(originalMargins, QMargins(11, 12, 13, 14));
+
+    style->polish(&widget);
+    // Polish arms hover and must leave every other saved attribute alone.
+    QVERIFY(widget.testAttribute(Qt::WA_Hover));
+    QVERIFY(widget.autoFillBackground());
+    QCOMPARE(widget.contentsMargins(), originalMargins);
+    QCOMPARE(widget.testAttribute(Qt::WA_OpaquePaintEvent), originalOpaque);
+    style->unpolish(&widget);
+    QCOMPARE(widget.palette(), originalPalette);
+    QVERIFY(!widget.testAttribute(Qt::WA_SetPalette));
+    QCOMPARE(widget.autoFillBackground(), originalAutoFill);
+    QCOMPARE(widget.testAttribute(Qt::WA_Hover), originalHover);
+    QCOMPARE(widget.testAttribute(Qt::WA_OpaquePaintEvent), originalOpaque);
+    QCOMPARE(widget.testAttribute(Qt::WA_TranslucentBackground), originalTranslucent);
+    QCOMPARE(widget.testAttribute(Qt::WA_NoSystemBackground), originalNoSystem);
+    QCOMPARE(widget.contentsMargins(), originalMargins);
+
+    // A second polish must re-arm from the cleaned state, not a leftover one.
+    style->polish(&widget);
+    QVERIFY(widget.testAttribute(Qt::WA_Hover));
+    style->unpolish(&widget);
+    QCOMPARE(widget.autoFillBackground(), originalAutoFill);
+
+    // Only popup list views get their spacing zeroed; a plain view keeps the
+    // application value (see styleMutationRestoration).
+    QListView list;
+    list.setSpacing(9);
+    const int originalListSpacing = list.spacing();
+    QCOMPARE(originalListSpacing, 9);
+    style->polish(&list);
+    QCOMPARE(list.spacing(), originalListSpacing);
+    style->unpolish(&list);
+    QCOMPARE(list.spacing(), originalListSpacing);
+
+    QWidget roleWidget;
+    QVERIFY(!roleWidget.property("_winui_control_role").isValid());
+    style->polish(&roleWidget);
+    WinUI3::Style::setControlRole(&roleWidget, WinUI3::ControlRole::Accent);
+    QCOMPARE(WinUI3::Style::controlRole(&roleWidget), WinUI3::ControlRole::Accent);
+    style->unpolish(&roleWidget);
+    QVERIFY(!roleWidget.property("_winui_control_role").isValid());
+
+    // Documented asymmetry: unpolish() restores originalTranslucentBackground /
+    // originalNoSystemBackground for every widget, but the only writers are
+    // preparePopupSurface (popup windows) and the backdrop remember
+    // (top-level windows, under a different key). For a plain child nothing
+    // saves them, so those two blocks are no-ops here.
+    QWidget opaque;
+    opaque.setAttribute(Qt::WA_TranslucentBackground, true);
+    opaque.setAttribute(Qt::WA_NoSystemBackground, true);
+    style->polish(&opaque);
+    QVERIFY(!opaque.property(WinUI3::Private::originalTranslucentBackgroundProperty).isValid());
+    QVERIFY(!opaque.property(WinUI3::Private::originalNoSystemBackgroundProperty).isValid());
+    style->unpolish(&opaque);
+    QVERIFY(opaque.testAttribute(Qt::WA_TranslucentBackground));
+    QVERIFY(opaque.testAttribute(Qt::WA_NoSystemBackground));
 }
 
 void WinUI3InteractionTest::runtimeExplicitPaletteOwnership()
