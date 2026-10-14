@@ -685,11 +685,9 @@ inline QPixmap labelPixmap(const QLabel *label)
 
 // QAction::associatedObjects is Qt 6; Qt 5.12 has associatedWidgets.
 // Tests only check membership of a button: compare widget pointers.
+// Shared with the src TU (WinUI3::Private::actionAssociatedWith) so the two
+// cannot drift.
 inline bool actionAssociatedWith(const QAction *action, const QWidget *widget)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    return action->associatedObjects().contains(const_cast<QWidget *>(widget));
-#else
-    return action->associatedWidgets().contains(const_cast<QWidget *>(widget));
-#endif
+    return WinUI3::Private::actionAssociatedWith(action, widget);
 }

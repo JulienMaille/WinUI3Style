@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3paint_p.h"
 
+#include "winui3qtcompat_p.h"
+
 #include <winui3style/winui3icons.h>
 
 #include <QApplication>
@@ -45,14 +47,7 @@ void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
     const QPixmap pixmap = iconPixmap(source, requestedSize, dpr, foreground, mode, state);
     if (pixmap.isNull())
         return;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    const QSizeF logicalSize = pixmap.deviceIndependentSize();
-#else
-    // QPixmap::deviceIndependentSize() was added in Qt 6; divide by the DPR
-    // on Qt 5 instead.
-    const qreal pixmapDpr = qMax<qreal>(pixmap.devicePixelRatioF(), 1.0);
-    const QSizeF logicalSize = QSizeF(pixmap.size()) / pixmapDpr;
-#endif
+    const QSizeF logicalSize = Private::deviceIndependentSize(pixmap);
     QPointF topLeft = rect.topLeft();
     if (alignment & Qt::AlignRight)
         topLeft.setX(rect.right() - logicalSize.width());

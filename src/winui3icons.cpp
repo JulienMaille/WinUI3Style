@@ -159,12 +159,7 @@ public:
         if (!m_fontFamilyResolved) {
             const QString fluent = QStringLiteral("Segoe Fluent Icons");
             const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-            const QStringList families = QFontDatabase::families();
-#else
-            const QFontDatabase fontDatabase;
-            const QStringList families = fontDatabase.families();
-#endif
+            const QStringList families = Private::fontFamilies();
             // Keep the old fallback semantics: MDL2 is selected whenever the
             // preferred family is unavailable, including when both are
             // absent and Qt has to perform its normal font fallback.

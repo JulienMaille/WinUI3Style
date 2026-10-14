@@ -33,12 +33,7 @@ QPixmap rotatedChevronPixmap(const QPixmap &source, qreal angleDegrees)
 {
     if (source.isNull() || qFuzzyIsNull(angleDegrees))
         return source;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    const QSizeF logical = source.deviceIndependentSize();
-#else
-    const qreal sourceDpr = qMax<qreal>(source.devicePixelRatioF(), 1.0);
-    const QSizeF logical = QSizeF(source.size()) / sourceDpr;
-#endif
+    const QSizeF logical = Private::deviceIndependentSize(source);
     QPixmap rotated(source.size());
     rotated.setDevicePixelRatio(source.devicePixelRatioF());
     rotated.fill(Qt::transparent);

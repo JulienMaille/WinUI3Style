@@ -5,6 +5,7 @@
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3helpers_p.h"
+#include "winui3qtcompat_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -38,14 +39,7 @@ const QFont &menuChevronFont()
     static const QFont font = [] {
         const QString fluent = QStringLiteral("Segoe Fluent Icons");
         const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        const QStringList fontFamilies = QFontDatabase::families();
-#else
-        // QFontDatabase::families() is static from Qt 6 onward.
-        const QFontDatabase fontDatabase;
-        const QStringList fontFamilies = fontDatabase.families();
-#endif
-        const QString family = fontFamilies.contains(fluent) ? fluent : mdl2;
+        const QString family = Private::fontFamilies().contains(fluent) ? fluent : mdl2;
         QFont result(family);
         result.setPixelSize(MenuChevronFontSize);
         return result;

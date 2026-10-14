@@ -1172,13 +1172,8 @@ bool isLineEditClearButton(const QLineEdit *lineEdit, const QAbstractButton *but
     if (!lineEdit || !button)
         return false;
     for (QAction *action : lineEdit->actions())
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        if (action->associatedObjects().contains(button))
-#else
-        // QAction::associatedObjects() is Qt 6; Qt 5 only lists widgets.
-        if (action->associatedWidgets().contains(const_cast<QAbstractButton *>(button)))
-#endif
-            return false;
+            if (actionAssociatedWith(action, button))
+                return false;
     // QLineEdit's private clear affordance is deliberately not a QAction;
     // custom leading/trailing actions are associated above.
     return true;
