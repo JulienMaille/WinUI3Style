@@ -581,7 +581,18 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
         return true;
     }
 
-    // CE_SizeGrip
+    // CE_SizeGrip. Reached only for that element: every branch above returns
+    // on match (or false on a failed option cast), so unlike the pre-S1
+    // facade chain of separate `if (element == …)` blocks, nothing else may
+    // fall through here. An unguarded tail once painted these dots on every
+    // plain QFrame (CE_ShapedFrame without the settings-card property).
+    // CE_SizeGrip. Reached only for that element: every branch above returns
+    // on match (or false on a failed option cast), so unlike the pre-S1
+    // facade chain of separate `if (element == …)` blocks, nothing else may
+    // fall through here. An unguarded tail once painted these dots on every
+    // plain QFrame (CE_ShapedFrame without the settings-card property).
+    if (element != QStyle::CE_SizeGrip)
+        return false;
     const auto *grip = qstyleoption_cast<const QStyleOptionSizeGrip *>(option);
     const Qt::Corner corner = grip ? grip->corner : Qt::BottomRightCorner;
     const bool right = corner == Qt::TopRightCorner || corner == Qt::BottomRightCorner;

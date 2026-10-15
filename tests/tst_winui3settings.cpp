@@ -38,6 +38,7 @@ private slots:
     void settingsCardActivatedSlotMayDeleteCard();
     void settingsCardTrailingWidgetSurvivesExternalDelete();
     void settingsCardExpandedHostSharesCardSurface();
+    void plainShapedFrameFallsThroughToBaseStyle();
 };
 
 void WinUI3SettingsTest::initTestCase()
@@ -319,6 +320,54 @@ void WinUI3SettingsTest::settingsCardExpandedHostSharesCardSurface()
     QVERIFY(!host->testAttribute(Qt::WA_OpaquePaintEvent));
     QVERIFY(card.grab().toImage().pixelColor(host->mapTo(&card, host->rect().center())).alpha()
             > 200);
+}
+
+void WinUI3SettingsTest::plainShapedFrameFallsThroughToBaseStyle()
+{
+    // S1 extraction defect: drawChromeControl's trailing SizeGrip branch ran
+    // for every element that passed its filter without returning, so plain
+    // QFrames (CE_ShapedFrame without the settings-card property) got
+    // SizeGrip dots at their bottom-right corner. The tail must only run
+    // for CE_SizeGrip; anything else falls through to the base style.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QFrame frame;
+    frame.resize(120, 40);
+    QStyleOption option;
+    option.initFrom(&frame);
+    option.rect = frame.rect();
+    option.state |= QStyle::State_Enabled;
+    QImage canvas(120, 40, QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(Qt::transparent);
+    {
+        QPainter painter(&canvas);
+        // Full path: the base style paints the frame, never SizeGrip dots.
+        style->drawControl(QStyle::CE_ShapedFrame, &option, &painter, &frame);
+    }
+    // Bottom-right 16x16 corner holds only base-frame ink: assert no pixel
+    // carries the SizeGrip dot color (textTertiary) there. Note textTertiary
+    // is translucent (alpha ~114 in Light), so the gate must be alpha-aware:
+    // an opaque-only scan would miss the dots entirely.
+    const WinUI3::Private::Tokens tokens =
+            WinUI3::Private::tokens(QApplication::palette());
+    int dotPixels = 0;
+    for (int y = 24; y < 40; ++y) {
+        for (int x = 104; x < 120; ++x) {
+            const QColor pixel = canvas.pixelColor(x, y);
+            if (pixel.alpha() < 60)
+                continue;
+            if (qAbs(pixel.alpha() - tokens.textTertiary.alpha()) > 60)
+                continue;
+            const int dr = pixel.red() - tokens.textTertiary.red();
+            const int dg = pixel.green() - tokens.textTertiary.green();
+            const int db = pixel.blue() - tokens.textTertiary.blue();
+            if (dr * dr + dg * dg + db * db < 30 * 30)
+                ++dotPixels;
+        }
+    }
+    QCOMPARE(dotPixels, 0);
+    // Geometry pairing on the same state: the frame kept its size.
+    QCOMPARE(frame.size(), QSize(120, 40));
 }
 
 QTEST_MAIN(WinUI3SettingsTest)
