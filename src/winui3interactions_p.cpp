@@ -640,6 +640,310 @@ bool StyleInteractionController::handleKeyRelease(QWidget *widget, QEvent *event
     return false;
 }
 
+bool StyleInteractionController::handleEnabledChange(QWidget *widget)
+{
+    // Qt normally stops delivering pointer events to a disabled widget,
+    // but an in-flight style animation has no such protection. Clear the
+    // interaction state at the source so disabling during a press cannot
+    // leave a stale hover/pressed surface behind.
+    m_callbacks.clearPointerInteraction(widget);
+    const bool enabled = widget->isEnabled();
+    framePropertyRegistry().set(widget, hoverProperty,
+                                enabled && widget->underMouse() ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, pressProperty, 0.0);
+    framePropertyRegistry().set(widget, focusProperty,
+                                enabled && widget->hasFocus() ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, focusVisibleProperty,
+                                enabled && widget->hasFocus() && *m_callbacks.keyboardInput);
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
+        framePropertyRegistry().set(checkBox, checkProperty,
+                                    checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
+        framePropertyRegistry().set(checkBox, togglePositionProperty,
+                                    checkBox->isChecked() ? 1.0 : 0.0);
+    } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
+        framePropertyRegistry().set(radio, checkProperty, radio->isChecked() ? 1.0 : 0.0);
+    }
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (m_comboPressStates.remove(combo)) {
+            combo->releaseMouse();
+            m_callbacks.releaseComboChevron(combo);
+        }
+    }
+    if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
+        m_callbacks.cancelScrollBarTimer(scrollBar);
+    if (auto *slider = qobject_cast<QSlider *>(widget)) {
+        m_callbacks.cancelSliderToolTip(slider);
+        if (!enabled)
+            hideSliderValueToolTip(slider);
+    }
+    if (qobject_cast<QProgressBar *>(widget))
+        m_callbacks.refreshProgressTimer();
+    m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+    widget->update();
+    return false;
+}
+
+bool StyleInteractionController::handlePaint(QWidget *widget)
+{
+    if (auto *button = qobject_cast<QToolButton *>(widget);
+        button && textBoxHelperButton(button)) {
+        // QLineEditIconButton has a private paintEvent that bypasses
+        // QToolButton's CC_ToolButton path. Own its complete rendering so
+        // the WinUI DeleteButton surface is refreshed on real pointer
+        // transitions, not only during a forced parent render.
+        QStyleOptionToolButton option;
+        option.initFrom(button);
+        option.rect = button->rect();
+        option.icon = button->icon();
+        option.iconSize = button->iconSize();
+        option.text = button->text();
+        option.toolButtonStyle = button->toolButtonStyle();
+        option.arrowType = button->arrowType();
+        option.features = QStyleOptionToolButton::None;
+        QPainter painter(button);
+        const QVariant opacity = button->property("opacity");
+        if (opacity.isValid())
+            painter.setOpacity(opacity.toReal());
+        m_style->drawPrimitive(QStyle::PE_PanelButtonTool, &option, &painter, button);
+        m_style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, button);
+        return true;
+    }
+    return false;
+}
+
+bool StyleInteractionController::handleUpdateRequest(QWidget *widget)
+{
+    // QProgressBar exposes no rangeChanged signal. Refresh only while the
+    // shared clock is stopped, so ordinary timer-driven updates remain
+    // O(1) in callbacks and do not rescan the registry per paint.
+    if (qobject_cast<QProgressBar *>(widget) && !m_callbacks.progressTimerActive())
+        m_callbacks.refreshProgressTimer();
+    return false;
+}
+
+bool StyleInteractionController::handleShow(QWidget *widget)
+{
+    // A tooltip HWND keeps the opaque system backing store; the rounded
+    // PE_PanelTipLabel card leaves dark corner rectangles visible. Clip
+    // the window to the card's 4px rounding with a window region.
+    if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
+        applyWindowRoundedRegion(widget, 5);
+    // Establish popup margins before measuring or anchoring any child view.
+    // Doing this after ComboBox centering shifts the reused popup by the
+    // combined top/bottom inset on its second opening.
+    m_callbacks.preparePopupSurface(widget);
+    m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+    if (textBoxHelperButton(widget))
+        m_callbacks.updateReadOnlyDeleteAffordance(
+                qobject_cast<QLineEdit *>(widget->parentWidget()));
+    m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
+    // The view is shown before its popup window. Prepare selection and
+    // scroll position here so even a programmatic first showPopup() has a
+    // stable first composited frame; waiting for the popup Show event is
+    // observably too late when the selected item is not row zero.
+    if (qobject_cast<QAbstractItemView *>(widget)) {
+        if (auto *combo = m_callbacks.comboForPopupWidget(widget)) {
+            m_callbacks.prepareComboPopupFirstFrame(combo);
+            // A reused popup does not necessarily move or resize when a
+            // different row becomes current. Recenter it here, after the
+            // view layout is prepared but before the popup is composited.
+            centerPendingComboPopup(widget->window(), combo);
+        }
+    }
+    if (widget->isWindow() && widget->windowType() == Qt::Popup) {
+        const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
+        if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
+            m_callbacks.prepareComboPopupFirstFrame(combo);
+            centerPendingComboPopup(widget, combo);
+            if (!offscreen)
+                animateMenuPopup(widget, combo);
+        } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
+            animateMenuPopup(widget, nullptr);
+            // Parent-wash lane: hovering a submenu row open delivers
+            // row-partial repaints to the parent while the rest keeps
+            // the previous backing frame — live that reads as the
+            // parent washing lighter. The submenu Show is where the
+            // open commits, so repaint the FULL parent surface here
+            // (PE_PanelMenu rebuild from its resolved palette; same
+            // pattern as ActionChanged below). update() never resizes
+            // and changes no palette/recipe.
+            if (QMenu *parentMenu = qobject_cast<QMenu *>(menu->parentWidget())) {
+                if (parentMenu->isVisible())
+                    parentMenu->update();
+            }
+        }
+    }
+    if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
+        && (qobject_cast<QMessageBox *>(dialog)
+            || dialog->property(Style::ContentDialogProperty).toBool())) {
+        m_callbacks.prepareContentDialogState(dialog, m_callbacks.dark());
+        m_callbacks.stopDialogAnimations(dialog);
+        showContentDialogScrim(dialog);
+        applyDialogCaptionTheme(dialog);
+        if (Style::animationsAllowed()) {
+            widget->setProperty("_winui_dialog_animating", true);
+            auto *group = new QParallelAnimationGroup(dialog);
+            group->setObjectName(QStringLiteral("_winui_dialog_animation"));
+            auto *opacity = new QPropertyAnimation(dialog, "windowOpacity", group);
+            opacity->setStartValue(0.0);
+            opacity->setEndValue(1.0);
+            opacity->setDuration(FasterDuration);
+            QObject::connect(group, &QParallelAnimationGroup::finished, dialog,
+                             [dialog, group] {
+                                 dialog->setWindowOpacity(1.0);
+                                 dialog->setProperty("_winui_dialog_animating", false);
+                                 group->deleteLater();
+                             });
+            group->start();
+        }
+    }
+    if (qobject_cast<QProgressBar *>(widget))
+        m_callbacks.refreshProgressTimer();
+    m_callbacks.registerPopupPaletteOwners(widget);
+    return false;
+}
+
+bool StyleInteractionController::handleHide(QWidget *widget)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget))
+        cancelComboPress(combo, true);
+    if (qobject_cast<QProgressBar *>(widget))
+        m_callbacks.refreshProgressTimer();
+    if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
+        m_callbacks.cancelScrollBarTimer(scrollBar);
+    if (auto *slider = qobject_cast<QSlider *>(widget)) {
+        m_callbacks.cancelSliderToolTip(slider);
+        hideSliderValueToolTip(slider);
+    }
+    if (widget->isWindow() && widget->windowType() == Qt::Popup)
+        m_callbacks.finishComboPopupCycle(widget);
+    if (auto *dialog = qobject_cast<QDialog *>(widget)) {
+        hideContentDialogScrim(dialog);
+        if (dialog->property("_winui_dialog_animating").toBool())
+            m_callbacks.stopDialogAnimations(dialog);
+    }
+    return false;
+}
+
+bool StyleInteractionController::handleWinIdChange(QWidget *widget)
+{
+    // WinIdChange also fires while Qt destroys a platform window. Never
+    // call a creating accessor on that path: it can republish the dying
+    // HWND into QWidget's cache before Qt finishes destroying it.
+    if (!widget->internalWinId())
+        return false;
+#ifdef Q_OS_WIN
+    if (!IsWindow(reinterpret_cast<HWND>(widget->internalWinId())))
+        return false;
+#endif
+    if (widget->isWindow() && widget->isVisible()
+        && widget->property("_winui_backdrop").isValid()) {
+        applyBackdrop(widget,
+                      static_cast<Backdrop>(widget->property("_winui_backdrop").toInt()));
+    }
+    if (qobject_cast<QDialog *>(widget) && widget->isWindow())
+        applyDialogCaptionTheme(widget);
+    return false;
+}
+
+bool StyleInteractionController::handleResize(QWidget *widget)
+{
+    // The DWM corner preference is resize-stable, but the legacy region
+    // fallback is not. Re-apply it after every native popup resize so a
+    // combo/menu cannot retain the old rounded region and clip its new
+    // edges. Avoid creating a native handle during pre-show layout.
+    if (widget->isWindow() && widget->windowType() == Qt::Popup && widget->windowHandle())
+        applyPopupRoundedCorners(widget);
+    // The Qt rounded mask is size-built: a post-show resize (actions
+    // added/removed while the submenu is visible) would leave the old
+    // mask clipping the new edges. Rebuild it here; setMask never
+    // resizes, and pre-show resizes are harmless (Show rebuilds the
+    // mask at the final size anyway). No handle guard needed: a Qt
+    // mask never manufactures a native handle.
+    if (auto *menu = qobject_cast<QMenu *>(widget);
+        menu && menu->isWindow() && menu->windowType() == Qt::Popup)
+        applyMenuRoundedMask(menu);
+    if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
+        applyWindowRoundedRegion(widget, 5);
+    return false;
+}
+
+bool StyleInteractionController::handleActionChanged(QWidget *widget)
+{
+    if (auto *menu = qobject_cast<QMenu *>(widget); menu && menu->isVisible()) {
+        // Toggling a checkable action (gallery File/autoSave) repaints
+        // only the toggled row by default, leaving the PE_PanelMenu
+        // stroke region stale; the next reopen then shows a broken
+        // edge/shadow. Repaint the full surface and re-apply the rounded
+        // region. Neither changes geometry: update() never resizes, and
+        // the region call rebuilds the same rounded rect (a no-op
+        // offscreen, guarded by windowHandle so a hidden menu never
+        // manufactures a native handle).
+        menu->update();
+        if (menu->windowHandle())
+            applyPopupRoundedCorners(menu);
+    }
+    return false;
+}
+
+bool StyleInteractionController::handleDynamicPropertyChange(QWidget *widget, QEvent *event)
+{
+    const auto *change = static_cast<QDynamicPropertyChangeEvent *>(event);
+    if (!change)
+        return false;
+    const QByteArray name = change->propertyName();
+    if (name == Style::ToggleSwitchProperty) {
+        if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
+            framePropertyRegistry().set(checkBox, togglePositionProperty,
+                                        checkBox->isChecked() ? 1.0 : 0.0);
+        widget->updateGeometry();
+        widget->update();
+    } else if (name == Style::ToggleSwitchOnTextProperty
+               || name == Style::ToggleSwitchOffTextProperty) {
+        widget->updateGeometry();
+        widget->update();
+    } else if (name == Style::SettingsCardProperty) {
+        if (auto *frame = qobject_cast<QFrame *>(widget)) {
+            if (widget->property(Style::SettingsCardProperty).toBool()) {
+                m_callbacks.remember(frame, originalFrameShapeProperty,
+                                     int(frame->frameShape()));
+                frame->setFrameShape(QFrame::StyledPanel);
+            } else if (widget->property(originalFrameShapeProperty).isValid()) {
+                frame->setFrameShape(static_cast<QFrame::Shape>(
+                        widget->property(originalFrameShapeProperty).toInt()));
+                widget->setProperty(originalFrameShapeProperty, {});
+            }
+        }
+        widget->updateGeometry();
+        widget->update();
+    } else if (name == Style::ContentDialogProperty) {
+        if (auto *dialog = qobject_cast<QDialog *>(widget);
+            dialog && !qobject_cast<QMessageBox *>(dialog)) {
+            if (dialog->property(Style::ContentDialogProperty).toBool()) {
+                m_callbacks.prepareContentDialogState(dialog, m_callbacks.dark());
+                m_callbacks.registerPaletteOwner(dialog);
+            } else {
+                m_callbacks.unregisterPaletteOwner(dialog);
+                m_callbacks.restoreContentDialogState(dialog, true);
+            }
+        }
+    } else if (name == Style::VerticalSpinButtonsProperty) {
+        widget->updateGeometry();
+        widget->update();
+    } else if (name == Style::NavigationViewProperty) {
+        if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+            view->viewport()->setProperty(Style::NavigationViewProperty,
+                                          view->property(Style::NavigationViewProperty));
+            if (view->property(Style::NavigationViewProperty).toBool())
+                m_callbacks.prepareNavigationView(view);
+            else
+                m_callbacks.restoreNavigationView(view);
+            view->viewport()->update();
+        }
+    }
+    return false;
+}
+
 bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
 {
     auto *widget = qobject_cast<QWidget *>(watched);
@@ -647,79 +951,12 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         return false;
 
     switch (event->type()) {
-    case QEvent::EnabledChange: {
-        // Qt normally stops delivering pointer events to a disabled widget,
-        // but an in-flight style animation has no such protection. Clear the
-        // interaction state at the source so disabling during a press cannot
-        // leave a stale hover/pressed surface behind.
-        m_callbacks.clearPointerInteraction(widget);
-        const bool enabled = widget->isEnabled();
-        framePropertyRegistry().set(widget, hoverProperty,
-                                    enabled && widget->underMouse() ? 1.0 : 0.0);
-        framePropertyRegistry().set(widget, pressProperty, 0.0);
-        framePropertyRegistry().set(widget, focusProperty,
-                                    enabled && widget->hasFocus() ? 1.0 : 0.0);
-        framePropertyRegistry().set(widget, focusVisibleProperty,
-                                    enabled && widget->hasFocus() && *m_callbacks.keyboardInput);
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
-            framePropertyRegistry().set(checkBox, checkProperty,
-                                        checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
-            framePropertyRegistry().set(checkBox, togglePositionProperty,
-                                        checkBox->isChecked() ? 1.0 : 0.0);
-        } else if (auto *radio = qobject_cast<QRadioButton *>(widget)) {
-            framePropertyRegistry().set(radio, checkProperty, radio->isChecked() ? 1.0 : 0.0);
-        }
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            if (m_comboPressStates.remove(combo)) {
-                combo->releaseMouse();
-                m_callbacks.releaseComboChevron(combo);
-            }
-        }
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
-            m_callbacks.cancelScrollBarTimer(scrollBar);
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            m_callbacks.cancelSliderToolTip(slider);
-            if (!enabled)
-                hideSliderValueToolTip(slider);
-        }
-        if (qobject_cast<QProgressBar *>(widget))
-            m_callbacks.refreshProgressTimer();
-        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        widget->update();
-        break;
-    }
+    case QEvent::EnabledChange:
+        return handleEnabledChange(widget);
     case QEvent::Paint:
-        if (auto *button = qobject_cast<QToolButton *>(widget);
-            button && textBoxHelperButton(button)) {
-            // QLineEditIconButton has a private paintEvent that bypasses
-            // QToolButton's CC_ToolButton path. Own its complete rendering so
-            // the WinUI DeleteButton surface is refreshed on real pointer
-            // transitions, not only during a forced parent render.
-            QStyleOptionToolButton option;
-            option.initFrom(button);
-            option.rect = button->rect();
-            option.icon = button->icon();
-            option.iconSize = button->iconSize();
-            option.text = button->text();
-            option.toolButtonStyle = button->toolButtonStyle();
-            option.arrowType = button->arrowType();
-            option.features = QStyleOptionToolButton::None;
-            QPainter painter(button);
-            const QVariant opacity = button->property("opacity");
-            if (opacity.isValid())
-                painter.setOpacity(opacity.toReal());
-            m_style->drawPrimitive(QStyle::PE_PanelButtonTool, &option, &painter, button);
-            m_style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, button);
-            return true;
-        }
-        break;
+        return handlePaint(widget);
     case QEvent::UpdateRequest:
-        // QProgressBar exposes no rangeChanged signal. Refresh only while the
-        // shared clock is stopped, so ordinary timer-driven updates remain
-        // O(1) in callbacks and do not rescan the registry per paint.
-        if (qobject_cast<QProgressBar *>(widget) && !m_callbacks.progressTimerActive())
-            m_callbacks.refreshProgressTimer();
-        break;
+        return handleUpdateRequest(widget);
     case QEvent::Enter:
         return handleEnter(widget);
     case QEvent::Leave:
@@ -744,211 +981,19 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
     case QEvent::KeyRelease:
         return handleKeyRelease(widget, event);
     case QEvent::Show:
-        // A tooltip HWND keeps the opaque system backing store; the rounded
-        // PE_PanelTipLabel card leaves dark corner rectangles visible. Clip
-        // the window to the card's 4px rounding with a window region.
-        if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
-            applyWindowRoundedRegion(widget, 5);
-        // Establish popup margins before measuring or anchoring any child view.
-        // Doing this after ComboBox centering shifts the reused popup by the
-        // combined top/bottom inset on its second opening.
-        m_callbacks.preparePopupSurface(widget);
-        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        if (textBoxHelperButton(widget))
-            m_callbacks.updateReadOnlyDeleteAffordance(
-                    qobject_cast<QLineEdit *>(widget->parentWidget()));
-        m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
-        // The view is shown before its popup window. Prepare selection and
-        // scroll position here so even a programmatic first showPopup() has a
-        // stable first composited frame; waiting for the popup Show event is
-        // observably too late when the selected item is not row zero.
-        if (qobject_cast<QAbstractItemView *>(widget)) {
-            if (auto *combo = m_callbacks.comboForPopupWidget(widget)) {
-                m_callbacks.prepareComboPopupFirstFrame(combo);
-                // A reused popup does not necessarily move or resize when a
-                // different row becomes current. Recenter it here, after the
-                // view layout is prepared but before the popup is composited.
-                centerPendingComboPopup(widget->window(), combo);
-            }
-        }
-        if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-            const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
-            if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
-                m_callbacks.prepareComboPopupFirstFrame(combo);
-                centerPendingComboPopup(widget, combo);
-                if (!offscreen)
-                    animateMenuPopup(widget, combo);
-            } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
-                animateMenuPopup(widget, nullptr);
-                // Parent-wash lane: hovering a submenu row open delivers
-                // row-partial repaints to the parent while the rest keeps
-                // the previous backing frame — live that reads as the
-                // parent washing lighter. The submenu Show is where the
-                // open commits, so repaint the FULL parent surface here
-                // (PE_PanelMenu rebuild from its resolved palette; same
-                // pattern as ActionChanged below). update() never resizes
-                // and changes no palette/recipe.
-                if (QMenu *parentMenu = qobject_cast<QMenu *>(menu->parentWidget())) {
-                    if (parentMenu->isVisible())
-                        parentMenu->update();
-                }
-            }
-        }
-        if (auto *dialog = qobject_cast<QDialog *>(widget); dialog
-            && (qobject_cast<QMessageBox *>(dialog)
-                || dialog->property(Style::ContentDialogProperty).toBool())) {
-            m_callbacks.prepareContentDialogState(dialog, m_callbacks.dark());
-            m_callbacks.stopDialogAnimations(dialog);
-            showContentDialogScrim(dialog);
-            applyDialogCaptionTheme(dialog);
-            if (Style::animationsAllowed()) {
-                widget->setProperty("_winui_dialog_animating", true);
-                auto *group = new QParallelAnimationGroup(dialog);
-                group->setObjectName(QStringLiteral("_winui_dialog_animation"));
-                auto *opacity = new QPropertyAnimation(dialog, "windowOpacity", group);
-                opacity->setStartValue(0.0);
-                opacity->setEndValue(1.0);
-                opacity->setDuration(FasterDuration);
-                QObject::connect(group, &QParallelAnimationGroup::finished, dialog,
-                                 [dialog, group] {
-                                     dialog->setWindowOpacity(1.0);
-                                     dialog->setProperty("_winui_dialog_animating", false);
-                                     group->deleteLater();
-                                 });
-                group->start();
-            }
-        }
-        if (qobject_cast<QProgressBar *>(widget))
-            m_callbacks.refreshProgressTimer();
-        m_callbacks.registerPopupPaletteOwners(widget);
-        break;
+        return handleShow(widget);
     case QEvent::WinIdChange:
-        // WinIdChange also fires while Qt destroys a platform window. Never
-        // call a creating accessor on that path: it can republish the dying
-        // HWND into QWidget's cache before Qt finishes destroying it.
-        if (!widget->internalWinId())
-            break;
-#ifdef Q_OS_WIN
-        if (!IsWindow(reinterpret_cast<HWND>(widget->internalWinId())))
-            break;
-#endif
-        if (widget->isWindow() && widget->isVisible()
-            && widget->property("_winui_backdrop").isValid()) {
-            applyBackdrop(widget,
-                          static_cast<Backdrop>(widget->property("_winui_backdrop").toInt()));
-        }
-        if (qobject_cast<QDialog *>(widget) && widget->isWindow())
-            applyDialogCaptionTheme(widget);
-        break;
+        return handleWinIdChange(widget);
     case QEvent::Move:
         break;
     case QEvent::Resize:
-        // The DWM corner preference is resize-stable, but the legacy region
-        // fallback is not. Re-apply it after every native popup resize so a
-        // combo/menu cannot retain the old rounded region and clip its new
-        // edges. Avoid creating a native handle during pre-show layout.
-        if (widget->isWindow() && widget->windowType() == Qt::Popup && widget->windowHandle())
-            applyPopupRoundedCorners(widget);
-        // The Qt rounded mask is size-built: a post-show resize (actions
-        // added/removed while the submenu is visible) would leave the old
-        // mask clipping the new edges. Rebuild it here; setMask never
-        // resizes, and pre-show resizes are harmless (Show rebuilds the
-        // mask at the final size anyway). No handle guard needed: a Qt
-        // mask never manufactures a native handle.
-        if (auto *menu = qobject_cast<QMenu *>(widget);
-            menu && menu->isWindow() && menu->windowType() == Qt::Popup)
-            applyMenuRoundedMask(menu);
-        if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
-            applyWindowRoundedRegion(widget, 5);
-        break;
+        return handleResize(widget);
     case QEvent::ActionChanged:
-        if (auto *menu = qobject_cast<QMenu *>(widget); menu && menu->isVisible()) {
-            // Toggling a checkable action (gallery File/autoSave) repaints
-            // only the toggled row by default, leaving the PE_PanelMenu
-            // stroke region stale; the next reopen then shows a broken
-            // edge/shadow. Repaint the full surface and re-apply the rounded
-            // region. Neither changes geometry: update() never resizes, and
-            // the region call rebuilds the same rounded rect (a no-op
-            // offscreen, guarded by windowHandle so a hidden menu never
-            // manufactures a native handle).
-            menu->update();
-            if (menu->windowHandle())
-                applyPopupRoundedCorners(menu);
-        }
-        break;
+        return handleActionChanged(widget);
     case QEvent::Hide:
-        if (auto *combo = qobject_cast<QComboBox *>(widget))
-            cancelComboPress(combo, true);
-        if (qobject_cast<QProgressBar *>(widget))
-            m_callbacks.refreshProgressTimer();
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
-            m_callbacks.cancelScrollBarTimer(scrollBar);
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            m_callbacks.cancelSliderToolTip(slider);
-            hideSliderValueToolTip(slider);
-        }
-        if (widget->isWindow() && widget->windowType() == Qt::Popup)
-            m_callbacks.finishComboPopupCycle(widget);
-        if (auto *dialog = qobject_cast<QDialog *>(widget)) {
-            hideContentDialogScrim(dialog);
-            if (dialog->property("_winui_dialog_animating").toBool())
-                m_callbacks.stopDialogAnimations(dialog);
-        }
-        break;
+        return handleHide(widget);
     case QEvent::DynamicPropertyChange:
-        if (const auto *change = static_cast<QDynamicPropertyChangeEvent *>(event)) {
-            const QByteArray name = change->propertyName();
-            if (name == Style::ToggleSwitchProperty) {
-                if (auto *checkBox = qobject_cast<QCheckBox *>(widget))
-                    framePropertyRegistry().set(checkBox, togglePositionProperty,
-                                                checkBox->isChecked() ? 1.0 : 0.0);
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == Style::ToggleSwitchOnTextProperty
-                       || name == Style::ToggleSwitchOffTextProperty) {
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == Style::SettingsCardProperty) {
-                if (auto *frame = qobject_cast<QFrame *>(widget)) {
-                    if (widget->property(Style::SettingsCardProperty).toBool()) {
-                        m_callbacks.remember(frame, originalFrameShapeProperty,
-                                             int(frame->frameShape()));
-                        frame->setFrameShape(QFrame::StyledPanel);
-                    } else if (widget->property(originalFrameShapeProperty).isValid()) {
-                        frame->setFrameShape(static_cast<QFrame::Shape>(
-                                widget->property(originalFrameShapeProperty).toInt()));
-                        widget->setProperty(originalFrameShapeProperty, {});
-                    }
-                }
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == Style::ContentDialogProperty) {
-                if (auto *dialog = qobject_cast<QDialog *>(widget);
-                    dialog && !qobject_cast<QMessageBox *>(dialog)) {
-                    if (dialog->property(Style::ContentDialogProperty).toBool()) {
-                        m_callbacks.prepareContentDialogState(dialog, m_callbacks.dark());
-                        m_callbacks.registerPaletteOwner(dialog);
-                    } else {
-                        m_callbacks.unregisterPaletteOwner(dialog);
-                        m_callbacks.restoreContentDialogState(dialog, true);
-                    }
-                }
-            } else if (name == Style::VerticalSpinButtonsProperty) {
-                widget->updateGeometry();
-                widget->update();
-            } else if (name == Style::NavigationViewProperty) {
-                if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
-                    view->viewport()->setProperty(Style::NavigationViewProperty,
-                                                  view->property(Style::NavigationViewProperty));
-                    if (view->property(Style::NavigationViewProperty).toBool())
-                        m_callbacks.prepareNavigationView(view);
-                    else
-                        m_callbacks.restoreNavigationView(view);
-                    view->viewport()->update();
-                }
-            }
-        }
-        break;
+        return handleDynamicPropertyChange(widget, event);
     default:
         break;
     }

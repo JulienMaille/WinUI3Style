@@ -98,6 +98,17 @@ private:
     bool handleLineEditHelperBirth(QWidget *widget);
     bool handleKeyPress(QWidget *widget, QEvent *event);
     bool handleKeyRelease(QWidget *widget, QEvent *event);
+    // R3 lifecycle group: state resets, paint takeover, show/hide surface
+    // sync, native-handle tracking and dynamic property routing.
+    bool handleEnabledChange(QWidget *widget);
+    bool handlePaint(QWidget *widget);
+    bool handleUpdateRequest(QWidget *widget);
+    bool handleShow(QWidget *widget);
+    bool handleHide(QWidget *widget);
+    bool handleWinIdChange(QWidget *widget);
+    bool handleResize(QWidget *widget);
+    bool handleActionChanged(QWidget *widget);
+    bool handleDynamicPropertyChange(QWidget *widget, QEvent *event);
 
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;
