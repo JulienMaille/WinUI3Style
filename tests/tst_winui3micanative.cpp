@@ -20,6 +20,12 @@
 #include <QMenuBar>
 #include <QScrollArea>
 
+#ifdef Q_OS_WIN
+#  include <windows.h>
+#endif
+#include <QLibrary>
+#include <QWindow>
+
 class WinUI3MicaNativeTest final : public QObject
 {
     Q_OBJECT
@@ -27,6 +33,7 @@ class WinUI3MicaNativeTest final : public QObject
 private slots:
     void initTestCase();
     void liveThemeSwitchWhileGrantedThenDisable();
+    void popupGrantAliveRejectsRevokedEffect();
 };
 
 void WinUI3MicaNativeTest::initTestCase()
@@ -89,6 +96,58 @@ void WinUI3MicaNativeTest::liveThemeSwitchWhileGrantedThenDisable()
     QVERIFY(qAbs(windowInk.blue() - expectedWindow.blue()) <= 8);
     QCOMPARE(navigation->palette().color(QPalette::Active, QPalette::Text),
              lightPalette.color(QPalette::Active, QPalette::Text));
+}
+
+void WinUI3MicaNativeTest::popupGrantAliveRejectsRevokedEffect()
+{
+    // Combo popup light bands (user 2026-10-16): a silently revoked DWM
+    // grant left the cached Composited property lying, so the re-show kept
+    // the translucent tint over a white backing store. The keep-probe must
+    // consult the live DWM readback, not just the property.
+    if (QGuiApplication::platformName() != QStringLiteral("windows"))
+        QSKIP("requires the live DWM compositor");
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+
+    QWidget host;
+    host.resize(560, 440);
+    QComboBox combo(&host);
+    combo.addItems(
+            { QStringLiteral("Standard density"), QStringLiteral("Compact density") });
+    combo.resize(200, 32);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    combo.showPopup();
+    QVERIFY(QTest::qWaitForWindowExposed(combo.view()));
+    QWidget *popup = combo.view()->window();
+    QVERIFY(popup && popup->windowHandle());
+    combo.hidePopup();
+
+    // Force the incoherent state: published Composited, DWM effect revoked.
+    // Resolved dynamically so the test links with no extra dependency.
+    QLibrary dwm(QStringLiteral("dwmapi"));
+    using SetAttribute = HRESULT(WINAPI *)(HWND, DWORD, LPCVOID, DWORD);
+    using GetAttribute = HRESULT(WINAPI *)(HWND, DWORD, PVOID, DWORD);
+    auto setAttribute = reinterpret_cast<SetAttribute>(dwm.resolve("DwmSetWindowAttribute"));
+    auto getAttribute = reinterpret_cast<GetAttribute>(dwm.resolve("DwmGetWindowAttribute"));
+    QVERIFY(setAttribute && getAttribute);
+    HWND hwnd = reinterpret_cast<HWND>(popup->windowHandle()->winId());
+    QVERIFY(IsWindow(hwnd));
+    DWORD autoValue = 0; // DWMSBT_AUTO: no acrylic.
+    QVERIFY(SUCCEEDED(setAttribute(hwnd, 38, &autoValue, sizeof(autoValue))));
+    DWORD readback = 0;
+    if (FAILED(getAttribute(hwnd, 38, &readback, sizeof(readback))))
+        QSKIP("DWM readback unreadable here");
+    if (readback != 0)
+        QSKIP("DWM ignores the revoke here");
+    popup->setProperty("_winui_backdrop_effective", 2); // published Composited
+    // The live readback (refused) overrules the lying property.
+    QVERIFY(!WinUI3::Private::popupBackdropGrantAlive(popup));
+    // Geometry pairing on the same state: the probe changed no geometry.
+    QCOMPARE(popup->contentsMargins().top(), 4);
+    QCOMPARE(popup->contentsMargins().bottom(), 4);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
 }
 
 QTEST_MAIN(WinUI3MicaNativeTest)

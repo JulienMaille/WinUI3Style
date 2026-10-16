@@ -2,6 +2,7 @@
 #pragma once
 
 #include <winui3style/winui3backdrop.h>
+#include <winui3style/winui3global.h>
 
 #include <QVariant>
 #include <QWidget>
@@ -50,11 +51,17 @@ void applyPopupRoundedCorners(QWidget *window);
 void applyWindowRoundedRegion(QWidget *window, int radius);
 
 // Keep-probe for a previous cycle's DWM popup grant. True only when the
-// widget still publishes Composited on an existing native handle: the
-// per-HWND grant is then kept across the re-show instead of torn down
-// and re-requested (DWM refuses fresh grants on reused popup HWNDs — the
-// File/autoSave branch flip). Never true offscreen or handle-less.
-bool popupBackdropGrantAlive(QWidget *window);
+// widget still publishes Composited on an existing native handle AND the
+// DWM readback confirms the effect is live: the per-HWND grant is then
+// kept across the re-show instead of torn down and re-requested (DWM
+// refuses fresh grants on reused popup HWNDs — the File/autoSave branch
+// flip). A silently revoked grant (property still Composited, DWM effect
+// gone) must read false, otherwise the re-show keeps the translucent tint
+// over a white backing store: light bands in the combo container margins
+// (user 2026-10-16). Never true offscreen or handle-less; an unreadable
+// Get keeps the property-based acceptance (transient Show-dispatch state,
+// not evidence). Exported for the native mechanism test.
+WINUI3STYLE_EXPORT bool popupBackdropGrantAlive(QWidget *window);
 
 // Follows the application theme for a dialog window's native title bar: sets
 // the immersive dark-mode attribute and title text color. No-op until the

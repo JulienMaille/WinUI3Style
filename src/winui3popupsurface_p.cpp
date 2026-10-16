@@ -82,6 +82,29 @@ PopupBackdropReadback popupBackdropReadback(QWidget *popup)
 
 } // namespace
 
+// Converge a refused popup to the honest opaque fallback: opaque surface
+// roles, full opaque paint recipe, Painted state. A refused DWM grant must
+// never leave the translucent tint over a white backing store (light bands
+// in the combo container margins). Mirrors the fresh opaque Show path
+// below; popupSurfaceColor resolves opaque from any palette (the lift
+// drops the tint alpha by construction).
+void convergePopupOpaqueFallback(QWidget *popup)
+{
+    const QColor surface = Private::popupSurfaceColor(popup->palette());
+    QPalette opaque = popup->palette();
+    opaque.setColor(QPalette::Window, surface);
+    opaque.setColor(QPalette::Base, surface);
+    popup->setPalette(opaque);
+    popup->setAutoFillBackground(true);
+    popup->setAttribute(Qt::WA_TranslucentBackground, false);
+    popup->setAttribute(Qt::WA_NoSystemBackground, false);
+    popup->setAttribute(Qt::WA_StyledBackground, false);
+    popup->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    popup->setProperty(effectiveBackdropProperty,
+                       static_cast<int>(BackdropSurface::Painted));
+    popup->update();
+}
+
 } // namespace WinUI3::Private
 
 namespace WinUI3::Private {
@@ -221,23 +244,34 @@ void preparePopupSurface(QWidget *widget)
                 bool granted = false;
                 if (keepPath) {
                     granted = WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic);
-                    // Definitive refusal (S_OK-with-value-!=3): clear the
-                    // grant and fall through to the retry below. An
-                    // unreadable Get keeps the HRESULT-based acceptance
-                    // above (Refused is false there by construction).
-                    if (granted && popupBackdropReadback(popup) == PopupBackdropReadback::Refused)
+                    // Definitive refusal (S_OK-with-value-!=3): converge to
+                    // the honest opaque fallback now (no translucent tint
+                    // over a white backing store meanwhile) and fall through
+                    // to the retry below. A later verified grant re-tints
+                    // through the fresh branch. An unreadable Get keeps the
+                    // HRESULT-based acceptance above (Refused is false there
+                    // by construction).
+                    if (granted && popupBackdropReadback(popup) == PopupBackdropReadback::Refused) {
                         granted = false;
+                        convergePopupOpaqueFallback(popup);
+                    }
                     popup->update();
                 } else if (WinUI3::applyBackdrop(popup, WinUI3::Backdrop::Acrylic)
                            && backdropEffectiveSurface(popup) == BackdropSurface::Composited) {
                     const PopupBackdropReadback readback = popupBackdropReadback(popup);
                     if (readback == PopupBackdropReadback::Refused) {
-                        // Definitive refusal: leave the opaque fallback the
-                        // refused branch converged on and retry below. The
+                        // Definitive refusal: converge to the honest opaque
+                        // fallback now (never the translucent tint over a
+                        // white backing store) and force compositedPopup off
+                        // so the tint branch below cannot re-apply it. The
                         // translucent re-tint runs only on a verified grant
                         // or an unreadable Get (which keeps the HRESULT
-                        // acceptance like the keep path above).
-                        popup->update();
+                        // acceptance like the keep path above). Retry below
+                        // for QMenu; combos re-attempt at their next Show
+                        // through the fresh path. (No compositedPopup flag
+                        // to clear here: the Show-time tint branch already
+                        // ran; the helper replaces its palette outright.)
+                        convergePopupOpaqueFallback(popup);
                     } else {
                         granted = true;
                         QPalette translucent = popup->palette();
@@ -257,6 +291,16 @@ void preparePopupSurface(QWidget *widget)
                     popup->update();
                 }
                 if (granted || attempt + 1 >= rearmMaxAttempts) {
+                    if (!granted && popupBackdropReadback(popup) == PopupBackdropReadback::Refused) {
+                        // Durable refusal: the cached Composited property
+                        // would otherwise lie at every later Show (light
+                        // bands over a white backing store). Converge to
+                        // the honest opaque fallback; the next Show retries
+                        // the grant through the fresh path. Unknown (failed
+                        // Get) keeps the acceptance: DWM may still hold the
+                        // effect, and tearing down a live grant flashes.
+                        convergePopupOpaqueFallback(popup);
+                    }
                     popup->setProperty("_winui_backdrop_rearm", {});
                     popup->setProperty(rearmAttemptsProperty, {});
                     return;

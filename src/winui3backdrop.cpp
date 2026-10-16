@@ -126,8 +126,23 @@ bool popupBackdropGrantAlive(QWidget *window)
     if (!nativeWindow || !nativeWindow->handle()
         || !IsWindow(reinterpret_cast<HWND>(window->internalWinId())))
         return false;
+    if (backdropEffectiveSurface(window) != BackdropSurface::Composited)
+        return false;
+    // The published property can outlive a silently revoked DWM effect
+    // (S_OK-with-ignored-value at Show dispatch, hide-time teardown): the
+    // re-show would then keep the translucent tint over a white backing
+    // store. Confirm with the live DWM readback; a definitive refusal
+    // means the grant is dead. An unreadable Get (transient Show-dispatch
+    // state) is not evidence either way: keep the property acceptance.
     const HWND hwnd = reinterpret_cast<HWND>(nativeWindow->winId());
-    return IsWindow(hwnd) && backdropEffectiveSurface(window) == BackdropSurface::Composited;
+    if (!IsWindow(hwnd))
+        return false;
+    constexpr DWORD systemBackdropAttribute = 38;
+    constexpr DWORD transientWindowValue = 3; // DWMSBT_TRANSIENTWINDOW.
+    DWORD value = 0;
+    if (FAILED(DwmGetWindowAttribute(hwnd, systemBackdropAttribute, &value, sizeof(value))))
+        return true;
+    return value == transientWindowValue;
 #else
     Q_UNUSED(window)
     return false;
