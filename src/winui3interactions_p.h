@@ -82,6 +82,14 @@ public:
 
 private:
     void cancelComboPress(QComboBox *combo, bool releaseMouse);
+    // R1 pointer group: one handler per pointer event type, extracted from
+    // the eventFilter switch by pure code motion. Each returns true when the
+    // event is consumed, false to let Qt continue the dispatch.
+    bool handleEnter(QWidget *widget);
+    bool handleLeave(QWidget *widget);
+    bool handleMousePress(QWidget *widget, QEvent *event);
+    bool handleMouseMove(QWidget *widget, QEvent *event);
+    bool handleMouseRelease(QWidget *widget, QEvent *event);
 
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;

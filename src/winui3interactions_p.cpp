@@ -282,6 +282,243 @@ void StyleInteractionController::cancelComboPress(QComboBox *combo, bool release
     m_callbacks.releaseComboChevron(combo);
 }
 
+bool StyleInteractionController::handleEnter(QWidget *widget)
+{
+    if (!widget->isEnabled()) {
+        m_callbacks.clearPointerInteraction(widget);
+        widget->update();
+        return false;
+    }
+    if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
+        const int generation =
+                framePropertyRegistry().value(widget, scrollBarGenerationProperty).toInt() + 1;
+        framePropertyRegistry().set(widget, scrollBarInsideProperty, true);
+        framePropertyRegistry().set(widget, scrollBarGenerationProperty, generation);
+        if (!Style::animationsAllowed()) {
+            m_callbacks.cancelScrollBarTimer(scrollBar);
+            m_callbacks.animate(widget, hoverProperty, 1.0, 0);
+        } else if (progress(widget, hoverProperty) > 0.001) {
+            // Re-entering during contraction reverses from the current
+            // thickness immediately. Waiting for a fresh 400 ms reveal
+            // would make the thumb disappear under a stationary pointer.
+            m_callbacks.cancelScrollBarTimer(scrollBar);
+            m_callbacks.animate(widget, hoverProperty, 1.0, FastDuration);
+        } else {
+            m_callbacks.scheduleScrollBar(scrollBar, 400);
+        }
+    } else {
+        m_callbacks.animate(widget, hoverProperty, 1.0,
+                            interactionDuration(widget, InteractionMotion::Hover, true));
+    }
+    return false;
+}
+
+bool StyleInteractionController::handleLeave(QWidget *widget)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        // A stolen mouse grab (context menu, modal loop) loses the
+        // release that would normally end the press, leaving underMouse
+        // stuck: every later paint then falls back to a permanent hover.
+        // A Leave means the pointer is genuinely elsewhere, so cancel
+        // the pending press here instead of leaving its surface and
+        // chevron stuck. With a live grab no Leave arrives, so a
+        // legitimate hold-drag is unaffected. Only ever release our own
+        // grab (never another widget's): a persistently held grab keeps
+        // Qt's underMouse stuck true, which freezes the hover fallback
+        // even after every frame has settled to zero.
+        cancelComboPress(combo, QWidget::mouseGrabber() == combo);
+    }
+    if (!widget->isEnabled()) {
+        m_callbacks.clearPointerInteraction(widget);
+        widget->update();
+        return false;
+    }
+    if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
+        const int generation =
+                framePropertyRegistry().value(widget, scrollBarGenerationProperty).toInt() + 1;
+        framePropertyRegistry().set(widget, scrollBarInsideProperty, false);
+        framePropertyRegistry().set(widget, scrollBarGenerationProperty, generation);
+        if (!Style::animationsAllowed()) {
+            m_callbacks.cancelScrollBarTimer(scrollBar);
+            m_callbacks.animate(widget, hoverProperty, 0.0, 0);
+        } else {
+            m_callbacks.scheduleScrollBar(scrollBar, 500);
+        }
+    } else {
+        m_callbacks.animate(widget, hoverProperty, 0.0,
+                            interactionDuration(widget, InteractionMotion::Hover, false));
+    }
+    if (buttonPressPulse(widget))
+        m_callbacks.cancelButtonPress(widget);
+    else
+        m_callbacks.animate(widget, pressProperty, 0.0,
+                            interactionDuration(widget, InteractionMotion::Press, false));
+    return false;
+}
+
+bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event)
+{
+    *m_callbacks.keyboardInput = false;
+    framePropertyRegistry().set(widget, focusVisibleProperty, false);
+    if (!widget->isEnabled()) {
+        m_callbacks.clearPointerInteraction(widget);
+        widget->update();
+        return false;
+    }
+    if (auto *viewport = qobject_cast<QAbstractItemView *>(widget->parentWidget());
+        viewport && viewport->viewport() == widget) {
+        framePropertyRegistry().set(viewport, focusVisibleProperty, false);
+        viewport->viewport()->update();
+    }
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() == Qt::LeftButton
+            && comboPressOpensPopup(combo, mousePositionPoint(mouse))) {
+            // QComboBox's platform-independent default opens its popup
+            // from mousePressEvent. WinUI opens on release, so consume
+            // this press and keep a grab until release. The grab is
+            // important when the pointer leaves the combo: Qt will then
+            // still deliver the release here and we can correctly cancel
+            // instead of opening a popup at an unrelated target.
+            m_comboPressStates.insert(combo);
+            combo->grabMouse();
+            m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
+            m_callbacks.animate(combo, pressProperty, 1.0,
+                                interactionDuration(combo, InteractionMotion::Press, true));
+            return true;
+        }
+    }
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
+        checkBox && toggleSwitch(checkBox)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() == Qt::LeftButton) {
+            const QRect track = toggleTrackRect(checkBox->rect(), checkBox->layoutDirection());
+            ToggleDragState state;
+            state.pressPosition = mousePositionPoint(mouse);
+            state.candidate = track.contains(state.pressPosition);
+            m_callbacks.toggleDragStates->insert(checkBox, state);
+        }
+    }
+    if (auto *slider = qobject_cast<QSlider *>(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() == Qt::LeftButton && slider->isEnabled())
+            m_callbacks.scheduleSliderToolTip(slider);
+    }
+    if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton)
+        return false;
+    if (buttonPressPulse(widget))
+        m_callbacks.beginButtonPress(widget);
+    else
+        m_callbacks.animate(widget, pressProperty, 1.0,
+                            interactionDuration(widget, InteractionMotion::Press, true));
+    return false;
+}
+
+bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
+{
+    if (auto *slider = qobject_cast<QSlider *>(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if ((mouse->buttons() & Qt::LeftButton) && slider->isEnabled())
+            m_callbacks.scheduleSliderToolTip(slider);
+    }
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
+        checkBox && toggleSwitch(checkBox)) {
+        auto state = m_callbacks.toggleDragStates->find(checkBox);
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (state != m_callbacks.toggleDragStates->end() && state->candidate
+            && (mouse->buttons() & Qt::LeftButton)) {
+            if (!state->dragging
+                && (mousePositionPoint(mouse) - state->pressPosition).manhattanLength()
+                        >= QApplication::startDragDistance()) {
+                state->dragging = true;
+                framePropertyRegistry().set(checkBox, toggleDraggingProperty, true);
+            }
+            if (state->dragging) {
+                qreal position;
+                if (checkBox->layoutDirection() == Qt::RightToLeft)
+                    position =
+                            (checkBox->rect().right() - 10.0 - mousePosition(mouse).x()) / 20.0;
+                else
+                    position =
+                            (mousePosition(mouse).x() - checkBox->rect().left() - 10.0) / 20.0;
+                framePropertyRegistry().set(checkBox, togglePositionProperty,
+                                            qBound<qreal>(0.0, position, 1.0));
+                checkBox->update();
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *event)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        auto pending = m_comboPressStates.find(combo);
+        if (pending != m_comboPressStates.end()
+            && static_cast<const QMouseEvent *>(event)->button() == Qt::LeftButton) {
+            const QPoint position = mousePositionPoint(static_cast<const QMouseEvent *>(event));
+            m_comboPressStates.erase(pending);
+            combo->releaseMouse();
+            const bool activate = combo->rect().contains(position);
+            m_callbacks.animate(combo, pressProperty, 0.0,
+                                interactionDuration(combo, InteractionMotion::Press, false));
+            if (activate) {
+                // Prepare the first selected row immediately before the
+                // release-triggered popup is shown. This keeps Qt's
+                // keyboard/programmatic path unchanged and avoids a
+                // visible press-time popup/layout pass.
+                m_callbacks.prepareComboPopupFirstFrame(combo);
+                combo->showPopup();
+            }
+            m_callbacks.releaseComboChevron(combo);
+            return true;
+        }
+    }
+    if (!widget->isEnabled()) {
+        m_callbacks.clearPointerInteraction(widget);
+        widget->update();
+        return false;
+    }
+    if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton) {
+        if (auto *slider = qobject_cast<QSlider *>(widget)) {
+            m_callbacks.cancelSliderToolTip(slider);
+            hideSliderValueToolTip(slider);
+        }
+        return false;
+    }
+    if (auto *slider = qobject_cast<QSlider *>(widget)) {
+        m_callbacks.cancelSliderToolTip(slider);
+        hideSliderValueToolTip(slider);
+    }
+    if (qobject_cast<QComboBox *>(widget))
+        m_callbacks.releaseComboChevron(widget);
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
+        checkBox && toggleSwitch(checkBox)) {
+        const auto state = m_callbacks.toggleDragStates->take(checkBox);
+        if (state.dragging) {
+            const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
+            framePropertyRegistry().set(checkBox, toggleDraggingProperty, false);
+            checkBox->setDown(false);
+            Q_EMIT checkBox->released();
+            if (checkBox->isChecked() != checked)
+                checkBox->setChecked(checked);
+            else
+                m_callbacks.animate(checkBox, togglePositionProperty, checked ? 1.0 : 0.0,
+                                    FasterDuration);
+            Q_EMIT checkBox->clicked(checkBox->isChecked());
+            m_callbacks.animate(checkBox, pressProperty, 0.0, FasterDuration);
+            return true;
+        }
+    }
+    if (buttonPressPulse(widget))
+        m_callbacks.releaseButtonPress(widget);
+    else
+        m_callbacks.animate(widget, pressProperty, 0.0,
+                            interactionDuration(widget, InteractionMotion::Press, false));
+    return false;
+}
+
 bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
 {
     auto *widget = qobject_cast<QWidget *>(watched);
@@ -363,227 +600,15 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
             m_callbacks.refreshProgressTimer();
         break;
     case QEvent::Enter:
-        if (!widget->isEnabled()) {
-            m_callbacks.clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation =
-                    framePropertyRegistry().value(widget, scrollBarGenerationProperty).toInt() + 1;
-            framePropertyRegistry().set(widget, scrollBarInsideProperty, true);
-            framePropertyRegistry().set(widget, scrollBarGenerationProperty, generation);
-            if (!Style::animationsAllowed()) {
-                m_callbacks.cancelScrollBarTimer(scrollBar);
-                m_callbacks.animate(widget, hoverProperty, 1.0, 0);
-            } else if (progress(widget, hoverProperty) > 0.001) {
-                // Re-entering during contraction reverses from the current
-                // thickness immediately. Waiting for a fresh 400 ms reveal
-                // would make the thumb disappear under a stationary pointer.
-                m_callbacks.cancelScrollBarTimer(scrollBar);
-                m_callbacks.animate(widget, hoverProperty, 1.0, FastDuration);
-            } else {
-                m_callbacks.scheduleScrollBar(scrollBar, 400);
-            }
-        } else {
-            m_callbacks.animate(widget, hoverProperty, 1.0,
-                                interactionDuration(widget, InteractionMotion::Hover, true));
-        }
-        break;
+        return handleEnter(widget);
     case QEvent::Leave:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            // A stolen mouse grab (context menu, modal loop) loses the
-            // release that would normally end the press, leaving underMouse
-            // stuck: every later paint then falls back to a permanent hover.
-            // A Leave means the pointer is genuinely elsewhere, so cancel
-            // the pending press here instead of leaving its surface and
-            // chevron stuck. With a live grab no Leave arrives, so a
-            // legitimate hold-drag is unaffected. Only ever release our own
-            // grab (never another widget's): a persistently held grab keeps
-            // Qt's underMouse stuck true, which freezes the hover fallback
-            // even after every frame has settled to zero.
-            cancelComboPress(combo, QWidget::mouseGrabber() == combo);
-        }
-        if (!widget->isEnabled()) {
-            m_callbacks.clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (auto *scrollBar = qobject_cast<QScrollBar *>(widget)) {
-            const int generation =
-                    framePropertyRegistry().value(widget, scrollBarGenerationProperty).toInt() + 1;
-            framePropertyRegistry().set(widget, scrollBarInsideProperty, false);
-            framePropertyRegistry().set(widget, scrollBarGenerationProperty, generation);
-            if (!Style::animationsAllowed()) {
-                m_callbacks.cancelScrollBarTimer(scrollBar);
-                m_callbacks.animate(widget, hoverProperty, 0.0, 0);
-            } else {
-                m_callbacks.scheduleScrollBar(scrollBar, 500);
-            }
-        } else {
-            m_callbacks.animate(widget, hoverProperty, 0.0,
-                                interactionDuration(widget, InteractionMotion::Hover, false));
-        }
-        if (buttonPressPulse(widget))
-            m_callbacks.cancelButtonPress(widget);
-        else
-            m_callbacks.animate(widget, pressProperty, 0.0,
-                                interactionDuration(widget, InteractionMotion::Press, false));
-        break;
+        return handleLeave(widget);
     case QEvent::MouseButtonPress:
-        *m_callbacks.keyboardInput = false;
-        framePropertyRegistry().set(widget, focusVisibleProperty, false);
-        if (!widget->isEnabled()) {
-            m_callbacks.clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (auto *viewport = qobject_cast<QAbstractItemView *>(widget->parentWidget());
-            viewport && viewport->viewport() == widget) {
-            framePropertyRegistry().set(viewport, focusVisibleProperty, false);
-            viewport->viewport()->update();
-        }
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton
-                && comboPressOpensPopup(combo, mousePositionPoint(mouse))) {
-                // QComboBox's platform-independent default opens its popup
-                // from mousePressEvent. WinUI opens on release, so consume
-                // this press and keep a grab until release. The grab is
-                // important when the pointer leaves the combo: Qt will then
-                // still deliver the release here and we can correctly cancel
-                // instead of opening a popup at an unrelated target.
-                m_comboPressStates.insert(combo);
-                combo->grabMouse();
-                m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
-                m_callbacks.animate(combo, pressProperty, 1.0,
-                                    interactionDuration(combo, InteractionMotion::Press, true));
-                return true;
-            }
-        }
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-            checkBox && toggleSwitch(checkBox)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton) {
-                const QRect track = toggleTrackRect(checkBox->rect(), checkBox->layoutDirection());
-                ToggleDragState state;
-                state.pressPosition = mousePositionPoint(mouse);
-                state.candidate = track.contains(state.pressPosition);
-                m_callbacks.toggleDragStates->insert(checkBox, state);
-            }
-        }
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (mouse->button() == Qt::LeftButton && slider->isEnabled())
-                m_callbacks.scheduleSliderToolTip(slider);
-        }
-        if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton)
-            break;
-        if (buttonPressPulse(widget))
-            m_callbacks.beginButtonPress(widget);
-        else
-            m_callbacks.animate(widget, pressProperty, 1.0,
-                                interactionDuration(widget, InteractionMotion::Press, true));
-        break;
+        return handleMousePress(widget, event);
     case QEvent::MouseMove:
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if ((mouse->buttons() & Qt::LeftButton) && slider->isEnabled())
-                m_callbacks.scheduleSliderToolTip(slider);
-        }
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-            checkBox && toggleSwitch(checkBox)) {
-            auto state = m_callbacks.toggleDragStates->find(checkBox);
-            const auto *mouse = static_cast<QMouseEvent *>(event);
-            if (state != m_callbacks.toggleDragStates->end() && state->candidate
-                && (mouse->buttons() & Qt::LeftButton)) {
-                if (!state->dragging
-                    && (mousePositionPoint(mouse) - state->pressPosition).manhattanLength()
-                            >= QApplication::startDragDistance()) {
-                    state->dragging = true;
-                    framePropertyRegistry().set(checkBox, toggleDraggingProperty, true);
-                }
-                if (state->dragging) {
-                    qreal position;
-                    if (checkBox->layoutDirection() == Qt::RightToLeft)
-                        position =
-                                (checkBox->rect().right() - 10.0 - mousePosition(mouse).x()) / 20.0;
-                    else
-                        position =
-                                (mousePosition(mouse).x() - checkBox->rect().left() - 10.0) / 20.0;
-                    framePropertyRegistry().set(checkBox, togglePositionProperty,
-                                                qBound<qreal>(0.0, position, 1.0));
-                    checkBox->update();
-                    return true;
-                }
-            }
-        }
-        break;
+        return handleMouseMove(widget, event);
     case QEvent::MouseButtonRelease:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            auto pending = m_comboPressStates.find(combo);
-            if (pending != m_comboPressStates.end()
-                && static_cast<const QMouseEvent *>(event)->button() == Qt::LeftButton) {
-                const QPoint position = mousePositionPoint(static_cast<const QMouseEvent *>(event));
-                m_comboPressStates.erase(pending);
-                combo->releaseMouse();
-                const bool activate = combo->rect().contains(position);
-                m_callbacks.animate(combo, pressProperty, 0.0,
-                                    interactionDuration(combo, InteractionMotion::Press, false));
-                if (activate) {
-                    // Prepare the first selected row immediately before the
-                    // release-triggered popup is shown. This keeps Qt's
-                    // keyboard/programmatic path unchanged and avoids a
-                    // visible press-time popup/layout pass.
-                    m_callbacks.prepareComboPopupFirstFrame(combo);
-                    combo->showPopup();
-                }
-                m_callbacks.releaseComboChevron(combo);
-                return true;
-            }
-        }
-        if (!widget->isEnabled()) {
-            m_callbacks.clearPointerInteraction(widget);
-            widget->update();
-            break;
-        }
-        if (static_cast<const QMouseEvent *>(event)->button() != Qt::LeftButton) {
-            if (auto *slider = qobject_cast<QSlider *>(widget)) {
-                m_callbacks.cancelSliderToolTip(slider);
-                hideSliderValueToolTip(slider);
-            }
-            break;
-        }
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            m_callbacks.cancelSliderToolTip(slider);
-            hideSliderValueToolTip(slider);
-        }
-        if (qobject_cast<QComboBox *>(widget))
-            m_callbacks.releaseComboChevron(widget);
-        if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-            checkBox && toggleSwitch(checkBox)) {
-            const auto state = m_callbacks.toggleDragStates->take(checkBox);
-            if (state.dragging) {
-                const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
-                framePropertyRegistry().set(checkBox, toggleDraggingProperty, false);
-                checkBox->setDown(false);
-                Q_EMIT checkBox->released();
-                if (checkBox->isChecked() != checked)
-                    checkBox->setChecked(checked);
-                else
-                    m_callbacks.animate(checkBox, togglePositionProperty, checked ? 1.0 : 0.0,
-                                        FasterDuration);
-                Q_EMIT checkBox->clicked(checkBox->isChecked());
-                m_callbacks.animate(checkBox, pressProperty, 0.0, FasterDuration);
-                return true;
-            }
-        }
-        if (buttonPressPulse(widget))
-            m_callbacks.releaseButtonPress(widget);
-        else
-            m_callbacks.animate(widget, pressProperty, 0.0,
-                                interactionDuration(widget, InteractionMotion::Press, false));
-        break;
+        return handleMouseRelease(widget, event);
     case QEvent::FocusIn:
         if (const auto *focus = static_cast<QFocusEvent *>(event)) {
             const bool keyboard = focus->reason() == Qt::TabFocusReason
