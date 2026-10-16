@@ -2,6 +2,7 @@
 # kept identical so the DPI reruns below keep addressing tests by function name.
 set(_winui3style_split_tests
     winui3style_buttons_tests tst_winui3buttons.cpp
+    winui3style_buttonpress_tests tst_winui3buttonpress.cpp
     winui3style_toggles_tests tst_winui3toggles.cpp
     winui3style_views_tests tst_winui3views.cpp
     winui3style_menus_tests tst_winui3menus.cpp
@@ -294,6 +295,7 @@ endif()
 if(WIN32 AND NOT WINUI3STYLE_STATIC)
     set(_winui3style_linked_test_targets
         winui3style_buttons_tests
+        winui3style_buttonpress_tests
         winui3style_toggles_tests
         winui3style_views_tests
         winui3style_menus_tests
@@ -337,6 +339,7 @@ endif()
 # from an outer test runner or developer shell.
 foreach(_split_target IN ITEMS
         winui3style_buttons_tests
+        winui3style_buttonpress_tests
         winui3style_toggles_tests
         winui3style_views_tests
         winui3style_menus_tests
@@ -414,7 +417,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons toggles views menus editors combobox surfaces interaction animatedstack settings navigation micabackdrop micatheme micacard galleryprobe)
+foreach(_suffix IN ITEMS buttons buttonpress toggles views menus editors combobox surfaces interaction animatedstack settings navigation micabackdrop micatheme micacard galleryprobe)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )
