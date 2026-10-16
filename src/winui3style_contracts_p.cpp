@@ -89,6 +89,173 @@ int pixelMetric(const Style *style, QStyle::PixelMetric metric, const QStyleOpti
     return style->QProxyStyle::pixelMetric(metric, option, widget);
 }
 
+// Contents-size handlers: one per CT_* kind, extracted from the
+// sizeFromContents switch by pure code motion. Each takes the running size
+// and returns the adjusted hint (early geometry returns become plain
+// returns); the switch only dispatches.
+static QSize pushButtonSize(const QStyleOption *option, QSize size,
+                            const QWidget *widget, const DensityMetrics &density)
+{
+    if (const auto *command = qobject_cast<const QCommandLinkButton *>(widget)) {
+        QFont titleFont = command->font();
+        titleFont.setWeight(QFont::DemiBold);
+        const int textWidth =
+                qMax(QFontMetrics(titleFont).horizontalAdvance(command->text()),
+                     command->fontMetrics().horizontalAdvance(command->description()));
+        size.setWidth(qMax(160, textWidth + 64));
+        size.setHeight(qMax(
+                64, QFontMetrics(titleFont).height() + command->fontMetrics().height() + 22));
+        return size;
+    }
+    size += QSize(2 * density.buttonHorizontalPadding, 2 * density.buttonVerticalPadding);
+    if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);
+        button && (button->features & QStyleOptionButton::HasMenu))
+        size.rwidth() += 22;
+    size.setWidth(qMax(size.width(), 32));
+    // Preserve the WinUI template for its default font, but an
+    // application-supplied larger font needs enough room for its ink.
+    size.setHeight(
+            qMax(density.buttonHeight,
+                 option ? option->fontMetrics.height() + 2 * density.buttonVerticalPadding
+                        : size.height()));
+    return size;
+}
+
+static QSize comboBoxSize(const QStyleOption *option, QSize size,
+                          const QWidget *widget, const DensityMetrics &density)
+{
+    if (densityModeFor(widget) == DensityMode::Compact) {
+        size.rwidth() += 2 * density.comboHorizontalPadding;
+        const int targetHeight = density.comboBoxHeight;
+        if (option
+            && (option->fontMetrics.height() + 2 * density.comboVerticalPadding
+                > targetHeight + 4))
+            size.setHeight(option->fontMetrics.height() + 2 * density.comboVerticalPadding);
+        else
+            size.setHeight(targetHeight);
+    } else {
+        // Preserve the established Standard geometry pixel-for-pixel.
+        size += QSize(2 * density.comboHorizontalPadding, 2 * density.comboVerticalPadding);
+        size.setHeight(
+                qMax(density.comboBoxHeight,
+                     option ? option->fontMetrics.height() + 2 * density.comboVerticalPadding
+                            : size.height()));
+    }
+    if (const auto *combo = qobject_cast<const QComboBox *>(widget);
+        combo && option && size.width() > 0) {
+        // The closed-label slot (SC_ComboBoxEditField) reserves the left
+        // padding plus the arrow slot, but sizeFromContents only sees
+        // the text extent Qt offers: live rasterization of the same
+        // item can exceed that extent ("Standard densi..."). Guarantee
+        // the slot covers the longest item: grow the hint when the
+        // offered text plus chrome exceeds it. An icon on any row
+        // reserves a 16 px slot plus an 8 px gap in the paint path
+        // (CE_ComboBoxLabel), so icon combos need that chrome too
+        // ("Docum..." live). First-open popup tests still guard the
+        // mapped metric after any sizeFromContents change
+        // (METHODOLOGY §1).
+        const QFontMetrics metrics(option->fontMetrics);
+        int longest = 0;
+        bool anyIcon = false;
+        for (int row = 0; row < combo->count(); ++row) {
+            longest = qMax(longest, metrics.horizontalAdvance(combo->itemText(row)));
+            anyIcon = anyIcon || !combo->itemIcon(row).isNull();
+        }
+        int need = longest + density.comboEditLeftPadding + density.comboArrowWidth;
+        if (anyIcon)
+            need += 16 + 8;
+        size.setWidth(qMax(size.width(), need));
+    }
+    size.setWidth(qMax(size.width(), 120));
+    return size;
+}
+
+static QSize lineEditSize(const QStyleOption *option, QSize size,
+                          const QWidget *widget, const DensityMetrics &density)
+{
+    if (densityModeFor(widget) == DensityMode::Compact) {
+        size.rwidth() += 2 * density.lineEditHorizontalPadding;
+        const int targetHeight = density.textBoxHeight;
+        if (option
+            && (option->fontMetrics.height() + 2 * density.lineEditVerticalPadding
+                > targetHeight + 4))
+            size.setHeight(option->fontMetrics.height() + 2 * density.lineEditVerticalPadding);
+        else
+            size.setHeight(targetHeight);
+    } else {
+        size += QSize(2 * density.lineEditHorizontalPadding,
+                      2 * density.lineEditVerticalPadding);
+        size.setHeight(
+                qMax(density.textBoxHeight,
+                     option ? option->fontMetrics.height() + 2 * density.lineEditVerticalPadding
+                            : size.height()));
+    }
+    return size;
+}
+
+static QSize spinBoxSize(const QStyleOption *option, QSize size,
+                         const QWidget *widget, const DensityMetrics &density)
+{
+    size += QSize(verticalSpinButtons(widget) ? density.verticalSpinButtonWidth + 12
+                                              : 2 * density.spinButtonWidth + 12,
+                  0);
+    if (densityModeFor(widget) == DensityMode::Compact) {
+        const int targetHeight = density.textBoxHeight;
+        if (option && (option->fontMetrics.height() + 8 > targetHeight + 4))
+            size.setHeight(option->fontMetrics.height() + 8);
+        else
+            size.setHeight(targetHeight);
+    } else {
+        size.setHeight(qMax(size.height(),
+                            qobject_cast<const QDateTimeEdit *>(widget)
+                                    ? density.textBoxHeight
+                                    : density.buttonHeight));
+    }
+    size.setWidth(qMax(size.width(), 120));
+    return size;
+}
+
+static QSize toolButtonSize(const QStyleOption *option, QSize size,
+                            const QWidget *widget, const DensityMetrics &density)
+{
+    if (textBoxHelperButton(widget)) {
+        // QLineEditIconButton is a private QToolButton.  Its geometry is
+        // used by QLineEdit to reserve the DeleteButton slot, so leaving
+        // the historical 30x32 helper size in Compact mode makes a
+        // 24px TextBox grow back to the Standard height.  Keep the
+        // established Standard slot byte-for-byte and compact both axes
+        // with the editor template.
+        if (densityModeFor(widget) == DensityMode::Compact)
+            return QSize(density.textBoxHeight, density.textBoxHeight);
+        return QSize(30, density.toolButtonHeight);
+    }
+    if (widget && qobject_cast<const QTabBar *>(widget->parentWidget()))
+        return QSize(density.tabCloseWidth, density.tabCloseHeight);
+    if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
+        const QFontMetrics metrics(tool->fontMetrics);
+        const int textWidth = metrics.horizontalAdvance(tool->text);
+        const int iconWidth = tool->icon.isNull()
+                ? 0
+                : (tool->iconSize.isValid() ? tool->iconSize.width() : 16);
+        if (const auto *toolButton = qobject_cast<const QToolButton *>(widget)) {
+            if (toolButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && textWidth > 0
+                && iconWidth > 0)
+                size.setWidth(qMax(size.width(), textWidth + iconWidth + 22));
+            else if (toolButton->toolButtonStyle() == Qt::ToolButtonTextOnly)
+                size.setWidth(qMax(size.width(), textWidth + 16));
+        }
+        if (tool->features & QStyleOptionToolButton::MenuButtonPopup)
+            size.rwidth() += density.toolButtonMenuWidth;
+    }
+    if (size.isEmpty())
+        size = QSize(20, 20);
+    size += QSize(2 * density.toolButtonHorizontalPadding,
+                  2 * density.toolButtonVerticalPadding);
+    size.setHeight(qMax(size.height(), density.toolButtonHeight));
+    size.setWidth(qMax(size.width(), density.toolButtonHeight));
+    return size;
+}
+
 QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QStyleOption *option,
                        const QSize &contentsSize, const QWidget *widget)
 {
@@ -96,147 +263,19 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
     QSize size = contentsSize;
     switch (type) {
     case QStyle::CT_PushButton:
-        if (const auto *command = qobject_cast<const QCommandLinkButton *>(widget)) {
-            QFont titleFont = command->font();
-            titleFont.setWeight(QFont::DemiBold);
-            const int textWidth =
-                    qMax(QFontMetrics(titleFont).horizontalAdvance(command->text()),
-                         command->fontMetrics().horizontalAdvance(command->description()));
-            size.setWidth(qMax(160, textWidth + 64));
-            size.setHeight(qMax(
-                    64, QFontMetrics(titleFont).height() + command->fontMetrics().height() + 22));
-            break;
-        }
-        size += QSize(2 * density.buttonHorizontalPadding, 2 * density.buttonVerticalPadding);
-        if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);
-            button && (button->features & QStyleOptionButton::HasMenu))
-            size.rwidth() += 22;
-        size.setWidth(qMax(size.width(), 32));
-        // Preserve the WinUI template for its default font, but an
-        // application-supplied larger font needs enough room for its ink.
-        size.setHeight(
-                qMax(density.buttonHeight,
-                     option ? option->fontMetrics.height() + 2 * density.buttonVerticalPadding
-                            : size.height()));
+        size = pushButtonSize(option, size, widget, density);
         break;
     case QStyle::CT_ComboBox:
-        if (densityModeFor(widget) == DensityMode::Compact) {
-            size.rwidth() += 2 * density.comboHorizontalPadding;
-            const int targetHeight = density.comboBoxHeight;
-            if (option
-                && (option->fontMetrics.height() + 2 * density.comboVerticalPadding
-                    > targetHeight + 4))
-                size.setHeight(option->fontMetrics.height() + 2 * density.comboVerticalPadding);
-            else
-                size.setHeight(targetHeight);
-        } else {
-            // Preserve the established Standard geometry pixel-for-pixel.
-            size += QSize(2 * density.comboHorizontalPadding, 2 * density.comboVerticalPadding);
-            size.setHeight(
-                    qMax(density.comboBoxHeight,
-                         option ? option->fontMetrics.height() + 2 * density.comboVerticalPadding
-                                : size.height()));
-        }
-        if (const auto *combo = qobject_cast<const QComboBox *>(widget);
-            combo && option && size.width() > 0) {
-            // The closed-label slot (SC_ComboBoxEditField) reserves the left
-            // padding plus the arrow slot, but sizeFromContents only sees
-            // the text extent Qt offers: live rasterization of the same
-            // item can exceed that extent ("Standard densi..."). Guarantee
-            // the slot covers the longest item: grow the hint when the
-            // offered text plus chrome exceeds it. An icon on any row
-            // reserves a 16 px slot plus an 8 px gap in the paint path
-            // (CE_ComboBoxLabel), so icon combos need that chrome too
-            // ("Docum..." live). First-open popup tests still guard the
-            // mapped metric after any sizeFromContents change
-            // (METHODOLOGY §1).
-            const QFontMetrics metrics(option->fontMetrics);
-            int longest = 0;
-            bool anyIcon = false;
-            for (int row = 0; row < combo->count(); ++row) {
-                longest = qMax(longest, metrics.horizontalAdvance(combo->itemText(row)));
-                anyIcon = anyIcon || !combo->itemIcon(row).isNull();
-            }
-            int need = longest + density.comboEditLeftPadding + density.comboArrowWidth;
-            if (anyIcon)
-                need += 16 + 8;
-            size.setWidth(qMax(size.width(), need));
-        }
-        size.setWidth(qMax(size.width(), 120));
+        size = comboBoxSize(option, size, widget, density);
         break;
     case QStyle::CT_LineEdit:
-        if (densityModeFor(widget) == DensityMode::Compact) {
-            size.rwidth() += 2 * density.lineEditHorizontalPadding;
-            const int targetHeight = density.textBoxHeight;
-            if (option
-                && (option->fontMetrics.height() + 2 * density.lineEditVerticalPadding
-                    > targetHeight + 4))
-                size.setHeight(option->fontMetrics.height() + 2 * density.lineEditVerticalPadding);
-            else
-                size.setHeight(targetHeight);
-        } else {
-            size += QSize(2 * density.lineEditHorizontalPadding,
-                          2 * density.lineEditVerticalPadding);
-            size.setHeight(
-                    qMax(density.textBoxHeight,
-                         option ? option->fontMetrics.height() + 2 * density.lineEditVerticalPadding
-                                : size.height()));
-        }
+        size = lineEditSize(option, size, widget, density);
         break;
     case QStyle::CT_SpinBox:
-        size += QSize(verticalSpinButtons(widget) ? density.verticalSpinButtonWidth + 12
-                                                  : 2 * density.spinButtonWidth + 12,
-                      0);
-        if (densityModeFor(widget) == DensityMode::Compact) {
-            const int targetHeight = density.textBoxHeight;
-            if (option && (option->fontMetrics.height() + 8 > targetHeight + 4))
-                size.setHeight(option->fontMetrics.height() + 8);
-            else
-                size.setHeight(targetHeight);
-        } else {
-            size.setHeight(qMax(size.height(),
-                                qobject_cast<const QDateTimeEdit *>(widget)
-                                        ? density.textBoxHeight
-                                        : density.buttonHeight));
-        }
-        size.setWidth(qMax(size.width(), 120));
+        size = spinBoxSize(option, size, widget, density);
         break;
     case QStyle::CT_ToolButton:
-        if (textBoxHelperButton(widget)) {
-            // QLineEditIconButton is a private QToolButton.  Its geometry is
-            // used by QLineEdit to reserve the DeleteButton slot, so leaving
-            // the historical 30x32 helper size in Compact mode makes a
-            // 24px TextBox grow back to the Standard height.  Keep the
-            // established Standard slot byte-for-byte and compact both axes
-            // with the editor template.
-            if (densityModeFor(widget) == DensityMode::Compact)
-                return QSize(density.textBoxHeight, density.textBoxHeight);
-            return QSize(30, density.toolButtonHeight);
-        }
-        if (widget && qobject_cast<const QTabBar *>(widget->parentWidget()))
-            return QSize(density.tabCloseWidth, density.tabCloseHeight);
-        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
-            const QFontMetrics metrics(tool->fontMetrics);
-            const int textWidth = metrics.horizontalAdvance(tool->text);
-            const int iconWidth = tool->icon.isNull()
-                    ? 0
-                    : (tool->iconSize.isValid() ? tool->iconSize.width() : 16);
-            if (const auto *toolButton = qobject_cast<const QToolButton *>(widget)) {
-                if (toolButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && textWidth > 0
-                    && iconWidth > 0)
-                    size.setWidth(qMax(size.width(), textWidth + iconWidth + 22));
-                else if (toolButton->toolButtonStyle() == Qt::ToolButtonTextOnly)
-                    size.setWidth(qMax(size.width(), textWidth + 16));
-            }
-            if (tool->features & QStyleOptionToolButton::MenuButtonPopup)
-                size.rwidth() += density.toolButtonMenuWidth;
-        }
-        if (size.isEmpty())
-            size = QSize(20, 20);
-        size += QSize(2 * density.toolButtonHorizontalPadding,
-                      2 * density.toolButtonVerticalPadding);
-        size.setHeight(qMax(size.height(), density.toolButtonHeight));
-        size.setWidth(qMax(size.width(), density.toolButtonHeight));
+        size = toolButtonSize(option, size, widget, density);
         break;
     case QStyle::CT_MenuBarItem:
         size = contentsSize
