@@ -1,0 +1,564 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// SettingsCard interaction contracts: expansion, designer bindings,
+// trailing-widget clicks/height, chevron/header stability, load
+// performance, expansion inside a scrolling page. Split out of
+// tst_winui3interaction.cpp per the 60 KB test-size ratchet (S6 follow-up);
+// test-function names kept identical so the DPI reruns in
+// tests/CMakeLists.txt keep working. settingsCardInteractiveFrames stays in
+// the interaction binary: it is DPI-pinned there. Every
+// grab()/pixelColor() assertion pairs with a QCOMPARE token/geometry
+// assertion on the same state.
+#include <winui3style/navigationview.h>
+#include <winui3style/settingscard.h>
+#include <winui3style/toggleswitch.h>
+#include <winui3style/winui3backdrop.h>
+#include <winui3style/winui3style.h>
+#include <winui3style/winui3icons.h>
+
+#include "../src/winui3frameproperties_p.h"
+#include "../src/winui3helpers_p.h"
+#include "../src/winui3style_properties_p.h"
+#include "../src/winui3tokens_p.h"
+
+#include <QLabel>
+#include <QListWidget>
+#include <QListView>
+#include <QLineEdit>
+#include <QAction>
+#include <QAbstractButton>
+#include <QAbstractItemView>
+#include <QAccessible>
+#include <QCheckBox>
+#include <QCalendarWidget>
+#include <QComboBox>
+#include <QCommandLinkButton>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QEvent>
+#include <QDockWidget>
+#include <QFocusEvent>
+#include <QFrame>
+#include <QMouseEvent>
+#include <QPlainTextEdit>
+#include <QGroupBox>
+#include <QHeaderView>
+#include <QImage>
+#include <QKeySequence>
+#include <QKeyEvent>
+#include <QMainWindow>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMessageBox>
+#include <QPainter>
+#include <QParallelAnimationGroup>
+#include <QPointer>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QScrollBar>
+#include <QScrollArea>
+#include <QSplitter>
+#include <QSignalSpy>
+#include <QSizeGrip>
+#include <QSpinBox>
+#include <QStatusBar>
+#include <QStyleFactory>
+#include <QStyleOptionGroupBox>
+#include <QStyleOptionButton>
+#include <QStyleOptionComboBox>
+#include <QStyleOptionHeader>
+#include <QStyleOptionMenuItem>
+#include <QStyleOptionSlider>
+#include <QStyleOptionSpinBox>
+#include <QStyleOptionTab>
+#include <QStyledItemDelegate>
+#include <QStyleOptionToolButton>
+#include <QSlider>
+#include <QTabBar>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QToolButton>
+#include <QToolBar>
+#include <QTimer>
+#include <QTest>
+#include <QTextEdit>
+#include <QTreeWidget>
+#include <QVariantAnimation>
+#include <QVBoxLayout>
+#include <QWizard>
+#include <QWizardPage>
+#include <QtMath>
+#include <QStandardItemModel>
+
+#include <cmath>
+#include <limits>
+
+#include "winui3testhelpers.h"
+
+class WinUI3SettingsCardTest final : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void initTestCase();
+    void init();
+    void cleanup();
+    void settingsCardExpansion();
+    void settingsCardDesignerPropertyBindings();
+    void settingsCardTrailingWidgetsReceiveClicks();
+    void settingsCardTrailingWidgetsHaveUniformHeight();
+    void settingsCardChevronAndStableHeader();
+    void settingsCardExpansionLoad();
+    void settingsCardExpansionInScrollingPage();
+};
+
+void WinUI3SettingsCardTest::initTestCase()
+{
+    qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+}
+
+void WinUI3SettingsCardTest::init()
+{
+    if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
+        style->setThemeMode(WinUI3::ThemeMode::Light);
+        style->setAccentColor({});
+    }
+}
+
+void WinUI3SettingsCardTest::cleanup()
+{
+    for (QWidget *widget : qApp->topLevelWidgets()) {
+        if (widget->windowType() == Qt::Popup || widget->windowType() == Qt::ToolTip)
+            widget->hide();
+        else
+            widget->close();
+    }
+    if (QWidget *focus = qApp->focusWidget())
+        focus->clearFocus();
+    qApp->processEvents();
+}
+
+void WinUI3SettingsCardTest::settingsCardExpansion()
+{
+    WinUI3::SettingsCard card;
+    card.setTitle(QStringLiteral("Advanced"));
+    card.setDescription(QStringLiteral("Description"));
+    card.setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    card.resize(420, card.sizeHint().height());
+    card.show();
+    QVERIFY(card.property(WinUI3::Style::SettingsCardProperty).toBool());
+    QSignalSpy spy(&card, &WinUI3::SettingsCard::expandedChanged);
+    QTest::mouseMove(&card, QPoint(20, 20));
+    QTest::mousePress(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
+    QTest::qWait(35);
+    const qreal pressed = frameReal(&card, "_winui_press_progress");
+    QVERIFY2(pressed > 0.0 && pressed < 1.0, qPrintable(QString::number(pressed)));
+    QTest::mouseRelease(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
+    QVERIFY(card.isExpanded());
+    QCOMPARE(spy.count(), 1);
+    QTest::qWait(280);
+    card.setExpanded(false);
+    QTest::qWait(90);
+    const qreal reverse = card.property("expansionProgress").toReal();
+    QVERIFY(reverse > 0.0 && reverse < 1.0);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
+}
+
+void WinUI3SettingsCardTest::settingsCardDesignerPropertyBindings()
+{
+    // This is the order generated by uic for a promoted custom widget:
+    // properties are applied before nested children are constructed. The
+    // string bridges must therefore resolve the controls after setupUi().
+    QWidget host;
+    auto *card = new WinUI3::SettingsCard(&host);
+    card->setObjectName(QStringLiteral("advancedCard"));
+    card->setIconName(QStringLiteral("Settings"));
+    card->setTrailingWidgetName(QStringLiteral("toggle"));
+    card->setExpandableWidgetName(QStringLiteral("details"));
+    card->setExpanded(false);
+    auto *toggle = new QCheckBox(card);
+    toggle->setObjectName(QStringLiteral("toggle"));
+    auto *details = new QLabel(QStringLiteral("Details"), card);
+    details->setObjectName(QStringLiteral("details"));
+    host.resize(560, 260);
+    host.show();
+    QTRY_COMPARE(card->trailingWidget(), static_cast<QWidget *>(toggle));
+    QTRY_COMPARE(card->expandableWidget(), static_cast<QWidget *>(details));
+    QVERIFY(!card->icon().isNull());
+
+    auto *header = card->findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
+    QVERIFY(header);
+    QTest::mouseClick(header, Qt::LeftButton, Qt::NoModifier, header->rect().center());
+    QTRY_VERIFY(card->isExpanded());
+    QVERIFY(details->isVisible());
+}
+
+void WinUI3SettingsCardTest::settingsCardTrailingWidgetsReceiveClicks()
+{
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+
+    auto *toggleCard = new WinUI3::SettingsCard;
+    toggleCard->setTitle(QStringLiteral("Notifications"));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    toggle->setChecked(true);
+    toggleCard->setTrailingWidget(toggle);
+    layout->addWidget(toggleCard);
+
+    auto *comboCard = new WinUI3::SettingsCard;
+    comboCard->setTitle(QStringLiteral("Updates"));
+    auto *combo = new QComboBox;
+    combo->addItems({ QStringLiteral("Automatic"), QStringLiteral("Manual") });
+    comboCard->setTrailingWidget(combo);
+    layout->addWidget(comboCard);
+
+    auto *expandableCard = new WinUI3::SettingsCard;
+    expandableCard->setTitle(QStringLiteral("Advanced"));
+    expandableCard->setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    layout->addWidget(expandableCard);
+
+    host.resize(560, host.sizeHint().height());
+    host.show();
+    QCoreApplication::processEvents();
+
+    const auto targetAt = [](QWidget *widget) {
+        return QApplication::widgetAt(widget->mapToGlobal(widget->rect().center()));
+    };
+
+    QWidget *toggleTarget = targetAt(toggle);
+    QVERIFY2(toggleTarget == toggle || toggle->isAncestorOf(toggleTarget),
+             "SettingsCard swallowed the trailing toggle hit area");
+    const QPoint togglePoint =
+            toggleTarget->mapFromGlobal(toggle->mapToGlobal(toggle->rect().center()));
+    QTest::mouseClick(toggleTarget, Qt::LeftButton, Qt::NoModifier, togglePoint);
+    QCOMPARE(toggle->isChecked(), false);
+
+    QWidget *comboTarget = targetAt(combo);
+    QVERIFY2(comboTarget == combo || combo->isAncestorOf(comboTarget),
+             "SettingsCard swallowed the trailing combo-box hit area");
+    const QPoint comboPoint =
+            comboTarget->mapFromGlobal(combo->mapToGlobal(combo->rect().center()));
+    QTest::mouseClick(comboTarget, Qt::LeftButton, Qt::NoModifier, comboPoint);
+    QTRY_VERIFY(combo->view()->isVisible());
+    combo->hidePopup();
+
+    auto *title = expandableCard->findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
+    QVERIFY(title);
+    QWidget *headerTarget = targetAt(title);
+    QVERIFY(headerTarget);
+    QTest::mouseClick(headerTarget, Qt::LeftButton, Qt::NoModifier,
+                      headerTarget->mapFromGlobal(title->mapToGlobal(title->rect().center())));
+    QCOMPARE(expandableCard->isExpanded(), true);
+}
+
+void WinUI3SettingsCardTest::settingsCardTrailingWidgetsHaveUniformHeight()
+{
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto *toggleCard = new WinUI3::SettingsCard;
+    toggleCard->setTitle(QStringLiteral("Notifications"));
+    toggleCard->setDescription(QStringLiteral("Show alerts and status messages"));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    toggleCard->setTrailingWidget(toggle);
+    layout->addWidget(toggleCard);
+
+    auto *comboCard = new WinUI3::SettingsCard;
+    comboCard->setTitle(QStringLiteral("Updates"));
+    comboCard->setDescription(QStringLiteral("Choose how updates are installed"));
+    auto *combo = new QComboBox;
+    combo->addItems(
+            { QStringLiteral("Automatic"), QStringLiteral("Notify me"), QStringLiteral("Manual") });
+    comboCard->setTrailingWidget(combo);
+    layout->addWidget(comboCard);
+
+    host.resize(560, host.sizeHint().height());
+    host.show();
+    QCoreApplication::processEvents();
+
+    QCOMPARE(toggleCard->height(), comboCard->height());
+    QCOMPARE(toggleCard->sizeHint().height(), comboCard->sizeHint().height());
+    QCOMPARE(toggleCard->minimumSizeHint().height(), comboCard->minimumSizeHint().height());
+}
+
+void WinUI3SettingsCardTest::settingsCardChevronAndStableHeader()
+{
+    WinUI3::SettingsCard card;
+    card.setTitle(QStringLiteral("Advanced settings"));
+    card.setDescription(
+            QStringLiteral("A description that remains in the same header while content expands."));
+    auto *trailing = new QLabel(QStringLiteral("On"));
+    card.setTrailingWidget(trailing);
+    card.setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    card.resize(460, card.sizeHint().height());
+    card.show();
+    QTRY_VERIFY(card.isVisible());
+
+    auto *headerHost = card.findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
+    auto *title = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
+    auto *chevron = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_chevron"));
+    QVERIFY(headerHost);
+    QVERIFY(title);
+    QVERIFY(chevron);
+    QVERIFY(chevron->isVisible());
+    const auto chevronRotation = [&] {
+        return chevron->property("_winui_settings_card_chevron_rotation").toReal();
+    };
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    QCOMPARE(chevronRotation(), 0.0);
+    const QRect chevronInCard(chevron->mapTo(&card, chevron->rect().topLeft()), chevron->size());
+    const QRect trailingInCard(trailing->mapTo(&card, trailing->rect().topLeft()),
+                               trailing->size());
+    QVERIFY(!chevronInCard.intersects(trailingInCard));
+
+    const QRect titleGeometry = title->geometry();
+    card.setExpanded(true);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.0);
+    QCOMPARE(title->geometry(), titleGeometry);
+
+    card.setLayoutDirection(Qt::RightToLeft);
+    // ChevronDown artwork rotates to 180 deg (no Up swap).
+    QTRY_COMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+                 static_cast<int>(WinUI3::Icon::ChevronDown));
+    QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
+    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0) < 0.01);
+    card.setExpanded(false);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
+    // Contract: collapsed 0 deg, expanded 180 deg.
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+             static_cast<int>(WinUI3::Icon::ChevronDown));
+    QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0) < 0.01);
+    QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.001);
+}
+
+void WinUI3SettingsCardTest::settingsCardExpansionLoad()
+{
+    const QList<int> cardCounts = { 1, 10, 50 };
+    int previousLayouts = 0;
+    int previousResizes = 0;
+    for (const int count : cardCounts) {
+        QWidget host;
+        host.resize(640, qMax(240, count * 56));
+        auto *layout = new QVBoxLayout(&host);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(2);
+        QVector<WinUI3::SettingsCard *> cards;
+        QVector<CountingHintWidget *> contents;
+        QVector<LayoutLifecycleProbe *> probes;
+        cards.reserve(count);
+        contents.reserve(count);
+        probes.reserve(count);
+
+        for (int i = 0; i < count; ++i) {
+            auto *card = new WinUI3::SettingsCard;
+            card->setTitle(QStringLiteral("Card %1").arg(i));
+            card->setDescription(
+                    QStringLiteral("A long description which exercises the stable header width "
+                                   "while the expandable content is resized."));
+            auto *content = new CountingHintWidget(QSize(320, 42 + (i % 4) * 7));
+            auto *probe = new LayoutLifecycleProbe;
+            card->installEventFilter(probe);
+            content->installEventFilter(probe);
+            card->setExpandableWidget(content);
+            layout->addWidget(card);
+            cards.append(card);
+            contents.append(content);
+            probes.append(probe);
+        }
+        host.show();
+        QCoreApplication::processEvents();
+
+        for (WinUI3::SettingsCard *card : cards)
+            card->setExpanded(true);
+        QCoreApplication::processEvents();
+        for (WinUI3::SettingsCard *card : cards) {
+            auto *animation = card->findChild<QVariantAnimation *>(
+                    QStringLiteral("_winui_settings_card_expansion_animation"));
+            QVERIFY(animation);
+            animation->setCurrentTime(animation->duration());
+        }
+        QCoreApplication::processEvents();
+
+        const int sizeHintsBeforeContentChange = contents.first()->sizeHintCalls;
+        contents.first()->m_hint = QSize(320, 96);
+        contents.first()->updateGeometry();
+        QCoreApplication::processEvents();
+        QVERIFY(contents.first()->sizeHintCalls > sizeHintsBeforeContentChange);
+        auto *expandedHost = cards.first()->findChild<QWidget *>(
+                QStringLiteral("_winui_settings_card_expandableHost"));
+        QVERIFY(expandedHost);
+        QCOMPARE(expandedHost->maximumHeight(), 112);
+
+        for (int i = 0; i < count; ++i) {
+            QVERIFY(cards.at(i)->isExpanded());
+            QVERIFY(cards.at(i)->property("expansionProgress").toReal() > 0.99);
+            QVERIFY(contents.at(i)->sizeHintCalls <= 4);
+            QVERIFY(probes.at(i)->layoutRequests <= 8);
+            QVERIFY(probes.at(i)->resizes <= 8);
+            QVERIFY(probes.at(i)->paints >= 0);
+        }
+
+        // Reversing and replacing content must not retain the old height or
+        // animation state. A direct animation clock advance keeps this a
+        // counter/invariant test rather than a wall-clock test.
+        cards.first()->setExpanded(false);
+        cards.first()->setExpanded(true);
+        auto *reversal = cards.first()->findChild<QVariantAnimation *>(
+                QStringLiteral("_winui_settings_card_expansion_animation"));
+        QVERIFY(reversal);
+        reversal->setCurrentTime(reversal->duration());
+        QVERIFY(cards.first()->isExpanded());
+        const int beforeReplacement = contents.first()->sizeHintCalls;
+        auto *replacement = new CountingHintWidget(QSize(320, 150));
+        cards.first()->setExpandableWidget(replacement);
+        QCOMPARE(cards.first()->isExpanded(), false);
+        QCOMPARE(cards.first()->property("expansionProgress").toReal(), 0.0);
+        auto *expandableHost = cards.first()->findChild<QWidget *>(
+                QStringLiteral("_winui_settings_card_expandableHost"));
+        QVERIFY(expandableHost);
+        QCOMPARE(expandableHost->maximumHeight(), 0);
+        QVERIFY(!expandableHost->isVisible());
+        cards.first()->setExpanded(true);
+        auto *replacementAnimation = cards.first()->findChild<QVariantAnimation *>(
+                QStringLiteral("_winui_settings_card_expansion_animation"));
+        QVERIFY(replacementAnimation);
+        replacementAnimation->setCurrentTime(replacementAnimation->duration());
+        QVERIFY(replacement->sizeHintCalls > 0);
+        QVERIFY(beforeReplacement >= 0);
+
+        int layouts = 0;
+        int resizes = 0;
+        for (LayoutLifecycleProbe *probe : probes) {
+            layouts += probe->layoutRequests;
+            resizes += probe->resizes;
+        }
+        if (count > 1) {
+            QVERIFY2(layouts <= previousLayouts * 6 + count * 4,
+                     qPrintable(QStringLiteral("layout requests grew superlinearly: %1 -> %2")
+                                        .arg(previousLayouts)
+                                        .arg(layouts)));
+            QVERIFY2(resizes <= previousResizes * 6 + count * 4,
+                     qPrintable(QStringLiteral("resizes grew superlinearly: %1 -> %2")
+                                        .arg(previousResizes)
+                                        .arg(resizes)));
+        }
+        previousLayouts = layouts;
+        previousResizes = resizes;
+
+        host.hide();
+        qDeleteAll(probes);
+    }
+}
+
+void WinUI3SettingsCardTest::settingsCardExpansionInScrollingPage()
+{
+    // Keep this composition identical to GalleryWindow::scrollingPage(): the
+    // expansion must not let the parent layout redistribute the already
+    // visible cards. Only Advanced's content host may grow downward.
+    auto *area = new QScrollArea;
+    area->setFrameShape(QFrame::NoFrame);
+    area->setWidgetResizable(true);
+    auto *body = new QWidget;
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(28, 20, 28, 28);
+    bodyLayout->setSpacing(16);
+    auto *heading = new QLabel(QStringLiteral("Settings"));
+    QFont headingFont = heading->font();
+    headingFont.setPixelSize(28);
+    headingFont.setWeight(QFont::DemiBold);
+    heading->setFont(headingFont);
+    bodyLayout->addWidget(heading);
+
+    auto *cardsLayout = new QVBoxLayout;
+    auto *notifications = new WinUI3::SettingsCard;
+    notifications->setTitle(QStringLiteral("Notifications"));
+    notifications->setDescription(QStringLiteral("Show alerts and status messages"));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    notifications->setTrailingWidget(toggle);
+    cardsLayout->addWidget(notifications);
+
+    auto *updates = new WinUI3::SettingsCard;
+    updates->setTitle(QStringLiteral("Updates"));
+    updates->setDescription(QStringLiteral("Choose how updates are installed"));
+    auto *combo = new QComboBox;
+    combo->addItems(
+            { QStringLiteral("Automatic"), QStringLiteral("Notify me"), QStringLiteral("Manual") });
+    updates->setTrailingWidget(combo);
+    cardsLayout->addWidget(updates);
+
+    auto *advanced = new WinUI3::SettingsCard;
+    advanced->setTitle(QStringLiteral("Advanced options"));
+    advanced->setDescription(QStringLiteral("Developer and diagnostic settings"));
+    auto *details = new QTextEdit;
+    details->setPlainText(QStringLiteral("Expanded settings content."));
+    details->setMaximumHeight(100);
+    advanced->setExpandableWidget(details);
+    cardsLayout->addWidget(advanced);
+    bodyLayout->addLayout(cardsLayout);
+    bodyLayout->addStretch();
+    area->setWidget(body);
+    // Initial content fits the viewport, while the expanded details force a
+    // vertical scrollbar; this is the transition that used to redistribute
+    // the card stack by a few pixels in the real gallery.
+    area->resize(900, 420);
+    area->show();
+    QCoreApplication::processEvents();
+    QVERIFY(!area->verticalScrollBar()->isVisible());
+
+    const QList<WinUI3::SettingsCard *> cards{ notifications, updates, advanced };
+    QVector<QRect> cardGeometries;
+    QVector<QRect> headerGeometries;
+    for (WinUI3::SettingsCard *card : cards) {
+        auto *header =
+                card->findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
+        QVERIFY(header);
+        QCOMPARE(card->height(), card->sizeHint().height());
+        cardGeometries.append(card->geometry());
+        headerGeometries.append(header->geometry());
+    }
+    const int advancedBottom = advanced->geometry().bottom();
+    const int advancedHeight = advanced->height();
+    advanced->setExpanded(true);
+    auto *animation = advanced->findChild<QVariantAnimation *>(
+            QStringLiteral("_winui_settings_card_expansion_animation"));
+    QVERIFY(animation);
+    animation->setCurrentTime(animation->duration() / 2);
+    QCoreApplication::processEvents();
+    QVERIFY(advanced->property("expansionProgress").toReal() > 0.0);
+    QVERIFY(advanced->property("expansionProgress").toReal() < 1.0);
+    QVERIFY(area->verticalScrollBar()->isVisible());
+    for (int i = 0; i < cards.size(); ++i) {
+        auto *header = cards.at(i)->findChild<QWidget *>(
+                QStringLiteral("_winui_settings_card_headerHost"));
+        QVERIFY(header);
+        if (i < 2) {
+            QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
+            QCOMPARE(header->geometry().top(), headerGeometries.at(i).top());
+        } else {
+            QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
+        }
+    }
+    QVERIFY(advanced->geometry().bottom() >= advancedBottom);
+    animation->setCurrentTime(animation->duration());
+    QCoreApplication::processEvents();
+    QCOMPARE(advanced->geometry().top(), cardGeometries.at(2).top());
+    QVERIFY(advanced->height() > advancedHeight);
+    for (int i = 0; i < 2; ++i) {
+        auto *header = cards.at(i)->findChild<QWidget *>(
+                QStringLiteral("_winui_settings_card_headerHost"));
+        QVERIFY(header);
+        QCOMPARE(cards.at(i)->geometry().top(), cardGeometries.at(i).top());
+        QCOMPARE(header->geometry().top(), headerGeometries.at(i).top());
+    }
+    area->hide();
+    delete area;
+}
+
+QTEST_MAIN(WinUI3SettingsCardTest)
+#include "tst_winui3settingscard.moc"
