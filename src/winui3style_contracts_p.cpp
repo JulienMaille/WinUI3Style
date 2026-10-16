@@ -256,6 +256,173 @@ static QSize toolButtonSize(const QStyleOption *option, QSize size,
     return size;
 }
 
+static QSize menuBarItemSize(QSize size, const DensityMetrics &density, const QSize &contentsSize)
+{
+    size = contentsSize
+            + QSize(2 * density.menuBarHorizontalPadding, 2 * density.menuBarVerticalPadding);
+    size.setHeight(qMax(size.height(), density.menuBarItemHeight));
+    return size;
+}
+
+static QSize tabBarTabSize(const QStyleOption *option, QSize size, const DensityMetrics &density)
+{
+    size += QSize(2 * density.tabHorizontalPadding, 2 * density.tabVerticalPadding);
+    size.setHeight(qMax(density.tabHeight,
+                        option ? option->fontMetrics.height() + 2 * density.tabVerticalPadding
+                               : size.height()));
+    size.setWidth(qBound(100, size.width(), 240));
+    return size;
+}
+
+static QSize menuItemSize(const Style *style, const QStyleOption *option, QSize size,
+                          const QWidget *widget, const DensityMetrics &density)
+{
+    if (const auto *menu = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
+        if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
+            size.setHeight(density.menuSeparatorHeight);
+            return size;
+        }
+        const QStringList parts = menu->text.split(QLatin1Char('\t'));
+        const QFontMetrics metrics(menu->font);
+        const int mainWidth = metrics.horizontalAdvance(parts.value(0));
+        const int shortcutWidth =
+                parts.size() > 1 ? metrics.horizontalAdvance(parts.value(1)) : 0;
+        const int trailing = menu->menuItemType == QStyleOptionMenuItem::SubMenu
+                ? density.toolButtonMenuWidth
+                : 0;
+        const bool comboItem = qobject_cast<const QComboBox *>(widget);
+        const int leading = comboItem && menu->icon.isNull() ? density.menuItemNoIconSlot
+                                                             : density.menuItemIconSlot;
+        const int requiredWidth = leading + mainWidth + 2 * density.menuItemHorizontalPadding
+                + trailing
+                + (shortcutWidth > 0 ? density.menuItemShortcutGap + shortcutWidth : 0);
+        size.setWidth(qMax(size.width(), qMax(requiredWidth, 120)));
+        size.setHeight(comboItem ? density.menuItemHeightInComboBox : density.menuItemHeight);
+        // Extension (not in WinUI Compact Sizing): Compact menu-popup rows
+        // shrink 36 -> 32 like list rows. Visible popups are resized to
+        // the new profile by the density invalidation below.
+        if (!comboItem && densityMetricsFor(widget, style).menuBarItemHeight == 24)
+            size.setHeight(32);
+    }
+    return size;
+}
+
+static QSize itemViewItemSize(QSize size, const QWidget *widget, const DensityMetrics &density)
+{
+    if (comboPopupItemView(widget)) {
+        // ComboBoxItem has its own resource.  Keep it separate from the
+        // ListView row metric even while both profiles currently resolve
+        // to the same 40/32 values; the templates are independently
+        // configurable in WinUI and must not silently drift together.
+        size.setHeight(density.comboPopupItemHeight);
+    } else if (widget && widget->window() && widget->window()->windowType() == Qt::Popup) {
+        size.setHeight(density.listItemHeight);
+    } else if (qobject_cast<const QTreeView *>(itemView(widget))) {
+        size.setHeight(density.treeItemHeight);
+    } else if (qobject_cast<const QTableView *>(itemView(widget))) {
+        size.setHeight(density.tableItemHeight);
+    } else {
+        size.setHeight(density.listItemHeight);
+    }
+    return size;
+}
+
+static QSize headerSectionSize(QSize size, const DensityMetrics &density)
+{
+    size += QSize(2 * density.headerHorizontalPadding, 2 * density.headerVerticalPadding);
+    size.setHeight(qMax(size.height(), density.headerHeight));
+    return size;
+}
+
+static QSize checkBoxSize(const QStyleOption *option, QSize size, const QWidget *widget,
+                          const DensityMetrics &density)
+{
+    if (toggleSwitch(widget)) {
+        const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option);
+        QString onText = widget->property(Style::ToggleSwitchOnTextProperty).toString();
+        QString offText = widget->property(Style::ToggleSwitchOffTextProperty).toString();
+        if (check && onText.isEmpty() && offText.isEmpty())
+            onText = offText = check->text;
+        const QFontMetrics metrics = check ? check->fontMetrics : widget->fontMetrics();
+        const int labelWidth =
+                qMax(metrics.horizontalAdvance(onText), metrics.horizontalAdvance(offText));
+        size = QSize(labelWidth > 0 ? qMax(154, 50 + labelWidth) : density.toggleSlotWidth,
+                     density.toggleSlotHeight);
+        return size;
+    }
+    // Label is painted from x=32 with a 4px right margin; Qt passes only
+    // the text size as contents, so the hint must cover indicator, gap,
+    // and trailing margin to avoid clipping the last glyph.
+    if (densityModeFor(widget) == DensityMode::Compact) {
+        size += QSize(36, 4);
+        size.setHeight(qMax(size.height(), 24));
+    } else {
+        size += QSize(36, 8);
+        size.setHeight(qMax(size.height(), 28));
+    }
+    return size;
+}
+
+static QSize radioButtonSize(QSize size, const QWidget *widget, const DensityMetrics &density)
+{
+    Q_UNUSED(density);
+    if (densityModeFor(widget) == DensityMode::Compact) {
+        size += QSize(36, 4);
+        size.setHeight(qMax(size.height(), 24));
+    } else {
+        size += QSize(36, 8);
+        size.setHeight(qMax(size.height(), 28));
+    }
+    return size;
+}
+
+static QSize progressBarSize(const QStyleOption *option, QSize size, const QWidget *widget)
+{
+    // QStyleOptionProgressBar::orientation only exists from Qt 5.13;
+    // query the widget for a 5.12-compatible check.
+    const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
+    const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
+    const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
+    const bool showsText = bar && bar->textVisible && !bar->text.isEmpty() && horizontal;
+    if (horizontal) {
+        size.setWidth(qMax(size.width(), 120));
+        size.setHeight(showsText ? size.height() + 6 // text + thin underline
+                                 : qMax(size.height(), 8));
+    } else {
+        size.setWidth(qMax(size.width(), 8));
+        size.setHeight(qMax(size.height(), 120));
+    }
+    return size;
+}
+
+static QSize sliderSize(const QStyleOption *option, QSize size, const DensityMetrics &density)
+{
+    const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option);
+    const bool horizontal = !slider || slider->orientation == Qt::Horizontal;
+    if (horizontal) {
+        size.setWidth(qMax(size.width(), 120));
+        size.setHeight(qMax(size.height(), density.buttonHeight));
+    } else {
+        size.setWidth(qMax(size.width(), density.buttonHeight));
+        size.setHeight(qMax(size.height(), 120));
+    }
+    return size;
+}
+
+static QSize scrollBarSize(QSize size)
+{
+    size.setWidth(qMax(size.width(), 12));
+    size.setHeight(qMax(size.height(), 12));
+    return size;
+}
+
+static QSize groupBoxSize(QSize size, const QSize &contentsSize)
+{
+    size.setWidth(qMax(size.width(), contentsSize.width() + 24));
+    size.setHeight(qMax(size.height(), contentsSize.height() + 48));
+    return size;
+}
+
 QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QStyleOption *option,
                        const QSize &contentsSize, const QWidget *widget)
 {
@@ -278,137 +445,37 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = toolButtonSize(option, size, widget, density);
         break;
     case QStyle::CT_MenuBarItem:
-        size = contentsSize
-                + QSize(2 * density.menuBarHorizontalPadding, 2 * density.menuBarVerticalPadding);
-        size.setHeight(qMax(size.height(), density.menuBarItemHeight));
+        size = menuBarItemSize(size, density, contentsSize);
         break;
     case QStyle::CT_TabBarTab:
-        size += QSize(2 * density.tabHorizontalPadding, 2 * density.tabVerticalPadding);
-        size.setHeight(qMax(density.tabHeight,
-                            option ? option->fontMetrics.height() + 2 * density.tabVerticalPadding
-                                   : size.height()));
-        size.setWidth(qBound(100, size.width(), 240));
+        size = tabBarTabSize(option, size, density);
         break;
     case QStyle::CT_MenuItem:
-        if (const auto *menu = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
-            if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
-                size.setHeight(density.menuSeparatorHeight);
-                break;
-            }
-            const QStringList parts = menu->text.split(QLatin1Char('\t'));
-            const QFontMetrics metrics(menu->font);
-            const int mainWidth = metrics.horizontalAdvance(parts.value(0));
-            const int shortcutWidth =
-                    parts.size() > 1 ? metrics.horizontalAdvance(parts.value(1)) : 0;
-            const int trailing = menu->menuItemType == QStyleOptionMenuItem::SubMenu
-                    ? density.toolButtonMenuWidth
-                    : 0;
-            const bool comboItem = qobject_cast<const QComboBox *>(widget);
-            const int leading = comboItem && menu->icon.isNull() ? density.menuItemNoIconSlot
-                                                                 : density.menuItemIconSlot;
-            const int requiredWidth = leading + mainWidth + 2 * density.menuItemHorizontalPadding
-                    + trailing
-                    + (shortcutWidth > 0 ? density.menuItemShortcutGap + shortcutWidth : 0);
-            size.setWidth(qMax(size.width(), qMax(requiredWidth, 120)));
-            size.setHeight(comboItem ? density.menuItemHeightInComboBox : density.menuItemHeight);
-            // Extension (not in WinUI Compact Sizing): Compact menu-popup rows
-            // shrink 36 -> 32 like list rows. Visible popups are resized to
-            // the new profile by the density invalidation below.
-            if (!comboItem && densityMetricsFor(widget, style).menuBarItemHeight == 24)
-                size.setHeight(32);
-        }
+        size = menuItemSize(style, option, size, widget, density);
         break;
     case QStyle::CT_ItemViewItem:
-        if (comboPopupItemView(widget)) {
-            // ComboBoxItem has its own resource.  Keep it separate from the
-            // ListView row metric even while both profiles currently resolve
-            // to the same 40/32 values; the templates are independently
-            // configurable in WinUI and must not silently drift together.
-            size.setHeight(density.comboPopupItemHeight);
-        } else if (widget && widget->window() && widget->window()->windowType() == Qt::Popup) {
-            size.setHeight(density.listItemHeight);
-        } else if (qobject_cast<const QTreeView *>(itemView(widget))) {
-            size.setHeight(density.treeItemHeight);
-        } else if (qobject_cast<const QTableView *>(itemView(widget))) {
-            size.setHeight(density.tableItemHeight);
-        } else {
-            size.setHeight(density.listItemHeight);
-        }
+        size = itemViewItemSize(size, widget, density);
         break;
     case QStyle::CT_HeaderSection:
-        size += QSize(2 * density.headerHorizontalPadding, 2 * density.headerVerticalPadding);
-        size.setHeight(qMax(size.height(), density.headerHeight));
+        size = headerSectionSize(size, density);
         break;
     case QStyle::CT_CheckBox:
-        if (toggleSwitch(widget)) {
-            const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option);
-            QString onText = widget->property(Style::ToggleSwitchOnTextProperty).toString();
-            QString offText = widget->property(Style::ToggleSwitchOffTextProperty).toString();
-            if (check && onText.isEmpty() && offText.isEmpty())
-                onText = offText = check->text;
-            const QFontMetrics metrics = check ? check->fontMetrics : widget->fontMetrics();
-            const int labelWidth =
-                    qMax(metrics.horizontalAdvance(onText), metrics.horizontalAdvance(offText));
-            size = QSize(labelWidth > 0 ? qMax(154, 50 + labelWidth) : density.toggleSlotWidth,
-                         density.toggleSlotHeight);
-            break;
-        }
-        // Label is painted from x=32 with a 4px right margin; Qt passes only
-        // the text size as contents, so the hint must cover indicator, gap,
-        // and trailing margin to avoid clipping the last glyph.
-        if (densityModeFor(widget) == DensityMode::Compact) {
-            size += QSize(36, 4);
-            size.setHeight(qMax(size.height(), 24));
-        } else {
-            size += QSize(36, 8);
-            size.setHeight(qMax(size.height(), 28));
-        }
+        size = checkBoxSize(option, size, widget, density);
         break;
     case QStyle::CT_RadioButton:
-        if (densityModeFor(widget) == DensityMode::Compact) {
-            size += QSize(36, 4);
-            size.setHeight(qMax(size.height(), 24));
-        } else {
-            size += QSize(36, 8);
-            size.setHeight(qMax(size.height(), 28));
-        }
+        size = radioButtonSize(size, widget, density);
         break;
-    case QStyle::CT_ProgressBar: {
-        // QStyleOptionProgressBar::orientation only exists from Qt 5.13;
-        // query the widget for a 5.12-compatible check.
-        const auto *progressBar = qobject_cast<const QProgressBar *>(widget);
-        const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
-        const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
-        const bool showsText = bar && bar->textVisible && !bar->text.isEmpty() && horizontal;
-        if (horizontal) {
-            size.setWidth(qMax(size.width(), 120));
-            size.setHeight(showsText ? size.height() + 6 // text + thin underline
-                                     : qMax(size.height(), 8));
-        } else {
-            size.setWidth(qMax(size.width(), 8));
-            size.setHeight(qMax(size.height(), 120));
-        }
+    case QStyle::CT_ProgressBar:
+        size = progressBarSize(option, size, widget);
         break;
-    }
-    case QStyle::CT_Slider: {
-        const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option);
-        const bool horizontal = !slider || slider->orientation == Qt::Horizontal;
-        if (horizontal) {
-            size.setWidth(qMax(size.width(), 120));
-            size.setHeight(qMax(size.height(), density.buttonHeight));
-        } else {
-            size.setWidth(qMax(size.width(), density.buttonHeight));
-            size.setHeight(qMax(size.height(), 120));
-        }
+    case QStyle::CT_Slider:
+        size = sliderSize(option, size, density);
         break;
-    }
     case QStyle::CT_ScrollBar:
-        size.setWidth(qMax(size.width(), 12));
-        size.setHeight(qMax(size.height(), 12));
+        size = scrollBarSize(size);
         break;
     case QStyle::CT_GroupBox:
-        size.setWidth(qMax(size.width(), contentsSize.width() + 24));
-        size.setHeight(qMax(size.height(), contentsSize.height() + 48));
+        size = groupBoxSize(size, contentsSize);
         break;
     default:
         return style->QProxyStyle::sizeFromContents(type, option, contentsSize, widget);
