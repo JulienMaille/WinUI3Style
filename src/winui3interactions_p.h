@@ -90,6 +90,14 @@ private:
     bool handleMousePress(QWidget *widget, QEvent *event);
     bool handleMouseMove(QWidget *widget, QEvent *event);
     bool handleMouseRelease(QWidget *widget, QEvent *event);
+    // R2 focus/key group: same pure-motion extraction for focus, read-only
+    // affordance, line-edit helper lifecycle and key handling.
+    bool handleFocusIn(QWidget *widget, QEvent *event);
+    bool handleFocusOut(QWidget *widget);
+    bool handleReadOnlyChange(QWidget *widget);
+    bool handleLineEditHelperBirth(QWidget *widget);
+    bool handleKeyPress(QWidget *widget, QEvent *event);
+    bool handleKeyRelease(QWidget *widget, QEvent *event);
 
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;

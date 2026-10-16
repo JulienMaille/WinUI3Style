@@ -519,6 +519,127 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
     return false;
 }
 
+bool StyleInteractionController::handleFocusIn(QWidget *widget, QEvent *event)
+{
+    if (const auto *focus = static_cast<QFocusEvent *>(event)) {
+        const bool keyboard = focus->reason() == Qt::TabFocusReason
+                || focus->reason() == Qt::BacktabFocusReason
+                || focus->reason() == Qt::ShortcutFocusReason || *m_callbacks.keyboardInput;
+        framePropertyRegistry().set(widget, focusVisibleProperty, keyboard);
+        if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
+            view && view->viewport() == widget) {
+            if (keyboard) {
+                framePropertyRegistry().set(view, focusVisibleProperty, true);
+                view->update();
+            }
+        }
+    }
+    m_callbacks.animate(widget, focusProperty, 1.0,
+                        interactionDuration(widget, InteractionMotion::Focus, true));
+    m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+    return false;
+}
+
+bool StyleInteractionController::handleFocusOut(QWidget *widget)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget))
+        cancelComboPress(combo, true);
+    if (auto *slider = qobject_cast<QSlider *>(widget)) {
+        m_callbacks.cancelSliderToolTip(slider);
+        hideSliderValueToolTip(slider);
+    }
+    framePropertyRegistry().set(widget, focusVisibleProperty, false);
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
+        view && view->viewport() == widget) {
+        framePropertyRegistry().set(view, focusVisibleProperty, false);
+        view->update();
+    }
+    m_callbacks.animate(widget, focusProperty, 0.0,
+                        interactionDuration(widget, InteractionMotion::Focus, false));
+    m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+    return false;
+}
+
+bool StyleInteractionController::handleReadOnlyChange(QWidget *widget)
+{
+    // WinUI TextBox does not expose its delete affordance while it is
+    // read-only. QLineEdit keeps the private clear button visible, so
+    // suppress it after Qt has processed the property change.
+    m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
+    m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
+    return false;
+}
+
+bool StyleInteractionController::handleLineEditHelperBirth(QWidget *widget)
+{
+    // Shared by ChildAdded/ChildRemoved: the private QLineEdit clear button
+    // is created after the line edit in common construction orders, and Qt
+    // may replace its private helper during a style or layout transition,
+    // so rebuild the cached clear-button handle on either lifecycle event.
+    m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
+    return false;
+}
+
+bool StyleInteractionController::handleKeyPress(QWidget *widget, QEvent *event)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        const bool activates = key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
+                || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
+                || (key->key() == Qt::Key_Down && key->modifiers().testFlag(Qt::AltModifier));
+        if (activates) {
+            m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
+            m_callbacks.prepareComboPopupFirstFrame(combo);
+        }
+    }
+    if (comboPopupItemView(widget)) {
+        // Arrow traversal moves the popup view's currentIndex (and its
+        // selection follows) while the cursor stays elsewhere. The
+        // CE_MenuItem combo path promotes that Selected, non-value row
+        // to the hover pill, and the delegate path promotes
+        // view->currentIndex() the same way — but only a repaint makes
+        // either visible. This filter runs before Qt moves the index, so
+        // defer the viewport update past the dispatch; Qt's own
+        // currentChanged repaint stays the primary path, this only
+        // guarantees the newly current row is never left stale.
+        const int key = static_cast<QKeyEvent *>(event)->key();
+        if (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home
+            || key == Qt::Key_End || key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
+            if (QComboBox *combo = m_callbacks.comboForPopupWidget(widget)) {
+                if (QWidget *viewport = combo->view() ? combo->view()->viewport() : nullptr) {
+                    QTimer::singleShot(0, viewport, [viewport] { viewport->update(); });
+                }
+            }
+        }
+    }
+    if (const auto *key = static_cast<QKeyEvent *>(event); revealsKeyboardFocus(key->key())) {
+        *m_callbacks.keyboardInput = true;
+        framePropertyRegistry().set(widget, focusVisibleProperty, true);
+        widget->update();
+    }
+    // Windows Alt-reveal contract (QWindowsStyle event filter): Alt press
+    // shows mnemonic underlines, release hides them again. Repaint the
+    // top levels; each paint site queries SH_UnderlineShortcut live.
+    if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Alt)
+        Style::setAltMnemonicsVisible(true);
+    return false;
+}
+
+bool StyleInteractionController::handleKeyRelease(QWidget *widget, QEvent *event)
+{
+    if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Alt)
+        Style::setAltMnemonicsVisible(false);
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
+            || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
+            || (key->key() == Qt::Key_Down && key->modifiers().testFlag(Qt::AltModifier))) {
+            m_callbacks.releaseComboChevron(combo);
+        }
+    }
+    return false;
+}
+
 bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
 {
     auto *widget = qobject_cast<QWidget *>(watched);
@@ -610,111 +731,18 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
     case QEvent::MouseButtonRelease:
         return handleMouseRelease(widget, event);
     case QEvent::FocusIn:
-        if (const auto *focus = static_cast<QFocusEvent *>(event)) {
-            const bool keyboard = focus->reason() == Qt::TabFocusReason
-                    || focus->reason() == Qt::BacktabFocusReason
-                    || focus->reason() == Qt::ShortcutFocusReason || *m_callbacks.keyboardInput;
-            framePropertyRegistry().set(widget, focusVisibleProperty, keyboard);
-            if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
-                view && view->viewport() == widget) {
-                if (keyboard) {
-                    framePropertyRegistry().set(view, focusVisibleProperty, true);
-                    view->update();
-                }
-            }
-        }
-        m_callbacks.animate(widget, focusProperty, 1.0,
-                            interactionDuration(widget, InteractionMotion::Focus, true));
-        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        break;
+        return handleFocusIn(widget, event);
     case QEvent::FocusOut:
-        if (auto *combo = qobject_cast<QComboBox *>(widget))
-            cancelComboPress(combo, true);
-        if (auto *slider = qobject_cast<QSlider *>(widget)) {
-            m_callbacks.cancelSliderToolTip(slider);
-            hideSliderValueToolTip(slider);
-        }
-        framePropertyRegistry().set(widget, focusVisibleProperty, false);
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
-            view && view->viewport() == widget) {
-            framePropertyRegistry().set(view, focusVisibleProperty, false);
-            view->update();
-        }
-        m_callbacks.animate(widget, focusProperty, 0.0,
-                            interactionDuration(widget, InteractionMotion::Focus, false));
-        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        break;
+        return handleFocusOut(widget);
     case QEvent::ReadOnlyChange:
-        // WinUI TextBox does not expose its delete affordance while it is
-        // read-only. QLineEdit keeps the private clear button visible, so
-        // suppress it after Qt has processed the property change.
-        m_callbacks.updateReadOnlyDeleteAffordance(qobject_cast<QLineEdit *>(widget));
-        m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
-        break;
+        return handleReadOnlyChange(widget);
     case QEvent::ChildAdded:
-        // The private QLineEdit clear button is created after the line edit in
-        // common construction orders; catch that lifecycle deterministically.
-        m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
-        break;
     case QEvent::ChildRemoved:
-        // Rebuild the cached clear-button handle if Qt replaces its private
-        // helper during a style or layout transition.
-        m_callbacks.prepareLineEditHelperButtons(qobject_cast<QLineEdit *>(widget));
-        break;
+        return handleLineEditHelperBirth(widget);
     case QEvent::KeyPress:
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            const auto *key = static_cast<QKeyEvent *>(event);
-            const bool activates = key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
-                    || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
-                    || (key->key() == Qt::Key_Down && key->modifiers().testFlag(Qt::AltModifier));
-            if (activates) {
-                m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
-                m_callbacks.prepareComboPopupFirstFrame(combo);
-            }
-        }
-        if (comboPopupItemView(widget)) {
-            // Arrow traversal moves the popup view's currentIndex (and its
-            // selection follows) while the cursor stays elsewhere. The
-            // CE_MenuItem combo path promotes that Selected, non-value row
-            // to the hover pill, and the delegate path promotes
-            // view->currentIndex() the same way — but only a repaint makes
-            // either visible. This filter runs before Qt moves the index, so
-            // defer the viewport update past the dispatch; Qt's own
-            // currentChanged repaint stays the primary path, this only
-            // guarantees the newly current row is never left stale.
-            const int key = static_cast<QKeyEvent *>(event)->key();
-            if (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home
-                || key == Qt::Key_End || key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
-                if (QComboBox *combo = m_callbacks.comboForPopupWidget(widget)) {
-                    if (QWidget *viewport = combo->view() ? combo->view()->viewport() : nullptr) {
-                        QTimer::singleShot(0, viewport, [viewport] { viewport->update(); });
-                    }
-                }
-            }
-        }
-        if (const auto *key = static_cast<QKeyEvent *>(event); revealsKeyboardFocus(key->key())) {
-            *m_callbacks.keyboardInput = true;
-            framePropertyRegistry().set(widget, focusVisibleProperty, true);
-            widget->update();
-        }
-        // Windows Alt-reveal contract (QWindowsStyle event filter): Alt press
-        // shows mnemonic underlines, release hides them again. Repaint the
-        // top levels; each paint site queries SH_UnderlineShortcut live.
-        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Alt)
-            Style::setAltMnemonicsVisible(true);
-        break;
+        return handleKeyPress(widget, event);
     case QEvent::KeyRelease:
-        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Alt)
-            Style::setAltMnemonicsVisible(false);
-        if (auto *combo = qobject_cast<QComboBox *>(widget)) {
-            const auto *key = static_cast<QKeyEvent *>(event);
-            if (key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
-                || key->key() == Qt::Key_Return || key->key() == Qt::Key_F4
-                || (key->key() == Qt::Key_Down && key->modifiers().testFlag(Qt::AltModifier))) {
-                m_callbacks.releaseComboChevron(combo);
-            }
-        }
-        break;
+        return handleKeyRelease(widget, event);
     case QEvent::Show:
         // A tooltip HWND keeps the opaque system backing store; the rounded
         // PE_PanelTipLabel card leaves dark corner rectangles visible. Clip
