@@ -100,6 +100,7 @@ private slots:
     void cleanup();
     void styleMutationRestoration();
     void polishUnpolishRestoresEverySavedAttribute();
+    void surfaceSnapshotOwnershipSymmetry();
     void runtimeExplicitPaletteOwnership();
     void ownedPaletteRefreshSurvivesOwnerRegistration();
     void accessibilityOwnershipContracts();
@@ -406,6 +407,115 @@ void WinUI3InteractionTest::polishUnpolishRestoresEverySavedAttribute()
     style->unpolish(&opaque);
     QVERIFY(opaque.testAttribute(Qt::WA_TranslucentBackground));
     QVERIFY(opaque.testAttribute(Qt::WA_NoSystemBackground));
+}
+
+// S4 gate, extended to the arm/disarm orders (measured 2026-10-17 with a
+// temporary probe): Style::polish() saves widget attributes, the ContentDialog
+// arm forces its own temporary values onto the same widget, and Style::unpolish()
+// is the one that hands the saved ones back. Whichever order runs, every saved
+// attribute must return to its pre-polish value and no saved key may outlive the
+// unpolish: a leftover key would make the next polish snapshot a temporary value.
+void WinUI3InteractionTest::surfaceSnapshotOwnershipSymmetry()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+
+    // polish -> arm (show) -> disarm (hide) -> unpolish.
+    {
+        QDialog dialog;
+        WinUI3::Style::setContentDialog(&dialog);
+        auto *layout = new QVBoxLayout(&dialog);
+        layout->setContentsMargins(3, 4, 5, 6);
+        layout->setSpacing(7);
+        layout->setSizeConstraint(QLayout::SetMinimumSize);
+        dialog.setMinimumSize(200, 100);
+        dialog.setMaximumSize(640, 480);
+        dialog.setAutoFillBackground(false);
+        const QPalette originalPalette = dialog.palette();
+
+        style->polish(&dialog);
+        // The arm owns the dialog while it is open.
+        QCOMPARE(dialog.minimumSize(), QSize(320, 184));
+        QCOMPARE(layout->contentsMargins(), QMargins(24, 24, 24, 24));
+        QCOMPARE(layout->spacing(), 12);
+        QVERIFY(dialog.autoFillBackground());
+
+        dialog.show();
+        QTRY_VERIFY(dialog.isVisible());
+        dialog.hide();
+        QCoreApplication::processEvents();
+
+        style->unpolish(&dialog);
+        QCOMPARE(dialog.minimumSize(), QSize(200, 100));
+        QCOMPARE(dialog.maximumSize(), QSize(640, 480));
+        QCOMPARE(layout->contentsMargins(), QMargins(3, 4, 5, 6));
+        QCOMPARE(layout->spacing(), 7);
+        QCOMPARE(int(layout->sizeConstraint()), int(QLayout::SetMinimumSize));
+        QCOMPARE(dialog.palette(), originalPalette);
+        QVERIFY(!dialog.autoFillBackground());
+        QVERIFY(!dialog.property(WinUI3::Private::originalPaletteProperty).isValid());
+        QVERIFY(!dialog.property(WinUI3::Private::originalAutoFillProperty).isValid());
+        QVERIFY(!dialog.property(WinUI3::Private::originalMinimumSizeProperty).isValid());
+        QVERIFY(!dialog.property(WinUI3::Private::originalMaximumSizeProperty).isValid());
+        QVERIFY(!dialog.property(WinUI3::Private::originalMarginsProperty).isValid());
+        QVERIFY(!dialog.property(WinUI3::Private::originalSpacingProperty).isValid());
+        QVERIFY(!dialog.property(WinUI3::Private::originalLayoutConstraintProperty).isValid());
+    }
+
+    // polish -> arm (show) -> unpolish while the dialog is still open: unpolish
+    // is the only restorer left that can hand the values back, and the later
+    // hide must not re-arm the cleaned dialog.
+    {
+        QDialog dialog;
+        WinUI3::Style::setContentDialog(&dialog);
+        auto *layout = new QVBoxLayout(&dialog);
+        layout->setContentsMargins(3, 4, 5, 6);
+        layout->setSpacing(7);
+        dialog.setMinimumSize(200, 100);
+        dialog.setAutoFillBackground(false);
+
+        style->polish(&dialog);
+        dialog.show();
+        QTRY_VERIFY(dialog.isVisible());
+        style->unpolish(&dialog);
+        QCOMPARE(dialog.minimumSize(), QSize(200, 100));
+        QCOMPARE(layout->contentsMargins(), QMargins(3, 4, 5, 6));
+        QCOMPARE(layout->spacing(), 7);
+        QVERIFY(!dialog.autoFillBackground());
+        QVERIFY(!dialog.property(WinUI3::Private::originalAutoFillProperty).isValid());
+
+        dialog.hide();
+        QCoreApplication::processEvents();
+        QCOMPARE(dialog.minimumSize(), QSize(200, 100));
+        QCOMPARE(layout->contentsMargins(), QMargins(3, 4, 5, 6));
+        QCOMPARE(layout->spacing(), 7);
+    }
+
+    // Popup window and its viewport: the popup arm writes the same autoFill /
+    // opaque keys the polish snapshot uses, and unpolish restores both widgets
+    // from them.
+    {
+        QListView popup(nullptr);
+        popup.setWindowFlag(Qt::Popup);
+        popup.ensurePolished();
+        popup.viewport()->setAutoFillBackground(true);
+        popup.viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        style->polish(&popup);
+        style->polish(popup.viewport());
+        popup.show();
+        QTRY_VERIFY(popup.isVisible());
+        popup.hide();
+        QCoreApplication::processEvents();
+
+        style->unpolish(popup.viewport());
+        style->unpolish(&popup);
+        QVERIFY(popup.viewport()->autoFillBackground());
+        QVERIFY(popup.viewport()->testAttribute(Qt::WA_OpaquePaintEvent));
+        QVERIFY(!popup.property(WinUI3::Private::originalOpaquePaintProperty).isValid());
+        QVERIFY(!popup.property(WinUI3::Private::originalTranslucentBackgroundProperty).isValid());
+        QVERIFY(!popup.property(WinUI3::Private::originalNoSystemBackgroundProperty).isValid());
+        QVERIFY(!popup.viewport()->property(WinUI3::Private::originalAutoFillProperty).isValid());
+    }
 }
 
 void WinUI3InteractionTest::runtimeExplicitPaletteOwnership()

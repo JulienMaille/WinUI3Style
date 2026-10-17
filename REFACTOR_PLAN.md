@@ -131,6 +131,18 @@ only via `winui3helpers_p.h`; no new `QStyle` subclasses, no QSS, no new deps.
 - **S4 — Polish/unpolish audit**: unify overlapping `remember` keys between
   `Style::polish/unpolish` and backdrop-surface snapshots; add symmetry test
   (polish→unpolish restores every saved attribute). Gate: lifecycle suites.
+  - *Measured 2026-10-17 (`build-simplify`, Qt 6.12 x86, offscreen probe of
+    three orders — polish→arm(show)→disarm(hide)→unpolish, polish→arm→unpolish
+    while armed, popup arm/disarm): the overlapping `_winui_original_*` keys are
+    NOT a defect.* Every order has exactly one restorer, every saved attribute
+    returns to its pre-polish value, and no saved key outlives the `unpolish`.
+    `remember()` is write-if-absent, so a later arm silently adopts the value
+    polish already saved — the same value, since both read the same attribute.
+    Only the *namespace* is shared, not the values. The keys were therefore left
+    as they are, and the symmetry gate (`surfaceSnapshotOwnershipSymmetry`,
+    `tests/tst_winui3interaction.cpp`) now pins those three orders so a future
+    unification of the mechanism cannot move restore timing unnoticed. Extending
+    the unification itself is cosmetic until a failing order is found.
 - **S5 — Qt-version hygiene**: route remaining scattered `#if`s through
   `winui3qtcompat_p.h` where mechanical; document the intentional DWM ones.
   Gate: build with `WINUI3STYLE_WARNINGS_AS_ERRORS=ON` + (if available) Qt5 CI.
