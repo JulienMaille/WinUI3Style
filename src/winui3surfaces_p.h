@@ -44,8 +44,8 @@ void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style);
 void cancelLineEditHelperUpdate(QLineEdit *lineEdit);
 void cacheLineEditClearButton(QLineEdit *lineEdit, QAbstractButton *button);
 const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit);
-void showSliderValueToolTip(QSlider *slider);
-void hideSliderValueToolTip(QSlider *slider);
+// Slider value tooltip surface (tool window, debounce timer, synchronous state)
+// lives in winui3slidertooltip_p.h.
 
 void applyMenuRoundedMask(QMenu *menu);
 // Popup surface lifecycle (palette/attribute ownership, DWM acrylic grant

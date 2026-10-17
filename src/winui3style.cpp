@@ -22,6 +22,7 @@
 #include "winui3interactions_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3dialogs_p.h"
+#include "winui3slidertooltip_p.h"
 #include "winui3popupsurface_p.h"
 #include "winui3tableeditors_p.h"
 #include "winui3theme_p.h"

@@ -9,6 +9,7 @@
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3dialogs_p.h"
+#include "winui3slidertooltip_p.h"
 #include "winui3popupsurface_p.h"
 #include "winui3tokens_p.h"
 
