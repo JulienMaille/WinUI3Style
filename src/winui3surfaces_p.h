@@ -36,11 +36,8 @@ QPalette effectivePopupPalette(QWidget *widget, const QPalette &fallback);
 // implicit style ownership for the surface and its still-owned descendants.
 void setBackdropPalette(QWidget *surface, const QPalette &palette);
 
-void stopDialogAnimations(QDialog *dialog);
-void restoreContentDialogState(QDialog *dialog, bool clearSavedState);
-void prepareContentDialogState(QDialog *dialog, bool dark);
-void showContentDialogScrim(QDialog *dialog);
-void hideContentDialogScrim(QDialog *dialog);
+// ContentDialog surfaces (dialog state arm/restore, command footer surface,
+// smoke scrim) live in winui3dialogs_p.h.
 
 void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit);
 void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style);
@@ -51,8 +48,6 @@ void showSliderValueToolTip(QSlider *slider);
 void hideSliderValueToolTip(QSlider *slider);
 
 void applyMenuRoundedMask(QMenu *menu);
-// Popup surface lifecycle (palette/attribute ownership, DWM acrylic grant
-// readback, first-show anchoring) lives in winui3popupsurface_p.h.
 // Popup surface lifecycle (palette/attribute ownership, DWM acrylic grant
 // readback, first-show anchoring) lives in winui3popupsurface_p.h.
 

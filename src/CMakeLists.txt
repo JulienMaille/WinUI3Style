@@ -46,6 +46,8 @@ add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     winui3helpers_p.h
     winui3surfaces_p.h
     winui3surfaces_p.cpp
+    winui3dialogs_p.h
+    winui3dialogs_p.cpp
     winui3popupsurface_p.h
     winui3popupsurface_p.cpp
     winui3complex_p.h
