@@ -128,6 +128,28 @@ only via `winui3helpers_p.h`; no new `QStyle` subclasses, no QSS, no new deps.
   mask/corner helpers) and dialog-state (incl. footer widget) from
   `winui3surfaces_p.cpp` into two new TUs; move `guardIslandScrollArea` body
   to the .cpp. Gate: backdrop/nav/popup suites + matrix.
+  - *Measured 2026-10-17 (`build-simplify`, Qt 6.12 x86, Release)*: done in four
+    verbatim commits — CTest 55/56 unchanged (only the two known wizard cases in
+    `winui3style_surfaces_unit`), and a range check proves every moved line
+    byte-identical to its former text. Non-blank lines:
+
+    | TU | before | after | now holds |
+    |---|---|---|---|
+    | `winui3surfaces_p.cpp` | 1285 | 670 | backdrop/island sync + shared snapshot helpers |
+    | `winui3surfaces_p.h` | 141 | 89 | declarations only, no inline mechanism |
+    | `winui3dialogs_p.{h,cpp}` | — | 320 | ContentDialog footer surface, state arm/restore, smoke scrim |
+    | `winui3slidertooltip_p.{h,cpp}` | — | 186 | `SliderValueTip`, debounce timer, synchronous state |
+    | `winui3lineedithelpers_p.{h,cpp}` | — | 155 | clear-button cache, helper discovery, coalesced update pass |
+    | `winui3popupsurface_p.cpp` | 487 | 571 | + `applyMenuRoundedMask` (the TU that documents the popup lifecycle) |
+
+    `guardIslandScrollArea` left the header for `winui3surfaces_p.cpp` and is
+    `WINUI3STYLE_EXPORT` (the offscreen tests call it directly, the same seam as
+    `syncContentSurfacesForBackdrop`); the header dropped the `QScrollBar`
+    and `QTimer` includes the inline needed. Each new TU includes
+    `winui3surfaces_p.h` for the shared snapshot helpers, so the four calling
+    TUs only gained one include. *Visual non-regression is still unverified on
+    this station* — the snapshot matrix remains blocked (see S0); the
+    reviewer/CI matrix stays the gate.
 - **S4 — Polish/unpolish audit**: unify overlapping `remember` keys between
   `Style::polish/unpolish` and backdrop-surface snapshots; add symmetry test
   (polish→unpolish restores every saved attribute). Gate: lifecycle suites.
