@@ -39,11 +39,9 @@ void setBackdropPalette(QWidget *surface, const QPalette &palette);
 // ContentDialog surfaces (dialog state arm/restore, command footer surface,
 // smoke scrim) live in winui3dialogs_p.h.
 
-void updateReadOnlyDeleteAffordance(QLineEdit *lineEdit);
-void prepareLineEditHelperButtons(QLineEdit *lineEdit, Style *style);
-void cancelLineEditHelperUpdate(QLineEdit *lineEdit);
-void cacheLineEditClearButton(QLineEdit *lineEdit, QAbstractButton *button);
-const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit);
+// QLineEdit helper affordances (clear button cache, QAction helper buttons)
+// live in winui3lineedithelpers_p.h.
+
 // Slider value tooltip surface (tool window, debounce timer, synchronous state)
 // lives in winui3slidertooltip_p.h.
 
