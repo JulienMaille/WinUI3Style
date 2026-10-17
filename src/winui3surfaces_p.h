@@ -9,8 +9,6 @@
 #include <QObject>
 #include <QPalette>
 #include <QPointer>
-#include <QScrollBar>
-#include <QTimer>
 #include <QVariant>
 #include <QWidget>
 
@@ -26,7 +24,8 @@ class Style;
 namespace Private {
 
 void remember(QWidget *widget, const char *property, const QVariant &value);
-// True for a QCalendarWidget or any of its descendants.
+// True for a QCalendarWidget or any of its descendants. Shared with the popup
+// surface TU, which resolves calendar pickers the same way.
 bool calendarView(const QWidget *widget);
 void rememberPalette(QWidget *widget);
 void restoreRememberedPalette(QWidget *widget);
@@ -97,57 +96,7 @@ void reconvergeSurfaceForBackdrop(QWidget *widget);
 // (all wheel/drag/bar paths) and schedules one queued full viewport update
 // past the scroll. Gated on Composited so offscreen snapshots stay
 // deterministic.
-inline void guardIslandScrollArea(QAbstractScrollArea *area)
-{
-    if (!area || !area->viewport())
-        return;
-    constexpr auto guardProperty = "_winui_island_scroll_guard";
-    if (area->property(guardProperty).isValid())
-        return;
-    area->setProperty(guardProperty, true);
-    // Heal through the area, not the viewport captured at arm time: the
-    // connect() context below is the area itself, so a setViewport()
-    // replacement keeps the connections alive and the heal resolves the
-    // current viewport on execution. (The previous viewport-context form
-    // auto-disconnected when the old viewport was destroyed while the guard
-    // bit above blocked re-arming, leaving the new viewport unhealed.)
-    // Coalesced, not one queued heal per tick: valueChanged fires on every
-    // wheel/drag tick and Qt::QueuedConnection never coalesces, so N ticks
-    // queued N synchronous viewport-plus-children repaints per frame. The
-    // scheduler below runs direct, sets one pending flag on the area, and
-    // arms a single 0ms shot; the shot clears the flag first (on every path,
-    // including the Composited-gate early returns) so later frames re-arm.
-    // repaint() (not update()) so the blitted rows rebuild before the next
-    // present; then heal the viewport's children too, since a parent repaint
-    // clips children out and each child keeps its own blitted rows.
-    const auto heal = [guardedArea = QPointer<QAbstractScrollArea>(area)] {
-        if (!guardedArea)
-            return;
-        constexpr auto pendingProperty = "_winui_island_scroll_heal_pending";
-        guardedArea->setProperty(pendingProperty, {});
-        QWidget *viewport = guardedArea->viewport();
-        if (!viewport || !viewport->isVisible())
-            return;
-        if (backdropEffectiveSurface(viewport->window()) != BackdropSurface::Composited)
-            return;
-        viewport->repaint();
-        const QList<QWidget *> children =
-                viewport->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
-        for (QWidget *child : children) {
-            if (child->isVisible())
-                child->repaint();
-        }
-    };
-    const auto schedule = [guardedArea = QPointer<QAbstractScrollArea>(area), heal] {
-        constexpr auto pendingProperty = "_winui_island_scroll_heal_pending";
-        if (!guardedArea || guardedArea->property(pendingProperty).isValid())
-            return;
-        guardedArea->setProperty(pendingProperty, true);
-        QTimer::singleShot(0, guardedArea.data(), heal);
-    };
-    QObject::connect(area->verticalScrollBar(), &QScrollBar::valueChanged, area, schedule);
-    QObject::connect(area->horizontalScrollBar(), &QScrollBar::valueChanged, area, schedule);
-}
+WINUI3STYLE_EXPORT void guardIslandScrollArea(QAbstractScrollArea *area);
 
 } // namespace Private
 } // namespace WinUI3
