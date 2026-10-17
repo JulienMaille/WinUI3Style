@@ -170,6 +170,33 @@ only via `winui3helpers_p.h`; no new `QStyle` subclasses, no QSS, no new deps.
   Gate: build with `WINUI3STYLE_WARNINGS_AS_ERRORS=ON` + (if available) Qt5 CI.
 - **S6 — Test headroom**: pre-split the next domain binary before it hits
   60 KB (buttons first); no test-logic change.
+  - *Measured 2026-10-17 (`build-simplify`, Qt 6.12 x86, Release)*: the ratchet
+    pressed first on `tst_winui3surfaces.cpp` (60982 B, 458 B under the 61440 B
+    cap, and the S3 split had just moved its ContentDialog code out), so the
+    dialog group went to `tst_winui3dialogs.cpp` instead of buttons:
+
+    | binary | source | before | after | tests |
+    |---|---|---|---|---|
+    | `winui3style_surfaces_unit` | `tst_winui3surfaces.cpp` | 60982 B | 40094 B | 28 → 21 |
+    | `winui3style_dialogs_unit` (new) | `tst_winui3dialogs.cpp` | — | 22440 B | 11 |
+
+    Moved verbatim (function names, assertions and harness identical; only the
+    fixture class name changes): `contentDialogContract`,
+    `messageBoxContentDialogContract`, `wizardSurfaceContract`,
+    `wizardUsesModernStyleHint`, `wizardOpenThemeSwitchLifecycle`,
+    `persistentDialogSurvivesThemeSwitch`, `contentDialogScrimLifecycle`,
+    `contentDialogScrimOwnershipCleared`, `messageBoxSyncGeometryConverges`,
+    plus its own copy of `initTestCase`/`init`/`cleanup` and the Qt includes it
+    needs. The surfaces source dropped the five includes the move obsoleted
+    (`QDialog`, `QDialogButtonBox`, `QMessageBox`, `QWizard`, `QWizardPage`).
+  - **Baseline moved**: CTest is now 56/57 and the two known wizard failures
+    live in `winui3style_dialogs_unit` (same cases, same messages) instead of
+    `winui3style_surfaces_unit`, which is green. The S0 and S3 notes above
+    record what the baseline was *at those commits*; the failing binary name is
+    the only thing that changed from here on.
+  - *Follow-up (not done)*: 42 Qt includes in `tst_winui3surfaces.cpp` were
+    already unreferenced before this split (leftovers of the step-8 domain
+    split). Trimming them is a separate, mechanical tidy.
 
 ## 4. Risks & explicit limits
 
