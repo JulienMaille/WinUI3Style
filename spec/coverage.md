@@ -225,8 +225,10 @@ row fill and `CE_MenuItem` with the `QComboBox` as style widget) and asserts one
 layer on the margin row and on the row body and its extreme corners, paired
 with the `popupSurfaceColor` token and the `0,4,0,4` container margin geometry.
 RED before the fix: row alpha 232 vs the expected 178. Local re-measurement
-after the fix reads 178 on the margins and on every row. Live re-review of an
-open Gallery popup is the remaining step before this row returns to verified.
+after the fix reads 178 on the margins and on every row. Live confirmation,
+2026-10-17: the user reopened combo popups in the running Gallery (build-gallery
+at `156b3f5`, DLL 19:50:58) and reports the top/bottom bands gone; the row is
+verified again.
 
 ### Reopened evidence — Mica palette registry traversal (2026-10-01)
 
