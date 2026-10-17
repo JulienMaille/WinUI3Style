@@ -119,6 +119,7 @@ private slots:
     void dockWidgetContract();
     void statusBarAndSizeGripContract();
     void menuDoubleOpenKeepsVisualParity();
+    void comboRowKeepsSingleFlyoutSurfaceLayer();
 };
 
 void WinUI3MenusTest::initTestCase()
@@ -301,6 +302,86 @@ void WinUI3MenusTest::menuPaintTabParsing()
     const QImage twoFields = render(QStringLiteral("Open\tCtrl+O"));
     const QImage extraField = render(QStringLiteral("Open\tCtrl+O\tignored"));
     QVERIFY(twoFields == extraField);
+}
+
+void WinUI3MenusTest::comboRowKeepsSingleFlyoutSurfaceLayer()
+{
+    // Live defect 2026-10-16 (user): a light band on the top and bottom of
+    // every combo popup, menus fine. Qt's QComboMenuDelegate fills EVERY row
+    // rect from the palette Window role before it calls CE_MenuItem
+    // (qcombobox.cpp, QComboMenuDelegate::paint). On a live acrylic popup that
+    // role is the translucent flyout tint the container's PE_PanelMenu already
+    // laid over the whole popup rect, so each row stacked the surface twice
+    // (alpha 232 over the single 178) and the 4px container margins the item
+    // view never covers kept one layer: the margins read as light bands.
+    // QMenu lays no per-row fill, which is why only combos were affected.
+    // Contract: a combo row carries exactly one flyout surface layer, the same
+    // one as the container margin, and the tone still reaches the row.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    style->setDensityMode(WinUI3::DensityMode::Standard);
+
+    QWidget host;
+    QComboBox combo(&host);
+    // QComboBoxPrivateContainer stand-in: Qt's combo popup is a Qt::Popup
+    // child of the combo whose frame style is NoFrame and whose contents
+    // margins are 0,4,0,4 (updateTopBottomMargin), with the item view
+    // exactly filling the contents rect.
+    QFrame popup(&combo, Qt::Popup);
+    popup.setContentsMargins(0, 4, 0, 4);
+    popup.setFrameStyle(QFrame::NoFrame);
+    popup.resize(200, 128);
+    QWidget view(&popup);
+    view.setGeometry(0, 4, 200, 120);
+
+    // The flyout role as the composited recipe resolves it: the opaque lift
+    // with the acrylic alpha stamped on (178 Dark / 242 Light).
+    QColor tint = WinUI3::Private::popupSurfaceColor(style->standardPalette());
+    QCOMPARE(tint, QColor(0x2c, 0x2c, 0x2c));
+    tint.setAlpha(178);
+    QPalette palette = style->standardPalette();
+    palette.setColor(QPalette::Window, tint);
+    palette.setColor(QPalette::Base, tint);
+
+    const QRect row(0, 4, 200, 40);
+    QImage frame(popup.size(), QImage::Format_ARGB32_Premultiplied);
+    frame.fill(Qt::transparent);
+    {
+        QPainter painter(&frame);
+        QStyleOption panel;
+        panel.initFrom(&popup);
+        panel.palette = palette;
+        // 1. the container lays the ONE flyout surface, margins included.
+        style->drawPrimitive(QStyle::PE_PanelMenu, &panel, &painter, &popup);
+        // 2. Qt's delegate pre-fill, then the style's row.
+        painter.fillRect(row, palette.color(QPalette::Window));
+        QStyleOptionMenuItem item;
+        item.initFrom(&view);
+        item.palette = palette;
+        item.rect = row;
+        item.menuItemType = QStyleOptionMenuItem::Normal;
+        item.checkType = QStyleOptionMenuItem::NotCheckable;
+        item.text = QStringLiteral("System theme");
+        item.font = qApp->font();
+        item.fontMetrics = QFontMetrics(item.font);
+        item.state = QStyle::State_Enabled;
+        style->drawControl(QStyle::CE_MenuItem, &item, &painter, &combo);
+    }
+    // Margin sample below the 1px flyout stroke, row samples left of the
+    // 5px-inset hover pill: all must carry the strict same single layer. The
+    // row's own extreme corners are included on purpose: a rounded row clip
+    // would round every seam corner and leave the double layer exactly there.
+    const QColor marginInk = frame.pixelColor(100, 3);
+    QCOMPARE(row.top(), popup.contentsMargins().top());
+    QCOMPARE(marginInk.alpha(), 178);
+    const QPoint samples[] = { QPoint(2, row.center().y()), QPoint(0, row.top()),
+                               QPoint(row.right(), row.top()), QPoint(0, row.bottom()) };
+    for (const QPoint &at : samples) {
+        const QColor ink = frame.pixelColor(at);
+        QCOMPARE(ink.alpha(), 178);
+        QCOMPARE(ink.rgb(), marginInk.rgb());
+    }
 }
 
 void WinUI3MenusTest::menuSeparatorGeometryContract()

@@ -195,6 +195,39 @@ accent marker alone at rest, with the fill on hover/keyboard traversal.
 Earlier counts and DLL hashes above are historical evidence, not the current
 release gate. No mapping, token or Verified status is changed.
 
+### Reopened evidence — ComboBox popup row surface (2026-10-16)
+
+Live defect: every ComboBox popup showed a lighter horizontal band at its top
+and bottom; menus were unaffected. Measured on a live popup (offscreen probe,
+same palette and geometry as the Gallery): the 4 px container margins read the
+single flyout tint layer (alpha 178 Dark, flattened #1f1f1f), while the item
+view area read alpha 232, i.e. the same 178 tint stacked twice (#282828). The
+owner of the second layer is Qt, not the style: with `SH_ComboBox_Popup` = 1 Qt
+installs `QComboMenuDelegate`, whose `paint` fills every row rect from the
+palette Window role before it asks for `CE_MenuItem` (qcombobox.cpp). That role
+is the same translucent flyout tint `PE_PanelMenu` already laid over the whole
+popup rect, so each row stacked the surface a second time; `QMenu::paintEvent`
+lays no per-row fill, which is why only combos drifted. The concurrent
+popup-grant hardening (readback-confirmed grant, opaque fallback convergence)
+is unrelated to this symptom and stays.
+
+Fix: the combo row branch of `drawMenuItemControl` now Source-replaces its own
+row rect with the SAME palette Window role (deliberately unclipped: clipping to
+the row's rounded corners would round every row seam and keep the double layer
+in the corner slivers), so a row and the container margins agree on exactly one
+surface layer in both the composited and the opaque recipe. No token, geometry
+or menu-row change: menu rows keep their recipe-3 `clearForBackdropFill` pill
+path, and the hover pill still composites over the single layer.
+
+Mechanism evidence: `comboRowKeepsSingleFlyoutSurfaceLayer` builds the two
+upstream calls (container `PE_PanelMenu` over the whole popup rect, then Qt's
+row fill and `CE_MenuItem` with the `QComboBox` as style widget) and asserts one
+layer on the margin row and on the row body and its extreme corners, paired
+with the `popupSurfaceColor` token and the `0,4,0,4` container margin geometry.
+RED before the fix: row alpha 232 vs the expected 178. Local re-measurement
+after the fix reads 178 on the margins and on every row. Live re-review of an
+open Gallery popup is the remaining step before this row returns to verified.
+
 ### Reopened evidence — Mica palette registry traversal (2026-10-01)
 
 The Dark/System Gallery crashed on Mica activation in `refreshOwnedPalettes`.

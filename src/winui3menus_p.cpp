@@ -185,7 +185,44 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
         // PointerOver state.
         const bool showHoverFill =
                 comboItem ? showHover : (menu->state & QStyle::State_Selected);
-        if (showHoverFill || showPressed) {
+        if (comboItem) {
+            // Row surface normalization. Qt's own combo-popup delegate
+            // (QComboMenuDelegate, installed on SH_ComboBox_Popup, qcombobox.cpp)
+            // fills EVERY row rect from the palette Window role before it calls
+            // us here. On a live acrylic popup that role is the translucent
+            // flyout tint the container's PE_PanelMenu already laid over the
+            // whole popup rect, so every row carries the surface twice (alpha
+            // 232 vs 178 over the single layer) while the 4px container margins
+            // the item view never covers keep one layer: the margins then read
+            // as light top/bottom bands (user 2026-10-16). Menus are
+            // unaffected; QMenu::paintEvent lays no per-row fill. Source-replace
+            // the row with the SAME role, so the row and the container agree on
+            // exactly one surface layer. The gate is the painted role's own
+            // alpha, not paintsDirectlyOnBackdrop(widget): the widget here is
+            // the QComboBox, whose window is the toplevel, and a popup row is
+            // only ever double-laid when the flyout role is translucent (the
+            // opaque fallback already resolves it to one solid tone).
+            const QColor rowSurface = option->palette.color(QPalette::Window);
+            if (rowSurface.alpha() < 255) {
+                // Source-replace, deliberately unclipped. The row rect is the
+                // exact area Qt just filled, so replacing it leaves one layer
+                // whatever was underneath. A rounded clip (what the hover path
+                // uses below) would round EVERY row's own corners and keep the
+                // double layer in the corner slivers at each row seam: barely
+                // visible on a dark backdrop, ~13% of luminance on a light one.
+                // The popup corner cutouts are the only surface region a row
+                // crosses, one pixel wide, hidden by the rounded popup window,
+                // and painted square by the opaque panel path anyway.
+                painter->save();
+                painter->setCompositionMode(QPainter::CompositionMode_Source);
+                painter->fillRect(menu->rect, rowSurface);
+                painter->restore();
+            }
+            if (showHoverFill || showPressed) {
+                paintPopupRowPill(painter, popupRowPillRect(menu->rect, comboItem),
+                                  showPressed ? t.subtlePressed : t.subtleHover);
+            }
+        } else if (showHoverFill || showPressed) {
             // QMenu's native erase fills the Selected row full-bleed
             // behind our inset pill (nothing Qt-side insets it), so
             // rebuild the row from the popup surface first in the
