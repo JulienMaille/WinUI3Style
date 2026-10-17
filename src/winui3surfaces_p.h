@@ -19,7 +19,6 @@ class QDialog;
 class QLineEdit;
 class QAbstractButton;
 class QSlider;
-class QMenu;
 
 namespace WinUI3 {
 class Style;
@@ -45,9 +44,9 @@ void setBackdropPalette(QWidget *surface, const QPalette &palette);
 // Slider value tooltip surface (tool window, debounce timer, synchronous state)
 // lives in winui3slidertooltip_p.h.
 
-void applyMenuRoundedMask(QMenu *menu);
 // Popup surface lifecycle (palette/attribute ownership, DWM acrylic grant
-// readback, first-show anchoring) lives in winui3popupsurface_p.h.
+// readback, first-show anchoring, the QMenu rounded mask) lives in
+// winui3popupsurface_p.h.
 
 // Window chrome (menu bar, tool bars, status bar) reveals the live DWM
 // material instead of painting opaque panels over it. Content/layer

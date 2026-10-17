@@ -10,6 +10,7 @@
 #include <QStyle>
 
 class QComboBox;
+class QMenu;
 class QWidget;
 
 namespace WinUI3 {
@@ -28,6 +29,10 @@ void preparePopupSurface(QWidget *widget);
 void prepareComboPopupFirstFrameImpl(QComboBox *combo);
 // Resolves the QComboBox owning a popup widget, or null.
 QComboBox *comboForPopupWidget(QWidget *widget);
+// Clips a Qt::Popup QMenu to OverlayRadius when the native DWM corner
+// preference is unavailable (submenu HWNDs materialize after Show). Called
+// from preparePopupSurface for menu popups and from the menu interaction path.
+void applyMenuRoundedMask(QMenu *menu);
 
 } // namespace Private
 } // namespace WinUI3
