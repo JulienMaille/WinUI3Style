@@ -11,44 +11,20 @@
 #include <winui3style/winui3style.h>
 #include "winui3qtcompat_p.h"
 
-#include <QAbstractButton>
-#include <QAbstractItemView>
 #include <QAbstractScrollArea>
-#include <QAction>
 #include <QApplication>
-#include <QComboBox>
 #include <QCalendarWidget>
-#include <QCompleter>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QFontMetrics>
 #include <QFrame>
 #include <QGuiApplication>
-#include <QHash>
-#include <QImage>
-#include <QLayout>
-#include <QLabel>
-#include <QLineEdit>
-#include <QMetaObject>
-#include <QListView>
-#include <QMenu>
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QToolBar>
-#include <QMessageBox>
-#include <QPaintEvent>
-#include <QPainter>
-#include <QParallelAnimationGroup>
 #include <QPointer>
-#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QSlider>
-#include <QStyleOptionSlider>
 #include <QTabWidget>
 #include <QTimer>
 #include <QWidget>
-#include <QWindow>
 
 #ifdef Q_OS_WIN
 #  define NOMINMAX

@@ -13,7 +13,6 @@
 
 #include <winui3style/winui3style.h>
 
-#include <QAbstractButton>
 #include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -25,9 +24,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPointer>
-#include <QScreen>
 #include <QTimer>
-#include <QVBoxLayout>
 #include <QWidget>
 
 namespace WinUI3::Private {

@@ -25,7 +25,6 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPointer>
 #include <QRegion>
 #include <QTimer>
 #include <QWidget>
