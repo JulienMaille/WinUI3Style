@@ -42,7 +42,7 @@
 
 #include "winui3testhelpers.h"
 
-class WinUI3SurfacesTest final : public QObject
+class WinUI3SurfacesTest final : public QObject, private WinUI3StandardTestFixture
 {
     Q_OBJECT
 
@@ -98,28 +98,17 @@ void WinUI3SurfacesTest::contentLayerSurfacePredicate()
 
 void WinUI3SurfacesTest::initTestCase()
 {
-    qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+    initializeStandardWinUI3TestStyle();
 }
 
 void WinUI3SurfacesTest::init()
 {
-    if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
-        style->setThemeMode(WinUI3::ThemeMode::Light);
-        style->setAccentColor({});
-    }
+    resetStandardWinUI3TestStyle();
 }
 
 void WinUI3SurfacesTest::cleanup()
 {
-    for (QWidget *widget : qApp->topLevelWidgets()) {
-        if (widget->windowType() == Qt::Popup || widget->windowType() == Qt::ToolTip)
-            widget->hide();
-        else
-            widget->close();
-    }
-    if (QWidget *focus = qApp->focusWidget())
-        focus->clearFocus();
-    qApp->processEvents();
+    cleanupStandardWinUI3TestWidgets();
 }
 
 void WinUI3SurfacesTest::backdropLifecycleContract()

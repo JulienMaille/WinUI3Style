@@ -194,9 +194,16 @@ only via `winui3helpers_p.h`; no new `QStyle` subclasses, no QSS, no new deps.
     `winui3style_surfaces_unit`, which is green. The S0 and S3 notes above
     record what the baseline was *at those commits*; the failing binary name is
     the only thing that changed from here on.
-  - *Follow-up (not done)*: 42 Qt includes in `tst_winui3surfaces.cpp` were
-    already unreferenced before this split (leftovers of the step-8 domain
-    split). Trimming them is a separate, mechanical tidy.
+  - *Follow-up (done)*: the include tidy removed 43 unreferenced Qt includes
+    from `tst_winui3surfaces.cpp` (leftovers of the step-8 domain split).
+  - *Measured fixture consolidation*: 14 standard visual-test binaries had
+    identical `initTestCase`/`init`/`cleanup` bodies (23 lines each). Their
+    lifecycle implementation now lives once in
+    `WinUI3StandardTestFixture` (`tests/winui3testhelpers.h`); each test keeps
+    its existing QObject/Q_OBJECT class, slot names, and one-line lifecycle
+    slots. Net reduction: 122 source lines across the 14 files and the helper
+    adds 32 lines. Build passes; CTest remains 56/57 with the same known two
+    wizard failures in `winui3style_dialogs_unit`.
 
 ## 4. Risks & explicit limits
 

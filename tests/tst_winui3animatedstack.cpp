@@ -17,7 +17,7 @@
 #include <QPointer>
 #include <QTest>
 
-class WinUI3AnimatedStackTest final : public QObject
+class WinUI3AnimatedStackTest final : public QObject, private WinUI3StandardTestFixture
 {
     Q_OBJECT
 
@@ -34,28 +34,17 @@ private slots:
 
 void WinUI3AnimatedStackTest::initTestCase()
 {
-    qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+    initializeStandardWinUI3TestStyle();
 }
 
 void WinUI3AnimatedStackTest::init()
 {
-    if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
-        style->setThemeMode(WinUI3::ThemeMode::Light);
-        style->setAccentColor({});
-    }
+    resetStandardWinUI3TestStyle();
 }
 
 void WinUI3AnimatedStackTest::cleanup()
 {
-    for (QWidget *widget : qApp->topLevelWidgets()) {
-        if (widget->windowType() == Qt::Popup || widget->windowType() == Qt::ToolTip)
-            widget->hide();
-        else
-            widget->close();
-    }
-    if (QWidget *focus = qApp->focusWidget())
-        focus->clearFocus();
-    qApp->processEvents();
+    cleanupStandardWinUI3TestWidgets();
 }
 
 void WinUI3AnimatedStackTest::animatedStackEffectsAndInterruption()

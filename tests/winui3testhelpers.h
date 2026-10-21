@@ -161,6 +161,38 @@ inline void flushNativeCompositor()
 #endif
 }
 
+// Common lifecycle for the standard offscreen visual-test fixtures. Keep the
+// Q_OBJECT slots in each test class; these helpers centralize only their body.
+class WinUI3StandardTestFixture
+{
+protected:
+    void initializeStandardWinUI3TestStyle()
+    {
+        qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+    }
+
+    void resetStandardWinUI3TestStyle()
+    {
+        if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
+            style->setThemeMode(WinUI3::ThemeMode::Light);
+            style->setAccentColor({});
+        }
+    }
+
+    void cleanupStandardWinUI3TestWidgets()
+    {
+        for (QWidget *widget : qApp->topLevelWidgets()) {
+            if (widget->windowType() == Qt::Popup || widget->windowType() == Qt::ToolTip)
+                widget->hide();
+            else
+                widget->close();
+        }
+        if (QWidget *focus = qApp->focusWidget())
+            focus->clearFocus();
+        qApp->processEvents();
+    }
+};
+
 // Settle a popup's open sweep before sampling its native surface. Shared by
 // the ComboBox and menu native fixtures so neither binary grows a private
 // copy of the same animation wait.
