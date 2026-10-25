@@ -151,8 +151,8 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
             // stay faint — forcing 178 turned the disabled groove into an
             // opaque white band in dark Mica). Outer bars keep the erase-only
             // rest. Hover track and thumb below are unchanged.
-            const bool onBackdrop = eraseForBackdropWithCardRefill(
-                    painter, widget, option->rect, veiledCard(t.layer, true));
+            const bool onBackdrop = eraseForBackdropWithCardRefill(painter, widget, option->rect,
+                                                                   veiledCard(t.layer, true));
             const bool enabled = option->state & QStyle::State_Enabled;
             if (!onBackdrop)
                 painter->fillRect(option->rect, background);

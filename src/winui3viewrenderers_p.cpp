@@ -140,7 +140,7 @@ bool calendarNavigationBarWidget(const QWidget *widget)
             && qobject_cast<const QCalendarWidget *>(widget->parentWidget());
 }
 
-bool drawWidgetBackdropPrimitive(const Style *style, const QStyleOption *option, QPainter *painter,
+bool drawWidgetBackdropPrimitive(const Style *, const QStyleOption *option, QPainter *painter,
                                  const QWidget *widget)
 {
     if (!option || !painter)
@@ -235,7 +235,7 @@ bool drawWidgetBackdropPrimitive(const Style *style, const QStyleOption *option,
     return false;
 }
 
-bool drawChromePrimitive(const Style *style, QStyle::PrimitiveElement element,
+bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,
                          const QStyleOption *option, QPainter *painter, const QWidget *widget)
 {
     if (!option || !painter)
@@ -316,14 +316,16 @@ bool drawChromePrimitive(const Style *style, QStyle::PrimitiveElement element,
             const bool focused = editor->hasFocus();
             const bool editorEnabled = option->state & QStyle::State_Enabled;
             const QColor fill = !editorEnabled ? t.controlDisabled
-                    : focused                  ? t.editorFocusedFill
-                              : (option->state & QStyle::State_MouseOver ? t.controlHover : t.control);
+                    : focused
+                    ? t.editorFocusedFill
+                    : (option->state & QStyle::State_MouseOver ? t.controlHover : t.control);
             eraseForBackdrop(painter, widget, option->rect, ControlRadius);
             controlSurface(painter, option->rect,
                            veiledCard(fill, paintsDirectlyOnBackdrop(widget)), t.stroke,
                            t.strokeSecondary, ControlRadius);
             if (focused)
-                drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill, ControlRadius);
+                drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill,
+                                         ControlRadius);
             return true;
         }
         return false;
@@ -356,7 +358,8 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
     using namespace WinUI3::Private;
     const Tokens t = tokens(option->palette);
 
-    if (element == QStyle::CE_ShapedFrame && widget && widget->property(WinUI3::Style::SettingsCardProperty).toBool()) {
+    if (element == QStyle::CE_ShapedFrame && widget
+        && widget->property(WinUI3::Style::SettingsCardProperty).toBool()) {
         // Card-interactive iff an expandable child is bound: trailing-only
         // cards (Notifications/Updates) keep the resting control fill and
         // never show hover/press. The expandable child lives under the
@@ -366,7 +369,8 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                 widget->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
         const bool interactive = host && host->layout() && host->layout()->count() > 0;
         const qreal hover = interactive
-                ? progress(widget, hoverProperty, option->state & QStyle::State_MouseOver ? 1.0 : 0.0)
+                ? progress(widget, hoverProperty,
+                           option->state & QStyle::State_MouseOver ? 1.0 : 0.0)
                 : 0.0;
         const qreal press = interactive
                 ? progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0)
@@ -406,20 +410,21 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                                         content.center().y() - iconSize.height() / 2,
                                         iconSize.width(), iconSize.height());
                 const QRect iconRect = QStyle::visualRect(option->direction, content, logicalIcon);
-                paintThemedIcon(painter, combo->currentIcon, iconRect, Qt::AlignCenter,
-                                option->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
-                                option->state & QStyle::State_Enabled ? QIcon::Normal
-                                                                     : QIcon::Disabled);
+                paintThemedIcon(
+                        painter, combo->currentIcon, iconRect, Qt::AlignCenter,
+                        option->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled,
+                        option->state & QStyle::State_Enabled ? QIcon::Normal : QIcon::Disabled);
                 if (option->direction == Qt::RightToLeft)
                     content.setRight(iconRect.left() - 8);
                 else
                     content.setLeft(iconRect.right() + 8);
             }
             painter->setPen(option->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled);
-            painter->drawText(content,
-                              QStyle::visualAlignment(option->direction, Qt::AlignLeft | Qt::AlignVCenter),
-                              option->fontMetrics.elidedText(combo->currentText, Qt::ElideRight,
-                                                             content.width()));
+            painter->drawText(
+                    content,
+                    QStyle::visualAlignment(option->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                    option->fontMetrics.elidedText(combo->currentText, Qt::ElideRight,
+                                                   content.width()));
             return true;
         }
         return false;
@@ -461,7 +466,8 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             const bool horizontal = !progressBar || progressBar->orientation() == Qt::Horizontal;
             const bool inverted =
                     progressBar ? progressBar->invertedAppearance() : bar->invertedAppearance;
-            const bool textAboveLine = horizontal && bar && bar->textVisible && !bar->text.isEmpty();
+            const bool textAboveLine =
+                    horizontal && bar && bar->textVisible && !bar->text.isEmpty();
             const QRect track = horizontal
                     ? (textAboveLine ? QRect(option->rect.left(), option->rect.bottom() - 2,
                                              option->rect.width(), 3)
@@ -482,9 +488,8 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                 const int axis = horizontal ? track.width() : track.height();
                 const int firstLength = qMax(12, axis / 4);
                 const int secondLength = qMax(10, axis / 6);
-                const bool reverse = horizontal
-                        ? (inverted != (bar->direction == Qt::RightToLeft))
-                        : !bar->invertedAppearance;
+                const bool reverse = horizontal ? (inverted != (bar->direction == Qt::RightToLeft))
+                                                : !bar->invertedAppearance;
                 const auto drawIndicator = [&](int length, qreal offset) {
                     const qreal travel = axis + length;
                     const int distance = qRound(travel * std::fmod(phase + offset, 1.0));
@@ -623,8 +628,8 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
     const auto *viewOption = qstyleoption_cast<const QStyleOptionViewItem *>(option);
     const QAbstractItemView *view = itemView(widget);
     const bool calendar = calendarPopupView(widget);
-    const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
-            && !calendar;
+    const bool popup =
+            widget && widget->window() && widget->window()->windowType() == Qt::Popup && !calendar;
     const auto *popupCombo = popup && widget->window()->parentWidget()
             ? qobject_cast<const QComboBox *>(widget->window()->parentWidget())
             : nullptr;
@@ -642,8 +647,8 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
     // current row must read exactly like the hovered row.
     const bool keyboardCurrent = popup && view && viewOption && viewOption->index.isValid()
             && viewOption->index == view->currentIndex();
-    const bool calendarHeader = calendar && viewOption && viewOption->index.isValid()
-            && viewOption->index.row() == 0;
+    const bool calendarHeader =
+            calendar && viewOption && viewOption->index.isValid() && viewOption->index.row() == 0;
     if (calendar) {
         if (calendarHeader)
             return true;
@@ -655,8 +660,7 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
         else if (hovered)
             calendarFill = t.subtleHover;
         if (calendarFill.alpha() > 0) {
-            const int side =
-                    qMin(32, qMin(option->rect.width() - 4, option->rect.height() - 4));
+            const int side = qMin(32, qMin(option->rect.width() - 4, option->rect.height() - 4));
             const QRectF circle(option->rect.center().x() - side / 2.0,
                                 option->rect.center().y() - side / 2.0, side, side);
             roundedRect(painter, circle, calendarFill, Qt::transparent, side / 2.0);
@@ -700,8 +704,7 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
             // alpha: resolving popupSurfaceColor again would lift it twice.
             painter->save();
             painter->setCompositionMode(QPainter::CompositionMode_Source);
-            painter->fillRect(option->rect,
-                              withAlpha(option->palette.color(QPalette::Base), 255));
+            painter->fillRect(option->rect, withAlpha(option->palette.color(QPalette::Base), 255));
             painter->restore();
         } else {
             // Erase-then-rebuild in cards (reviewer 2026-10-06
@@ -800,7 +803,6 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     if (element == QStyle::PE_PanelItemViewItem)
         return drawItemViewItemPrimitive(option, painter, widget);
 
-
     if (element == QStyle::PE_IndicatorBranch) {
         const Tokens t = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
@@ -893,8 +895,8 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
         const bool calendar = calendarPopupView(widget);
         const QAbstractItemView *view = itemView(widget);
-        const bool popup = widget && widget->window()
-                && widget->window()->windowType() == Qt::Popup && !calendar;
+        const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
+                && !calendar;
         const bool comboPopup = popup && widget->window()->parentWidget()
                 && qobject_cast<const QComboBox *>(widget->window()->parentWidget());
         const bool autoSuggestPopup = popup && completerPopupView(view);
@@ -923,21 +925,19 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
         const auto *tableView = qobject_cast<const QTableView *>(view);
         const Tokens t = tokens(option->palette);
         const bool enabled = source->state & QStyle::State_Enabled;
-        const bool calendarHeader =
-                calendar && source->index.isValid() && source->index.row() == 0;
+        const bool calendarHeader = calendar && source->index.isValid() && source->index.row() == 0;
         const bool checkedPopupSelection = popup && !comboPopup && !autoSuggestPopup
                 && (source->state & QStyle::State_Selected);
 
         if (source->features & QStyleOptionViewItem::HasCheckIndicator) {
             QStyleOptionButton check;
-            check.rect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, source,
-                                               widget);
+            check.rect =
+                    style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, source, widget);
             check.palette = source->palette;
             check.state = source->state;
             check.state.setFlag(QStyle::State_Selected, false);
             check.state.setFlag(QStyle::State_On, source->checkState == Qt::Checked);
-            check.state.setFlag(QStyle::State_NoChange,
-                                source->checkState == Qt::PartiallyChecked);
+            check.state.setFlag(QStyle::State_NoChange, source->checkState == Qt::PartiallyChecked);
             check.state.setFlag(QStyle::State_Off, source->checkState == Qt::Unchecked);
             style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &check, painter, widget);
         }
@@ -955,8 +955,7 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
         const bool tableEditing = tableView && tableEditorOverlap
                 && tableEditorOverlap(tableView, source->index, source->rect);
         if ((source->features & QStyleOptionViewItem::HasDisplay) && !tableEditing) {
-            const bool hasLeadingContent =
-                    (source->features & QStyleOptionViewItem::HasDecoration)
+            const bool hasLeadingContent = (source->features & QStyleOptionViewItem::HasDecoration)
                     || (source->features & QStyleOptionViewItem::HasCheckIndicator);
             // The leading 42px reservation must follow the reading
             // direction, otherwise RTL popup text overlaps the icon and
@@ -991,8 +990,7 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
                     textColor = t.textDisabled;
             }
             painter->setPen(textColor);
-            Qt::Alignment alignment =
-                    Qt::Alignment(source->displayAlignment) | Qt::AlignVCenter;
+            Qt::Alignment alignment = Qt::Alignment(source->displayAlignment) | Qt::AlignVCenter;
             alignment = QStyle::visualAlignment(source->direction, alignment);
             const bool wraps = source->features & QStyleOptionViewItem::WrapText;
             const int textFlags =
@@ -1011,8 +1009,8 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
             const QRectF focusRect = tree ? QRectF(source->rect).adjusted(4, 2, -4, -2)
                     : table               ? QRectF(source->rect).adjusted(1, 1, -1, -1)
                                           : QRectF(source->rect).adjusted(2, 1, -2, -1);
-            paintFocusRing(painter, focusRect, t.focusOuter, t.focusInner, 1, 3,
-                           table ? 0.0 : 5.0, table ? 0.0 : 3.0);
+            paintFocusRing(painter, focusRect, t.focusOuter, t.focusInner, 1, 3, table ? 0.0 : 5.0,
+                           table ? 0.0 : 3.0);
         }
         return true;
     }
@@ -1034,7 +1032,6 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
 
     if (element == QStyle::CE_ItemViewItem)
         return drawItemViewItemControl(style, option, painter, widget, tableEditorOverlap);
-
 
     if (element == QStyle::CE_Splitter) {
         const Tokens t = tokens(option->palette);

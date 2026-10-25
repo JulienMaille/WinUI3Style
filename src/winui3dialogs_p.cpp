@@ -8,6 +8,7 @@
 #include "winui3surfaces_p.h"
 
 #include "winui3paint_p.h"
+#include "winui3qtcompat_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 

@@ -102,8 +102,7 @@ void convergePopupOpaqueFallback(QWidget *popup)
     popup->setAttribute(Qt::WA_NoSystemBackground, false);
     popup->setAttribute(Qt::WA_StyledBackground, false);
     popup->setAttribute(Qt::WA_OpaquePaintEvent, true);
-    popup->setProperty(effectiveBackdropProperty,
-                       static_cast<int>(BackdropSurface::Painted));
+    popup->setProperty(effectiveBackdropProperty, static_cast<int>(BackdropSurface::Painted));
     popup->update();
 }
 
@@ -293,7 +292,8 @@ void preparePopupSurface(QWidget *widget)
                     popup->update();
                 }
                 if (granted || attempt + 1 >= rearmMaxAttempts) {
-                    if (!granted && popupBackdropReadback(popup) == PopupBackdropReadback::Refused) {
+                    if (!granted
+                        && popupBackdropReadback(popup) == PopupBackdropReadback::Refused) {
                         // Durable refusal: the cached Composited property
                         // would otherwise lie at every later Show (light
                         // bands over a white backing store). Converge to

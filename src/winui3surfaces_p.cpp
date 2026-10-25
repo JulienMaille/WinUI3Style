@@ -313,8 +313,7 @@ void transparentizeScrollChain(QAbstractScrollArea *area)
     // rebuild the Base role. In-card nav keeps its own recipe via the branch
     // below, as before.
     const bool inCard = insideOpaqueCard(area);
-    const bool bareNavigation =
-            !inCard && area->property(Style::NavigationViewProperty).toBool();
+    const bool bareNavigation = !inCard && area->property(Style::NavigationViewProperty).toBool();
     if (!bareNavigation
         && ((inCard && area->property(backdropSurfacePaletteProperty).isValid())
             || (!inCard && area->viewport()
@@ -330,8 +329,7 @@ void transparentizeScrollChain(QAbstractScrollArea *area)
                          QVariant::fromValue(viewport->palette()));
                 remember(viewport, backdropSurfacePaletteExplicitProperty,
                          viewport->testAttribute(Qt::WA_SetPalette));
-                remember(viewport, backdropSurfaceAutoFillProperty,
-                         viewport->autoFillBackground());
+                remember(viewport, backdropSurfaceAutoFillProperty, viewport->autoFillBackground());
                 remember(viewport, backdropSurfaceStyledBackgroundProperty,
                          viewport->testAttribute(Qt::WA_StyledBackground));
                 remember(viewport, backdropSurfaceOpaquePaintProperty,
@@ -636,8 +634,6 @@ void restoreContentSurfacesForBackdrop(QWidget *window)
         restoreContainerLinks(central);
     }
 }
-
-
 
 void guardIslandScrollArea(QAbstractScrollArea *area)
 {

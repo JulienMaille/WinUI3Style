@@ -337,8 +337,7 @@ void WinUI3SettingsTest::plainShapedFrameFallsThroughToBaseStyle()
     // carries the SizeGrip dot color (textTertiary) there. Note textTertiary
     // is translucent (alpha ~114 in Light), so the gate must be alpha-aware:
     // an opaque-only scan would miss the dots entirely.
-    const WinUI3::Private::Tokens tokens =
-            WinUI3::Private::tokens(QApplication::palette());
+    const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(QApplication::palette());
     int dotPixels = 0;
     for (int y = 24; y < 40; ++y) {
         for (int x = 104; x < 120; ++x) {

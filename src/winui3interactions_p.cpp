@@ -391,8 +391,7 @@ bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event
             return true;
         }
     }
-    if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-        checkBox && toggleSwitch(checkBox)) {
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget); checkBox && toggleSwitch(checkBox)) {
         const auto *mouse = static_cast<QMouseEvent *>(event);
         if (mouse->button() == Qt::LeftButton) {
             const QRect track = toggleTrackRect(checkBox->rect(), checkBox->layoutDirection());
@@ -424,8 +423,7 @@ bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
         if ((mouse->buttons() & Qt::LeftButton) && slider->isEnabled())
             m_callbacks.scheduleSliderToolTip(slider);
     }
-    if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-        checkBox && toggleSwitch(checkBox)) {
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget); checkBox && toggleSwitch(checkBox)) {
         auto state = m_callbacks.toggleDragStates->find(checkBox);
         const auto *mouse = static_cast<QMouseEvent *>(event);
         if (state != m_callbacks.toggleDragStates->end() && state->candidate
@@ -439,11 +437,9 @@ bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
             if (state->dragging) {
                 qreal position;
                 if (checkBox->layoutDirection() == Qt::RightToLeft)
-                    position =
-                            (checkBox->rect().right() - 10.0 - mousePosition(mouse).x()) / 20.0;
+                    position = (checkBox->rect().right() - 10.0 - mousePosition(mouse).x()) / 20.0;
                 else
-                    position =
-                            (mousePosition(mouse).x() - checkBox->rect().left() - 10.0) / 20.0;
+                    position = (mousePosition(mouse).x() - checkBox->rect().left() - 10.0) / 20.0;
                 framePropertyRegistry().set(checkBox, togglePositionProperty,
                                             qBound<qreal>(0.0, position, 1.0));
                 checkBox->update();
@@ -496,8 +492,7 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
     }
     if (qobject_cast<QComboBox *>(widget))
         m_callbacks.releaseComboChevron(widget);
-    if (auto *checkBox = qobject_cast<QCheckBox *>(widget);
-        checkBox && toggleSwitch(checkBox)) {
+    if (auto *checkBox = qobject_cast<QCheckBox *>(widget); checkBox && toggleSwitch(checkBox)) {
         const auto state = m_callbacks.toggleDragStates->take(checkBox);
         if (state.dragging) {
             const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
@@ -606,8 +601,8 @@ bool StyleInteractionController::handleKeyPress(QWidget *widget, QEvent *event)
         // currentChanged repaint stays the primary path, this only
         // guarantees the newly current row is never left stale.
         const int key = static_cast<QKeyEvent *>(event)->key();
-        if (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home
-            || key == Qt::Key_End || key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
+        if (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home || key == Qt::Key_End
+            || key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
             if (QComboBox *combo = m_callbacks.comboForPopupWidget(widget)) {
                 if (QWidget *viewport = combo->view() ? combo->view()->viewport() : nullptr) {
                     QTimer::singleShot(0, viewport, [viewport] { viewport->update(); });
@@ -651,11 +646,9 @@ bool StyleInteractionController::handleEnabledChange(QWidget *widget)
     // leave a stale hover/pressed surface behind.
     m_callbacks.clearPointerInteraction(widget);
     const bool enabled = widget->isEnabled();
-    framePropertyRegistry().set(widget, hoverProperty,
-                                enabled && widget->underMouse() ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, hoverProperty, enabled && widget->underMouse() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, pressProperty, 0.0);
-    framePropertyRegistry().set(widget, focusProperty,
-                                enabled && widget->hasFocus() ? 1.0 : 0.0);
+    framePropertyRegistry().set(widget, focusProperty, enabled && widget->hasFocus() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, focusVisibleProperty,
                                 enabled && widget->hasFocus() && *m_callbacks.keyboardInput);
     if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
@@ -688,8 +681,7 @@ bool StyleInteractionController::handleEnabledChange(QWidget *widget)
 
 bool StyleInteractionController::handlePaint(QWidget *widget)
 {
-    if (auto *button = qobject_cast<QToolButton *>(widget);
-        button && textBoxHelperButton(button)) {
+    if (auto *button = qobject_cast<QToolButton *>(widget); button && textBoxHelperButton(button)) {
         // QLineEditIconButton has a private paintEvent that bypasses
         // QToolButton's CC_ToolButton path. Own its complete rendering so
         // the WinUI DeleteButton surface is refreshed on real pointer
@@ -791,12 +783,11 @@ bool StyleInteractionController::handleShow(QWidget *widget)
             opacity->setStartValue(0.0);
             opacity->setEndValue(1.0);
             opacity->setDuration(FasterDuration);
-            QObject::connect(group, &QParallelAnimationGroup::finished, dialog,
-                             [dialog, group] {
-                                 dialog->setWindowOpacity(1.0);
-                                 dialog->setProperty("_winui_dialog_animating", false);
-                                 group->deleteLater();
-                             });
+            QObject::connect(group, &QParallelAnimationGroup::finished, dialog, [dialog, group] {
+                dialog->setWindowOpacity(1.0);
+                dialog->setProperty("_winui_dialog_animating", false);
+                group->deleteLater();
+            });
             group->start();
         }
     }
@@ -841,8 +832,7 @@ bool StyleInteractionController::handleWinIdChange(QWidget *widget)
 #endif
     if (widget->isWindow() && widget->isVisible()
         && widget->property("_winui_backdrop").isValid()) {
-        applyBackdrop(widget,
-                      static_cast<Backdrop>(widget->property("_winui_backdrop").toInt()));
+        applyBackdrop(widget, static_cast<Backdrop>(widget->property("_winui_backdrop").toInt()));
     }
     if (qobject_cast<QDialog *>(widget) && widget->isWindow())
         applyDialogCaptionTheme(widget);
@@ -908,8 +898,7 @@ bool StyleInteractionController::handleDynamicPropertyChange(QWidget *widget, QE
     } else if (name == Style::SettingsCardProperty) {
         if (auto *frame = qobject_cast<QFrame *>(widget)) {
             if (widget->property(Style::SettingsCardProperty).toBool()) {
-                m_callbacks.remember(frame, originalFrameShapeProperty,
-                                     int(frame->frameShape()));
+                m_callbacks.remember(frame, originalFrameShapeProperty, int(frame->frameShape()));
                 frame->setFrameShape(QFrame::StyledPanel);
             } else if (widget->property(originalFrameShapeProperty).isValid()) {
                 frame->setFrameShape(static_cast<QFrame::Shape>(

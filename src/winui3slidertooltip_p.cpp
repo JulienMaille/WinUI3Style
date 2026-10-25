@@ -14,6 +14,7 @@
 #include <QGuiApplication>
 #include <QPainter>
 #include <QPointer>
+#include <QScreen>
 #include <QSlider>
 #include <QStyleOptionSlider>
 #include <QTimer>

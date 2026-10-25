@@ -24,7 +24,7 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
 // before the per-element paint so the paint itself never has to remember the
 // backdrop contract.
 bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOption *option,
-                              QPainter *painter, const QWidget *widget);
+                               QPainter *painter, const QWidget *widget);
 
 } // namespace Private
 } // namespace WinUI3

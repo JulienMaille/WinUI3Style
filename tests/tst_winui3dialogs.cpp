@@ -36,7 +36,6 @@ private slots:
     void init();
     void cleanup();
 
-
     void contentDialogContract();
     void messageBoxContentDialogContract();
     void wizardSurfaceContract();

@@ -113,8 +113,7 @@ void WinUI3MicaNativeTest::popupGrantAliveRejectsRevokedEffect()
     QWidget host;
     host.resize(560, 440);
     QComboBox combo(&host);
-    combo.addItems(
-            { QStringLiteral("Standard density"), QStringLiteral("Compact density") });
+    combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
     combo.resize(200, 32);
     host.show();
     QVERIFY(QTest::qWaitForWindowExposed(&host));

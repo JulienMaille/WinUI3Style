@@ -183,8 +183,7 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
         // the leading icon/check slot). Plain menu rows use the full
         // inset fill, driven by Qt's Selected flag like MenuFlyout's
         // PointerOver state.
-        const bool showHoverFill =
-                comboItem ? showHover : (menu->state & QStyle::State_Selected);
+        const bool showHoverFill = comboItem ? showHover : (menu->state & QStyle::State_Selected);
         if (comboItem) {
             // Row surface normalization. Qt's own combo-popup delegate
             // (QComboMenuDelegate, installed on SH_ComboBox_Popup, qcombobox.cpp)
@@ -246,8 +245,7 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
                 menu->direction, menu->rect,
                 QRect(menu->rect.left() + 12, menu->rect.center().y() - 8, 16, 16));
         if (comboItem && menu->checked) {
-            const QWidget *interactionSurface =
-                    combo->view() ? combo->view()->viewport() : nullptr;
+            const QWidget *interactionSurface = combo->view() ? combo->view()->viewport() : nullptr;
             // WinUI's SelectedPressed state exists only when the already
             // selected row itself is held. Pressing another row must not
             // animate the marker that remains on the selected row.
@@ -262,8 +260,8 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
             const qreal x = menu->direction == Qt::RightToLeft ? leading.right() + 4.0
                                                                : leading.left() - 6.0;
             painter->drawRoundedRect(
-                    QRectF(x, menu->rect.center().y() - markerHeight / 2.0, 3.0, markerHeight),
-                    1.5, 1.5);
+                    QRectF(x, menu->rect.center().y() - markerHeight / 2.0, 3.0, markerHeight), 1.5,
+                    1.5);
             painter->restore();
         }
         // A ComboBox selection marker and its item decoration occupy
@@ -293,9 +291,8 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
         // QFontMetrics and QPainter in the supported Qt baseline take
         // QString rather than QStringView. fromRawData() gives them a
         // non-owning view, so neither field is copied just for paint.
-        const QString itemText = hasShortcut
-                ? QString::fromRawData(menu->text.constData(), firstTab)
-                : menu->text;
+        const QString itemText =
+                hasShortcut ? QString::fromRawData(menu->text.constData(), firstTab) : menu->text;
         const qsizetype shortcutLength = hasShortcut
                 ? (secondTab >= 0 ? secondTab - firstTab - 1 : menuText.size() - firstTab - 1)
                 : 0;
@@ -311,13 +308,11 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
         const int shortcutLeft = shortcutRight - shortcutWidth;
         const int textRight = shortcutWidth > 0 ? shortcutLeft - 20 : shortcutRight;
         const int textLeft = comboItem && menu->icon.isNull() ? 16 : 42;
-        const QRect textRect =
-                QStyle::visualRect(menu->direction, menu->rect,
-                                   QRect(menu->rect.left() + textLeft, menu->rect.top(),
-                                         qMax(0, textRight - menu->rect.left() - textLeft + 1),
-                                         menu->rect.height()));
-        int itemFlags =
-                QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
+        const QRect textRect = QStyle::visualRect(
+                menu->direction, menu->rect,
+                QRect(menu->rect.left() + textLeft, menu->rect.top(),
+                      qMax(0, textRight - menu->rect.left() - textLeft + 1), menu->rect.height()));
+        int itemFlags = QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
                 | Qt::TextShowMnemonic;
         if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget) == 0)
             itemFlags |= Qt::TextHideMnemonic;
@@ -342,8 +337,8 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
     return false;
 }
 
-bool drawMenuControl(const Style *style, QStyle::ControlElement element,
-                     const QStyleOption *option, QPainter *painter, const QWidget *widget)
+bool drawMenuControl(const Style *style, QStyle::ControlElement element, const QStyleOption *option,
+                     QPainter *painter, const QWidget *widget)
 {
     if (element != QStyle::CE_MenuBarItem && element != QStyle::CE_MenuBarEmptyArea
         && element != QStyle::CE_MenuItem) {
@@ -409,7 +404,6 @@ bool drawMenuControl(const Style *style, QStyle::ControlElement element,
 
     if (element == QStyle::CE_MenuItem)
         return drawMenuItemControl(style, option, painter, widget, t);
-
 
     return false;
 }

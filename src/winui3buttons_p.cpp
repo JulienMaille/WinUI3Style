@@ -84,7 +84,7 @@ void drawEditorScopedClearSurface(const QStyleOption *option, QPainter *painter,
 } // namespace
 
 bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOption *option,
-                              QPainter *painter, const QWidget *widget)
+                               QPainter *painter, const QWidget *widget)
 {
     if (element != QStyle::CE_PushButton && element != QStyle::CE_PushButtonLabel
         && element != QStyle::CE_CheckBox && element != QStyle::CE_CheckBoxLabel
@@ -149,8 +149,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
     // standard erase-then-fill path below.
     if (!calendarPopupButton && (role == ControlRole::Subtle || role == ControlRole::Navigation)
         && paintsDirectlyOnBackdrop(widget)
-        && !(option->state
-             & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
+        && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
         && progress(widget, hoverProperty, 0.0) < 0.01
         && progress(widget, pressProperty, 0.0) < 0.01) {
         eraseForBackdrop(painter, widget, option->rect, ControlRadius);
@@ -169,8 +168,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
     // editor-scoped full-height clear surface, so a per-button surface
     // shows up as an unwanted little square around the glyph.
     if (const auto *widgetButton = qobject_cast<const QAbstractButton *>(widget)) {
-        if (const auto *lineEdit =
-                    qobject_cast<const QLineEdit *>(widgetButton->parentWidget())) {
+        if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widgetButton->parentWidget())) {
             if (lineEditClearButton(lineEdit) == widgetButton)
                 return true;
         }
@@ -197,8 +195,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
     // parent surface before painting the new state.
     if (element == QStyle::PE_PanelButtonTool && widget && widget->parentWidget()
         && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
-        painter->fillRect(option->rect,
-                          widget->parentWidget()->palette().color(QPalette::Window));
+        painter->fillRect(option->rect, widget->parentWidget()->palette().color(QPalette::Window));
     }
     QColor fill = t.control;
     QColor stroke = t.stroke;
@@ -263,8 +260,8 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
         roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
     } else if (role == ControlRole::Accent || role == ControlRole::Destructive
                || ((option->state & QStyle::State_On) && role == ControlRole::Standard)) {
-        controlSurface(painter, surfaceRect.toRect(), fill, t.accentStroke,
-                       t.accentStrokeSecondary, ControlRadius);
+        controlSurface(painter, surfaceRect.toRect(), fill, t.accentStroke, t.accentStrokeSecondary,
+                       ControlRadius);
     } else {
         controlSurface(painter, surfaceRect.toRect(), fill, t.stroke, t.strokeSecondary,
                        ControlRadius);
@@ -328,17 +325,15 @@ static bool drawIndicatorPrimitive(const Style *, QStyle::PrimitiveElement eleme
             painter->setBrush(onAccent);
             painter->setPen(Qt::NoPen);
             // WinUI: 12 px at rest, 14 px on pointer-over, 10 px pressed.
-            const qreal diameter = ((12.0 + 2.0 * indicatorHover) * (1.0 - indicatorPress)
-                                    + 10.0 * indicatorPress)
+            const qreal diameter =
+                    ((12.0 + 2.0 * indicatorHover) * (1.0 - indicatorPress) + 10.0 * indicatorPress)
                     * checkAmount;
             painter->drawEllipse(snappedEllipseRect(indicator, diameter, painter));
         } else if (option->state & QStyle::State_NoChange) {
-            painter->setPen(
-                    QPen(onAccent, 1.1666667, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->setPen(QPen(onAccent, 1.1666667, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             const qreal halfWidth = 5.0 * checkAmount;
-            painter->drawLine(
-                    QPointF(indicator.center().x() - halfWidth, indicator.center().y()),
-                    QPointF(indicator.center().x() + halfWidth, indicator.center().y()));
+            painter->drawLine(QPointF(indicator.center().x() - halfWidth, indicator.center().y()),
+                              QPointF(indicator.center().x() + halfWidth, indicator.center().y()));
         } else {
             // Port the generated AnimatedAcceptVisualSource geometry:
             // a 48 px canvas, 0.7 scale, (24,23) offset, rounded 4-unit
@@ -390,12 +385,11 @@ static bool drawLineEditPanelPrimitive(const Style *, const QStyleOption *option
     if (widget && widget->parentWidget()
         && widget->parentWidget()->property(Style::SurfaceProperty).isValid()
         && !paintsDirectlyOnBackdrop(widget)) {
-        painter->fillRect(option->rect,
-                          widget->parentWidget()->palette().color(QPalette::Window));
+        painter->fillRect(option->rect, widget->parentWidget()->palette().color(QPalette::Window));
     }
     const bool focused = option->state & QStyle::State_HasFocus;
-    const qreal lineEditHover = progress(widget, hoverProperty,
-                                         option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
+    const qreal lineEditHover =
+            progress(widget, hoverProperty, option->state & QStyle::State_MouseOver ? 1.0 : 0.0);
     // Keep the focused surface opaque (see CC_ComboBox): the old
     // translucent dark fill washed out toward white over a light
     // material.

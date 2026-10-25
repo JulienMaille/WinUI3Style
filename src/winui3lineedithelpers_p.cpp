@@ -25,7 +25,6 @@ namespace WinUI3::Private {
 
 namespace {
 
-
 struct LineEditClearButtonCache
 {
     QHash<QLineEdit *, QPointer<QAbstractButton>> buttons;
@@ -44,19 +43,17 @@ LineEditClearButtonCache &lineEditClearButtonCache()
 
 namespace {
 
-
 bool isLineEditClearButton(const QLineEdit *lineEdit, const QAbstractButton *button)
 {
     if (!lineEdit || !button)
         return false;
     for (QAction *action : lineEdit->actions())
-            if (actionAssociatedWith(action, button))
-                return false;
+        if (actionAssociatedWith(action, button))
+            return false;
     // QLineEdit's private clear affordance is deliberately not a QAction;
     // custom leading/trailing actions are associated above.
     return true;
 }
-
 
 } // namespace
 
@@ -94,7 +91,6 @@ const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit)
 }
 
 namespace {
-
 
 constexpr auto lineEditHelperUpdatePendingProperty = "_winui_line_edit_helper_update_pending";
 
@@ -165,7 +161,6 @@ void scheduleLineEditHelperUpdate(QLineEdit *lineEdit, Style *style)
         }
     });
 }
-
 
 } // namespace
 

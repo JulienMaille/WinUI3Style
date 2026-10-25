@@ -38,13 +38,13 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
 // PE_Widget backdrop branches the facade used to own: calendar lane,
 // card viewport / card interior, island erase and popup tint. Returns false
 // when this widget is not a PE_Widget case, so the caller keeps its chain.
-bool drawWidgetBackdropPrimitive(const Style *style, const QStyleOption *option, QPainter *painter,
+bool drawWidgetBackdropPrimitive(const Style *, const QStyleOption *option, QPainter *painter,
                                  const QWidget *widget);
 // Remaining PE_* elements that the facade used to own: focus ring, tooltip
 // label, status bar, spin/arrow glyphs, view / rich-edit frames and the
 // toolbar separator. Returns false when the element is not one of these, so
 // the caller falls through to its assert + base style.
-bool drawChromePrimitive(const Style *style, QStyle::PrimitiveElement element,
+bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,
                          const QStyleOption *option, QPainter *painter, const QWidget *widget);
 // Remaining CE_* elements that the facade used to own: SettingsCard frame,
 // ComboBox label, ProgressBar groove/contents/label, ToolBar and SizeGrip.

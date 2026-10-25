@@ -423,8 +423,7 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
         // are untouched by this pass, so no corrective re-sync is needed.
         if (Private::backdropEffectiveSurface(window) == Private::BackdropSurface::Composited
             && Private::isTransparentizedForBackdrop(widget))
-            palette.setColor(QPalette::Window,
-                             withAlpha(palette.color(QPalette::Window), 0));
+            palette.setColor(QPalette::Window, withAlpha(palette.color(QPalette::Window), 0));
         Private::setBackdropPalette(widget, palette);
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
@@ -1857,8 +1856,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget && Private::drawWidgetBackdropPrimitive(this, option,
-                                                                               painter, widget))
+    if (element == PE_Widget && widget
+        && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
         return;
     if (Private::drawChromePrimitive(this, element, option, painter, widget))
         return;
