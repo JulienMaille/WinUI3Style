@@ -5,8 +5,9 @@
 The CMake library version remains `0.1.0`. The first experimental release's
 tag is `v0.1.0-experimental.1`.
 The GitHub `release` workflow publishes that tag as a prerelease after its
-hosted Release build and non-native CTest gate pass. `workflow_dispatch` only
-uploads a temporary build artifact; it never publishes.
+hosted Release build and non-native CTest gate pass. Manual dispatch defaults
+to a temporary artifact; its explicit `publish` input can resume publication
+of that same immutable tag after an infrastructure failure.
 This preview evaluates stock Qt Widgets with a WinUI-inspired QStyle, not
 production readiness or complete pixel-identical WinUI coverage.
 

@@ -5,6 +5,11 @@ on:
     tags:
       - 'v0.1.0-experimental.1'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the existing validated v0.1.0-experimental.1 tag'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -12,9 +17,11 @@ permissions:
 jobs:
   package:
     runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/v0.1.0-experimental.1
           fetch-depth: 0
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt 6.11.1 (same SDK build as CI)
@@ -44,6 +51,7 @@ jobs:
             throw "Qt 6.11.1 SDK is missing the required modern Windows style plugin: $plugin"
           }
       - name: Fetch and verify matching official Qt source modules
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -58,9 +66,22 @@ jobs:
           )
           foreach ($module in $modules) {
             $archiveName = "$($module.Name)-everywhere-src-$version.tar.xz"
-            $url = "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/$archiveName"
             $archivePath = Join-Path $downloadRoot $archiveName
-            Invoke-WebRequest -Uri $url -OutFile $archivePath
+            # Mirrors listed by download.qt.io; retain the original SHA-256
+            # gate, and bound each transfer so a dead mirror cannot hang CI.
+            $urls = @(
+              "https://ftp.fau.de/qtproject/archive/qt/6.11/6.11.1/submodules/$archiveName",
+              "https://mirror.accum.se/mirror/qt.io/qtproject/archive/qt/6.11/6.11.1/submodules/$archiveName"
+            )
+            $downloaded = $false
+            foreach ($url in $urls) {
+              Write-Host "Downloading $archiveName from $url"
+              & curl.exe --fail --location --silent --show-error `
+                --connect-timeout 15 --max-time 120 --output $archivePath $url
+              if ($LASTEXITCODE -eq 0) { $downloaded = $true; break }
+              Write-Warning "Mirror failed for $archiveName (curl exit $LASTEXITCODE)."
+            }
+            if (-not $downloaded) { throw "All bounded downloads failed for $archiveName" }
             $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actualHash -ne $module.Hash) {
               throw "SHA-256 mismatch for ${archiveName}: $actualHash"
@@ -87,7 +108,7 @@ jobs:
           -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
       - name: Build Release
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --parallel 2
       - name: Run hosted-compatible Release tests and package
         shell: pwsh
         run: |
@@ -132,7 +153,7 @@ jobs:
           retention-days: 14
 
   publish:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || inputs.publish
     needs: package
     runs-on: windows-2022
     permissions:
@@ -141,7 +162,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: refs/tags/v0.1.0-experimental.1
           fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
@@ -151,10 +172,11 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v0.1.0-experimental.1
         run: |
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           if ($assets.Count -lt 5) { throw 'Release assets are incomplete.' }
-          gh release create $env:GITHUB_REF_NAME @assets `
-            --title $env:GITHUB_REF_NAME `
+          gh release create $env:RELEASE_TAG @assets `
+            --title $env:RELEASE_TAG `
             --notes-file RELEASE_NOTES.md `
             --prerelease

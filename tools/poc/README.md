@@ -102,8 +102,9 @@ verified official Qt source archives for the bundled Qt modules. The source
 manifest records Qt version and source archive hashes. The workflow excludes
 native-labelled tests on the hosted runner for the same interactive-desktop
 reason as CI; that is explicit in the package manifest and is not a claim of
-native verification. The workflow-dispatch path builds and uploads the same
-candidate as a short-lived Actions artifact and never creates a GitHub release.
+native verification. Manual dispatch builds the same immutable tag and defaults
+to a short-lived Actions artifact. Its explicit `publish` input can resume
+publication after an infrastructure failure without moving the tag.
 
 The tag workflow is prerelease-only and does not create tags. Verify green CI
 for the exact commit before creating/pushing the documented tag. A candidate
@@ -117,8 +118,9 @@ Test the extracted ZIP on a Windows machine without Qt/developer tools and
 exercise both themes, both densities, menus, suggestions, dialogs and repeated
 Mica on/off cycles. Confirm the exact candidate commit's hosted CI is green.
 
-Current local validation passes 59/59 CTest entries and 26 domain binaries
-with official Qt 6.11.1. The strict matrix contains 70 approved PNGs, including
+Current hosted-compatible validation passes 60/60 CTest entries with official
+Qt 6.11.1; interactive native tests remain separate. The strict matrix contains
+70 approved PNGs, including
 the four Palette Lab frames. A newly generated archive must reproduce this
 matrix; the old 66-frame preview is not evidence for the current candidate.
 The RGB/alpha comparison oracle now checks all four channels. Its former
