@@ -60,8 +60,8 @@ a Qt 5, MinGW, ARM64 or 32-bit binary. Build those configurations separately.
 
 Local preflight on 2026-10-12: official Qt 6.11.1 Release configure/build,
 whole-tree clang-format 18.1.8, all 59 CTest entries and all 26 split domain
-binaries pass. Current package preflight has eight source-guard, test-policy,
-and deployment-prerequisite cases. The strict 70-frame snapshot matrix is
+binaries pass. Current package preflight has nine source-guard, test-policy,
+deployment-prerequisite and startup-process cases. The strict 70-frame snapshot matrix is
 included. Calendar snapshots preserve the approved
 2026-10-11 fixture without changing the live Gallery's date. The native
 submenu fallback uses nested keyboard input, retaining the parent snapshot

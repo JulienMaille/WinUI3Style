@@ -100,6 +100,15 @@ class PackageSourceGuardTests(unittest.TestCase):
         self.assertIn("Join-Path $stage 'vc_redist.x64.exe'", source)
         self.assertIn("autoInstalled = $false", source)
 
+    def test_package_startup_smoke_redirects_all_handles_and_checks_real_exit(self):
+        source = PACKAGE_SCRIPT.read_text(encoding="utf-8")
+        for handle in ("StandardInput", "StandardOutput", "StandardError"):
+            self.assertIn(f"$smokeStartInfo.Redirect{handle} = $true", source)
+        self.assertIn("$smoke.StandardInput.Close()", source)
+        self.assertIn("$smoke.WaitForExit(30000)", source)
+        self.assertIn("$smoke.ExitCode -ne 0", source)
+        self.assertIn("$smokeOutput.Contains('--capture-dir')", source)
+
     def test_clean_source_reaches_next_precondition(self):
         self.assertIn("Cannot identify project version", self.package_error())
 

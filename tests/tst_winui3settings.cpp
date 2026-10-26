@@ -15,7 +15,9 @@
 #include <QPainter>
 #include <QSignalSpy>
 #include <QStyleOption>
+#include <QScopedPointer>
 #include <QTest>
+#include <QToolTip>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
 
@@ -39,6 +41,7 @@ private slots:
     void settingsCardTrailingWidgetSurvivesExternalDelete();
     void settingsCardExpandedHostSharesCardSurface();
     void plainShapedFrameFallsThroughToBaseStyle();
+    void uninstalledStyleDoesNotRefreshApplication();
 };
 
 void WinUI3SettingsTest::initTestCase()
@@ -356,6 +359,63 @@ void WinUI3SettingsTest::plainShapedFrameFallsThroughToBaseStyle()
     QCOMPARE(dotPixels, 0);
     // Geometry pairing on the same state: the frame kept its size.
     QCOMPARE(frame.size(), QSize(120, 40));
+}
+
+void WinUI3SettingsTest::uninstalledStyleDoesNotRefreshApplication()
+{
+    QWidget gallery;
+    auto *panel = new QWidget(&gallery);
+    QPalette galleryPalette = gallery.palette();
+    galleryPalette.setColor(QPalette::Window, QColor(40, 80, 120));
+    gallery.setPalette(galleryPalette);
+    gallery.setAutoFillBackground(true);
+    gallery.setAttribute(Qt::WA_StyledBackground, true);
+    QPalette panelPalette = panel->palette();
+    panelPalette.setColor(QPalette::Window, QColor(110, 70, 35));
+    panel->setPalette(panelPalette);
+    panel->setAutoFillBackground(true);
+    gallery.setProperty("_winui_backdrop", 0);
+    gallery.setProperty("_winui_backdrop_effective", 2);
+    gallery.resize(240, 160);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    QCoreApplication::processEvents();
+
+    QStyle *const installedStyle = qApp->style();
+    const QPalette applicationPalette = qApp->palette();
+    const QPalette toolTipPalette = QToolTip::palette();
+    const QPalette liveGalleryPalette = gallery.palette();
+    const QPalette livePanelPalette = panel->palette();
+    const auto galleryStyledBackground = gallery.testAttribute(Qt::WA_StyledBackground);
+    const auto galleryAutoFill = gallery.autoFillBackground();
+    const auto gallerySetPalette = gallery.testAttribute(Qt::WA_SetPalette);
+    const auto panelStyledBackground = panel->testAttribute(Qt::WA_StyledBackground);
+    const auto panelAutoFill = panel->autoFillBackground();
+    const auto panelSetPalette = panel->testAttribute(Qt::WA_SetPalette);
+
+    QScopedPointer<QStyle> preview(new WinUI3::Style);
+    QVERIFY(preview);
+    QVERIFY(preview.data() != installedStyle);
+    const QColor accent(36, 94, 151);
+    QVERIFY(preview->setProperty("themeMode", 2));
+    QVERIFY(preview->setProperty("accentColor", accent));
+    QCOMPARE(preview->standardPalette().color(QPalette::Window), QColor(32, 32, 32));
+    QCOMPARE(preview->standardPalette().color(QPalette::Highlight), accent);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(qApp->style(), installedStyle);
+    QCOMPARE(qApp->palette(), applicationPalette);
+    QCOMPARE(QToolTip::palette(), toolTipPalette);
+    QCOMPARE(gallery.palette(), liveGalleryPalette);
+    QCOMPARE(panel->palette(), livePanelPalette);
+    QCOMPARE(gallery.testAttribute(Qt::WA_StyledBackground), galleryStyledBackground);
+    QCOMPARE(gallery.autoFillBackground(), galleryAutoFill);
+    QCOMPARE(gallery.testAttribute(Qt::WA_SetPalette), gallerySetPalette);
+    QCOMPARE(panel->testAttribute(Qt::WA_StyledBackground), panelStyledBackground);
+    QCOMPARE(panel->autoFillBackground(), panelAutoFill);
+    QCOMPARE(panel->testAttribute(Qt::WA_SetPalette), panelSetPalette);
+    QCOMPARE(gallery.property("_winui_backdrop").toInt(), 0);
+    QCOMPARE(gallery.property("_winui_backdrop_effective").toInt(), 2);
 }
 
 QTEST_MAIN(WinUI3SettingsTest)

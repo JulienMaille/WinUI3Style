@@ -79,12 +79,13 @@ QCompleter *makeAutoSuggestCompleter(const QStringList &words, QWidget *parent)
 }
 } // namespace
 
-GalleryWindow::GalleryWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::GalleryWindow)
+GalleryWindow::GalleryWindow(QWidget *parent, bool captureMode)
+    : QMainWindow(parent), ui(new Ui::GalleryWindow)
 {
     ui->setupUi(this);
     configureGallery();
     populateCollections();
-    configurePaletteLab();
+    configurePaletteLab(captureMode);
     // Opt-in live diagnostic: exercises popup open/close/reopen with real
     // windows QPA so DWM grant behavior on a reused HWND can be observed.
     // Driven by WINUI3STYLE_LIVE_MENUS=first|double.
@@ -345,7 +346,7 @@ void GalleryWindow::populateCollections()
     ui->tableViewTab->horizontalHeader()->setStretchLastSection(true);
 }
 
-void GalleryWindow::configurePaletteLab()
+void GalleryWindow::configurePaletteLab(bool captureMode)
 {
     struct RoleRow
     {
@@ -362,10 +363,22 @@ void GalleryWindow::configurePaletteLab()
         QPalette working;
         QList<QLabel *> swatches;
     };
+    QPalette capturePalette = ui->palettePreview->palette();
+    if (captureMode) {
+        // The swatches are sampled at Gallery construction. Use an isolated
+        // factory-created style for the approved fixture; this instance is
+        // never installed as QApplication's active style.
+        const std::unique_ptr<QStyle> captureStyle(QStyleFactory::create(QStringLiteral("winui3")));
+        if (captureStyle) {
+            captureStyle->setProperty("themeMode", 2);
+            captureStyle->setProperty("accentColor", QColor(0, 120, 212));
+            capturePalette = captureStyle->standardPalette();
+        }
+    }
     // Shared ownership: every capture below holds its own reference, so the
     // state outlives the last pick button / refresh closure. palettePreview
     // destruction needs no explicit cleanup (no raw new / destroyed->delete).
-    auto state = std::make_shared<PaletteState>(PaletteState{ ui->palettePreview->palette(), {} });
+    auto state = std::make_shared<PaletteState>(PaletteState{ capturePalette, {} });
     const auto refresh = [state] {
         for (qsizetype i = 0; i < state->swatches.size(); ++i) {
             QPixmap pixmap(48, 20);

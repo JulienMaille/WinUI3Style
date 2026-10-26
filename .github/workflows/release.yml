@@ -79,7 +79,7 @@ jobs:
         shell: pwsh
         run: >-
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-          "-DQt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6"
+          "-DQt6_DIR:PATH=$env:QT_ROOT_DIR/lib/cmake/Qt6"
           -DWINUI3STYLE_BUILD_PLUGIN=ON
           -DWINUI3STYLE_BUILD_DEMO=ON
           -DWINUI3STYLE_BUILD_TESTS=ON

@@ -1517,6 +1517,8 @@ void Style::refreshApplicationAppearance()
 {
     if (!qApp)
         return;
+    if (!d->applicationStyleActive && d->paletteOwners.isEmpty())
+        return;
     const bool applicationPaletteStillOwned = qApp->palette() == d->lastStyleApplicationPalette;
     const QPalette applicationPalette =
             applicationPaletteStillOwned ? standardPalette() : qApp->palette();

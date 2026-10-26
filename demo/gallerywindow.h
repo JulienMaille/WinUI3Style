@@ -12,14 +12,14 @@ class GalleryWindow final : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit GalleryWindow(QWidget *parent = nullptr);
+    explicit GalleryWindow(QWidget *parent = nullptr, bool captureMode = false);
     ~GalleryWindow() override;
     bool saveSnapshots(const QString &directory, const QString &backdrop = QStringLiteral("none"));
 
 private:
     void configureGallery();
     void populateCollections();
-    void configurePaletteLab();
+    void configurePaletteLab(bool captureMode);
     void setTheme(int index);
     void setComparisonStyle(const QString &key);
 

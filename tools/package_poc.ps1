@@ -137,32 +137,44 @@ foreach ($module in @('qtbase', 'qtsvg', 'qtimageformats')) {
 }
 & git -C $repoRoot archive --format=zip "--output=$(Join-Path $stage 'WinUI3Style-source.zip')" HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Source archive failed.' }
-$savedPluginPath = $env:QT_PLUGIN_PATH
-$savedQpa = $env:QT_QPA_PLATFORM
+# Qt can show GUI-app help in a modal dialog unless all standard handles are
+# redirected. Use Process directly so the real exit code remains available.
+$smokeStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+$smokeStartInfo.FileName = Join-Path $stage 'winui3style_gallery.exe'
+$smokeStartInfo.Arguments = '--help'
+$smokeStartInfo.WorkingDirectory = $stage
+$smokeStartInfo.UseShellExecute = $false
+$smokeStartInfo.RedirectStandardInput = $true
+$smokeStartInfo.RedirectStandardOutput = $true
+$smokeStartInfo.RedirectStandardError = $true
+$smokeStartInfo.EnvironmentVariables['PATH'] = "$env:SystemRoot/System32;$env:SystemRoot"
+$smokeStartInfo.EnvironmentVariables['QT_PLUGIN_PATH'] = ''
+$smokeStartInfo.EnvironmentVariables['QT_QPA_PLATFORM'] = 'windows'
+$smoke = [System.Diagnostics.Process]::new()
+$smoke.StartInfo = $smokeStartInfo
 try {
-    $env:Path = "$env:SystemRoot/System32;$env:SystemRoot"
-    $env:QT_PLUGIN_PATH = $null
-    $env:QT_QPA_PLATFORM = 'windows'
-    # Qt displays --help in a modal Windows message box without console handles.
-    # Redirecting both streams sets STARTF_USESTDHANDLES and makes this unattended.
-    $smoke = Start-Process -FilePath (Join-Path $stage 'winui3style_gallery.exe') `
-        -ArgumentList '--help' -WorkingDirectory $stage -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput (Join-Path $output 'startup.stdout.txt') `
-        -RedirectStandardError (Join-Path $output 'startup.stderr.txt')
+    if (-not $smoke.Start()) { throw 'Could not start packaged Gallery executable.' }
+    $smokeStdout = $smoke.StandardOutput.ReadToEndAsync()
+    $smokeStderr = $smoke.StandardError.ReadToEndAsync()
+    $smoke.StandardInput.Close()
     if (-not $smoke.WaitForExit(30000)) {
         $smoke.Kill()
+        $smoke.WaitForExit()
         throw 'Packaged startup timed out (possible missing DLL/platform plugin).'
     }
-    $smoke.Refresh()
+    $smoke.WaitForExit()
+    $smokeOutput = $smokeStdout.GetAwaiter().GetResult()
+    $smokeError = $smokeStderr.GetAwaiter().GetResult()
+    [System.IO.File]::WriteAllText((Join-Path $output 'startup.stdout.txt'), $smokeOutput,
+                                   [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText((Join-Path $output 'startup.stderr.txt'), $smokeError,
+                                   [System.Text.UTF8Encoding]::new($false))
     if ($smoke.ExitCode -ne 0) { throw "Packaged startup failed: $($smoke.ExitCode)" }
-    if (-not (Select-String -LiteralPath (Join-Path $output 'startup.stdout.txt') `
-                           -SimpleMatch '--capture-dir')) {
+    if (-not $smokeOutput.Contains('--capture-dir')) {
         throw 'Packaged executable did not produce the expected gallery help.'
     }
 } finally {
-    $env:Path = $savedPath
-    $env:QT_PLUGIN_PATH = $savedPluginPath
-    $env:QT_QPA_PLATFORM = $savedQpa
+    $smoke.Dispose()
 }
 $files = @(Get-ChildItem -LiteralPath $stage -Recurse -File | Sort-Object FullName | ForEach-Object {
     [ordered]@{

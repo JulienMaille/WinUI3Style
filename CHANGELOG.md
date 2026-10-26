@@ -13,6 +13,8 @@ remain `source-audited` until a live WinUI comparison promotes them).
   license manifests, installation instructions and explicit release gates.
 - Gallery comparison through View → Style → Windows 11, with explicit
   availability checks and restoration of the WinUI theme/density settings.
+- Configuring an uninstalled style no longer refreshes unrelated application
+  palettes, tooltips or live widget surfaces.
 - Capture fixtures pin locale, date formats and initial palette samples;
   hosted Windows tests install the pinned Microsoft icon font without
   redistributing it or relaxing the approved pixel comparisons.

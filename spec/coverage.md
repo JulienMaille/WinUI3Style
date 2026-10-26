@@ -414,3 +414,7 @@ consume `PE_Widget` when no material paint applies, preserving Qt's no-op
 background primitive instead of reaching the covered-path assertion. Debug
 reproductions: `navigationSingleSnapshotRestoreOrder`, `micacard_unit`, and
 `galleryThemeSwitchWhileGrantedThenDisable`. No mapping or Verified promotion.
+The application lifecycle contract also keeps an uninstalled style's theme and
+accent setters from refreshing unrelated application widgets
+(`uninstalledStyleDoesNotRefreshApplication`); installed widget owners retain
+their existing refresh path.
