@@ -6,11 +6,16 @@ is 0.1.0. See `RELEASE_NOTES.md` for the public API / Designer / experimental
 split and `spec/coverage.md` for the per-control evidence ledger (all rows
 remain `source-audited` until a live WinUI comparison promotes them).
 
-## Unreleased
+## 0.1.0-experimental.1
 
-- First experimental distribution candidate (`0.1.0-experimental.1`, not yet
-  tagged or published): portable gallery, style DLL/plugin, dependency and
+- First experimental distribution (`0.1.0-experimental.1`): portable gallery,
+  style DLL/plugin, dependency and
   license manifests, installation instructions and explicit release gates.
+- Gallery comparison through View → Style → Windows 11, with explicit
+  availability checks and restoration of the WinUI theme/density settings.
+- Capture fixtures pin locale, date formats and initial palette samples;
+  hosted Windows tests install the pinned Microsoft icon font without
+  redistributing it or relaxing the approved pixel comparisons.
 - ComboBox popup geometry: install the 4 px top/bottom inset before Qt sizes
   the container; remove the native Show-time extra resize. Exact outer and
   viewport geometry, complete rows, scrolling and three reopenings are tested

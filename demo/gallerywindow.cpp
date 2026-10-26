@@ -439,6 +439,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
     const bool previousAutoFill = autoFillBackground();
     const QLocale previousLocale = locale();
     const bool previousExplicitLocale = testAttribute(Qt::WA_SetLocale);
+    const QString previousStandardDateFormat = ui->standardDensityDate->displayFormat();
+    const QString previousCompactDateFormat = ui->compactDensityDate->displayFormat();
     const QDate previousCalendarDate = ui->persistentCalendar->selectedDate();
     const int previousCalendarYear = ui->persistentCalendar->yearShown();
     const int previousCalendarMonth = ui->persistentCalendar->monthShown();
@@ -469,6 +471,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
             setLocale(previousLocale);
         else
             unsetLocale();
+        ui->standardDensityDate->setDisplayFormat(previousStandardDateFormat);
+        ui->compactDensityDate->setDisplayFormat(previousCompactDateFormat);
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
         ui->persistentCalendar->setSelectedDate(previousCalendarDate);
         ui->persistentCalendar->setCurrentPage(previousCalendarYear, previousCalendarMonth);
@@ -477,6 +481,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
     // The reviewed fixtures use French date/month formatting, independently
     // of the Windows account locale used by a hosted runner.
     setLocale(QLocale(QLocale::French, QLocale::France));
+    ui->standardDensityDate->setDisplayFormat(QStringLiteral("dd/MM/yyyy"));
+    ui->compactDensityDate->setDisplayFormat(QStringLiteral("dd/MM/yyyy"));
     // Preserve the reviewed calendar fixture across midnight/day changes.
     // This is capture state only; the live Gallery retains its own date/page.
     const QDate calendarFixture(2026, 10, 11);

@@ -1,9 +1,9 @@
 # Release notes
 
-## 0.1.0-experimental.1 — release candidate, not published
+## 0.1.0-experimental.1 — experimental preview
 
 The CMake library version remains `0.1.0`. The first experimental release's
-intended tag is `v0.1.0-experimental.1`.
+tag is `v0.1.0-experimental.1`.
 The GitHub `release` workflow publishes that tag as a prerelease after its
 hosted Release build and non-native CTest gate pass. `workflow_dispatch` only
 uploads a temporary build artifact; it never publishes.
@@ -52,8 +52,8 @@ a Qt 5, MinGW, ARM64 or 32-bit binary. Build those configurations separately.
 - Windows-only PATH isolation of the earlier preview is not a clean-machine
   certification of the new artifact. Validate the exact extracted release
   archive before publication; earlier manual checks do not certify it.
-- Require green hosted CI for the exact candidate commit. Local
-  clang-format 18.1.8 passes; hosted CI for this candidate remains to confirm.
+- Publication requires green hosted CI for the exact candidate commit.
+  Local whole-tree clang-format 18.1.8 passes.
 - A buttons-suite failure occurred during parallel CTest execution without
   an attributable assertion. Serial validation passes; persistent QtTest
   logs now retain diagnostics. The intermittent cause remains unconfirmed.

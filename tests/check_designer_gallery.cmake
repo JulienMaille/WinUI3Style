@@ -6,6 +6,24 @@ endif()
 file(READ "${_demo_dir}/gallerywindow.cpp" _gallery_cpp)
 file(READ "${_demo_dir}/main.cpp" _main_cpp)
 file(READ "${_demo_dir}/gallerywindow.ui" _gallery_ui)
+
+# Palette Lab samples its swatches during construction. Keep the approved
+# dark-theme/accent seed capture-only and before that construction point.
+string(REGEX MATCH
+    "const bool captureMode = parser\\.isSet\\(captureOption\\);[ \t\r\n]*if \\(captureMode\\) \\{[^}]*setProperty\\(\"themeMode\", 2\\);[^}]*setProperty\\(\"accentColor\", QColor\\(0, 120, 212\\)\\);[^}]*\\}"
+    _capture_palette_fixture "${_main_cpp}")
+if(_capture_palette_fixture STREQUAL "")
+    message(FATAL_ERROR
+        "Capture mode must seed Palette Lab with the reviewed dark theme/accent before GalleryWindow construction")
+endif()
+string(REGEX MATCH
+    "GalleryWindow window;[ \t\r\n]*if \\(captureMode\\) \\{[^}]*themeCombo->setCurrentIndex\\(0\\);[^}]*\\}[ \t\r\n]*window\\.resize"
+    _capture_theme_reset "${_main_cpp}")
+if(_capture_theme_reset STREQUAL "")
+    message(FATAL_ERROR
+        "Capture mode must restore the System theme selector after GalleryWindow construction and before first show")
+endif()
+
 foreach(_forbidden "winui3style/" "WinUI3::")
     string(FIND "${_gallery_cpp}${_main_cpp}" "${_forbidden}" _found)
     if(NOT _found EQUAL -1)

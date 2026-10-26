@@ -1,9 +1,12 @@
 #include "gallerywindow.h"
 
 #include <QApplication>
+#include <QColor>
+#include <QComboBox>
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QFont>
+#include <QStyle>
 #include <QStyleFactory>
 #include <QTimer>
 
@@ -56,9 +59,19 @@ int main(int argc, char *argv[])
         // force.
         qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
         QApplication::setCursorFlashTime(0);
+
+        // Palette Lab snapshots their swatch colors while GalleryWindow is
+        // constructed. Seed the approved dark capture fixture before then;
+        // interactive launches continue to inherit the system theme/accent.
+        application.style()->setProperty("themeMode", 2);
+        application.style()->setProperty("accentColor", QColor(0, 120, 212));
     }
 
     GalleryWindow window;
+    if (captureMode) {
+        if (QComboBox *themeCombo = window.findChild<QComboBox *>(QStringLiteral("themeCombo")))
+            themeCombo->setCurrentIndex(0);
+    }
     window.resize(1180, 780);
     window.show();
     if (captureMode) {

@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QCalendarWidget>
+#include <QDateEdit>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
@@ -545,15 +546,27 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
     QVERIFY(QTest::qWaitForWindowExposed(&gallery));
     auto *calendar = gallery.findChild<QCalendarWidget *>(QStringLiteral("persistentCalendar"));
     QVERIFY(calendar);
+    auto *standardDate = gallery.findChild<QDateEdit *>(QStringLiteral("standardDensityDate"));
+    auto *compactDate = gallery.findChild<QDateEdit *>(QStringLiteral("compactDensityDate"));
+    QVERIFY(standardDate && compactDate);
+    const QString originalFormat = QStringLiteral("M/d/yyyy");
+    standardDate->setDisplayFormat(originalFormat);
+    compactDate->setDisplayFormat(originalFormat);
     const QDate originalDate(2035, 4, 5);
     calendar->setSelectedDate(originalDate);
     calendar->setCurrentPage(2034, 7);
     QList<QDate> selectedDuringCapture;
     QList<QLocale> localesDuringCapture;
+    bool sawPinnedDateFormats = false;
     const auto selectionConnection =
             connect(calendar, &QCalendarWidget::selectionChanged, this, [&] {
                 selectedDuringCapture.append(calendar->selectedDate());
                 localesDuringCapture.append(calendar->locale());
+                if (calendar->selectedDate() == QDate(2026, 10, 11)) {
+                    sawPinnedDateFormats =
+                            standardDate->displayFormat() == QLatin1String("dd/MM/yyyy")
+                            && compactDate->displayFormat() == QLatin1String("dd/MM/yyyy");
+                }
             });
     QTemporaryDir output;
     QVERIFY(output.isValid());
@@ -566,6 +579,9 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
              "snapshot dates must use the approved locale, never the host locale");
     QCOMPARE(gallery.locale(), originalLocale);
     QCOMPARE(calendar->locale(), originalLocale);
+    QVERIFY2(sawPinnedDateFormats, "snapshot editor formats must not depend on the host locale");
+    QCOMPARE(standardDate->displayFormat(), originalFormat);
+    QCOMPARE(compactDate->displayFormat(), originalFormat);
     QCOMPARE(calendar->selectedDate(), originalDate);
     QCOMPARE(calendar->yearShown(), 2034);
     QCOMPARE(calendar->monthShown(), 7);

@@ -192,6 +192,11 @@ snapshots; the previous date, month and locale are restored. The normal
 Gallery remains date-aware. Wall-clock rollover must not move the selection
 between the reviewed baseline and a subsequent capture.
 
+Capture startup seeds the dark palette and fixed accent before Palette Lab
+samples its swatches, then restores the visible System-theme selector. The two
+density date editors use `dd/MM/yyyy` only during capture and restore their
+previous formats afterward; neither fixture depends on the runner's settings.
+
 ### 5a. Repository automation
 
 The repository implements the deterministic portion of this policy as the
