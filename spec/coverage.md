@@ -408,3 +408,9 @@ per-control live-verification status above:
 Rows marked `partial` or `not covered` are explicitly not claims of complete
 WinUI fidelity. The audit must either close their missing states or narrow the
 project's public coverage claims.
+
+2026-10-26 CI repair: the existing content/card/navigation mappings explicitly
+consume `PE_Widget` when no material paint applies, preserving Qt's no-op
+background primitive instead of reaching the covered-path assertion. Debug
+reproductions: `navigationSingleSnapshotRestoreOrder`, `micacard_unit`, and
+`galleryThemeSwitchWhileGrantedThenDisable`. No mapping or Verified promotion.

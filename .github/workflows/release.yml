@@ -1,0 +1,160 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v0.1.0-experimental.1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Qt 6.11.1 (same SDK build as CI)
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: '6.11.1'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          archives: 'qtbase qtsvg qtimageformats'
+          cache: true
+          cache-key-prefix: 'qt-6.11.1-aqt-16db45a-v1'
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
+      - name: Install Python and Pillow
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - name: Prepare Windows 11 visual test font (not redistributed)
+        shell: pwsh
+        run: ./tools/setup_visual_test_fonts.ps1
+      - name: Verify Qt Windows 11 style plugin is in the SDK
+        shell: pwsh
+        run: |
+          $plugin = Join-Path $env:QT_ROOT_DIR 'plugins/styles/qmodernwindowsstyle.dll'
+          if (-not (Test-Path -LiteralPath $plugin -PathType Leaf)) {
+            throw "Qt 6.11.1 SDK is missing the required modern Windows style plugin: $plugin"
+          }
+      - name: Fetch and verify matching official Qt source modules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '6.11.1'
+          $sourceRoot = Join-Path $env:RUNNER_TEMP 'qt-corresponding-source'
+          $downloadRoot = Join-Path $env:RUNNER_TEMP 'qt-source-downloads'
+          New-Item -ItemType Directory -Path $sourceRoot, $downloadRoot -Force | Out-Null
+          $modules = @(
+            @{ Name = 'qtbase'; Hash = 'd9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac' },
+            @{ Name = 'qtsvg'; Hash = '7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94' },
+            @{ Name = 'qtimageformats'; Hash = 'b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413' }
+          )
+          foreach ($module in $modules) {
+            $archiveName = "$($module.Name)-everywhere-src-$version.tar.xz"
+            $url = "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/$archiveName"
+            $archivePath = Join-Path $downloadRoot $archiveName
+            Invoke-WebRequest -Uri $url -OutFile $archivePath
+            $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualHash -ne $module.Hash) {
+              throw "SHA-256 mismatch for ${archiveName}: $actualHash"
+            }
+            $extractRoot = Join-Path $downloadRoot $module.Name
+            New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+            tar -xf $archivePath -C $extractRoot
+            if ($LASTEXITCODE -ne 0) { throw "Cannot extract $archiveName" }
+            $extracted = Join-Path $extractRoot "$($module.Name)-everywhere-src-$version"
+            if (-not (Test-Path -LiteralPath $extracted -PathType Container)) {
+              throw "Expected source directory missing: $extracted"
+            }
+            Move-Item -LiteralPath $extracted -Destination (Join-Path $sourceRoot $module.Name)
+          }
+      - name: Configure Release build
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          "-DQt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6"
+          -DWINUI3STYLE_BUILD_PLUGIN=ON
+          -DWINUI3STYLE_BUILD_DEMO=ON
+          -DWINUI3STYLE_BUILD_TESTS=ON
+          -DWINUI3STYLE_BUILD_NATIVE_TESTS=ON
+          -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Build Release
+        run: cmake --build build --config Release
+      - name: Run hosted-compatible Release tests and package
+        shell: pwsh
+        run: |
+          ./tools/package_poc.ps1 -BuildDir build `
+            -QtRoot $env:QT_ROOT_DIR `
+            -QtSourceRoot (Join-Path $env:RUNNER_TEMP 'qt-corresponding-source') `
+            -ExcludeNativeTests `
+            -ReleaseSuffix experimental.1
+          $candidate = Get-ChildItem -Path build/poc -Recurse -File `
+            -Filter '*-win-x64-msvc-qt6.11.1-experimental.1.zip' |
+            Select-Object -First 1
+          if (-not $candidate) { throw 'Packager did not produce the Gallery ZIP.' }
+          $assets = Join-Path $env:RUNNER_TEMP 'release-assets'
+          New-Item -ItemType Directory -Path $assets -Force | Out-Null
+          Copy-Item -LiteralPath $candidate.FullName -Destination $assets
+          Copy-Item -LiteralPath ($candidate.FullName + '.sha256') -Destination $assets
+          $downloads = Join-Path $env:RUNNER_TEMP 'qt-source-downloads'
+          foreach ($archive in Get-ChildItem -LiteralPath $downloads -File -Filter '*.tar.xz') {
+            Copy-Item -LiteralPath $archive.FullName -Destination $assets
+          }
+          $sourceInfo = Get-ChildItem -LiteralPath $assets -File -Filter 'qt*-everywhere-src-6.11.1.tar.xz' |
+            Sort-Object Name | ForEach-Object {
+              [ordered]@{ file = $_.Name; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+            }
+          [ordered]@{
+            qtVersion = '6.11.1'
+            source = 'Official Qt Project source archives, verified against Qt download SHA-256 values.'
+            modules = @($sourceInfo)
+            build = 'Windows x64, MSVC 2022, official Qt binary SDK; native-labelled tests excluded on hosted runner.'
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $assets 'Qt-6.11.1-source-manifest.json') -Encoding utf8
+          $sumLines = @(Get-ChildItem -LiteralPath $assets -File | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          })
+          Set-Content -LiteralPath (Join-Path $assets 'SHA256SUMS.txt') -Value $sumLines -Encoding ascii
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinUI3Style-v0.1.0-experimental.1-win-x64-qt6.11.1
+          path: ${{ runner.temp }}/release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: github.event_name == 'push'
+    needs: package
+    runs-on: windows-2022
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: WinUI3Style-v0.1.0-experimental.1-win-x64-qt6.11.1
+          path: release-assets
+      - name: Create prerelease and upload binaries, source, and checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
+          if ($assets.Count -lt 5) { throw 'Release assets are incomplete.' }
+          gh release create $env:GITHUB_REF_NAME @assets `
+            --title $env:GITHUB_REF_NAME `
+            --notes-file RELEASE_NOTES.md `
+            --prerelease

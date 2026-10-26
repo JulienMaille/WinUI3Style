@@ -10,6 +10,7 @@ import unittest
 
 POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 PACKAGE_SCRIPT = Path(__file__).with_name("package_poc.ps1")
+CTEST_POLICY = Path(__file__).with_name("package_ctest_policy.ps1")
 
 
 class PackageSourceGuardTests(unittest.TestCase):
@@ -23,6 +24,7 @@ class PackageSourceGuardTests(unittest.TestCase):
         tools = self.repo / "tools"
         tools.mkdir(parents=True)
         shutil.copyfile(PACKAGE_SCRIPT, tools / PACKAGE_SCRIPT.name)
+        shutil.copyfile(CTEST_POLICY, tools / CTEST_POLICY.name)
         (self.repo / "CMakeLists.txt").write_text("# Fixture: stop after source guard\n")
         (self.repo / ".gitignore").write_text("ignored-output/\n")
         self.build = root / "build"
@@ -34,6 +36,7 @@ class PackageSourceGuardTests(unittest.TestCase):
             (self.build, "src/Release/winui3style.dll"),
             (self.build, "plugins/styles/qwinui3style.dll"),
             (self.qt, "bin/windeployqt.exe"),
+            (self.qt, "plugins/styles/qmodernwindowsstyle.dll"),
             (self.sources, "qtbase/LICENSES/LGPL-3.0-only.txt"),
         ):
             path = base / relative
@@ -63,6 +66,39 @@ class PackageSourceGuardTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         return result.stdout + result.stderr
+
+    def ctest_arguments(self, exclude_native=False):
+        switch = " -ExcludeNativeTests" if exclude_native else ""
+        command = (
+            f". '{CTEST_POLICY.as_posix()}'; "
+            f"(Get-PackageCTestArguments -BuildPath 'fixture'{switch}) -join '|'"
+        )
+        result = subprocess.run(
+            [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", command],
+            check=True, capture_output=True, text=True, errors="replace", timeout=30,
+        )
+        return result.stdout.strip().split("|")
+
+    def test_package_ctest_defaults_to_full_suite(self):
+        self.assertEqual(
+            self.ctest_arguments(),
+            ["--test-dir", "fixture", "-C", "Release", "--output-on-failure", "--no-tests=error"],
+        )
+
+    def test_package_ctest_switch_excludes_only_native_label(self):
+        self.assertEqual(
+            self.ctest_arguments(exclude_native=True),
+            ["--test-dir", "fixture", "-C", "Release", "--output-on-failure", "--no-tests=error", "-LE", "native"],
+        )
+
+    def test_package_deploys_windows_comparison_style_and_vc_runtime_setup(self):
+        source = PACKAGE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("--include-plugins qmodernwindowsstyle", source)
+        self.assertIn("--compiler-runtime", source)
+        self.assertNotIn("--no-compiler-runtime", source)
+        self.assertIn("plugins/styles/qmodernwindowsstyle.dll", source)
+        self.assertIn("Join-Path $stage 'vc_redist.x64.exe'", source)
+        self.assertIn("autoInstalled = $false", source)
 
     def test_clean_source_reaches_next_precondition(self):
         self.assertIn("Cannot identify project version", self.package_error())

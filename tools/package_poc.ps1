@@ -2,10 +2,14 @@
 param(
     [string]$BuildDir = (Join-Path $PSScriptRoot '../build'),
     [Parameter(Mandatory = $true)][string]$QtRoot,
-    [Parameter(Mandatory = $true)][string]$QtSourceRoot
+    [Parameter(Mandatory = $true)][string]$QtSourceRoot,
+    [switch]$ExcludeNativeTests,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9.-]*$')][string]$ReleaseSuffix = 'experimental'
 )
 
 $ErrorActionPreference = 'Stop'
+$policyHelper = Join-Path $PSScriptRoot 'package_ctest_policy.ps1'
+. $policyHelper
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $buildPath = (Resolve-Path $BuildDir).Path
 $qtPath = (Resolve-Path $QtRoot).Path
@@ -14,8 +18,9 @@ $cache = Join-Path $buildPath 'CMakeCache.txt'
 $gallery = Join-Path $buildPath 'demo/Release/winui3style_gallery.exe'
 $runtime = Join-Path $buildPath 'src/Release/winui3style.dll'
 $plugin = Join-Path $buildPath 'plugins/styles/qwinui3style.dll'
+$modernWindowsStylePlugin = Join-Path $qtPath 'plugins/styles/qmodernwindowsstyle.dll'
 $deployTool = Join-Path $qtPath 'bin/windeployqt.exe'
-foreach ($required in @($cache, $gallery, $runtime, $plugin, $deployTool,
+foreach ($required in @($cache, $gallery, $runtime, $plugin, $modernWindowsStylePlugin, $deployTool,
                        (Join-Path $qtSourcePath 'qtbase/LICENSES/LGPL-3.0-only.txt'))) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing prerequisite: $required"
@@ -52,10 +57,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Release configuration failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
 $ctest = Join-Path (Split-Path $cmake -Parent) 'ctest.exe'
 if (-not (Test-Path -LiteralPath $ctest -PathType Leaf)) { throw 'CTest is required for packaging.' }
-& $ctest --test-dir $buildPath -C Release --output-on-failure --no-tests=error
+$ctestArgs = Get-PackageCTestArguments -BuildPath $buildPath `
+    -ExcludeNativeTests:$ExcludeNativeTests
+& $ctest @ctestArgs
 if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; no distribution archive created.' }
 
-$name = "WinUI3Style-$version-win-x64-msvc-qt$qtVersion-experimental"
+$name = "WinUI3Style-$version-win-x64-msvc-qt$qtVersion-$ReleaseSuffix"
 $output = Join-Path $buildPath ('poc/' + [guid]::NewGuid().ToString())
 $stage = Join-Path $output $name
 New-Item -ItemType Directory -Path (Join-Path $stage 'styles') -Force | Out-Null
@@ -67,7 +74,8 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'poc/README.md') -Destination $s
 $savedPath = $env:Path
 try {
     $env:Path = "$(Join-Path $qtPath 'bin');$savedPath"
-    & $deployTool --release --no-translations --no-compiler-runtime `
+    & $deployTool --release --no-translations --compiler-runtime `
+        --include-plugins qmodernwindowsstyle `
         --no-system-d3d-compiler --no-system-dxc-compiler --no-opengl-sw `
         --skip-plugin-types networkinformation,tls `
         --qtpaths (Join-Path $qtPath 'bin/qtpaths.exe') `
@@ -75,6 +83,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Qt runtime deployment failed.' }
 } finally {
     $env:Path = $savedPath
+}
+foreach ($deployedPrerequisite in @(
+    (Join-Path $stage 'styles/qmodernwindowsstyle.dll'),
+    (Join-Path $stage 'vc_redist.x64.exe')
+)) {
+    if (-not (Test-Path -LiteralPath $deployedPrerequisite -PathType Leaf)) {
+        throw "Qt deployment omitted required package file: $deployedPrerequisite"
+    }
 }
 # Include the small offscreen platform for reproducible packaged-capture checks.
 Copy-Item -LiteralPath (Join-Path $qtPath 'plugins/platforms/qoffscreen.dll') `
@@ -158,10 +174,22 @@ $files = @(Get-ChildItem -LiteralPath $stage -Recurse -File | Sort-Object FullNa
     name = $name
     revision = $revision
     qtVersion = $qtVersion
-    status = 'local-candidate-not-publication-verified'
-    compilerRuntime = 'Install current Microsoft Visual C++ v14 x64 Redistributable if absent'
-    localStartup = 'Windows platform, Windows-only PATH, QT_PLUGIN_PATH cleared: passed'
-    qtCorrespondingSource = 'Exact compiled Qt source/modifications still require release verification'
+    releaseSuffix = $ReleaseSuffix
+    status = 'build-and-startup-smoke-tested; clean-machine extraction and live Gallery review not certified'
+    compilerRuntime = [ordered]@{
+        strategy = 'Bundled Microsoft Visual C++ v14 x64 redistributable installer'
+        installer = 'vc_redist.x64.exe'
+        autoInstalled = $false
+        guidance = 'Run the installer manually if the target system lacks a compatible x64 v14 runtime'
+    }
+    stylePlugins = @('styles/qwinui3style.dll', 'styles/qmodernwindowsstyle.dll')
+    testValidation = if ($ExcludeNativeTests) {
+        'Release CTest passed with -LE native; native tests require an interactive desktop and were not run'
+    } else {
+        'Full Release CTest passed, including native tests where supported'
+    }
+    packageStartupSmoke = 'Windows platform, Windows-only PATH, QT_PLUGIN_PATH cleared: passed'
+    qtCorrespondingSource = 'License notices came from the supplied source tree; this archive alone does not prove or include Qt corresponding source'
     files = $files
 } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding utf8
 $zip = Join-Path $output ($name + '.zip')

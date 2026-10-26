@@ -20,11 +20,14 @@
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenuBar>
+#include <QMenu>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QStyleFactory>
 #include <QTemporaryDir>
 
 class WinUI3GalleryProbeTest final : public QObject
@@ -41,6 +44,7 @@ private slots:
     void galleryRealGrantThemeSwitchThenDisable();
     void galleryStaleReapplyAfterDisable();
     void gallerySnapshotPinsAndRestoresCalendarDate();
+    void galleryComparisonStyleAvailabilityAndRestore();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -54,6 +58,49 @@ void WinUI3GalleryProbeTest::init()
         style->setThemeMode(WinUI3::ThemeMode::Light);
         style->setAccentColor({});
     }
+}
+
+void WinUI3GalleryProbeTest::galleryComparisonStyleAvailabilityAndRestore()
+{
+    GalleryWindow gallery;
+    auto *comparison = gallery.findChild<QMenu *>(QStringLiteral("comparisonStyleMenu"));
+    auto *winuiAction = gallery.findChild<QAction *>(QStringLiteral("winui3StyleAction"));
+    auto *windows11Action = gallery.findChild<QAction *>(QStringLiteral("windows11StyleAction"));
+    auto *theme = gallery.findChild<QComboBox *>(QStringLiteral("themeCombo"));
+    auto *density = gallery.findChild<QComboBox *>(QStringLiteral("densityCombo"));
+    QVERIFY(comparison && winuiAction && windows11Action && theme && density);
+    QVERIFY(winuiAction->isChecked());
+
+    QString windows11Key;
+    for (const QString &key : QStyleFactory::keys()) {
+        if (key.compare(QStringLiteral("windows11"), Qt::CaseInsensitive) == 0) {
+            windows11Key = key;
+            break;
+        }
+    }
+    QStyle *nativeStyle = windows11Key.isEmpty() ? nullptr : QStyleFactory::create(windows11Key);
+    if (!nativeStyle) {
+        QVERIFY(!windows11Action->isEnabled());
+        QVERIFY(windows11Action->text().contains(QStringLiteral("unavailable"),
+                                                 Qt::CaseInsensitive));
+        return;
+    }
+    const QByteArray nativeClassName = nativeStyle->metaObject()->className();
+    delete nativeStyle;
+
+    QVERIFY(windows11Action->isEnabled());
+    theme->setCurrentIndex(2);
+    density->setCurrentIndex(1);
+    windows11Action->trigger();
+    QVERIFY(!theme->isEnabled());
+    QVERIFY(!density->isEnabled());
+    QCOMPARE(QByteArray(qApp->style()->metaObject()->className()), nativeClassName);
+
+    winuiAction->trigger();
+    QVERIFY(theme->isEnabled());
+    QVERIFY(density->isEnabled());
+    QCOMPARE(qApp->style()->property("themeMode").toInt(), 2);
+    QCOMPARE(qApp->style()->property("densityMode").toInt(), 1);
 }
 
 void WinUI3GalleryProbeTest::cleanup()
@@ -491,6 +538,8 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
 {
     DisableAnimationsGuard animations;
     GalleryWindow gallery;
+    const QLocale originalLocale(QLocale::English, QLocale::UnitedStates);
+    gallery.setLocale(originalLocale);
     gallery.resize(1180, 780);
     gallery.show();
     QVERIFY(QTest::qWaitForWindowExposed(&gallery));
@@ -500,9 +549,12 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
     calendar->setSelectedDate(originalDate);
     calendar->setCurrentPage(2034, 7);
     QList<QDate> selectedDuringCapture;
+    QList<QLocale> localesDuringCapture;
     const auto selectionConnection =
-            connect(calendar, &QCalendarWidget::selectionChanged, this,
-                    [&] { selectedDuringCapture.append(calendar->selectedDate()); });
+            connect(calendar, &QCalendarWidget::selectionChanged, this, [&] {
+                selectedDuringCapture.append(calendar->selectedDate());
+                localesDuringCapture.append(calendar->locale());
+            });
     QTemporaryDir output;
     QVERIFY(output.isValid());
     const bool saved = gallery.saveSnapshots(output.path());
@@ -510,6 +562,10 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
     QVERIFY(saved);
     QVERIFY2(selectedDuringCapture.contains(QDate(2026, 10, 11)),
              "snapshot selection must use the approved fixture date, never the wall clock");
+    QVERIFY2(localesDuringCapture.contains(QLocale(QLocale::French, QLocale::France)),
+             "snapshot dates must use the approved locale, never the host locale");
+    QCOMPARE(gallery.locale(), originalLocale);
+    QCOMPARE(calendar->locale(), originalLocale);
     QCOMPARE(calendar->selectedDate(), originalDate);
     QCOMPARE(calendar->yearShown(), 2034);
     QCOMPARE(calendar->monthShown(), 7);

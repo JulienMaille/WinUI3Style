@@ -187,7 +187,8 @@ byte-identical PNG hashes; a mismatch is investigated by pixel bounds before
 it can be dismissed as environmental noise.
 
 The inline Gallery calendar's selected date and displayed month are pinned to
-the approved fixture (2026-10-11) during snapshots, then restored. The normal
+the approved fixture (2026-10-11), with French/France date formatting during
+snapshots; the previous date, month and locale are restored. The normal
 Gallery remains date-aware. Wall-clock rollover must not move the selection
 between the reviewed baseline and a subsequent capture.
 

@@ -3,18 +3,28 @@
 ## 0.1.0-experimental.1 — release candidate, not published
 
 The CMake library version remains `0.1.0`. The first experimental release's
-intended tag is `v0.1.0-experimental.1`; it has not been created or pushed.
+intended tag is `v0.1.0-experimental.1`.
+The GitHub `release` workflow publishes that tag as a prerelease after its
+hosted Release build and non-native CTest gate pass. `workflow_dispatch` only
+uploads a temporary build artifact; it never publishes.
 This preview evaluates stock Qt Widgets with a WinUI-inspired QStyle, not
 production readiness or complete pixel-identical WinUI coverage.
 
 ### Distribution and installation
 
-The Windows x64 archive must contain the gallery, `winui3style.dll`,
-`styles/qwinui3style.dll`, compatible unmodified Qt DLLs/platform plugins,
-`qt.conf`, license/third-party notices, corresponding-source information,
-the WinUI3Style source archive and a SHA-256 manifest. The published build
-must identify its exact commit, Qt version and compiler; no patched Qt is
-required by the library.
+The Windows x64 archive contains the gallery, `winui3style.dll`,
+`styles/qwinui3style.dll`, `styles/qmodernwindowsstyle.dll`, compatible
+unmodified Qt DLLs/platform plugins, `vc_redist.x64.exe`, `qt.conf`,
+license/third-party notices, corresponding-source information, the WinUI3Style
+source archive and a SHA-256 manifest. The VC runtime installer is bundled but
+not auto-launched. The published build must identify its exact commit, Qt
+version and compiler; no patched Qt is required by the library.
+
+The prerelease also attaches SHA-256-verified official Qt 6.11.1 source
+archives for the bundled Qt modules and a source manifest. The hosted runner
+excludes `native`-labelled tests because they require an interactive desktop;
+the binary manifest records this boundary, and no native-verification claim
+is made by that hosted test result.
 
 Extract the complete archive and run `winui3style_gallery.exe`. Install the
 current Microsoft Visual C++ v14 x64 Redistributable if absent. Windows 11
@@ -33,7 +43,8 @@ a Qt 5, MinGW, ARM64 or 32-bit binary. Build those configurations separately.
 - Mica/acrylic support depends on Windows and may fall back to opaque fills.
   Splitter and scrollbar details still need visual review.
 - The RGB/alpha comparison checks all channels against the user-approved
-  70-frame reference. Local Release CTest passes 59/59 with official Qt 6.11.1;
+  70-frame reference. Local hosted-compatible Release CTest passes 60/60 with
+  official Qt 6.11.1 (interactive native tests excluded);
   no tolerance or assertion was weakened to adopt that reference.
 - The earlier local archive used a patched developer Qt runtime. It is not
   the intended public artifact: use an unmodified official runtime with
@@ -49,12 +60,18 @@ a Qt 5, MinGW, ARM64 or 32-bit binary. Build those configurations separately.
 
 Local preflight on 2026-10-12: official Qt 6.11.1 Release configure/build,
 whole-tree clang-format 18.1.8, all 59 CTest entries and all 26 split domain
-binaries pass. The five package source-guard cases and the strict 70-frame
-snapshot matrix are included. Calendar snapshots preserve the approved
+binaries pass. Current package preflight has eight source-guard, test-policy,
+and deployment-prerequisite cases. The strict 70-frame snapshot matrix is
+included. Calendar snapshots preserve the approved
 2026-10-11 fixture without changing the live Gallery's date. The native
 submenu fallback uses nested keyboard input, retaining the parent snapshot
 assertions when pointer delivery is blocked. Neither result establishes
 complete official WinUI parity or native shadow/motion verification.
+Local preflight on 2026-10-26 additionally passes the 60 hosted-compatible
+Release CTest entries. Navigation, Mica-card and Gallery-probe Debug suites
+also pass after explicitly consuming the covered `PE_Widget` no-op path.
+The Gallery now offers View → Style → Windows 11 for comparison with Qt's
+style; the action is disabled when that style cannot be instantiated.
 Packaging refuses dirty/untracked sources and requires the complete Release
 suite before staging; no archive is produced when that gate is red.
 

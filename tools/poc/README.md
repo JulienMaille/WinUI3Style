@@ -15,15 +15,23 @@ property of that runtime/package, not a WinUI3Style installation requirement.
 
 Extract the entire ZIP into a writable folder and run
 `winui3style_gallery.exe`. Do not run it inside the ZIP or copy only the EXE.
-Qt does not need to be installed separately. If the MSVC runtime is absent,
-install Microsoft's current Visual C++ v14 x64 Redistributable (at least as
-recent as the MSVC toolchain used to build the package):
+Qt does not need to be installed separately. The ZIP includes
+`vc_redist.x64.exe`, but does not run it automatically. If the target machine
+lacks a compatible Microsoft Visual C++ v14 x64 runtime, run that installer
+manually before launching the gallery. A newer supported runtime may be used
+instead:
 https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
 
 Use Windows 11 for native Mica and rounded-window evaluation. Fonts are supplied
 by Windows; the package does not redistribute Segoe fonts. Light/Dark/System,
 Standard/Compact and the Mica toggle are available in the gallery. Animations
 are enabled normally; deterministic capture mode disables them intentionally.
+
+Use **View → Style → Windows 11** to compare against Qt's built-in Windows 11
+style, and **WinUI 3** to switch back. The Windows 11 action is disabled when
+that Qt style is unavailable. WinUI-specific theme, density and Mica controls
+are disabled during comparison; the selected theme and density are restored
+when switching back.
 
 ## Try an existing Qt application
 
@@ -37,9 +45,12 @@ a Qt 5, MinGW, ARM64 or 32-bit plugin. Do not overwrite another application's
 Qt libraries with those from this gallery package.
 
 The plugin is not a standalone DLL: it depends on `winui3style.dll`, Qt
-Core/Gui/Widgets and the MSVC runtime. It does not require Windows App SDK or
-an additional third-party style library. Designer dynamic properties remain
-optional and are documented in the repository README.
+Core/Gui/Widgets and the MSVC runtime. The package includes both
+`styles/qwinui3style.dll` and Qt's `styles/qmodernwindowsstyle.dll` for Windows
+11 comparison; the latter comes from the official Qt SDK and is explicitly
+deployed. It does not require Windows App SDK or an additional third-party
+style library. Designer dynamic properties remain optional and are documented
+in the repository README.
 
 ## Scope and limitations
 
@@ -67,11 +78,37 @@ source archive, and writes the package manifest and ZIP SHA-256. It refuses
 tracked-source changes so the source archive matches the product revision.
 Untracked source files are rejected too, since `git archive HEAD`
 would omit them. Before staging any files, the script rebuilds with tests
-enabled and requires the complete Release CTest suite to pass (including the
-strict approved-baseline check and native suites); it does not skip failures
-for packaging. It checks startup with only Windows on PATH and no Qt plugin-path
-override; this is a local isolation test, not a clean-machine certification.
-It never tags, pushes, uploads or publishes a release.
+enabled and requires Release CTest to pass (including the strict approved-
+baseline check). By default this is the full suite, including native tests.
+The `-ExcludeNativeTests` option is reserved for hosted Windows runners with
+no interactive desktop; it uses CTest's `-LE native` policy, and the manifest
+records that native tests were not run. It does not weaken or relabel those
+tests. The packager checks startup with only Windows on PATH and no Qt plugin-
+path override; this is a local isolation test, not a clean-machine certification.
+The script also requires `vc_redist.x64.exe` and
+`styles/qmodernwindowsstyle.dll` in the staged package. The manifest records
+the compiler-runtime installer as bundled but not auto-installed.
+For local packaging, use the Visual Studio 2022 Developer PowerShell/Command
+Prompt so `windeployqt --compiler-runtime` can locate the official x64
+redistributable installer; packaging fails if deployment omits it.
+
+## GitHub prerelease
+
+The `release` workflow handles the documented `v0.1.0-experimental.1` tag.
+Pushing that tag builds the x64 Release Gallery with the CI-pinned official
+Qt 6.11.1/MSVC 2022 toolchain, packages the runnable folder, and publishes a
+GitHub prerelease with the ZIP, checksum, license/attribution notices, and
+verified official Qt source archives for the bundled Qt modules. The source
+manifest records Qt version and source archive hashes. The workflow excludes
+native-labelled tests on the hosted runner for the same interactive-desktop
+reason as CI; that is explicit in the package manifest and is not a claim of
+native verification. The workflow-dispatch path builds and uploads the same
+candidate as a short-lived Actions artifact and never creates a GitHub release.
+
+The tag workflow is prerelease-only and does not create tags. Verify green CI
+for the exact commit before creating/pushing the documented tag. A candidate
+artifact is still not a substitute for a clean-machine extraction and live
+Gallery review before treating the package as broadly supported.
 
 ## Before public distribution
 

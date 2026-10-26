@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QApplication>
+#include <QActionGroup>
 #include <QCalendarWidget>
 #include <QColorDialog>
 #include <QCompleter>
@@ -14,12 +15,14 @@
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLocale>
 #include <QMessageBox>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QScreen>
 #include <QScopeGuard>
 #include <QStyle>
+#include <QStyleFactory>
 #include <QTableWidgetItem>
 #include <QTimer>
 #include <QTreeWidgetItem>
@@ -133,6 +136,44 @@ void GalleryWindow::configureGallery()
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
+    m_themeIndex = qApp->style()->property("themeMode").toInt();
+    m_densityIndex = qApp->style()->property("densityMode").toInt();
+    auto *styleMenu = ui->viewMenu->addMenu(tr("Style"));
+    styleMenu->setObjectName(QStringLiteral("comparisonStyleMenu"));
+    auto *styleGroup = new QActionGroup(this);
+    styleGroup->setExclusive(true);
+    auto *winuiAction = styleGroup->addAction(tr("WinUI 3 style"));
+    winuiAction->setObjectName(QStringLiteral("winui3StyleAction"));
+    winuiAction->setCheckable(true);
+    winuiAction->setChecked(true);
+    styleMenu->addAction(winuiAction);
+    QString windows11Key;
+    for (const QString &key : QStyleFactory::keys()) {
+        if (key.compare(QStringLiteral("windows11"), Qt::CaseInsensitive) == 0) {
+            windows11Key = key;
+            break;
+        }
+    }
+    QStyle *nativeProbe = windows11Key.isEmpty() ? nullptr : QStyleFactory::create(windows11Key);
+    const bool nativeStyleAvailable = nativeProbe != nullptr;
+    auto *windows11Action = styleGroup->addAction(nativeProbe ? tr("Windows 11 style")
+                                                              : tr("Windows 11 unavailable"));
+    delete nativeProbe;
+    windows11Action->setObjectName(QStringLiteral("windows11StyleAction"));
+    windows11Action->setCheckable(true);
+    windows11Action->setEnabled(nativeStyleAvailable);
+    if (!nativeStyleAvailable) {
+        windows11Action->setToolTip(tr("This Qt build has no Windows 11 QStyleFactory plugin."));
+    }
+    styleMenu->addAction(windows11Action);
+    connect(winuiAction, &QAction::triggered, this,
+            [this] { setComparisonStyle(QStringLiteral("winui3")); });
+    if (nativeStyleAvailable) {
+        connect(windows11Action, &QAction::triggered, this,
+                [this, windows11Key] { setComparisonStyle(windows11Key); });
+    }
+    ui->themeCombo->setCurrentIndex(m_themeIndex);
+    ui->densityCombo->setCurrentIndex(m_densityIndex);
     const QStringList autoSuggestWords = { tr("Alpha"), tr("Beta"),     tr("Gamma"),
                                            tr("Delta"), tr("Settings"), tr("Controls") };
     ui->autoSuggestEdit->setCompleter(
@@ -174,11 +215,11 @@ void GalleryWindow::configureGallery()
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
-    ui->themeCombo->setCurrentIndex(qApp->style()->property("themeMode").toInt());
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &GalleryWindow::setTheme);
     connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [](int index) {
+            [this](int index) {
+                m_densityIndex = index;
                 if (qApp->style())
                     qApp->style()->setProperty("densityMode", index);
             });
@@ -222,6 +263,30 @@ void GalleryWindow::configureGallery()
         wizard.addPage(finish);
         wizard.exec();
     });
+}
+
+void GalleryWindow::setComparisonStyle(const QString &key)
+{
+    QStyle *comparisonStyle = QStyleFactory::create(key);
+    if (!comparisonStyle) {
+        ui->statusBar->showMessage(tr("The selected comparison style is unavailable."));
+        if (QAction *winuiAction = findChild<QAction *>(QStringLiteral("winui3StyleAction")))
+            winuiAction->setChecked(true);
+        return;
+    }
+    comparisonStyle->setProperty("themeMode", m_themeIndex);
+    comparisonStyle->setProperty("densityMode", m_densityIndex);
+    qApp->setStyle(comparisonStyle);
+
+    const bool winuiStyle = key == QLatin1String("winui3");
+    if (QAction *action = findChild<QAction *>(winuiStyle ? QStringLiteral("winui3StyleAction")
+                                                          : QStringLiteral("windows11StyleAction")))
+        action->setChecked(true);
+    ui->themeCombo->setEnabled(winuiStyle);
+    ui->densityCombo->setEnabled(winuiStyle);
+    ui->micaToggle->setEnabled(winuiStyle);
+    ui->statusBar->showMessage(winuiStyle ? tr("WinUI 3 style")
+                                          : tr("Windows 11 comparison style from Qt"));
 }
 
 void GalleryWindow::populateCollections()
@@ -353,6 +418,7 @@ void GalleryWindow::setTheme(int index)
     // and an equivalent explicit Light/Dark mode use the same palette and
     // therefore must render identically. Applications can opt into Mica
     // independently through the winuiBackdrop top-level property.
+    m_themeIndex = index;
     qApp->style()->setProperty("themeMode", index);
 }
 
@@ -371,6 +437,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
     const QVariant previousBackdrop = property("winuiBackdrop");
     const QPalette previousPalette = palette();
     const bool previousAutoFill = autoFillBackground();
+    const QLocale previousLocale = locale();
+    const bool previousExplicitLocale = testAttribute(Qt::WA_SetLocale);
     const QDate previousCalendarDate = ui->persistentCalendar->selectedDate();
     const int previousCalendarYear = ui->persistentCalendar->yearShown();
     const int previousCalendarMonth = ui->persistentCalendar->monthShown();
@@ -397,11 +465,18 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
             qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
         setPalette(previousPalette);
         setAutoFillBackground(previousAutoFill);
+        if (previousExplicitLocale)
+            setLocale(previousLocale);
+        else
+            unsetLocale();
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
         ui->persistentCalendar->setSelectedDate(previousCalendarDate);
         ui->persistentCalendar->setCurrentPage(previousCalendarYear, previousCalendarMonth);
         QCursor::setPos(previousCursorPosition);
     });
+    // The reviewed fixtures use French date/month formatting, independently
+    // of the Windows account locale used by a hosted runner.
+    setLocale(QLocale(QLocale::French, QLocale::France));
     // Preserve the reviewed calendar fixture across midnight/day changes.
     // This is capture state only; the live Gallery retains its own date/page.
     const QDate calendarFixture(2026, 10, 11);

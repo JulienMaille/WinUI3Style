@@ -231,8 +231,15 @@ bool drawWidgetBackdropPrimitive(const Style *, const QStyleOption *option, QPai
             painter->restore();
             return true;
         }
+        // The source clear is the complete PE_Widget background on a live
+        // material. The widget's content paints in its own subsequent paths.
+        return true;
     }
-    return false;
+
+    // PE_Widget's background contract is handled by QWidget's own autofill
+    // and palette machinery. Consume its no-op style primitive here so this
+    // covered path does not depend on a base-style fallback.
+    return true;
 }
 
 bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,

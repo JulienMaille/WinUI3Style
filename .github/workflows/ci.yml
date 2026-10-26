@@ -130,6 +130,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow
+      - name: Prepare Windows 11 visual test font
+        shell: pwsh
+        run: ./tools/setup_visual_test_fonts.ps1
       - name: Configure (${{ matrix.configuration }}, benchmarks off)
         run: >
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QString>
 
 namespace Ui {
 class GalleryWindow;
@@ -20,6 +21,9 @@ private:
     void populateCollections();
     void configurePaletteLab();
     void setTheme(int index);
+    void setComparisonStyle(const QString &key);
 
     Ui::GalleryWindow *ui;
+    int m_themeIndex = 0;
+    int m_densityIndex = 0;
 };
