@@ -23,6 +23,12 @@ jobs:
         with:
           ref: refs/tags/v0.1.0-experimental.1
           fetch-depth: 0
+      - name: Check out versioned release tooling separately from the immutable tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: build/release-tools
+          persist-credentials: false
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt 6.11.1 (same SDK build as CI)
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -40,6 +46,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pillow
+      - name: Test Qt notice extraction
+        run: python build/release-tools/tools/test_extract_qt_notices.py
       - name: Prepare Windows 11 visual test font (not redistributed)
         shell: pwsh
         run: ./tools/setup_visual_test_fonts.ps1
@@ -89,9 +97,9 @@ jobs:
             Write-Host "Verified $archiveName ($((Get-Item -LiteralPath $archivePath).Length) bytes)."
             $extractRoot = Join-Path $sourceRoot $module.Name
             New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
-            Write-Host "Extracting $archiveName directly into $extractRoot"
-            & "$env:SystemRoot/System32/tar.exe" -xf $archivePath -C $extractRoot --strip-components 1
-            if ($LASTEXITCODE -ne 0) { throw "Cannot extract $archiveName" }
+            Write-Host "Extracting required notices from $archiveName into $extractRoot"
+            python build/release-tools/tools/extract_qt_notices.py $archivePath $extractRoot
+            if ($LASTEXITCODE -ne 0) { throw "Cannot extract notices from $archiveName" }
             if (-not (Test-Path -LiteralPath (Join-Path $extractRoot 'LICENSES') -PathType Container)) {
               throw "Expected source license directory missing: $extractRoot"
             }
