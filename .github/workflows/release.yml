@@ -76,7 +76,7 @@ jobs:
             $downloaded = $false
             foreach ($url in $urls) {
               Write-Host "Downloading $archiveName from $url"
-              & curl.exe --fail --location --silent --show-error `
+              & "$env:SystemRoot/System32/curl.exe" --fail --location --silent --show-error `
                 --connect-timeout 15 --max-time 120 --output $archivePath $url
               if ($LASTEXITCODE -eq 0) { $downloaded = $true; break }
               Write-Warning "Mirror failed for $archiveName (curl exit $LASTEXITCODE)."
@@ -86,15 +86,16 @@ jobs:
             if ($actualHash -ne $module.Hash) {
               throw "SHA-256 mismatch for ${archiveName}: $actualHash"
             }
-            $extractRoot = Join-Path $downloadRoot $module.Name
+            Write-Host "Verified $archiveName ($((Get-Item -LiteralPath $archivePath).Length) bytes)."
+            $extractRoot = Join-Path $sourceRoot $module.Name
             New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
-            tar -xf $archivePath -C $extractRoot
+            Write-Host "Extracting $archiveName directly into $extractRoot"
+            & "$env:SystemRoot/System32/tar.exe" -xf $archivePath -C $extractRoot --strip-components 1
             if ($LASTEXITCODE -ne 0) { throw "Cannot extract $archiveName" }
-            $extracted = Join-Path $extractRoot "$($module.Name)-everywhere-src-$version"
-            if (-not (Test-Path -LiteralPath $extracted -PathType Container)) {
-              throw "Expected source directory missing: $extracted"
+            if (-not (Test-Path -LiteralPath (Join-Path $extractRoot 'LICENSES') -PathType Container)) {
+              throw "Expected source license directory missing: $extractRoot"
             }
-            Move-Item -LiteralPath $extracted -Destination (Join-Path $sourceRoot $module.Name)
+            Write-Host "Prepared source module $($module.Name)"
           }
       - name: Configure Release build
         shell: pwsh
