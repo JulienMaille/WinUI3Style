@@ -34,13 +34,26 @@ constexpr int MenuChevronSlotSize = 16;
 constexpr int MenuChevronFontSize = 12;
 constexpr int MenuChevronRightPadding = 9;
 
+bool hasSegoeIconFont()
+{
+    const QString fluent = QStringLiteral("Segoe Fluent Icons");
+    const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
+    const QStringList families = Private::fontFamilies();
+    return families.contains(fluent) || families.contains(mdl2);
+}
+
 const QFont &menuChevronFont()
 {
     static const QFont font = [] {
         const QString fluent = QStringLiteral("Segoe Fluent Icons");
         const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
-        const QString family = Private::fontFamilies().contains(fluent) ? fluent : mdl2;
-        QFont result(family);
+        const QStringList families = Private::fontFamilies();
+        if (families.contains(fluent) || families.contains(mdl2)) {
+            QFont result(families.contains(fluent) ? fluent : mdl2);
+            result.setPixelSize(MenuChevronFontSize);
+            return result;
+        }
+        QFont result;
         result.setPixelSize(MenuChevronFontSize);
         return result;
     }();
@@ -49,9 +62,14 @@ const QFont &menuChevronFont()
 
 const QString &menuChevronGlyph(bool rightToLeft)
 {
-    static const QString right(1, QChar(0xE974));
-    static const QString left(1, QChar(0xE76B));
-    return rightToLeft ? left : right;
+    if (hasSegoeIconFont()) {
+        static const QString right(1, QChar(0xE974));
+        static const QString left(1, QChar(0xE76B));
+        return rightToLeft ? left : right;
+    }
+    static const QString fallbackRight(1, QChar(0x25B6)); // ▶
+    static const QString fallbackLeft(1, QChar(0x25C0));  // ◀
+    return rightToLeft ? fallbackLeft : fallbackRight;
 }
 
 void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirection direction,
