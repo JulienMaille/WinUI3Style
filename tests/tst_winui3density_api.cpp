@@ -495,9 +495,6 @@ void WinUI3DensityApiTest::comboClosedTextContracts()
         combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
         combo.addItems({ QStringLiteral("Standard density"), QStringLiteral("Compact density") });
         combo.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-        QFont liveFont(QStringLiteral("Segoe UI"));
-        liveFont.setPixelSize(14);
-        combo.setFont(liveFont);
         combo.ensurePolished();
         const int longest =
                 combo.fontMetrics().horizontalAdvance(QStringLiteral("Standard density"));

@@ -640,6 +640,9 @@ void WinUI3CalendarHeaderTest::micaScrollBarsAndNavigationPanelShareMaterial_dat
 // granted material is therefore the defect, not the contract.
 void WinUI3CalendarHeaderTest::micaScrollBarsAndNavigationPanelShareMaterial()
 {
+#ifndef Q_OS_WIN
+    QSKIP("live Mica grants require the Windows DWM compositor");
+#endif
     QFETCH(bool, dark);
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);

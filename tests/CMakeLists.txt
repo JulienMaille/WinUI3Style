@@ -231,26 +231,6 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryprobe_tests winui3styleplugin)
 endif()
 
-# Native live repro of the reported theme-while-granted regression
-# (WIN32 native suite, skipped offscreen): REAL GalleryWindow toggles, REAL
-# DWM grant, verdict on presented pixels. Same shape as
-# winui3style_galleryprobe_tests.
-add_executable(winui3style_micanative_tests
-    tst_winui3micanative.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
-set_target_properties(winui3style_micanative_tests PROPERTIES
-    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
-target_include_directories(winui3style_micanative_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
-target_link_libraries(winui3style_micanative_tests PRIVATE
-    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
-if(WINUI3STYLE_BUILD_PLUGIN)
-    add_dependencies(winui3style_micanative_tests winui3styleplugin)
-endif()
-
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -284,6 +264,27 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
         add_dependencies(winui3style_autosuggest_native_tests winui3styleplugin)
+    endif()
+
+    # Native live repro of the reported theme-while-granted regression:
+    # REAL GalleryWindow toggles, REAL DWM grant, verdict on presented
+    # pixels. Same shape as winui3style_galleryprobe_tests, but it drives
+    # the Win32 compositor, so the target exists only where DWM does
+    # (issue #21: the sources must never reach a non-Windows compile).
+    add_executable(winui3style_micanative_tests
+        tst_winui3micanative.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+    set_target_properties(winui3style_micanative_tests PROPERTIES
+        AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+    target_include_directories(winui3style_micanative_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+    target_link_libraries(winui3style_micanative_tests PRIVATE
+        WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+    if(WINUI3STYLE_BUILD_PLUGIN)
+        add_dependencies(winui3style_micanative_tests winui3styleplugin)
     endif()
 
     add_test(NAME winui3style_micanative

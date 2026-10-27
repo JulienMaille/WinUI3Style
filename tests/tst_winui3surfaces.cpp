@@ -410,6 +410,9 @@ void WinUI3SurfacesTest::backdropResizeKeepsTransparentRecipe()
 
 void WinUI3SurfacesTest::backdropExposeRepaintsShellHierarchy()
 {
+#ifndef Q_OS_WIN
+    QSKIP("native backdrop restoration requires the Windows DWM compositor");
+#endif
     // Apres occlusion, toggle off/on restaure puis re-applique la recette :
     // la hierarchie shell repeint a l'identique. Meme etat, deux
     // assertions : gate vraie et frame egale avant/apres le cycle.
@@ -571,6 +574,9 @@ void WinUI3SurfacesTest::materialEraseRespectsDirtyRegionClip()
 
 void WinUI3SurfacesTest::backdropToggleOffRestoresShellSurfaces()
 {
+#ifndef Q_OS_WIN
+    QSKIP("native backdrop restoration requires the Windows DWM compositor");
+#endif
     // Toggle-off must restore the opaque window: offscreen the None branch
     // runs restoreBackdropState, republishes Solid so no painter keeps
     // Source-clearing, and leaves no backdrop marker behind. Without the
