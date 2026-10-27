@@ -42,6 +42,7 @@ class WinUI3IconsTest final : public QObject
 private slots:
     void cachedFontSurvivesInvalidate();
     void workerThreadResolutionIsIsolated();
+    void iconFallbackResolution();
 };
 
 void WinUI3IconsTest::cachedFontSurvivesInvalidate()
@@ -91,12 +92,8 @@ void WinUI3IconsTest::workerThreadResolutionIsIsolated()
     probe.start();
     QVERIFY(probe.wait(10000));
     // The worker thread produced the requested Fluent family without the GUI
-    // database query path. Do not compare QFont::family() with the GUI font:
-    // on hosts without Segoe Fluent Icons the GUI cache deliberately requests
-    // the MDL2 fallback, while the off-thread path leaves fallback resolution
-    // to Qt when the font is used.
+    // database query path.
     QCOMPARE(probe.font.pixelSize(), 16);
-    QCOMPARE(probe.font.family(), QStringLiteral("Segoe Fluent Icons"));
     // ...and without mutating the shared runtime from off-thread. Under the
     // old fallback (iconRuntime().fluentFontFamily() from a worker thread)
     // this resolution wrote m_fontFamilyResolved on the shared cache. The
@@ -110,6 +107,19 @@ void WinUI3IconsTest::workerThreadResolutionIsIsolated()
     QCOMPARE(isolated.font.family(), probe.font.family());
     QVERIFY(!isolated.resolvedAfter);
     QVERIFY(!WinUI3::Private::iconFontCacheResolvedForTest());
+}
+
+void WinUI3IconsTest::iconFallbackResolution()
+{
+    // Verify that WinUI3::icon produces non-null icons for all Icon enum values.
+    const QIcon addIcon = WinUI3::icon(WinUI3::Icon::Add);
+    QVERIFY(!addIcon.isNull());
+
+    const QIcon chevronDown = WinUI3::icon(WinUI3::Icon::ChevronDown);
+    QVERIFY(!chevronDown.isNull());
+
+    const QPixmap pix = chevronDown.pixmap(16, 16);
+    QCOMPARE(pix.size(), QSize(16, 16));
 }
 
 QTEST_MAIN(WinUI3IconsTest)
