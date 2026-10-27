@@ -20,6 +20,38 @@ Qt 6 is absent; Qt 5.12 is the only Qt 5 version exercised in CI.
 instance; `windows-latest` moved on and CMake's `Visual Studio 17 2022`
 generator can no longer find VS there.
 
+## Linux / Qt
+
+| Qt | Toolchain | Runner | Gate |
+|----|-----------|--------|------|
+| 6.8.3 (oldest supported) | GCC (`linux_gcc_64`) | `ubuntu-latest` | `linux-gate`: configure + build (Release) + CTest (native excluded) with `WINUI3STYLE_WARNINGS_AS_ERRORS=ON`, plus the consumer configurations below |
+
+The library, the plugin, the gallery, and the portable test suite build on
+non-Windows hosts (issue #21). What is Windows-only and compiles out:
+
+- Mica/acrylic backdrop, caption colours, and the DWM grant
+  (`winui3backdrop.cpp`, `winui3surfaces_p.cpp`);
+- the system-appearance watcher and registry accent reads
+  (`winui3appearancewatcher_p.cpp`, `winui3theme_p.cpp`);
+- everything under `LABELS native` (real tooltips, menus, popups, focus,
+  compositor corners) and `winui3style_snapshot_matrix`, which is not even
+  registered off Windows: `spec/baselines/gallery` is the pinned Windows raster
+  (Segoe UI, Fluent glyphs, `QT_QPA_FONTDIR`), so Linux font substitution would
+  fail it for reasons that are not regressions. The oracle it uses,
+  `winui3style_image_comparison_contract`, is portable and does run on Linux.
+
+A consumer embedding the style selects the same two switches everywhere:
+
+```cmake
+set(WINUI_ENABLE_TESTS OFF)          # no Qt::Test, no Pillow, no test binaries
+set(WINUI3STYLE_BUILD_DEMO OFF)      # no gallery
+add_subdirectory(third_party/WinUI3Style)
+```
+
+Both default to `OFF` under `add_subdirectory()`/`FetchContent` and to `ON` for
+the top-level developer build. `WINUI3STYLE_BUILD_TESTS` is the deprecated
+spelling of `WINUI_ENABLE_TESTS` and still works.
+
 ## Capture reproduction
 
 Snapshots are deterministic by construction (`spec/METHODOLOGY.md` sections

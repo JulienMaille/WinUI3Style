@@ -50,7 +50,7 @@ if (-not (Select-String -LiteralPath $cache -Pattern '^CMAKE_GENERATOR_PLATFORM:
     throw 'This package requires a configured Visual Studio x64 build.'
 }
 # Rebuild the committed revision; never bundle binaries from an earlier checkout.
-& $cmake -S $repoRoot -B $buildPath -DWINUI3STYLE_BUILD_TESTS=ON `
+& $cmake -S $repoRoot -B $buildPath -DWINUI_ENABLE_TESTS=ON `
     -DWINUI3STYLE_BUILD_NATIVE_TESTS=ON
 if ($LASTEXITCODE -ne 0) { throw 'Release configuration failed.' }
 & $cmake --build $buildPath --config Release

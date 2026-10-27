@@ -31,7 +31,7 @@ jobs:
   coverage-honesty:
     # Fails a PR diff marking any coverage.md row Verified unless the diff
     # also touches tests/. The semantic honesty stays reviewer-owned; this is
-    # a cheap git-diff tripwire, not a proof of live evidence (METHODOLOGY §6).
+    # a cheap git-diff tripwire, not a proof of live evidence (METHODOLOGY Â§6).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
           touched=$(git diff --name-only "$base"...HEAD -- tests/ | wc -l)
           echo "verified_promotions=$promoted tests_touched=$touched"
           if [ "$promoted" -gt 0 ] && [ "$touched" -eq 0 ]; then
-            echo "::error::coverage.md promotes a row to Verified without touching tests/. Tests alone never promote to Verified (METHODOLOGY §6); add evidence + tests or keep source-audited."
+            echo "::error::coverage.md promotes a row to Verified without touching tests/. Tests alone never promote to Verified (METHODOLOGY Â§6); add evidence + tests or keep source-audited."
             exit 1
           fi
 
@@ -87,11 +87,87 @@ jobs:
           -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
           -DWINUI3STYLE_BUILD_PLUGIN=ON
           -DWINUI3STYLE_BUILD_DEMO=ON
-          -DWINUI3STYLE_BUILD_TESTS=OFF
+          -DWINUI_ENABLE_TESTS=OFF
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
           -DWINUI3STYLE_CLANG_TIDY=ON
       - name: Build (tidy runs as errors)
         run: cmake --build build-tidy -j"$(nproc)"
+
+  linux-gate:
+    # Compilation and unit-test gate for non-Windows hosts (issue #21). The
+    # tree is portable Qt: the backdrop, appearance-watcher, and native capture
+    # paths are compiled out by Q_OS_WIN. Native tests are excluded because
+    # they need an interactive Windows desktop and DWM. The gallery snapshot
+    # matrix is not registered off Windows at all, because
+    # spec/baselines/gallery is the pinned Windows raster (Segoe UI, Fluent
+    # glyphs) and Linux font substitution would fail it for reasons that are
+    # not regressions; its oracle, winui3style_image_comparison_contract, is
+    # portable and does run here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.8.3
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: 'qt-6.8.3-linux-gcc64-v1'
+      - name: Install Python, Pillow, and a fallback UI font
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow
+      - name: Configure
+        run: >
+          cmake -S . -B build-linux
+          -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
+          -DCMAKE_BUILD_TYPE=Release
+          -DWINUI3STYLE_BUILD_PLUGIN=ON
+          -DWINUI3STYLE_BUILD_DEMO=ON
+          -DWINUI_ENABLE_TESTS=ON
+          -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Build
+        run: cmake --build build-linux -j"$(nproc)"
+      - name: Test (exclude interactive native tests)
+        run: >
+          ctest --test-dir build-linux --output-on-failure -LE native
+      - name: Upload test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-log
+          path: |
+            build-linux/Testing/Temporary/LastTest.log
+            build-linux/Testing/Temporary/LastTestsFailed.log
+            build-linux/tests/*_unit.txt
+          if-no-files-found: warn
+      - name: Consumer configuration without the test suite
+        # A host project embedding the style must be able to opt out of tests
+        # with one switch, without Qt::Test or Pillow (issue #21 item 1).
+        run: |
+          cmake -S . -B build-consumer \
+            -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWINUI_ENABLE_TESTS=OFF \
+            -DWINUI3STYLE_BUILD_DEMO=OFF
+          cmake --build build-consumer -j"$(nproc)"
+          # No test binary, no CTest registration, no Python requirement.
+          test ! -d build-consumer/tests
+          test ! -f build-consumer/CTestTestfile.cmake
+      - name: Legacy WINUI3STYLE_BUILD_TESTS spelling still works
+        run: |
+          cmake -S . -B build-legacy \
+            -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWINUI3STYLE_BUILD_TESTS=OFF \
+            -DWINUI3STYLE_BUILD_DEMO=OFF
+          test ! -d build-legacy/tests
+
   msvc-gate:
     # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
     # CMake's "Visual Studio 17 2022" generator can no longer find VS there.
@@ -140,7 +216,7 @@ jobs:
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
           -DWINUI3STYLE_BUILD_PLUGIN=ON
           -DWINUI3STYLE_BUILD_DEMO=ON
-          -DWINUI3STYLE_BUILD_TESTS=ON
+          -DWINUI_ENABLE_TESTS=ON
           -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
       - name: Build
