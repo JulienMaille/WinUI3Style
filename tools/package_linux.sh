@@ -97,15 +97,15 @@ for binary in "$gallery" "$style_plugin" "$qxcb_plugin"; do
     fi
 done
 
-# Launch the actual Gallery UI and capture a page from an empty environment:
-# no Qt SDK paths, LD_LIBRARY_PATH, or QT_PLUGIN_PATH may be needed. This checks
-# dynamic QStyleFactory plugin loading, window construction, and event-loop
-# startup rather than merely asking QApplication to print --help.
+# Launch the actual XCB Gallery UI under a virtual X server and capture pages
+# from an empty environment: no Qt SDK paths, LD_LIBRARY_PATH, or QT_PLUGIN_PATH
+# may be needed. This checks dynamic plugin loading, window construction,
+# rendering, and event-loop startup.
 smoke_home="$output_dir/smoke-home"
 smoke_capture="$output_dir/smoke-capture"
 mkdir -p "$smoke_home"
-if env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=offscreen \
-    "$gallery" --capture-dir "$smoke_capture" \
+if env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=xcb \
+    xvfb-run -a "$gallery" --capture-dir "$smoke_capture" \
     >"$output_dir/startup.stdout.txt" 2>"$output_dir/startup.stderr.txt"; then
     :
 else
@@ -158,7 +158,7 @@ manifest = {
         "Release build with warnings-as-errors",
         "CTest passed with native-labelled tests excluded",
         "ldd dependency scan passed for Gallery and WinUI3Style plugin",
-        "Gallery light/dark page captures passed with a clean environment and offscreen QPA",
+        "Gallery light/dark page captures passed with a clean environment and XCB under Xvfb",
     ],
     "buildHost": platform.platform(),
 }
