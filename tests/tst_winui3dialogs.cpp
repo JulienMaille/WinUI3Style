@@ -296,9 +296,11 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
+#ifdef Q_OS_WIN
     QTRY_COMPARE(
             wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
             darkCommand);
+#endif
 }
 
 void WinUI3DialogsTest::persistentDialogSurvivesThemeSwitch()

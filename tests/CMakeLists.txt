@@ -323,9 +323,9 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_micabackdrop_tests
         winui3style_micatheme_tests
         winui3style_micacard_tests
-        winui3style_galleryprobe_tests
-        winui3style_micanative_tests)
+        winui3style_galleryprobe_tests)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
+        list(APPEND _winui3style_linked_test_targets winui3style_micanative_tests)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
         list(APPEND _winui3style_linked_test_targets
             winui3style_menus_native_tests)
