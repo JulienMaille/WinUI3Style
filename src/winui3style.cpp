@@ -1751,9 +1751,11 @@ ControlRole Style::controlRole(const QWidget *widget)
         }
     }
     if (!widget->property(roleProperty).isValid()) {
-        if (const auto *button = qobject_cast<const QPushButton *>(widget);
-            button && button->isDefault()) {
-            return ControlRole::Accent;
+        if (const auto *button = qobject_cast<const QPushButton *>(widget)) {
+            if (button->isFlat())
+                return ControlRole::Subtle;
+            if (button->isDefault())
+                return ControlRole::Accent;
         }
     }
     return static_cast<ControlRole>(widget->property(roleProperty).toInt());

@@ -42,7 +42,7 @@
           <item><layout class="QHBoxLayout" name="primaryButtonsRow">
            <item><widget class="QPushButton" name="galleryStandardButton"><property name="text"><string>Standard</string></property></widget></item>
            <item><widget class="QPushButton" name="accentButton"><property name="text"><string>Accent</string></property><property name="winuiControlRole" stdset="0"><string>accent</string></property></widget></item>
-           <item><widget class="QPushButton" name="subtleButton"><property name="text"><string>Subtle</string></property><property name="winuiControlRole" stdset="0"><string>subtle</string></property></widget></item>
+           <item><widget class="QPushButton" name="flatButton"><property name="text"><string>Flat</string></property><property name="flat"><bool>true</bool></property></widget></item>
            <item><widget class="QPushButton" name="deleteButton"><property name="text"><string>Delete</string></property><property name="winuiControlRole" stdset="0"><string>destructive</string></property></widget></item>
            <item><widget class="QPushButton" name="disabledButton"><property name="enabled"><bool>false</bool></property><property name="text"><string>Disabled</string></property></widget></item>
            <item><spacer name="primaryButtonsSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint"><size><width>40</width><height>20</height></size></property></spacer></item>

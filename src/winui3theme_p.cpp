@@ -199,7 +199,7 @@ QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAcce
         palette.setColor(QPalette::Window, QColor(32, 32, 32));
         palette.setColor(QPalette::WindowText, QColor(255, 255, 255));
         palette.setColor(QPalette::Base, QColor(58, 58, 58, 76));
-        palette.setColor(QPalette::AlternateBase, QColor(255, 255, 255, 13));
+        palette.setColor(QPalette::AlternateBase, QColor(255, 255, 255, 1));
         palette.setColor(QPalette::Button, QColor(255, 255, 255, 15));
         palette.setColor(QPalette::ButtonText, QColor(255, 255, 255));
         palette.setColor(QPalette::Text, QColor(255, 255, 255));

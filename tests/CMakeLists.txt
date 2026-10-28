@@ -5,6 +5,8 @@ set(_winui3style_split_tests
     winui3style_buttonpress_tests tst_winui3buttonpress.cpp
     winui3style_toggles_tests tst_winui3toggles.cpp
     winui3style_views_tests tst_winui3views.cpp
+    winui3style_alternateviews_tests tst_winui3alternateviews.cpp
+    winui3style_tabs_tests tst_winui3tabs.cpp
     winui3style_menus_tests tst_winui3menus.cpp
     winui3style_editors_tests tst_winui3editors.cpp
     winui3style_combobox_tests tst_winui3combobox.cpp
@@ -301,6 +303,8 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_buttonpress_tests
         winui3style_toggles_tests
         winui3style_views_tests
+        winui3style_alternateviews_tests
+        winui3style_tabs_tests
         winui3style_menus_tests
         winui3style_editors_tests
         winui3style_combobox_tests
@@ -347,6 +351,8 @@ foreach(_split_target IN ITEMS
         winui3style_buttonpress_tests
         winui3style_toggles_tests
         winui3style_views_tests
+        winui3style_alternateviews_tests
+        winui3style_tabs_tests
         winui3style_menus_tests
         winui3style_editors_tests
         winui3style_combobox_tests
@@ -424,7 +430,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons buttonpress toggles views menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe)
+foreach(_suffix IN ITEMS buttons buttonpress toggles views alternateviews tabs menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )

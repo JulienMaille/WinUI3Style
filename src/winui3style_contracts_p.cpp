@@ -264,6 +264,13 @@ static QSize tabBarTabSize(const QStyleOption *option, QSize size, const Density
                         option ? option->fontMetrics.height() + 2 * density.tabVerticalPadding
                                : size.height()));
     size.setWidth(qBound(100, size.width(), 240));
+    if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option)) {
+        const bool vertical = tab->shape == QTabBar::RoundedEast
+                || tab->shape == QTabBar::RoundedWest || tab->shape == QTabBar::TriangularEast
+                || tab->shape == QTabBar::TriangularWest;
+        if (vertical)
+            size.transpose();
+    }
     return size;
 }
 

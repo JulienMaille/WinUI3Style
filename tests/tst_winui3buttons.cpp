@@ -112,6 +112,8 @@ private slots:
     void toolButtonIconVerticalCenter();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
+    void flatPushButtonUsesFlatVisual_data();
+    void flatPushButtonUsesFlatVisual();
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
     void buttonTextAntialiasesGrayscale();
@@ -760,6 +762,56 @@ void WinUI3ButtonsTest::controlRoles()
 {
     QPushButton button;
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
+    WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
+}
+
+void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual_data()
+{
+    QTest::addColumn<int>("themeMode");
+    QTest::newRow("light") << int(WinUI3::ThemeMode::Light);
+    QTest::newRow("dark") << int(WinUI3::ThemeMode::Dark);
+}
+
+void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual()
+{
+    QFETCH(int, themeMode);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(static_cast<WinUI3::ThemeMode>(themeMode));
+
+    QPushButton button(QStringLiteral("Flat action"));
+    button.setFlat(true);
+    button.resize(120, 32);
+    QCOMPARE(button.size(), QSize(120, 32));
+    QSize paintedSize;
+    const auto paintPanel = [&](QStyle::State state, qreal hoverProgress) -> QImage {
+        setFrame(&button, "_winui_hover_progress", hoverProgress);
+        QStyleOptionButton option;
+        option.initFrom(&button);
+        option.rect = QRect(QPoint(), button.size());
+        option.state = state;
+        paintedSize = option.rect.size();
+        QImage image(button.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(36, 47, 58));
+        {
+            QPainter painter(&image);
+            style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+        }
+        return image;
+    };
+
+    const QColor canvas(36, 47, 58);
+    const auto tokens = WinUI3::Private::tokens(button.palette());
+    QCOMPARE(tokens.subtleHover, tokens.dark ? QColor(255, 255, 255, 15) : QColor(0, 0, 0, 9));
+    const QImage resting = paintPanel(QStyle::State_Enabled, 0.0);
+    QCOMPARE(paintedSize, button.size());
+    QCOMPARE(resting.pixelColor(60, 16), canvas);
+
+    const QImage hovered = paintPanel(QStyle::State_Enabled | QStyle::State_MouseOver, 1.0);
+    QCOMPARE(paintedSize, button.size());
+    QVERIFY(hovered.pixelColor(60, 16) != canvas);
+
     WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
 }
