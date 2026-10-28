@@ -57,9 +57,20 @@ cp "$ICU73_SOURCE/LICENSE" "$prefix/licenses/ICU-73.2-LICENSE.txt"
 gallery="$prefix/bin/winui3style_gallery"
 style_plugin="$prefix/plugins/styles/qwinui3style.so"
 qxcb_plugin="$prefix/plugins/platforms/libqxcb.so"
-if [[ ! -x "$gallery" || ! -f "$style_plugin" || ! -f "$prefix/bin/qt.conf" \
-    || ! -f "$qxcb_plugin" || -d "$prefix/include" || -d "$prefix/lib/cmake" ]]; then
-    echo "Runtime install is incomplete or unexpectedly contains development files" >&2
+for required_file in "$gallery" "$style_plugin" "$prefix/bin/qt.conf" "$qxcb_plugin"; do
+    if [[ ! -f "$required_file" ]]; then
+        echo "Runtime install is missing required file: $required_file" >&2
+        find "$prefix" -maxdepth 3 -type f -print | sort >&2
+        exit 1
+    fi
+done
+if [[ ! -x "$gallery" ]]; then
+    echo "Gallery is installed but not executable: $gallery" >&2
+    exit 1
+fi
+if [[ -d "$prefix/include" || -d "$prefix/lib/cmake" ]]; then
+    echo "Runtime install unexpectedly contains development files" >&2
+    find "$prefix" -maxdepth 3 -type d -print | sort >&2
     exit 1
 fi
 
