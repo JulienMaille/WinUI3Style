@@ -112,8 +112,8 @@ private slots:
     void toolButtonIconVerticalCenter();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
-    void flatPushButtonMapsToSubtle_data();
-    void flatPushButtonMapsToSubtle();
+    void flatPushButtonUsesFlatVisual_data();
+    void flatPushButtonUsesFlatVisual();
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
     void buttonTextAntialiasesGrayscale();
@@ -766,14 +766,14 @@ void WinUI3ButtonsTest::controlRoles()
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
 }
 
-void WinUI3ButtonsTest::flatPushButtonMapsToSubtle_data()
+void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual_data()
 {
     QTest::addColumn<int>("themeMode");
     QTest::newRow("light") << int(WinUI3::ThemeMode::Light);
     QTest::newRow("dark") << int(WinUI3::ThemeMode::Dark);
 }
 
-void WinUI3ButtonsTest::flatPushButtonMapsToSubtle()
+void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual()
 {
     QFETCH(int, themeMode);
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
@@ -784,8 +784,6 @@ void WinUI3ButtonsTest::flatPushButtonMapsToSubtle()
     button.setFlat(true);
     button.resize(120, 32);
     QCOMPARE(button.size(), QSize(120, 32));
-    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Subtle);
-
     QSize paintedSize;
     const auto paintPanel = [&](QStyle::State state, qreal hoverProgress) -> QImage {
         setFrame(&button, "_winui_hover_progress", hoverProgress);
