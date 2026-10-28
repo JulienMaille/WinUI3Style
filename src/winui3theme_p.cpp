@@ -8,6 +8,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QSettings>
+#include <QStyleHints>
 
 #ifdef Q_OS_WIN
 #  define NOMINMAX
@@ -92,6 +93,26 @@ bool systemUsesDarkTheme()
     }
     return dark;
 #else
+    // On non-Windows platforms the desktop color scheme is the authority.
+    // The style replaces the application palette in
+    // Style::polish(QApplication *), so once the style is active the palette
+    // only reports the theme it last applied: a desktop Light -> Dark switch
+    // would still read the style-owned light Window role and the theme would
+    // never adapt. Qt publishes the platform scheme independently of the
+    // application palette (Qt 6.5+), so prefer it when known and keep the
+    // palette luma as the fallback for themes that report Unknown.
+#  if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    if (const QStyleHints *hints = QGuiApplication::styleHints()) {
+        switch (hints->colorScheme()) {
+        case Qt::ColorScheme::Dark:
+            return true;
+        case Qt::ColorScheme::Light:
+            return false;
+        case Qt::ColorScheme::Unknown:
+            break;
+        }
+    }
+#  endif
     return qGray(QApplication::palette().color(QPalette::Window).rgb()) < 128;
 #endif
 }

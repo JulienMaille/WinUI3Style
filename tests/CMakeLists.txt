@@ -63,6 +63,17 @@ if(WIN32)
     target_link_libraries(winui3style_theme_tests PRIVATE advapi32 dwmapi user32)
 endif()
 
+# System-mode adaptation: because the style owns the application palette, the
+# platform color scheme (not the palette) must drive ThemeMode::System. The
+# test process forces a platform theme on non-Windows because the offscreen
+# platform publishes no scheme by itself; Unknown still skips the contract.
+add_executable(winui3style_systemtheme_tests tst_winui3systemtheme.cpp)
+target_link_libraries(winui3style_systemtheme_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_systemtheme_tests winui3styleplugin)
+endif()
+
 # Standalone like the appearancewatcher binary: FrameAnimationDriver is a
 # private class, so its implementation (plus the frame registry it drives)
 # is compiled into the test binary instead of linking WinUI3::Widgets.
@@ -373,6 +384,8 @@ add_test(NAME winui3style_appearancewatcher_unit
          COMMAND winui3style_appearancewatcher_tests)
 add_test(NAME winui3style_theme_unit
          COMMAND winui3style_theme_tests)
+add_test(NAME winui3style_systemtheme_unit
+         COMMAND winui3style_systemtheme_tests)
 add_test(NAME winui3style_density_unit
          COMMAND winui3style_density_tests)
 add_test(NAME winui3style_density_api_unit
@@ -462,6 +475,15 @@ set_tests_properties(winui3style_appearancewatcher_unit PROPERTIES
 )
 set_tests_properties(winui3style_theme_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
+)
+# Force a platform theme that publishes a color scheme on non-Windows so the
+# offscreen process can exercise the System-follows-desktop contract.
+set(_winui3style_systemtheme_environment ${_winui3style_test_environment})
+if(NOT WIN32)
+    list(APPEND _winui3style_systemtheme_environment "QT_QPA_PLATFORMTHEME=kde")
+endif()
+set_tests_properties(winui3style_systemtheme_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_systemtheme_environment}"
 )
 set_tests_properties(winui3style_density_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"

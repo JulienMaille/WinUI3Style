@@ -22,8 +22,9 @@ QColor systemAccentColor();
 // GUI thread. The Windows appearance cache behind these queries (see
 // winui3theme_p.cpp) is mutex-guarded so concurrent cache reads/writes are
 // safe, but the underlying probes are GUI-thread-only Qt APIs: QSettings
-// native-registry access and DWM queries on Windows, QApplication::palette()
-// on other platforms. The native SystemAppearanceWatcher already invokes
+// native-registry access and DWM queries on Windows, QStyleHints /
+// QApplication::palette() on other platforms. The native
+// SystemAppearanceWatcher already invokes
 // invalidateSystemAppearanceCache() on the GUI thread; background threads
 // must post to the GUI thread instead of calling these directly.
 
