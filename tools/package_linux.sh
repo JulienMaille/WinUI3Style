@@ -85,14 +85,23 @@ for binary in "$gallery" "$style_plugin" "$qxcb_plugin"; do
     fi
 done
 
-# Launch from an empty environment: no Qt SDK paths, LD_LIBRARY_PATH, or
-# QT_PLUGIN_PATH may be needed. The Gallery exits non-zero if its style plugin
-# cannot be loaded, so this also checks dynamic QStyleFactory plugin loading.
+# Launch the actual Gallery UI and capture a page from an empty environment:
+# no Qt SDK paths, LD_LIBRARY_PATH, or QT_PLUGIN_PATH may be needed. This checks
+# dynamic QStyleFactory plugin loading, window construction, and event-loop
+# startup rather than merely asking QApplication to print --help.
 smoke_home="$output_dir/smoke-home"
+smoke_capture="$output_dir/smoke-capture"
 mkdir -p "$smoke_home"
 env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=offscreen \
-    "$gallery" --help >"$output_dir/startup.stdout.txt" 2>"$output_dir/startup.stderr.txt"
-grep -q -- '--capture-dir' "$output_dir/startup.stdout.txt"
+    "$gallery" --capture-dir "$smoke_capture" \
+    >"$output_dir/startup.stdout.txt" 2>"$output_dir/startup.stderr.txt"
+for capture in light-page-0.png dark-page-0.png; do
+    if [[ ! -s "$smoke_capture/$capture" ]]; then
+        echo "Clean-environment Gallery launch did not create $capture" >&2
+        cat "$output_dir/startup.stderr.txt" >&2
+        exit 1
+    fi
+done
 
 licenses="$prefix/licenses"
 mkdir -p "$licenses"
