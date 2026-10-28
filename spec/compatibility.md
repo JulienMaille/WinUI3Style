@@ -52,6 +52,29 @@ Both default to `OFF` under `add_subdirectory()`/`FetchContent` and to `ON` for
 the top-level developer build. `WINUI3STYLE_BUILD_TESTS` is the deprecated
 spelling of `WINUI_ENABLE_TESTS` and still works.
 
+## Linux / Wayland (animated compositors)
+
+Wayland runs the style but with toplevel window effects disabled. `Qt`'s
+Wayland frontend implements neither `QPlatformWindow::setOpacity` (every
+winui*dialog/popup entrance fade evaluates "This plugin does not support
+setting window opacity") nor a mouse grab on a non-popup surface ("This
+plugin supports grabbing the mouse only for popup windows"), so
+`WinUI3::Private::toplevelWindowEffectsUnsupported()` skips:
+
+- the QComboBox/QMenu popup open sweep (`animateMenuPopup`);
+- the QMessageBox/ContentDialog entrance fade (`_winui_dialog_animation`);
+- the QComboBox press-path `grabMouse()` — the compositor's implicit pointer
+  grab already returns the release to the press surface, which is all
+  `cancelComboPress()` needs, and the press/release → activate chain is
+  preserved.
+
+First-open popup height on a real compositor was **not** verified here.
+The evidence for issue #27 (30 px first open, correct second open, Xvfb
+clean) can only be settled on a live Wayland compositor with
+`QT_QPA_PLATFORM=wayland` and both [x,y,w,h] per open plus a stderr grep for
+the warnings above: #33 records the platform divergence (effects off) and
+deliberately does not claim to fix that report.
+
 ## Capture reproduction
 
 Snapshots are deterministic by construction (`spec/METHODOLOGY.md` sections

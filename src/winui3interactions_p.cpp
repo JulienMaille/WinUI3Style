@@ -133,16 +133,17 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
     // loops — so the slide runs here instead: window position from the
     // anchor edge plus windowOpacity, fast 167 ms, fast-out-slow-in easing.
     // The window stays visible throughout; geometry ends pixel-exact.
-    // Honor the animation kill-switch (deterministic captures) and skip
-    // offscreen (no compositor; tests assert exact first-frame geometry).
-    auto platform = QGuiApplication::platformName();
-    if (!Style::animationsAllowed() || platform == "wayland")
+    // Honor the animation kill-switch (deterministic captures), and skip
+    // platforms without toplevel window effects: offscreen has no compositor
+    // (tests assert exact first-frame geometry), and Wayland implements
+    // neither toplevel setOpacity nor a non-popup mouse grab, so the sweep
+    // would only log "does not support setting window opacity" while sliding
+    // a surface the compositor has not configured yet (first open, #27).
+    if (!Style::animationsAllowed() || toplevelWindowEffectsUnsupported())
         return;
     if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
         return;
     if (!popup->isVisible())
-        return;
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
         return;
     const QWidget *anchor = nullptr;
     if (combo && combo->isVisible())
@@ -385,7 +386,13 @@ bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event
             // still deliver the release here and we can correctly cancel
             // instead of opening a popup at an unrelated target.
             m_comboPressStates.insert(combo);
-            combo->grabMouse();
+            // Wayland only grabs popups (every other call just warns "This
+            // plugin supports grabbing the mouse only for popup windows").
+            // Its compositor-side implicit pointer grab already routes the
+            // release back to the press surface, which is all
+            // cancelComboPress() needs.
+            if (!waylandPlatform(QGuiApplication::platformName()))
+                combo->grabMouse();
             m_callbacks.animate(combo, comboChevronProperty, 1.0, 150);
             m_callbacks.animate(combo, pressProperty, 1.0,
                                 interactionDuration(combo, InteractionMotion::Press, true));
@@ -747,12 +754,12 @@ bool StyleInteractionController::handleShow(QWidget *widget)
         }
     }
     if (widget->isWindow() && widget->windowType() == Qt::Popup) {
-        const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
         if (auto *combo = qobject_cast<QComboBox *>(widget->parentWidget())) {
             m_callbacks.prepareComboPopupFirstFrame(combo);
             centerPendingComboPopup(widget, combo);
-            if (!offscreen)
-                animateMenuPopup(widget, combo);
+            // animateMenuPopup gates itself per platform (kill-switch,
+            // offscreen, Wayland); no caller-side platform check.
+            animateMenuPopup(widget, combo);
         } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
             animateMenuPopup(widget, nullptr);
             // Parent-wash lane: hovering a submenu row open delivers
@@ -776,7 +783,11 @@ bool StyleInteractionController::handleShow(QWidget *widget)
         m_callbacks.stopDialogAnimations(dialog);
         showContentDialogScrim(dialog);
         applyDialogCaptionTheme(dialog);
-        if (Style::animationsAllowed()) {
+        // Same platform road as the popup sweep: toplevel windowOpacity has
+        // no Wayland implementation, so the entrance fade would only spam
+        // "does not support setting window opacity" there. The scrim and
+        // caption paths above are palette/geometry-only and keep running.
+        if (Style::animationsAllowed() && !toplevelWindowEffectsUnsupported()) {
             widget->setProperty("_winui_dialog_animating", true);
             auto *group = new QParallelAnimationGroup(dialog);
             group->setObjectName(QStringLiteral("_winui_dialog_animation"));
