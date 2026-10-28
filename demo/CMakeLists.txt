@@ -81,9 +81,13 @@ if(UNIX AND NOT APPLE)
 qt_deploy_runtime_dependencies(
     EXECUTABLE \"\${QT_DEPLOY_BIN_DIR}/$<TARGET_FILE_NAME:winui3style_gallery>\"
     ADDITIONAL_MODULES \"\${QT_DEPLOY_PLUGINS_DIR}/styles/$<TARGET_FILE_NAME:winui3styleplugin>\"
+    BIN_DIR bin
+    LIB_DIR lib
+    PLUGINS_DIR plugins
     GENERATE_QT_CONF
     INCLUDE_PLUGIN_TYPES platforms imageformats
     NO_TRANSLATIONS
+    VERBOSE
 )")
     install(SCRIPT ${winui3style_gallery_deploy_script} COMPONENT Runtime)
 endif()
