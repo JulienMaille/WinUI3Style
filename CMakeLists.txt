@@ -187,9 +187,11 @@ install(EXPORT WinUI3StyleTargets
     FILE WinUI3StyleTargets.cmake
     NAMESPACE WinUI3::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/WinUI3Style
+    COMPONENT Development
 )
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/WinUI3StyleConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/WinUI3StyleConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/WinUI3Style
+    COMPONENT Development
 )

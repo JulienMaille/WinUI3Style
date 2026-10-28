@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish the existing validated v0.1.0-experimental.1 tag'
+        description: 'Attach the Linux Gallery to the existing prerelease'
         type: boolean
         default: false
 
@@ -161,9 +161,64 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  package-linux:
+    needs: package
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      # On tag pushes, github.sha is the tagged source. On workflow_dispatch,
+      # it is the explicitly selected source revision used to extend the
+      # existing experimental release with the Linux build.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Install Qt 6.11.1 for Linux x86_64
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: '6.11.1'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          archives: 'qtbase qtsvg qtimageformats'
+          cache: true
+          cache-key-prefix: 'qt-6.11.1-linux-gcc64-release-v1'
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install host-side XCB runtime prerequisites for deployment checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
+            libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
+      - name: Install Pillow for the snapshot oracle
+        run: python3 -m pip install pillow
+      - name: Download verified Qt corresponding-source inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: WinUI3Style-v0.1.0-experimental.1-win-x64-qt6.11.1
+          path: qt-source-assets
+      - name: Package and smoke-test Linux Gallery
+        run: |
+          bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" qt-source-assets release-assets
+      - name: Upload Linux release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinUI3Style-v0.1.0-experimental.1-linux-x64-gcc-qt6.11.1
+          path: |
+            release-assets/WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1.tar.gz
+            release-assets/WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1.tar.gz.sha256
+            release-assets/WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
     if: github.event_name == 'push' || inputs.publish
-    needs: package
+    needs: [package, package-linux]
     runs-on: windows-2022
     permissions:
       contents: write
@@ -173,19 +228,72 @@ jobs:
         with:
           ref: refs/tags/v0.1.0-experimental.1
           fetch-depth: 0
+      - name: Check out release notes for the selected workflow revision
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: release-tools
+          sparse-checkout: RELEASE_NOTES.md
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: WinUI3Style-v0.1.0-experimental.1-win-x64-qt6.11.1
+          pattern: WinUI3Style-v0.1.0-experimental.1-*
+          merge-multiple: true
           path: release-assets
-      - name: Create prerelease and upload binaries, source, and checksums
+      - name: Publish new release or append Linux assets to existing prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: v0.1.0-experimental.1
         run: |
-          $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
-          if ($assets.Count -lt 5) { throw 'Release assets are incomplete.' }
-          gh release create $env:RELEASE_TAG @assets `
-            --title $env:RELEASE_TAG `
-            --notes-file RELEASE_NOTES.md `
-            --prerelease
+          $assets = @(Get-ChildItem -LiteralPath release-assets -File)
+          $linuxAssets = @($assets | Where-Object Name -Like '*linux-x64-gcc*')
+          if ($linuxAssets.Count -ne 3) { throw 'Linux release assets are incomplete.' }
+          $linuxArchive = $linuxAssets | Where-Object Name -Like '*.tar.gz'
+          $linuxChecksum = $linuxAssets | Where-Object Name -Like '*.tar.gz.sha256'
+          $linuxManifest = $linuxAssets | Where-Object Name -Like '*-manifest.json'
+          if (-not $linuxArchive -or -not $linuxChecksum -or -not $linuxManifest) {
+            throw 'Linux archive, detached checksum, or manifest is missing.'
+          }
+          $claimed = (Get-Content -LiteralPath $linuxChecksum.FullName -Raw).Trim() -split '\s+'
+          $actual = (Get-FileHash -LiteralPath $linuxArchive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($claimed[0] -ne $actual -or $claimed[-1] -ne $linuxArchive.Name) {
+            throw 'Linux archive checksum does not match its detached checksum file.'
+          }
+          $manifestData = Get-Content -LiteralPath $linuxManifest.FullName -Raw | ConvertFrom-Json
+          if ($manifestData.name -ne 'WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1') {
+            throw 'Linux release manifest identifies an unexpected package.'
+          }
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $downloadDir = Join-Path $env:RUNNER_TEMP 'existing-release'
+            New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+            gh release download $env:RELEASE_TAG --pattern SHA256SUMS.txt --dir $downloadDir
+            if ($LASTEXITCODE -ne 0) { throw 'Could not download the existing release checksums.' }
+            $sumLines = @(Get-Content -LiteralPath (Join-Path $downloadDir 'SHA256SUMS.txt'))
+            $sumFile = Join-Path 'release-assets' 'SHA256SUMS.txt'
+          } else {
+            $sumLines = @(Get-Content -LiteralPath (Join-Path 'release-assets' 'SHA256SUMS.txt'))
+            $sumFile = Join-Path 'release-assets' 'SHA256SUMS.txt'
+          }
+          foreach ($asset in $linuxAssets) {
+            $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $assetSuffix = "  $([regex]::Escape($asset.Name))$"
+            $sumLines = @($sumLines | Where-Object { $_ -notmatch $assetSuffix })
+            $sumLines += "$hash  $($asset.Name)"
+          }
+          Set-Content -LiteralPath $sumFile -Value $sumLines -Encoding ascii
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $upload = @($linuxAssets | ForEach-Object FullName) + @($sumFile)
+            gh release upload $env:RELEASE_TAG @upload --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Could not attach Linux assets to the existing prerelease.' }
+            gh release edit $env:RELEASE_TAG --notes-file release-tools/RELEASE_NOTES.md
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update the existing prerelease notes.' }
+          } else {
+            if ($assets.Count -lt 8) { throw 'Release assets are incomplete.' }
+            $allPaths = @($assets | ForEach-Object FullName)
+            gh release create $env:RELEASE_TAG @allPaths `
+              --title $env:RELEASE_TAG `
+              --notes-file RELEASE_NOTES.md `
+              --prerelease
+          }

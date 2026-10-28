@@ -48,3 +48,33 @@ if(WIN32)
         )
     endif()
 endif()
+
+# Linux release bundles use Qt's supported CMake deployment API. Install the
+# Gallery alongside the library/plugin targets above and have the generated
+# install script collect Qt runtime dependencies and platform plugins. The
+# additional-module path is essential: QStyleFactory loads our style plugin
+# dynamically, so it is not visible from the Gallery executable's link graph.
+if(UNIX AND NOT APPLE AND QT_VERSION_MAJOR EQUAL 6 AND TARGET winui3styleplugin)
+    include(GNUInstallDirs)
+    set_target_properties(winui3style_gallery PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+    set_target_properties(winui3style PROPERTIES INSTALL_RPATH "$ORIGIN")
+    set_target_properties(winui3styleplugin PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}")
+
+    install(TARGETS winui3style_gallery
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT Runtime)
+    qt_generate_deploy_script(
+        TARGET winui3style_gallery
+        OUTPUT_SCRIPT winui3style_gallery_deploy_script
+        CONTENT "
+qt_deploy_runtime_dependencies(
+    EXECUTABLE \"\${QT_DEPLOY_BIN_DIR}/$<TARGET_FILE_NAME:winui3style_gallery>\"
+    ADDITIONAL_MODULES \"\${QT_DEPLOY_PLUGINS_DIR}/styles/$<TARGET_FILE_NAME:winui3styleplugin>\"
+    GENERATE_QT_CONF
+    INCLUDE_PLUGIN_TYPES platforms imageformats
+    NO_TRANSLATIONS
+)")
+    install(SCRIPT ${winui3style_gallery_deploy_script} COMPONENT Runtime)
+endif()
