@@ -31,6 +31,36 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
+The same tree configures and builds on Linux (and macOS) with a Qt 6.5+
+installation; only the Mica backdrop, the system-appearance watcher, and the
+native compositor tests need Windows, and those compile out elsewhere:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure -LE native
+```
+
+The `linux-gate` CI job runs exactly that, including the portable
+`winui3style_image_comparison_contract` oracle. The gallery snapshot matrix
+(`winui3style_snapshot_matrix`) is registered on Windows only, because
+`spec/baselines/gallery` is the pinned Windows raster.
+
+`WINUI_ENABLE_TESTS` (default `ON` for the top-level build) builds the test
+suite and `WINUI3STYLE_BUILD_DEMO` builds the gallery. Both default to `OFF`
+when the tree is embedded with `add_subdirectory()` or `FetchContent`, so a
+consumer gets the library and the plugin without Qt::Test, Pillow, or the
+gallery, and can turn them back on with one switch:
+
+```cmake
+set(WINUI_ENABLE_TESTS OFF)   # or pass -DWINUI_ENABLE_TESTS=OFF
+add_subdirectory(third_party/WinUI3Style)
+target_link_libraries(app PRIVATE WinUI3::Widgets)
+```
+
+`WINUI3STYLE_BUILD_TESTS` is the deprecated spelling of the same switch and is
+still honored.
+
 The `winui3style_gallery` executable is the interactive reference application.
 Its widget hierarchy lives in `demo/gallerywindow.ui`. The gallery
 loads the style plugin through Qt's factory; it also links `WinUI3::Widgets`

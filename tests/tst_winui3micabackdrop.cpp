@@ -123,6 +123,9 @@ void WinUI3MicaBackdropTest::shellScrollChainSharesMaterial()
 
 void WinUI3MicaBackdropTest::chromeLoopCoversAllMenuBars()
 {
+#ifndef Q_OS_WIN
+    QSKIP("native backdrop application requires the Windows DWM compositor");
+#endif
     // Chrome loop (menu bars, tool bars, status bar) visits EVERY bar, not
     // just the first: the main-window bar and a nested bar arrive armed from
     // polish and toggle-off restore returns every bar opaque. Driven through

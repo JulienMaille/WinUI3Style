@@ -115,6 +115,9 @@ void WinUI3AppearanceWatcherTest::callbackContextCancelsPendingNotification()
 
 void WinUI3AppearanceWatcherTest::activeStateSurvivesRepeatedToggles()
 {
+#ifndef Q_OS_WIN
+    QSKIP("system appearance watcher is Windows-specific");
+#endif
     // RAII/install-refresh mechanism: repeated activate/deactivate cycles
     // must not accumulate stale teardown state. isInstalled() is the
     // observable side of the tracking; on Windows it also reflects the
@@ -148,6 +151,9 @@ void WinUI3AppearanceWatcherTest::activeStateSurvivesRepeatedToggles()
 
 void WinUI3AppearanceWatcherTest::destroyedAfterHostGoneLeavesNoStaleInstall()
 {
+#ifndef Q_OS_WIN
+    QSKIP("system appearance watcher is Windows-specific");
+#endif
     // The in-tree QApplication outlives the watcher, so simulate "host gone"
     // by deactivating first (which clears the install tracking), then
     // verify destruction leaves no stale installed state behind. On Windows

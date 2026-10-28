@@ -756,6 +756,9 @@ struct NavigationPaintProbe final : public QObject
 
 void WinUI3NavigationTest::navigationBackdropDisableRepaintsOpaqueAfterRestore()
 {
+#ifndef Q_OS_WIN
+    QSKIP("native backdrop restoration requires the Windows DWM compositor");
+#endif
     // Disable-leg repaint contract (mica->none->mica): toggling off must
     // rebuild the window and the navigation surfaces from their restored
     // opaque palettes, and toggling back on must repaint the view frame as

@@ -6,8 +6,8 @@ The CMake library version remains `0.1.0`. The first experimental release's
 tag is `v0.1.0-experimental.1`.
 The GitHub `release` workflow publishes that tag as a prerelease after its
 hosted Release build and non-native CTest gate pass. Manual dispatch defaults
-to a temporary artifact; its explicit `publish` input can resume publication
-of that same immutable tag after an infrastructure failure.
+to candidate artifacts; its explicit `publish` input attaches the validated
+Linux Gallery to the existing prerelease and refreshes its checksums/notes.
 This preview evaluates stock Qt Widgets with a WinUI-inspired QStyle, not
 production readiness or complete pixel-identical WinUI coverage.
 
@@ -31,6 +31,15 @@ Extract the complete archive and run `winui3style_gallery.exe`. Install the
 current Microsoft Visual C++ v14 x64 Redistributable if absent. Windows 11
 is needed to evaluate native Mica and rounded windows. Do not redistribute
 Windows fonts or copy the bundled Qt DLLs over another application's runtime.
+
+The matching Linux x86_64 asset is
+`WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1.tar.gz`. It bundles
+the Gallery, WinUI3Style library/plugin, Qt runtime libraries and platform
+plugins. It targets Ubuntu 22.04 x86_64 and compatible systems; glibc and the
+host graphics/XCB stack remain system prerequisites. Its manifest identifies
+the exact source revision and records the build, test, dependency-scan and
+clean-environment startup checks. The Linux archive is a Gallery package, not
+a Qt SDK or a development package.
 
 For a compatible Qt/MSVC x64 application, deploy the style plugin in its
 Qt `styles` plugin directory and the style library beside its executable,

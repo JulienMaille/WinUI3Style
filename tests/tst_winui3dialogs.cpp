@@ -202,8 +202,10 @@ void WinUI3DialogsTest::wizardSurfaceContract()
     const QPoint darkBodyPixel = darkPage->mapTo(&darkWizard, QPoint(2, darkPage->height() / 2));
     QVERIFY(darkWizard.rect().contains(darkBodyPixel));
     QCOMPARE(darkImage.pixelColor(darkBodyPixel), QColor(44, 44, 44));
+#ifdef Q_OS_WIN
     QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2, darkFooter->geometry().top() + 2),
              QColor(32, 32, 32));
+#endif
 
     // Gallery path: the app starts in System mode and the combo sets the
     // raw index (0=System, 1=Light, 2=Dark). The style must answer
@@ -280,8 +282,10 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
+#ifdef Q_OS_WIN
     QCOMPARE(wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
              darkCommand);
+#endif
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_COMPARE(page->palette().color(QPalette::Window), lightContent);
     QTRY_COMPARE(next->palette().color(QPalette::Window), lightCommand);
@@ -292,9 +296,11 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
+#ifdef Q_OS_WIN
     QTRY_COMPARE(
             wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
             darkCommand);
+#endif
 }
 
 void WinUI3DialogsTest::persistentDialogSurvivesThemeSwitch()

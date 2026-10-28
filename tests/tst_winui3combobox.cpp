@@ -742,11 +742,13 @@ void WinUI3ComboBoxTest::comboChevronGeometry()
     QVERIFY(rtl.first.contains(rtl.second.topLeft())
             && rtl.first.contains(rtl.second.bottomRight()));
     // Segoe Fluent raster extents drift across font versions (local Win11 vs
-    // CI Server); ceilings stay inside the 10px box, well below the old path.
+    // CI Server); non-Windows hosts substitute a different font entirely.
+#ifdef Q_OS_WIN
     QVERIFY(ltr.second.width() <= 11);
     QVERIFY(ltr.second.height() <= 8);
     QVERIFY(rtl.second.width() <= 11);
     QVERIFY(rtl.second.height() <= 8);
+#endif
     QCOMPARE(ltr.first.size(), QSize(10, 10));
     QCOMPARE(rtl.first.size(), QSize(10, 10));
 }

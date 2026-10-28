@@ -33,6 +33,6 @@ if(NOT WINUI3STYLE_STATIC)
 endif()
 
 install(TARGETS winui3styleplugin
-    RUNTIME DESTINATION plugins/styles
-    LIBRARY DESTINATION plugins/styles
+    RUNTIME DESTINATION plugins/styles COMPONENT Runtime
+    LIBRARY DESTINATION plugins/styles COMPONENT Runtime
 )

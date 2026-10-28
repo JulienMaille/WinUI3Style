@@ -48,3 +48,47 @@ if(WIN32)
         )
     endif()
 endif()
+
+# Linux release bundles use Qt's supported CMake deployment API. Install the
+# Gallery alongside the library/plugin targets above and have the generated
+# install script collect Qt runtime dependencies and platform plugins. The
+# additional-module path is essential: QStyleFactory loads our style plugin
+# dynamically, so it is not visible from the Gallery executable's link graph.
+if(UNIX AND NOT APPLE)
+    if(NOT WINUI3STYLE_QT STREQUAL "Qt6")
+        message(FATAL_ERROR "The Linux Gallery deployment requires Qt 6")
+    endif()
+    if(NOT TARGET winui3styleplugin)
+        message(FATAL_ERROR "The Linux Gallery deployment requires winui3styleplugin")
+    endif()
+    include(GNUInstallDirs)
+    set_target_properties(winui3style_gallery PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+    set_target_properties(winui3style PROPERTIES INSTALL_RPATH "$ORIGIN")
+    set_target_properties(winui3styleplugin PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}")
+
+    # Install the target (rather than copying its file as a PROGRAM) so CMake
+    # rewrites its build-tree RPATH to the package-relative INSTALL_RPATH.
+    install(TARGETS winui3style_gallery
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT Runtime)
+    # Use the versioned command so QT_DEPLOY_* references remain unevaluated
+    # until install time even when QTP0008 is not enabled by the parent project.
+    qt6_generate_deploy_script(
+        TARGET winui3style_gallery
+        OUTPUT_SCRIPT winui3style_gallery_deploy_script
+        CONTENT "
+qt_deploy_runtime_dependencies(
+    EXECUTABLE \"\${QT_DEPLOY_BIN_DIR}/$<TARGET_FILE_NAME:winui3style_gallery>\"
+    ADDITIONAL_MODULES \"\${QT_DEPLOY_PLUGINS_DIR}/styles/$<TARGET_FILE_NAME:winui3styleplugin>\"
+    BIN_DIR bin
+    LIB_DIR lib
+    PLUGINS_DIR plugins
+    GENERATE_QT_CONF
+    INCLUDE_PLUGIN_TYPES platforms imageformats
+    NO_TRANSLATIONS
+    VERBOSE
+)")
+    install(SCRIPT ${winui3style_gallery_deploy_script} COMPONENT Runtime)
+endif()

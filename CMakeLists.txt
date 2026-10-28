@@ -12,11 +12,38 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Tests and the gallery default to ON only for the top-level developer build.
+# A host project that pulls this tree in with add_subdirectory() or
+# FetchContent gets the library and the plugin and nothing else, so embedding
+# WinUI3Style never adds test binaries, Qt::Test, or the Pillow requirement to
+# the consumer's configure step. Pass -DWINUI_ENABLE_TESTS=ON (or
+# -DWINUI3STYLE_BUILD_DEMO=ON) to opt back in from a parent project.
+if(PROJECT_IS_TOP_LEVEL)
+    set(_winui3style_tests_default ON)
+    set(_winui3style_demo_default ON)
+else()
+    set(_winui3style_tests_default OFF)
+    set(_winui3style_demo_default OFF)
+endif()
+
 option(WINUI3STYLE_BUILD_PLUGIN "Build the Qt style plugin" ON)
 option(WINUI3STYLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(WINUI3STYLE_CLANG_TIDY "Run clang-tidy during the build (uses .clang-tidy at the tree root)" OFF)
-option(WINUI3STYLE_BUILD_DEMO "Build the widget gallery" ON)
-option(WINUI3STYLE_BUILD_TESTS "Build tests" ON)
+option(WINUI3STYLE_BUILD_DEMO "Build the widget gallery" ${_winui3style_demo_default})
+
+# WINUI3STYLE_BUILD_TESTS is the pre-rename spelling of WINUI_ENABLE_TESTS
+# (issue #21 asked for the shorter name). A build directory configured before
+# the rename still carries the old cache entry, so it is migrated once: it only
+# supplies the default while the new switch is unset, and a command line that
+# names both keeps the new spelling.
+if(DEFINED WINUI3STYLE_BUILD_TESTS AND NOT DEFINED WINUI_ENABLE_TESTS)
+    message(DEPRECATION
+        "WINUI3STYLE_BUILD_TESTS is deprecated; use WINUI_ENABLE_TESTS. "
+        "Honoring WINUI3STYLE_BUILD_TESTS=${WINUI3STYLE_BUILD_TESTS} for this configure.")
+    set(_winui3style_tests_default ${WINUI3STYLE_BUILD_TESTS})
+endif()
+option(WINUI_ENABLE_TESTS "Build the test suite" ${_winui3style_tests_default})
+
 option(WINUI3STYLE_BUILD_NATIVE_TESTS
        "Build interactive native Windows tests" ON)
 option(WINUI3STYLE_BUILD_BENCHMARKS
@@ -73,7 +100,7 @@ if(WINUI3STYLE_BUILD_DEMO)
     add_subdirectory(demo)
 endif()
 
-if(WINUI3STYLE_BUILD_TESTS)
+if(WINUI_ENABLE_TESTS)
     enable_testing()
     find_package(${WINUI3STYLE_QT} REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
@@ -83,7 +110,7 @@ if(WINUI3STYLE_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif()
 
-if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
+if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -c "import PIL"
@@ -113,22 +140,28 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI3STYLE_BUILD_TESTS)
             LABELS "distribution;contract"
         )
     endif()
-    add_test(
-            NAME winui3style_snapshot_matrix
-            COMMAND ${Python3_EXECUTABLE}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_snapshot_matrix.py
-                --gallery $<TARGET_FILE:winui3style_gallery>
-                --baseline ${CMAKE_CURRENT_SOURCE_DIR}/spec/baselines/gallery
-                --report ${CMAKE_CURRENT_BINARY_DIR}/snapshot-report.json
-                --keep-captures ${CMAKE_CURRENT_BINARY_DIR}/snapshot-captures
-    )
-    set_tests_properties(winui3style_snapshot_matrix PROPERTIES
-            RUN_SERIAL TRUE
-            LABELS "offscreen;snapshot"
-            ENVIRONMENT
-                "QT_QPA_PLATFORM=offscreen;QT_ACCESSIBILITY=0;WINUI3STYLE_DISABLE_ANIMATIONS=1;QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"
-    )
+    # The approved baseline in spec/baselines/gallery is the Windows raster:
+    # Segoe UI, Fluent glyphs, and the offscreen Windows platform plugin.
+    # Registering the gallery matrix on a non-Windows host would fail every
+    # capture on font substitution alone, so the portable half of the policy
+    # (the oracle contract above) runs everywhere and the gallery matrix stays
+    # a Windows gate (issue #21).
     if(WIN32)
+            add_test(
+                    NAME winui3style_snapshot_matrix
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_snapshot_matrix.py
+                        --gallery $<TARGET_FILE:winui3style_gallery>
+                        --baseline ${CMAKE_CURRENT_SOURCE_DIR}/spec/baselines/gallery
+                        --report ${CMAKE_CURRENT_BINARY_DIR}/snapshot-report.json
+                        --keep-captures ${CMAKE_CURRENT_BINARY_DIR}/snapshot-captures
+            )
+            set_tests_properties(winui3style_snapshot_matrix PROPERTIES
+                    RUN_SERIAL TRUE
+                    LABELS "offscreen;snapshot"
+                    ENVIRONMENT
+                        "QT_QPA_PLATFORM=offscreen;QT_ACCESSIBILITY=0;WINUI3STYLE_DISABLE_ANIMATIONS=1;QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"
+            )
             get_filename_component(_winui3style_snapshot_qt_bin
                 "${${WINUI3STYLE_QT}_DIR}/../../../bin" ABSOLUTE)
             set(_winui3style_snapshot_path
@@ -154,9 +187,11 @@ install(EXPORT WinUI3StyleTargets
     FILE WinUI3StyleTargets.cmake
     NAMESPACE WinUI3::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/WinUI3Style
+    COMPONENT Development
 )
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/WinUI3StyleConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/WinUI3StyleConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/WinUI3Style
+    COMPONENT Development
 )
