@@ -343,6 +343,7 @@ void GalleryWindow::populateCollections()
     for (int row = 0; row < 4; ++row)
         for (int column = 0; column < 3; ++column)
             ui->tableViewTab->setItem(row, column, new QTableWidgetItem(rows[row][column]));
+    ui->tableViewTab->setAlternatingRowColors(true);
     ui->tableViewTab->horizontalHeader()->setStretchLastSection(true);
 }
 
