@@ -195,6 +195,30 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
             libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
+      - name: Build ICU 73.2 required by the official Qt Linux SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/icu4c-73_2-src.tgz"
+          curl --fail --location --retry 3 \
+            https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.tgz \
+            --output "$archive"
+          echo '818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1  '"$archive" \
+            | sha256sum --check --status
+          source_root="$RUNNER_TEMP/icu"
+          build_root="$RUNNER_TEMP/icu-build"
+          install_root="$RUNNER_TEMP/icu-install"
+          mkdir -p "$source_root" "$build_root"
+          tar -xzf "$archive" -C "$source_root" --strip-components=1
+          cd "$build_root"
+          "$source_root/source/runConfigureICU" Linux \
+            --prefix="$install_root" --enable-shared --disable-static
+          make --jobs="$(nproc)"
+          make install
+          test -e "$install_root/lib/libicui18n.so.73"
+          echo "ICU73_ROOT=$install_root" >> "$GITHUB_ENV"
+          echo "ICU73_SOURCE=$source_root" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$install_root/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
       - name: Install Pillow for the snapshot oracle
         run: python3 -m pip install pillow
       - name: Download verified Qt corresponding-source inputs

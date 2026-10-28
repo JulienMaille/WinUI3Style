@@ -17,6 +17,11 @@ if [[ ! -x "$qmake" ]]; then
     echo "Qt qmake tool missing from $qt_root/bin" >&2
     exit 1
 fi
+if [[ -z "${ICU73_ROOT:-}" || ! -e "$ICU73_ROOT/lib/libicui18n.so.73" \
+    || -z "${ICU73_SOURCE:-}" || ! -f "$ICU73_SOURCE/LICENSE" ]]; then
+    echo "Qt's ICU 73 runtime and license must be provided through ICU73_ROOT/ICU73_SOURCE" >&2
+    exit 1
+fi
 
 qt_version="$("$qmake" -query QT_VERSION)"
 version="$(sed -nE 's/^project\(WinUI3Style VERSION ([0-9.]+).*/\1/p' "$repo_root/CMakeLists.txt" | head -n1)"
@@ -43,6 +48,12 @@ cmake --build "$build_dir" --parallel "$(nproc)"
 ctest --test-dir "$build_dir" --output-on-failure -LE native
 
 cmake --install "$build_dir" --prefix "$prefix" --component Runtime
+# Qt's official Linux SDK is dynamically linked to ICU 73 but does not bundle
+# those libraries. Ship the matching, hash-pinned ICU runtime beside Qt so the
+# Gallery works on Ubuntu 22.04 (whose system ICU has a different SONAME).
+mkdir -p "$prefix/lib" "$prefix/licenses"
+cp -a "$ICU73_ROOT"/lib/libicu*.so.73* "$prefix/lib/"
+cp "$ICU73_SOURCE/LICENSE" "$prefix/licenses/ICU-73.2-LICENSE.txt"
 gallery="$prefix/bin/winui3style_gallery"
 style_plugin="$prefix/plugins/styles/qwinui3style.so"
 qxcb_plugin="$prefix/plugins/platforms/libqxcb.so"
@@ -98,6 +109,7 @@ manifest = {
     "name": name,
     "revision": revision,
     "qtVersion": qt_version,
+    "icuRuntime": "ICU 73.2, bundled to satisfy the official Qt Linux SDK dependency",
     "platform": "Linux x86_64, GCC, dynamically linked",
     "hostBaseline": "Ubuntu 22.04 x86_64 or compatible Linux distribution",
     "runtime": "Qt libraries and plugins are bundled; glibc and graphics-system dependencies are provided by the host.",
