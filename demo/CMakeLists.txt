@@ -68,11 +68,10 @@ if(UNIX AND NOT APPLE)
     set_target_properties(winui3styleplugin PROPERTIES
         INSTALL_RPATH "$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}")
 
-    # Install the executable as a program explicitly. This avoids CMake's
-    # target-component install omitting it while the shared library/plugin
-    # component entries are honored on Linux.
-    install(PROGRAMS "$<TARGET_FILE:winui3style_gallery>"
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
+    # Install the target (rather than copying its file as a PROGRAM) so CMake
+    # rewrites its build-tree RPATH to the package-relative INSTALL_RPATH.
+    install(TARGETS winui3style_gallery
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT Runtime)
     # Use the versioned command so QT_DEPLOY_* references remain unevaluated
     # until install time even when QTP0008 is not enabled by the parent project.
