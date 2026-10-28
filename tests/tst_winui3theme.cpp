@@ -10,6 +10,8 @@
 #include <QApplication>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QPalette>
+#include <QStyleHints>
 #include <QThread>
 #include <QtTest>
 
@@ -27,6 +29,7 @@ class WinUI3ThemeThreadTest final : public QObject
 private slots:
     void concurrentRampReadAndInvalidate();
     void concurrentDarkReadAndInvalidate();
+    void platformSchemeOutranksStyleOwnedPalette();
 };
 
 static bool sameHueFamily(const QColor &a, const QColor &b)
@@ -149,6 +152,28 @@ void WinUI3ThemeThreadTest::concurrentDarkReadAndInvalidate()
     // sticking on a torn or permanently stale value.
     invalidateSystemAppearanceCache();
     QCOMPARE(systemUsesDarkTheme(), probe.lastDark);
+}
+
+void WinUI3ThemeThreadTest::platformSchemeOutranksStyleOwnedPalette()
+{
+#ifdef Q_OS_WIN
+    QSKIP("Windows resolves the shell theme from the registry");
+#else
+    const Qt::ColorScheme scheme = QGuiApplication::styleHints()->colorScheme();
+    if (scheme == Qt::ColorScheme::Unknown)
+        QSKIP("platform does not publish a color scheme");
+
+    // Style::polish(QApplication *) replaces the application palette, so a
+    // running Light desktop leaves a light Window role behind even after the
+    // desktop switches to Dark. The platform scheme is the authority.
+    const QPalette original = QApplication::palette();
+    QPalette styleOwnedLight = original;
+    styleOwnedLight.setColor(QPalette::Window, QColor(243, 243, 243));
+    styleOwnedLight.setColor(QPalette::WindowText, QColor(0, 0, 0));
+    QApplication::setPalette(styleOwnedLight);
+    QCOMPARE(systemUsesDarkTheme(), scheme == Qt::ColorScheme::Dark);
+    QApplication::setPalette(original);
+#endif
 }
 
 QTEST_MAIN(WinUI3ThemeThreadTest)
