@@ -54,7 +54,13 @@ endif()
 # install script collect Qt runtime dependencies and platform plugins. The
 # additional-module path is essential: QStyleFactory loads our style plugin
 # dynamically, so it is not visible from the Gallery executable's link graph.
-if(UNIX AND NOT APPLE AND QT_VERSION_MAJOR EQUAL 6 AND TARGET winui3styleplugin)
+if(UNIX AND NOT APPLE)
+    if(NOT WINUI3STYLE_QT STREQUAL "Qt6")
+        message(FATAL_ERROR "The Linux Gallery deployment requires Qt 6")
+    endif()
+    if(NOT TARGET winui3styleplugin)
+        message(FATAL_ERROR "The Linux Gallery deployment requires winui3styleplugin")
+    endif()
     include(GNUInstallDirs)
     set_target_properties(winui3style_gallery PROPERTIES
         INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
