@@ -74,7 +74,9 @@ if(UNIX AND NOT APPLE)
     install(PROGRAMS "$<TARGET_FILE:winui3style_gallery>"
         DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT Runtime)
-    qt_generate_deploy_script(
+    # Use the versioned command so QT_DEPLOY_* references remain unevaluated
+    # until install time even when QTP0008 is not enabled by the parent project.
+    qt6_generate_deploy_script(
         TARGET winui3style_gallery
         OUTPUT_SCRIPT winui3style_gallery_deploy_script
         CONTENT "
