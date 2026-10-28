@@ -85,6 +85,25 @@ void WinUI3TabsTest::dockTabLabelOrientation()
         QVERIFY(verticalInk.height() > verticalInk.width());
     }
 
+    QTabBar verticalBar;
+    verticalBar.setShape(QTabBar::RoundedWest);
+    verticalBar.addTab(QStringLiteral("First dock"));
+    verticalBar.addTab(QStringLiteral("Second dock"));
+    verticalBar.resize(32, 240);
+    verticalBar.show();
+    QTRY_VERIFY(verticalBar.isVisible());
+    QStyleOptionTab verticalOption;
+    verticalOption.initFrom(&verticalBar);
+    verticalOption.shape = QTabBar::RoundedWest;
+    verticalOption.text = QStringLiteral("First dock");
+    const QSize verticalSize = verticalBar.style()->sizeFromContents(
+            QStyle::CT_TabBarTab, &verticalOption,
+            verticalBar.fontMetrics().size(Qt::TextSingleLine, verticalOption.text), &verticalBar);
+    QCOMPARE(verticalSize.width(), 32);
+    QVERIFY(verticalSize.height() >= 100);
+    QCOMPARE(verticalBar.tabRect(0).width(), 32);
+    QVERIFY(verticalBar.tabRect(0).height() >= 100);
+
     const QSize horizontalGeometry(180, 32);
     const auto horizontal = renderLabel(horizontalGeometry, QTabBar::RoundedNorth);
     const QRect horizontalInk = inkBounds(horizontal.first, horizontal.second);
