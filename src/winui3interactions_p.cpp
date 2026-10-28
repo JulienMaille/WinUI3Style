@@ -135,7 +135,8 @@ void animateMenuPopup(QWidget *popup, const QComboBox *combo)
     // The window stays visible throughout; geometry ends pixel-exact.
     // Honor the animation kill-switch (deterministic captures) and skip
     // offscreen (no compositor; tests assert exact first-frame geometry).
-    if (!Style::animationsAllowed())
+    auto platform = QGuiApplication::platformName();
+    if (!Style::animationsAllowed() || platform == "wayland")
         return;
     if (!popup || !popup->isWindow() || popup->windowType() != Qt::Popup)
         return;
