@@ -114,6 +114,8 @@ private slots:
     void controlRoles();
     void flatPushButtonUsesFlatVisual_data();
     void flatPushButtonUsesFlatVisual();
+    void autoRaiseToolButtonUsesFlatVisual_data();
+    void autoRaiseToolButtonUsesFlatVisual();
     void subtleButtonRestRevealsParentSurface();
     void buttonBorderStaysInsideOuterPixel();
     void buttonTextAntialiasesGrayscale();
@@ -814,6 +816,110 @@ void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual()
 
     WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
+}
+
+void WinUI3ButtonsTest::autoRaiseToolButtonUsesFlatVisual_data()
+{
+    QTest::addColumn<int>("themeMode");
+    QTest::newRow("light") << int(WinUI3::ThemeMode::Light);
+    QTest::newRow("dark") << int(WinUI3::ThemeMode::Dark);
+}
+
+void WinUI3ButtonsTest::autoRaiseToolButtonUsesFlatVisual()
+{
+    // QToolButton's flat affordance is autoRaise (there is no isFlat).
+    // It paints no chrome at rest; hover must then show the normal frame
+    // a non-autoRaise button has, and press its pressed surface.
+    QFETCH(int, themeMode);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(static_cast<WinUI3::ThemeMode>(themeMode));
+
+    QToolButton button;
+    button.setText(QStringLiteral("Tool action"));
+    button.setAutoRaise(true);
+    button.resize(120, 32);
+    QCOMPARE(button.size(), QSize(120, 32));
+
+    QSize paintedSize;
+    const auto paintPanel = [&](QToolButton *target, QStyle::State state,
+                                qreal hoverProgress) -> QImage {
+        setFrame(target, "_winui_hover_progress", hoverProgress);
+        QStyleOptionToolButton option;
+        option.initFrom(target);
+        option.rect = QRect(QPoint(), target->size());
+        option.state = state;
+        // QToolButton::initStyleOption sets this bit from autoRaise();
+        // initFrom() alone does not.
+        if (target->autoRaise())
+            option.state |= QStyle::State_AutoRaise;
+        paintedSize = option.rect.size();
+        QImage image(target->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(36, 47, 58));
+        {
+            QPainter painter(&image);
+            style->drawPrimitive(QStyle::PE_PanelButtonTool, &option, &painter, target);
+        }
+        return image;
+    };
+
+    const QColor canvas(36, 47, 58);
+    const auto tokens = WinUI3::Private::tokens(button.palette());
+    QCOMPARE(tokens.control, button.palette().color(QPalette::Button));
+    const QImage resting = paintPanel(&button, QStyle::State_Enabled, 0.0);
+    QCOMPARE(paintedSize, button.size());
+    QCOMPARE(resting.pixelColor(60, 16), canvas);
+
+    const QImage hovered =
+            paintPanel(&button, QStyle::State_Enabled | QStyle::State_MouseOver, 1.0);
+    QCOMPARE(paintedSize, button.size());
+    QVERIFY(hovered.pixelColor(60, 16) != canvas);
+
+    // Hovered autoRaise must look exactly like the normal frame of a
+    // non-autoRaise tool button, not like a second hover tint.
+    QToolButton standardButton;
+    standardButton.setText(button.text());
+    standardButton.resize(button.size());
+    QCOMPARE(standardButton.size(), button.size());
+    const QImage standardResting = paintPanel(&standardButton, QStyle::State_Enabled, 0.0);
+    QCOMPARE(paintedSize, standardButton.size());
+    QCOMPARE(hovered, standardResting);
+
+    // The fade must interpolate alpha only. Mixing from transparent black
+    // would pass through a gray/silver tint and flash dark edges on every
+    // enter/leave.
+    const QImage midway = paintPanel(&button, QStyle::State_Enabled | QStyle::State_MouseOver, 0.5);
+    QImage expectedMidway(button.size(), QImage::Format_ARGB32_Premultiplied);
+    expectedMidway.fill(canvas);
+    {
+        QPainter painter(&expectedMidway);
+        painter.fillRect(
+                QRect(QPoint(), button.size()),
+                WinUI3::Private::withAlpha(tokens.control, qRound(tokens.control.alpha() * 0.5)));
+    }
+    QCOMPARE(midway.pixelColor(60, 16), expectedMidway.pixelColor(60, 16));
+
+    // An explicit role keeps precedence over the autoRaise default.
+    WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
+    const QImage accentResting = paintPanel(&button, QStyle::State_Enabled, 0.0);
+    QVERIFY(accentResting.pixelColor(60, 16) != canvas);
+
+    // Qt's internal dock title buttons also set State_AutoRaise while
+    // keeping the Fluent dock chrome at rest. They are not QToolButtons,
+    // so the Standard frame must survive.
+    QWidget dockTitleButton;
+    QStyleOptionToolButton dockOption;
+    dockOption.initFrom(&dockTitleButton);
+    dockOption.rect = QRect(QPoint(), button.size());
+    dockOption.state = QStyle::State_Enabled | QStyle::State_AutoRaise;
+    QImage dockImage(button.size(), QImage::Format_ARGB32_Premultiplied);
+    dockImage.fill(canvas);
+    {
+        QPainter painter(&dockImage);
+        style->drawPrimitive(QStyle::PE_PanelButtonTool, &dockOption, &painter, &dockTitleButton);
+    }
+    QVERIFY(dockImage.pixelColor(60, 16) != canvas);
 }
 
 void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
