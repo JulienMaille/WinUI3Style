@@ -48,6 +48,10 @@ cmake --build "$build_dir" --parallel "$(nproc)"
 ctest --test-dir "$build_dir" --output-on-failure -LE native
 
 cmake --install "$build_dir" --prefix "$prefix" --component Runtime
+# Qt's deploy scanner does not resolve Qt6Widgets after the Gallery's install
+# RUNPATH is rewritten to point at the not-yet-populated bundle lib directory.
+# Stage this direct link dependency explicitly; the deploy API collects the rest.
+cp -a "$qt_root"/lib/libQt6Widgets.so.6* "$prefix/lib/"
 # Qt's official Linux SDK is dynamically linked to ICU 73 but does not bundle
 # those libraries. Ship the matching, hash-pinned ICU runtime beside Qt so the
 # Gallery works on Ubuntu 22.04 (whose system ICU has a different SONAME).
