@@ -127,6 +127,28 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
             : 0.0;
 
     const ControlRole role = Style::controlRole(widget);
+    // Qt carries the flat affordance in the style option, not in the role:
+    // QPushButton sets QStyleOptionButton::Flat from isFlat(), while
+    // QToolButton sets State_AutoRaise from autoRaise(). A flat QPushButton
+    // already resolves to the Subtle role through controlRole; the option
+    // path covers explicit-Standard flat buttons and option-only painting
+    // with no widget to inspect.
+    //
+    // autoRaise is different: it is frameless until the pointer enters,
+    // then draws the normal Standard button frame (rest fill and stroke,
+    // pressed while held) exactly as a non-autoRaise button does. An
+    // explicit winuiControlRole keeps its own chrome.
+    //
+    // State_AutoRaise alone is not enough: Qt's internal
+    // QDockWidgetTitleButton also sets it while intentionally keeping the
+    // Fluent dock chrome at rest. Only a real QToolButton (or an option-only
+    // paint that has no widget to inspect) opts into the frameless surface.
+    const auto *buttonOption = qstyleoption_cast<const QStyleOptionButton *>(option);
+    const bool autoRaise = (option->state & QStyle::State_AutoRaise)
+            && (!widget || qobject_cast<const QToolButton *>(widget));
+    const bool autoRaiseSurface = autoRaise && role == ControlRole::Standard;
+    const bool flatSurface = !autoRaise && role == ControlRole::Standard && buttonOption
+            && (buttonOption->features & QStyleOptionButton::Flat);
     const QWidget *parent = widget ? widget->parentWidget() : nullptr;
     const bool calendarPopupButton = parent
             && parent->objectName() == QStringLiteral("qt_calendar_navigationbar")
@@ -147,7 +169,9 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
     // parent card tone when inside a group card (directly on the
     // material transparent is correct). Interactive states keep the
     // standard erase-then-fill path below.
-    if (!calendarPopupButton && (role == ControlRole::Subtle || role == ControlRole::Navigation)
+    if (!calendarPopupButton
+        && (flatSurface || autoRaiseSurface || role == ControlRole::Subtle
+            || role == ControlRole::Navigation)
         && paintsDirectlyOnBackdrop(widget)
         && !(option->state & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On))
         && progress(widget, hoverProperty, 0.0) < 0.01
@@ -210,7 +234,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
         fill = mix(fill, fill.lighter(112), hover);
         fill = mix(fill, fill.darker(112), press);
         stroke = fill.darker(112);
-    } else if (role == ControlRole::Subtle || role == ControlRole::Navigation
+    } else if (flatSurface || role == ControlRole::Subtle || role == ControlRole::Navigation
                || (element == QStyle::PE_PanelButtonTool && widget
                    && (toolbarButton || textHelper))) {
         if (option->state & QStyle::State_On) {
@@ -239,6 +263,22 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
             fill = mix(fill, t.controlHover, hover);
             fill = mix(fill, t.controlPressed, press);
         }
+    }
+
+    if (autoRaiseSurface && !(option->state & QStyle::State_On)) {
+        // Qt's autoRaise contract draws the normal button frame only while
+        // the pointer is inside; it is not a second hover tint. Match the
+        // resting Standard surface (the same fill/stroke a non-autoRaise
+        // button shows), with the pressed surface while held.
+        //
+        // Fade by scaling alpha only: mixing from transparent black would
+        // interpolate through a gray/silver tint and flash dark edges on
+        // every enter/leave. Checked buttons keep the accent selected
+        // surface above.
+        const QColor frameFill = enabled ? t.control : t.controlDisabled;
+        fill = withAlpha(frameFill, qRound(frameFill.alpha() * hover));
+        fill = mix(fill, t.controlPressed, press);
+        stroke = withAlpha(t.stroke, qRound(t.stroke.alpha() * qMax(hover, press)));
     }
 
     QRectF surfaceRect = option->rect;
