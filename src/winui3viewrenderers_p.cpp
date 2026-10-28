@@ -1177,12 +1177,26 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             const Tokens t = tokens(option->palette);
             const bool enabled = tab->state & QStyle::State_Enabled;
             const bool selected = tab->state & QStyle::State_Selected;
-            QRect textRect = tab->rect.adjusted(8, 0, -8, 0);
+            const bool vertical = tab->shape == QTabBar::RoundedEast
+                    || tab->shape == QTabBar::RoundedWest || tab->shape == QTabBar::TriangularEast
+                    || tab->shape == QTabBar::TriangularWest;
+            painter->save();
+            QRect textRect;
+            if (vertical) {
+                painter->translate(tab->rect.center());
+                painter->rotate(tab->shape == QTabBar::RoundedWest
+                                                || tab->shape == QTabBar::TriangularWest
+                                        ? -90
+                                        : 90);
+                textRect = QRect(-tab->rect.height() / 2 + 8, -tab->rect.width() / 2,
+                                 tab->rect.height() - 16, tab->rect.width());
+            } else {
+                textRect = tab->rect.adjusted(8, 0, -8, 0);
+            }
             if (tab->leftButtonSize.isValid())
                 textRect.adjust(tab->leftButtonSize.width() + 4, 0, 0, 0);
             if (tab->rightButtonSize.isValid())
                 textRect.adjust(0, 0, -tab->rightButtonSize.width() - 4, 0);
-            painter->save();
             QFont font = controlLabelFont(widget);
             font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
             painter->setFont(font);
@@ -1190,7 +1204,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                                     : t.textDisabled);
             if (!tab->icon.isNull()) {
                 const QRect logicalIcon(textRect.left(), textRect.center().y() - 8, 16, 16);
-                const QRect iconRect = QStyle::visualRect(tab->direction, tab->rect, logicalIcon);
+                const QRect iconRect = vertical
+                        ? logicalIcon
+                        : QStyle::visualRect(tab->direction, tab->rect, logicalIcon);
                 paintThemedIcon(painter, tab->icon, iconRect, Qt::AlignCenter,
                                 enabled ? t.textPrimary : t.textDisabled,
                                 enabled ? QIcon::Normal : QIcon::Disabled,
@@ -1201,8 +1217,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                     textRect.setLeft(iconRect.right() + 10);
             }
             painter->drawText(
-                    textRect,
-                    QStyle::visualAlignment(tab->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                    textRect, Qt::AlignHCenter | Qt::AlignVCenter,
                     painter->fontMetrics().elidedText(tab->text, Qt::ElideRight, textRect.width()));
             painter->restore();
             return true;
