@@ -92,9 +92,18 @@ done
 smoke_home="$output_dir/smoke-home"
 smoke_capture="$output_dir/smoke-capture"
 mkdir -p "$smoke_home"
-env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=offscreen \
+if env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=offscreen \
     "$gallery" --capture-dir "$smoke_capture" \
-    >"$output_dir/startup.stdout.txt" 2>"$output_dir/startup.stderr.txt"
+    >"$output_dir/startup.stdout.txt" 2>"$output_dir/startup.stderr.txt"; then
+    :
+else
+    status=$?
+    echo "Clean-environment Gallery startup failed with exit code $status" >&2
+    cat "$output_dir/startup.stdout.txt" "$output_dir/startup.stderr.txt" >&2
+    echo "Clean-environment dependency report:" >&2
+    env -i PATH=/usr/bin:/bin ldd "$gallery" >&2 || true
+    exit "$status"
+fi
 for capture in light-page-0.png dark-page-0.png; do
     if [[ ! -s "$smoke_capture/$capture" ]]; then
         echo "Clean-environment Gallery launch did not create $capture" >&2
