@@ -54,6 +54,14 @@ cmake --install "$build_dir" --prefix "$prefix" --component Runtime
 mkdir -p "$prefix/lib" "$prefix/licenses"
 cp -a "$ICU73_ROOT"/lib/libicu*.so.73* "$prefix/lib/"
 cp "$ICU73_SOURCE/LICENSE" "$prefix/licenses/ICU-73.2-LICENSE.txt"
+# QtCore depends on ICU, but ELF RUNPATH is not inherited by transitive
+# dependencies. Give QtCore its own origin-relative search path for bundled ICU.
+qt_core="$prefix/lib/libQt6Core.so.6"
+if [[ ! -e "$qt_core" ]]; then
+    echo "QtCore runtime library was not staged: $qt_core" >&2
+    exit 1
+fi
+patchelf --set-rpath '$ORIGIN' "$qt_core"
 gallery="$prefix/bin/winui3style_gallery"
 style_plugin="$prefix/plugins/styles/qwinui3style.so"
 qxcb_plugin="$prefix/plugins/platforms/libqxcb.so"
@@ -78,7 +86,7 @@ fi
 # host still supplies the documented glibc/graphics stack; Qt libraries and
 # Qt plugins must resolve from the package itself.
 for binary in "$gallery" "$style_plugin" "$qxcb_plugin"; do
-    dependency_report="$(ldd "$binary")"
+    dependency_report="$(env -i PATH=/usr/bin:/bin ldd "$binary")"
     if grep -q 'not found' <<<"$dependency_report"; then
         printf 'Unresolved runtime dependency for %s:\n%s\n' "$binary" "$dependency_report" >&2
         exit 1
@@ -146,7 +154,7 @@ manifest = {
         "Release build with warnings-as-errors",
         "CTest passed with native-labelled tests excluded",
         "ldd dependency scan passed for Gallery and WinUI3Style plugin",
-        "Gallery --help startup passed with a clean environment and offscreen QPA",
+        "Gallery light/dark page captures passed with a clean environment and offscreen QPA",
     ],
     "buildHost": platform.platform(),
 }
