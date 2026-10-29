@@ -136,6 +136,22 @@ jobs:
       - name: Test (exclude interactive native tests)
         run: >
           ctest --test-dir build-linux --output-on-failure -LE native
+      - name: Capture Linux Gallery for visual review
+        if: always()
+        continue-on-error: true
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QPA_FONTDIR: /usr/share/fonts/truetype/dejavu
+        run: >
+          build-linux/demo/winui3style_gallery
+          --capture-dir build-linux/linux-gallery-captures
+      - name: Upload Linux Gallery captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-gallery-captures
+          path: build-linux/linux-gallery-captures/
+          if-no-files-found: warn
       - name: Upload test log
         if: failure()
         uses: actions/upload-artifact@v4
