@@ -10,11 +10,14 @@
 #include <QGuiApplication>
 #include <QIconEngine>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPen>
 #include <QPalette>
 #include <QPointer>
 #include <QThread>
 
 #include <array>
+#include <atomic>
 
 namespace WinUI3 {
 namespace {
@@ -27,71 +30,282 @@ constexpr int MaxFontCacheCost = 64;
 // deliberately bounded because callers can provide arbitrary accent colors,
 // while still avoiding a QIconEngine allocation for every paint event.
 constexpr int MaxColoredIconCacheCost = 256;
+std::atomic<int> forcedSegoeFontAvailability{ -1 };
 
 QString colorKey(const QColor &color)
 {
     return QString::number(quint64(color.rgba64()), 16);
 }
 
-QChar codePoint(Icon icon)
+QString codePointString(Icon icon, bool hasSegoeFont)
+{
+    if (hasSegoeFont) {
+        char32_t ucs4 = 0;
+        switch (icon) {
+        case Icon::Add:
+            ucs4 = 0xE710;
+            break;
+        case Icon::Back:
+            ucs4 = 0xE72B;
+            break;
+        case Icon::Check:
+            ucs4 = 0xE73E;
+            break;
+        case Icon::ChevronDown:
+            ucs4 = 0xE70D;
+            break;
+        case Icon::ChevronLeft:
+            ucs4 = 0xE76B;
+            break;
+        case Icon::ChevronRight:
+            ucs4 = 0xE76C;
+            break;
+        case Icon::ChevronUp:
+            ucs4 = 0xE70E;
+            break;
+        case Icon::Clear:
+            ucs4 = 0xE894;
+            break;
+        case Icon::Close:
+            ucs4 = 0xE711;
+            break;
+        case Icon::Delete:
+            ucs4 = 0xE74D;
+            break;
+        case Icon::Edit:
+            ucs4 = 0xE70F;
+            break;
+        case Icon::Error:
+            ucs4 = 0xE783;
+            break;
+        case Icon::Folder:
+            ucs4 = 0xE8B7;
+            break;
+        case Icon::Help:
+            ucs4 = 0xE897;
+            break;
+        case Icon::Home:
+            ucs4 = 0xE80F;
+            break;
+        case Icon::Info:
+            ucs4 = 0xE946;
+            break;
+        case Icon::More:
+            ucs4 = 0xE712;
+            break;
+        case Icon::Pause:
+            ucs4 = 0xE769;
+            break;
+        case Icon::Play:
+            ucs4 = 0xE768;
+            break;
+        case Icon::Refresh:
+            ucs4 = 0xE72C;
+            break;
+        case Icon::Save:
+            ucs4 = 0xE74E;
+            break;
+        case Icon::Search:
+            ucs4 = 0xE721;
+            break;
+        case Icon::Settings:
+            ucs4 = 0xE713;
+            break;
+        case Icon::Stop:
+            ucs4 = 0xE71A;
+            break;
+        case Icon::Document:
+            ucs4 = 0xE7C3;
+            break;
+        case Icon::List:
+            ucs4 = 0xE8FD;
+            break;
+        case Icon::Warning:
+            ucs4 = 0xE7BA;
+            break;
+        }
+        return QString::fromUcs4(&ucs4, 1);
+    }
+
+    // System font standard Unicode fallback glyphs (BMP and non-BMP UCS4)
+    char32_t ucs4 = 0;
+    switch (icon) {
+    case Icon::Add:
+        ucs4 = 0x002B;
+        break; // +
+    case Icon::Back:
+        ucs4 = 0x2190;
+        break; // ←
+    case Icon::Check:
+        ucs4 = 0x2713;
+        break; // ✓
+    case Icon::ChevronDown:
+        ucs4 = 0x25BC;
+        break; // ▼
+    case Icon::ChevronLeft:
+        ucs4 = 0x25C0;
+        break; // ◀
+    case Icon::ChevronRight:
+        ucs4 = 0x25B6;
+        break; // ▶
+    case Icon::ChevronUp:
+        ucs4 = 0x25B2;
+        break; // ▲
+    case Icon::Clear:
+        ucs4 = 0x2715;
+        break; // ✕
+    case Icon::Close:
+        ucs4 = 0x2715;
+        break; // ✕
+    case Icon::Delete:
+        ucs4 = 0x1F5D1;
+        break; // 🗑
+    case Icon::Edit:
+        ucs4 = 0x270F;
+        break; // ✏
+    case Icon::Error:
+        ucs4 = 0x2716;
+        break; // ✖
+    case Icon::Folder:
+        ucs4 = 0x1F4C1;
+        break; // 📁
+    case Icon::Help:
+        ucs4 = 0x003F;
+        break; // ?
+    case Icon::Home:
+        ucs4 = 0x2302;
+        break; // 🏠 / ⌂
+    case Icon::Info:
+        ucs4 = 0x2139;
+        break; // ℹ
+    case Icon::More:
+        ucs4 = 0x22EE;
+        break; // ⋮
+    case Icon::Pause:
+        ucs4 = 0x23F8;
+        break; // ⏸
+    case Icon::Play:
+        ucs4 = 0x25B6;
+        break; // ▶
+    case Icon::Refresh:
+        ucs4 = 0x21BB;
+        break; // ↻
+    case Icon::Save:
+        ucs4 = 0x1F4BE;
+        break; // 💾
+    case Icon::Search:
+        ucs4 = 0x1F50D;
+        break; // 🔍
+    case Icon::Settings:
+        ucs4 = 0x2699;
+        break; // ⚙
+    case Icon::Stop:
+        ucs4 = 0x23F9;
+        break; // ⏹
+    case Icon::Document:
+        ucs4 = 0x1F4C4;
+        break; // 📄
+    case Icon::List:
+        ucs4 = 0x2630;
+        break; // ☰
+    case Icon::Warning:
+        ucs4 = 0x26A0;
+        break; // ⚠️
+    }
+    return QString::fromUcs4(&ucs4, 1);
+}
+
+bool hasVectorFallback(Icon icon)
 {
     switch (icon) {
     case Icon::Add:
-        return QChar(0xE710);
     case Icon::Back:
-        return QChar(0xE72B);
     case Icon::Check:
-        return QChar(0xE73E);
     case Icon::ChevronDown:
-        return QChar(0xE70D);
     case Icon::ChevronLeft:
-        return QChar(0xE76B);
     case Icon::ChevronRight:
-        return QChar(0xE76C);
     case Icon::ChevronUp:
-        return QChar(0xE70E);
     case Icon::Clear:
-        return QChar(0xE894);
     case Icon::Close:
-        return QChar(0xE711);
-    case Icon::Delete:
-        return QChar(0xE74D);
-    case Icon::Edit:
-        return QChar(0xE70F);
-    case Icon::Error:
-        return QChar(0xE783);
-    case Icon::Folder:
-        return QChar(0xE8B7);
-    case Icon::Help:
-        return QChar(0xE897);
-    case Icon::Home:
-        return QChar(0xE80F);
-    case Icon::Info:
-        return QChar(0xE946);
-    case Icon::More:
-        return QChar(0xE712);
-    case Icon::Pause:
-        return QChar(0xE769);
-    case Icon::Play:
-        return QChar(0xE768);
-    case Icon::Refresh:
-        return QChar(0xE72C);
-    case Icon::Save:
-        return QChar(0xE74E);
-    case Icon::Search:
-        return QChar(0xE721);
-    case Icon::Settings:
-        return QChar(0xE713);
-    case Icon::Stop:
-        return QChar(0xE71A);
-    case Icon::Document:
-        return QChar(0xE7C3);
-    case Icon::List:
-        return QChar(0xE8FD);
-    case Icon::Warning:
-        return QChar(0xE7BA);
+        return true;
+    default:
+        return false;
     }
-    return {};
+}
+
+QPainterPath vectorFallbackPath(Icon icon)
+{
+    QPainterPath path;
+    switch (icon) {
+    case Icon::Add:
+        path.moveTo(12, 5);
+        path.lineTo(12, 19);
+        path.moveTo(5, 12);
+        path.lineTo(19, 12);
+        break;
+    case Icon::Back:
+        path.moveTo(4, 12);
+        path.lineTo(20, 12);
+        path.moveTo(4, 12);
+        path.lineTo(10, 6);
+        path.moveTo(4, 12);
+        path.lineTo(10, 18);
+        break;
+    case Icon::Check:
+        path.moveTo(4, 12);
+        path.lineTo(10, 18);
+        path.lineTo(20, 6);
+        break;
+    case Icon::ChevronDown:
+        path.moveTo(5, 9);
+        path.lineTo(12, 16);
+        path.lineTo(19, 9);
+        break;
+    case Icon::ChevronLeft:
+        path.moveTo(15, 5);
+        path.lineTo(8, 12);
+        path.lineTo(15, 19);
+        break;
+    case Icon::ChevronRight:
+        path.moveTo(9, 5);
+        path.lineTo(16, 12);
+        path.lineTo(9, 19);
+        break;
+    case Icon::ChevronUp:
+        path.moveTo(5, 15);
+        path.lineTo(12, 8);
+        path.lineTo(19, 15);
+        break;
+    case Icon::Clear:
+    case Icon::Close:
+        path.moveTo(6, 6);
+        path.lineTo(18, 18);
+        path.moveTo(18, 6);
+        path.lineTo(6, 18);
+        break;
+    default:
+        break;
+    }
+    return path;
+}
+
+void paintVectorFallback(QPainter *painter, const QRect &rect, Icon icon, const QColor &color)
+{
+    if (!hasVectorFallback(icon) || rect.isEmpty())
+        return;
+    const qreal side = qMin(rect.width(), rect.height());
+    const qreal scale = side / 24.0;
+    const QPointF origin(rect.x() + (rect.width() - side) / 2.0,
+                         rect.y() + (rect.height() - side) / 2.0);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(
+            QPen(color, qMax<qreal>(1.0, 1.8 * scale), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter->setBrush(Qt::NoBrush);
+    painter->translate(origin);
+    painter->scale(scale, scale);
+    painter->drawPath(vectorFallbackPath(icon));
+    painter->restore();
 }
 
 struct ParsedFluentIcon
@@ -160,13 +374,28 @@ public:
             const QString fluent = QStringLiteral("Segoe Fluent Icons");
             const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
             const QStringList families = Private::fontFamilies();
-            // Keep the old fallback semantics: MDL2 is selected whenever the
-            // preferred family is unavailable, including when both are
-            // absent and Qt has to perform its normal font fallback.
-            m_fontFamily = families.contains(fluent) ? fluent : mdl2;
+            const bool hasSegoe = Private::segoeIconFontAvailable();
+            if (hasSegoe && families.contains(fluent)) {
+                m_fontFamily = fluent;
+                m_hasSegoeFont = true;
+            } else if (hasSegoe && families.contains(mdl2)) {
+                m_fontFamily = mdl2;
+                m_hasSegoeFont = true;
+            } else {
+                m_fontFamily.clear(); // Empty string defaults to application default/system font
+                m_hasSegoeFont = false;
+            }
             m_fontFamilyResolved = true;
         }
         return m_fontFamily;
+    }
+
+    bool hasSegoeFont()
+    {
+        syncApplication();
+        if (!m_fontFamilyResolved)
+            fluentFontFamily();
+        return m_hasSegoeFont;
     }
 
     QFont fluentFont(int pixelSize)
@@ -175,7 +404,8 @@ public:
         if (QFont *cached = m_fonts.object(pixelSize))
             return *cached;
 
-        QFont font(fluentFontFamily());
+        const QString family = fluentFontFamily();
+        QFont font = family.isEmpty() ? QFont() : QFont(family);
         font.setPixelSize(pixelSize);
         m_fonts.insert(pixelSize, new QFont(font));
         return *m_fonts.object(pixelSize);
@@ -219,6 +449,7 @@ private:
     QMetaObject::Connection m_fontDatabaseConnection;
     QString m_fontFamily;
     bool m_fontFamilyResolved = false;
+    bool m_hasSegoeFont = false;
     QCache<int, QFont> m_fonts;
     QCache<QString, QPixmap> m_pixmaps;
     QCache<QString, QIcon> m_coloredIcons;
@@ -230,17 +461,29 @@ IconRuntime &iconRuntime()
     return runtime;
 }
 
-const QString &glyphString(Icon glyph)
+QString glyphString(Icon glyph, bool hasSegoeFont)
 {
-    static const QString empty;
-    static const std::array<QString, fluentIconCount> glyphs = [] {
+    const int index = static_cast<int>(glyph);
+    if (index < 0 || index >= fluentIconCount)
+        return {};
+
+    if (hasSegoeFont) {
+        static const std::array<QString, fluentIconCount> segoeGlyphs = [] {
+            std::array<QString, fluentIconCount> result;
+            for (int i = 0; i < fluentIconCount; ++i)
+                result[i] = codePointString(static_cast<Icon>(i), true);
+            return result;
+        }();
+        return segoeGlyphs[index];
+    }
+
+    static const std::array<QString, fluentIconCount> fallbackGlyphs = [] {
         std::array<QString, fluentIconCount> result;
-        for (int index = 0; index < fluentIconCount; ++index)
-            result[index] = QString(codePoint(static_cast<Icon>(index)));
+        for (int i = 0; i < fluentIconCount; ++i)
+            result[i] = codePointString(static_cast<Icon>(i), false);
         return result;
     }();
-    const int index = static_cast<int>(glyph);
-    return index >= 0 && index < fluentIconCount ? glyphs[index] : empty;
+    return fallbackGlyphs[index];
 }
 
 bool canUseGuiCache()
@@ -307,37 +550,32 @@ public:
         painter->setRenderHint(QPainter::TextAntialiasing);
 
         const int pixelSize = qMax(8, qMin(rect.width(), rect.height()));
+        bool hasSegoe = false;
         if (canUseGuiCache()) {
-            // The cached font is created with the exact same family and
-            // pixel-size operations as the historical per-paint path.
-            // By-value return: each caller gets its own implicitly-shared
-            // copy, so a later invalidate()/clear() or LRU eviction cannot
-            // delete the object out from under an outstanding reference.
             painter->setFont(iconRuntime().fluentFont(pixelSize));
+            hasSegoe = iconRuntime().hasSegoeFont();
         } else {
-            // Worker-thread paint: never touch the shared IconRuntime
-            // (GUI-thread-only QPointer/QCache/mutation). Construct the font
-            // directly from the preferred family; Qt performs its normal
-            // fallback if the family is unavailable.
-            QFont font(QStringLiteral("Segoe Fluent Icons"));
+            const QString fluent = QStringLiteral("Segoe Fluent Icons");
+            const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
+            const QStringList families = Private::fontFamilies();
+            hasSegoe = Private::segoeIconFontAvailable();
+            QFont font = hasSegoe ? QFont(families.contains(fluent) ? fluent : mdl2) : QFont();
             font.setPixelSize(pixelSize);
             painter->setFont(font);
         }
 
-        // QIconEngine is not given the palette of the control asking for a
-        // pixmap. Keep the uncoloured overload as a neutral alpha mask; the
-        // style resolves the actual foreground through iconPixmap() using the
-        // QStyleOption palette. This deliberately avoids QApplication's
-        // global palette, which is wrong for accent, selected and local-palette
-        // controls.
         QColor color = m_color;
         if (!color.isValid()) {
             const QPalette palette = qApp ? qApp->palette() : QPalette();
             color = palette.color(mode == QIcon::Disabled ? QPalette::Disabled : QPalette::Active,
                                   QPalette::WindowText);
         }
-        painter->setPen(color);
-        painter->drawText(rect, Qt::AlignCenter, glyphString(m_icon));
+        if (!hasSegoe && hasVectorFallback(m_icon)) {
+            paintVectorFallback(painter, rect, m_icon, color);
+        } else {
+            painter->setPen(color);
+            painter->drawText(rect, Qt::AlignCenter, glyphString(m_icon, hasSegoe));
+        }
         painter->restore();
     }
 
@@ -385,7 +623,11 @@ QFont offThreadFluentFontForTest(int pixelSize)
     // resolution leaves iconFontCacheResolvedForTest() false.
     if (canUseGuiCache())
         return iconRuntime().fluentFont(pixelSize);
-    QFont font(QStringLiteral("Segoe Fluent Icons"));
+    const QString fluent = QStringLiteral("Segoe Fluent Icons");
+    const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
+    const QStringList families = Private::fontFamilies();
+    const bool hasSegoe = Private::segoeIconFontAvailable();
+    QFont font = hasSegoe ? QFont(families.contains(fluent) ? fluent : mdl2) : QFont();
     font.setPixelSize(pixelSize);
     return font;
 }
@@ -393,6 +635,22 @@ QFont offThreadFluentFontForTest(int pixelSize)
 bool iconFontCacheResolvedForTest()
 {
     return iconRuntime().fontFamilyResolvedForTest();
+}
+
+bool segoeIconFontAvailable()
+{
+    const int forced = forcedSegoeFontAvailability.load(std::memory_order_relaxed);
+    if (forced >= 0)
+        return forced != 0;
+    const QStringList families = Private::fontFamilies();
+    return families.contains(QStringLiteral("Segoe Fluent Icons"))
+            || families.contains(QStringLiteral("Segoe MDL2 Assets"));
+}
+
+void setIconFontAvailabilityOverrideForTest(int available)
+{
+    forcedSegoeFontAvailability.store(available, std::memory_order_relaxed);
+    invalidateIconCachesForTest();
 }
 
 void invalidateIconCachesForTest()

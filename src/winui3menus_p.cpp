@@ -8,6 +8,7 @@
 #include "winui3qtcompat_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
+#include "winui3icons_p.h"
 
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
@@ -34,13 +35,23 @@ constexpr int MenuChevronSlotSize = 16;
 constexpr int MenuChevronFontSize = 12;
 constexpr int MenuChevronRightPadding = 9;
 
+bool hasSegoeIconFont()
+{
+    return Private::segoeIconFontAvailable();
+}
+
 const QFont &menuChevronFont()
 {
     static const QFont font = [] {
         const QString fluent = QStringLiteral("Segoe Fluent Icons");
         const QString mdl2 = QStringLiteral("Segoe MDL2 Assets");
-        const QString family = Private::fontFamilies().contains(fluent) ? fluent : mdl2;
-        QFont result(family);
+        const QStringList families = Private::fontFamilies();
+        if (families.contains(fluent) || families.contains(mdl2)) {
+            QFont result(families.contains(fluent) ? fluent : mdl2);
+            result.setPixelSize(MenuChevronFontSize);
+            return result;
+        }
+        QFont result;
         result.setPixelSize(MenuChevronFontSize);
         return result;
     }();
@@ -49,9 +60,14 @@ const QFont &menuChevronFont()
 
 const QString &menuChevronGlyph(bool rightToLeft)
 {
-    static const QString right(1, QChar(0xE974));
-    static const QString left(1, QChar(0xE76B));
-    return rightToLeft ? left : right;
+    if (hasSegoeIconFont()) {
+        static const QString right(1, QChar(0xE974));
+        static const QString left(1, QChar(0xE76B));
+        return rightToLeft ? left : right;
+    }
+    static const QString fallbackRight(1, QChar(0x25B6)); // ▶
+    static const QString fallbackLeft(1, QChar(0x25C0)); // ◀
+    return rightToLeft ? fallbackLeft : fallbackRight;
 }
 
 void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirection direction,
@@ -61,6 +77,11 @@ void paintMenuChevron(QPainter *painter, const QRect &menuRect, Qt::LayoutDirect
                         menuRect.center().y() - MenuChevronSlotSize / 2, MenuChevronSlotSize,
                         MenuChevronSlotSize);
     const QRect chevron = QStyle::visualRect(direction, menuRect, logical);
+    if (!hasSegoeIconFont()) {
+        const Icon glyph = direction == Qt::RightToLeft ? Icon::ChevronLeft : Icon::ChevronRight;
+        paintThemedIcon(painter, WinUI3::icon(glyph), chevron, Qt::AlignCenter, color);
+        return;
+    }
     painter->save();
     painter->setRenderHint(QPainter::TextAntialiasing);
     painter->setFont(menuChevronFont());
