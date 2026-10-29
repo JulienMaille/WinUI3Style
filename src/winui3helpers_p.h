@@ -19,6 +19,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
+#include <QGuiApplication>
 #include <QLineEdit>
 #include <QPalette>
 #include <QPainter>
@@ -26,6 +27,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRect>
+#include <QString>
 #include <QTabWidget>
 #include <QToolButton>
 #include <QWidget>
@@ -37,6 +39,35 @@ inline qreal progress(const QWidget *widget, const char *name, qreal fallback = 
 {
     return framePropertyRegistry().real(widget, name, fallback);
 }
+// Qt reports the Wayland frontend as "wayland", "wayland-egl" or
+// "wayland/xcb" depending on how the platform plugin was loaded, so the
+// capability gate below matches the family, never one spelling.
+inline bool waylandPlatform(const QString &platformName)
+{
+    return platformName.startsWith(QLatin1String("wayland"));
+}
+
+// Toplevel effects the open animations (and the combo press-to-release
+// handoff) depend on, and which not every compositor implements:
+//   * windowOpacity: QPlatformWindow::setOpacity warns "This plugin does not
+//     support setting window opacity"; XCB implements it, Wayland does not.
+//   * grabMouse() on a non-popup surface: QWaylandWindow warns "This plugin
+//     supports grabbing the mouse only for popup windows".
+// Skipping the popup slide also keeps the style from calling move() before
+// the compositor delivered the first configure, which is where the first open
+// landed on the wrong height (issue #27, Wayland only, second open correct).
+// Offscreen takes the same road: no compositor, and captures/tests assert
+// exact first-frame geometry.
+inline bool toplevelWindowEffectsUnsupported(const QString &platformName)
+{
+    return waylandPlatform(platformName) || platformName == QLatin1String("offscreen");
+}
+
+inline bool toplevelWindowEffectsUnsupported()
+{
+    return toplevelWindowEffectsUnsupported(QGuiApplication::platformName());
+}
+
 // A QCheckBox promoted to WinUI's ToggleSwitch control.
 inline bool toggleSwitch(const QWidget *widget)
 {

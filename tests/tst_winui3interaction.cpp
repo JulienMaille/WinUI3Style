@@ -105,6 +105,7 @@ private slots:
     void ownedPaletteRefreshSurvivesOwnerRegistration();
     void accessibilityOwnershipContracts();
     void baseStyleContract();
+    void platformWindowEffectGates();
     void settingsCardInteractiveFrames();
     void inputModalityFocus();
     void hoverAnimationProgresses();
@@ -592,6 +593,32 @@ void WinUI3InteractionTest::baseStyleContract()
     QCOMPARE(menuBar.pixelColor(panel.rect.center()), surface);
     QCOMPARE(menuBar.pixelColor(panel.rect.left(), panel.rect.bottom()), surface);
     QCOMPARE(menuBar.pixelColor(panel.rect.center().x(), panel.rect.bottom()), surface);
+}
+
+void WinUI3InteractionTest::platformWindowEffectGates()
+{
+    // The Wayland/offscreen gates are pure predicates so this stays
+    // unit-testable without a compositor (CI runs offscreen/Xvfb only, never
+    // Wayland). Qt reports the Wayland frontend as "wayland", "wayland-egl"
+    // or "wayland/xcb", so the gate must match the family, never one
+    // spelling. Offscreen takes the same road as Wayland: no compositor, and
+    // captures assert exact first-frame geometry.
+    QVERIFY(!WinUI3::Private::waylandPlatform(QStringLiteral("windows")));
+    QVERIFY(!WinUI3::Private::waylandPlatform(QStringLiteral("xcb")));
+    QVERIFY(!WinUI3::Private::waylandPlatform(QStringLiteral("offscreen")));
+    QVERIFY(WinUI3::Private::waylandPlatform(QStringLiteral("wayland")));
+    QVERIFY(WinUI3::Private::waylandPlatform(QStringLiteral("wayland-egl")));
+    QVERIFY(WinUI3::Private::waylandPlatform(QStringLiteral("wayland/xcb")));
+
+    QVERIFY(!WinUI3::Private::toplevelWindowEffectsUnsupported(QStringLiteral("windows")));
+    QVERIFY(!WinUI3::Private::toplevelWindowEffectsUnsupported(QStringLiteral("xcb")));
+    QVERIFY(WinUI3::Private::toplevelWindowEffectsUnsupported(QStringLiteral("wayland")));
+    QVERIFY(WinUI3::Private::toplevelWindowEffectsUnsupported(QStringLiteral("wayland-egl")));
+    QVERIFY(WinUI3::Private::toplevelWindowEffectsUnsupported(QStringLiteral("offscreen")));
+    // The unit tests themselves run offscreen, so the no-argument overload
+    // must agree with the platform CTest pinned above.
+    QCOMPARE(WinUI3::Private::toplevelWindowEffectsUnsupported(),
+             WinUI3::Private::toplevelWindowEffectsUnsupported(QGuiApplication::platformName()));
 }
 
 void WinUI3InteractionTest::settingsCardInteractiveFrames()
