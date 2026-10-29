@@ -106,6 +106,28 @@ void convergePopupOpaqueFallback(QWidget *popup)
     popup->update();
 }
 
+bool prepareWaylandMenuSurface(QWidget *widget, const QString &platformName)
+{
+    auto *menu = qobject_cast<QMenu *>(widget);
+    if (!menu || !waylandPlatform(platformName))
+        return false;
+
+    // Wayland applies QWidget masks to input and opaque regions, not to the
+    // rendered pixels. Request alpha before QMenu creates its wl_surface;
+    // the style then paints transparent corners around the rounded flyout.
+    remember(menu, originalTranslucentBackgroundProperty,
+             menu->testAttribute(Qt::WA_TranslucentBackground));
+    remember(menu, originalNoSystemBackgroundProperty,
+             menu->testAttribute(Qt::WA_NoSystemBackground));
+    remember(menu, originalOpaquePaintProperty, menu->testAttribute(Qt::WA_OpaquePaintEvent));
+    remember(menu, originalAutoFillProperty, menu->autoFillBackground());
+    menu->setAttribute(Qt::WA_TranslucentBackground, true);
+    menu->setAttribute(Qt::WA_NoSystemBackground, true);
+    menu->setAttribute(Qt::WA_OpaquePaintEvent, false);
+    menu->setAutoFillBackground(false);
+    return true;
+}
+
 } // namespace WinUI3::Private
 
 namespace WinUI3::Private {
@@ -114,6 +136,8 @@ void preparePopupSurface(QWidget *widget)
 {
     if (!widget || !widget->window() || widget->window()->windowType() != Qt::Popup)
         return;
+    const bool waylandMenuAlpha =
+            prepareWaylandMenuSurface(widget, QGuiApplication::platformName());
     QWidget *popup = widget->window();
     QAbstractItemView *view = qobject_cast<QAbstractItemView *>(widget);
     if (!view)
@@ -173,19 +197,27 @@ void preparePopupSurface(QWidget *widget)
         popupPalette.setColor(QPalette::Window, popupSurface);
         popupPalette.setColor(QPalette::Base, popupSurface);
         popup->setPalette(popupPalette);
-        popup->setAutoFillBackground(true);
-        popup->setAttribute(Qt::WA_TranslucentBackground, false);
-        popup->setAttribute(Qt::WA_NoSystemBackground, false);
-        popup->setAttribute(Qt::WA_StyledBackground, false);
-        // Claim the whole popup paint: QMenu's native erase fills the Selected
-        // row background full-bleed behind our inset pill, and nothing Qt-side
-        // insets it. Our CE_MenuItem/PE_PanelMenu cover every pixel. Always
-        // restore the opaque claim on the opaque path (not just for QMenu): a
-        // hide-time DWM teardown clears it, and the next Show must repaint
-        // opaquely again instead of inheriting a composited recipe with square
-        // corners and a washed veil. The composited branch below clears it again
-        // when acrylic actually applies, so this is a no-op there.
-        popup->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        if (waylandMenuAlpha) {
+            popup->setAutoFillBackground(false);
+            popup->setAttribute(Qt::WA_TranslucentBackground, true);
+            popup->setAttribute(Qt::WA_NoSystemBackground, true);
+            popup->setAttribute(Qt::WA_OpaquePaintEvent, false);
+            popup->setAttribute(Qt::WA_StyledBackground, false);
+        } else {
+            popup->setAutoFillBackground(true);
+            popup->setAttribute(Qt::WA_TranslucentBackground, false);
+            popup->setAttribute(Qt::WA_NoSystemBackground, false);
+            popup->setAttribute(Qt::WA_StyledBackground, false);
+            // Claim the whole popup paint: QMenu's native erase fills the Selected
+            // row background full-bleed behind our inset pill, and nothing Qt-side
+            // insets it. Our CE_MenuItem/PE_PanelMenu cover every pixel. Always
+            // restore the opaque claim on the opaque path (not just for QMenu): a
+            // hide-time DWM teardown clears it, and the next Show must repaint
+            // opaquely again instead of inheriting a composited recipe with square
+            // corners and a washed veil. The composited branch below clears it again
+            // when acrylic actually applies, so this is a no-op there.
+            popup->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        }
     }
     applyPopupRoundedCorners(popup);
     // WinUI Desktop Acrylic: on a live compositor the popup reveals a

@@ -9,6 +9,7 @@
 
 #include <QStyle>
 
+class QString;
 class QComboBox;
 class QMenu;
 class QWidget;
@@ -24,6 +25,10 @@ namespace Private {
 // or re-asserts the composited acrylic recipe. GUI-thread-only; may be called
 // repeatedly for the same popup (remember-once semantics).
 void preparePopupSurface(QWidget *widget);
+// Enables a real alpha surface for QMenu on Wayland, where QWidget masks only
+// constrain input and opaque regions, not the rendered buffer. Call before
+// the popup's native surface is created.
+bool prepareWaylandMenuSurface(QWidget *widget, const QString &platformName);
 // Anchors a combo popup's container height and selected-row geometry on its
 // first show at the current density.
 void prepareComboPopupFirstFrameImpl(QComboBox *combo);

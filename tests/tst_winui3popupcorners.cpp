@@ -127,6 +127,8 @@ private slots:
     void init();
     void cleanup();
     void popupCornersMaskGeometry();
+    void menuAlphaSurfacePaintsTransparentCorners_data();
+    void menuAlphaSurfacePaintsTransparentCorners();
     void popupCornersPanelFringe();
     void menuSubmenuGrantConverges();
     void menuReopenReadbackParity();
@@ -183,6 +185,55 @@ void WinUI3PopupCornersTest::popupCornersMaskGeometry()
     QVERIFY(!rendered.isNull());
     QCOMPARE(rendered.size(), menu.size());
     menu.hide();
+}
+
+void WinUI3PopupCornersTest::menuAlphaSurfacePaintsTransparentCorners_data()
+{
+    QTest::addColumn<int>("density");
+    QTest::newRow("Standard") << int(WinUI3::DensityMode::Standard);
+    QTest::newRow("Compact") << int(WinUI3::DensityMode::Compact);
+}
+
+void WinUI3PopupCornersTest::menuAlphaSurfacePaintsTransparentCorners()
+{
+    // Wayland does not clip the rendered buffer to QWidget::setMask(). The
+    // Wayland QMenu recipe therefore needs real alpha outside the rounded
+    // surface, not only an input-region mask and a rounded outline.
+    QFETCH(int, density);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setDensityMode(static_cast<WinUI3::DensityMode>(density));
+    QMenu menu;
+    menu.addAction(QStringLiteral("First item"));
+    menu.addAction(QStringLiteral("Second item"));
+    menu.adjustSize();
+    const QSize popupSize = menu.sizeHint();
+    QVERIFY(popupSize.width() > 0);
+    QVERIFY(popupSize.height() > 0);
+    menu.resize(popupSize);
+    menu.setAttribute(Qt::WA_TranslucentBackground, true);
+    menu.setAttribute(Qt::WA_NoSystemBackground, true);
+    menu.setAttribute(Qt::WA_OpaquePaintEvent, false);
+    menu.setAutoFillBackground(false);
+    QVERIFY(menu.testAttribute(Qt::WA_TranslucentBackground));
+    QVERIFY(menu.testAttribute(Qt::WA_NoSystemBackground));
+    QVERIFY(!menu.testAttribute(Qt::WA_OpaquePaintEvent));
+    QVERIFY(!menu.autoFillBackground());
+    const QColor fill = menu.palette().color(QPalette::Window);
+    QImage canvas(menu.size(), QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(Qt::white);
+    QStyleOption option;
+    option.initFrom(&menu);
+    option.rect = menu.rect();
+    QPainter painter(&canvas);
+    qApp->style()->drawPrimitive(QStyle::PE_PanelMenu, &option, &painter, &menu);
+    painter.end();
+
+    QCOMPARE(menu.size(), popupSize);
+    QCOMPARE(canvas.size(), menu.size());
+    QCOMPARE(WinUI3::Private::OverlayRadius, 8.0);
+    QCOMPARE(canvas.pixelColor(0, 0).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(canvas.width() / 2, canvas.height() / 2), fill);
 }
 
 void WinUI3PopupCornersTest::popupCornersPanelFringe()

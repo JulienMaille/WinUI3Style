@@ -71,6 +71,13 @@ after Show. DropdownContentMargin is now installed before Qt sizes and places
 the container; the Show-time row loop, resize and scroll-range override are
 removed. All row, inset, viewport and first-Show assertions remain intact.
 
+The existing QMenu → MenuFlyout mapping is reopened for Wayland surface
+clipping (#27): Qt Wayland uses QWidget masks for input/opaque regions, not
+rendered-pixel clipping. The opaque fallback fills the rectangular popup under
+its rounded border; a Wayland-only alpha surface must paint the rounded shape
+with transparent exterior. First-open height still requires live-compositor
+first/second-open geometry evidence and is not claimed fixed.
+
 Status meanings are defined in `METHODOLOGY.md`. `Verified` requires live mouse,
 keyboard, theme, and motion evidence. Automated tests alone can raise a row only
 to `source-audited`; missing evidence remains explicit in the last column.

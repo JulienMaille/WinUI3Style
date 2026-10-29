@@ -2028,6 +2028,10 @@ void Style::polish(QWidget *widget)
     // unpolish(QWidget*) removes it symmetrically.
     widget->removeEventFilter(this);
     widget->installEventFilter(this);
+    // QWaylandWindow::setMask updates the input/opaque regions but does not
+    // clip the buffer. Request alpha while the QMenu still has no native
+    // surface; preparePopupSurface() preserves this recipe on each Show.
+    Private::prepareWaylandMenuSurface(widget, QGuiApplication::platformName());
     // Any widget without a user-set palette belongs to the style's palette
     // contract: a later theme/accent change must rebase it on the new
     // standardPalette, exactly like the surface islands below. Without this

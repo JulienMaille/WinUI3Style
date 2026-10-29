@@ -114,7 +114,19 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // its rect, which excludes the contents margins) then draw the
         // stroke on top, centered on device pixels so antialiasing does
         // not flatten it to half-strength grey on two of the four sides.
-        if (eraseForBackdrop(painter, widget, surface, OverlayRadius)) {
+        const bool erased = eraseForBackdrop(painter, widget, surface, OverlayRadius);
+        const bool alphaSurface = widget && widget->testAttribute(Qt::WA_TranslucentBackground);
+        if (erased) {
+            roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
+        } else if (alphaSurface) {
+            // Wayland masks constrain input and opaque regions, not buffer
+            // pixels. Clear stale backing-store content before rebuilding a
+            // rounded QMenu on its alpha surface; the exterior must stay
+            // transparent rather than showing the opaque rectangular fallback.
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(surface, Qt::transparent);
+            painter->restore();
             roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
         } else {
             painter->fillRect(surface, fill);
