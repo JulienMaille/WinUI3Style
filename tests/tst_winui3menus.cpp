@@ -9,6 +9,8 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
+#include "../src/winui3icons_p.h"
+
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
 #include "../src/winui3tokens_p.h"
@@ -218,58 +220,70 @@ void WinUI3MenusTest::menuSubmenuChevronGeometry()
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
 
+    struct RestoreFontDetection
+    {
+        ~RestoreFontDetection() { WinUI3::Private::setIconFontAvailabilityOverrideForTest(-1); }
+    } restore;
+
     constexpr int chevronSlotSize = 16;
     constexpr int chevronRightPadding = 9;
-    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
-        QStyleOptionMenuItem option;
-        option.rect = QRect(0, 0, 240, 36);
-        option.direction = direction;
-        option.palette = qApp->palette();
-        option.state = QStyle::State_Enabled;
-        option.menuItemType = QStyleOptionMenuItem::SubMenu;
-        option.font = qApp->font();
-        option.fontMetrics = QFontMetrics(option.font);
+    QList<int> fontModes{ 0 };
+    if (WinUI3::Private::segoeIconFontAvailable())
+        fontModes.prepend(1);
+    for (const int fontAvailable : fontModes) {
+        WinUI3::Private::setIconFontAvailabilityOverrideForTest(fontAvailable);
+        QCOMPARE(WinUI3::Private::segoeIconFontAvailable(), fontAvailable != 0);
+        for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
+            QStyleOptionMenuItem option;
+            option.rect = QRect(0, 0, 240, 36);
+            option.direction = direction;
+            option.palette = qApp->palette();
+            option.state = QStyle::State_Enabled;
+            option.menuItemType = QStyleOptionMenuItem::SubMenu;
+            option.font = qApp->font();
+            option.fontMetrics = QFontMetrics(option.font);
 
-        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        {
-            QPainter painter(&image);
-            style->drawControl(QStyle::CE_MenuItem, &option, &painter);
-        }
-
-        QRect ink;
-        for (int y = 0; y < image.height(); ++y) {
-            for (int x = 0; x < image.width(); ++x) {
-                if (image.pixelColor(x, y).alpha() > 20)
-                    ink |= QRect(x, y, 1, 1);
+            QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+            {
+                QPainter painter(&image);
+                style->drawControl(QStyle::CE_MenuItem, &option, &painter);
             }
-        }
-        QVERIFY2(!ink.isEmpty(), "submenu chevron produced no pixels");
 
-        const QRect logicalSlot(option.rect.right() - chevronRightPadding - chevronSlotSize + 1,
-                                option.rect.center().y() - chevronSlotSize / 2, chevronSlotSize,
-                                chevronSlotSize);
-        const QRect slot = QStyle::visualRect(direction, option.rect, logicalSlot);
-        const QString inkInfo = QStringLiteral("ink=%1x%2 in %3,%4-%5,%6")
-                                        .arg(ink.width())
-                                        .arg(ink.height())
-                                        .arg(slot.left())
-                                        .arg(slot.top())
-                                        .arg(slot.right())
-                                        .arg(slot.bottom());
-        QVERIFY2(slot.contains(ink.topLeft()) && slot.contains(ink.bottomRight()),
-                 qPrintable(QStringLiteral("chevron ink outside slot: ") + inkInfo));
-        // The WinUI template uses FontSize=12 in a 16px Viewbox. On the
-        // reference font that produces an approximately 8px-tall visible
-        // chevron, rather than the old 16px icon-engine paint (12px tall).
-        // Segoe Fluent raster extents drift across font versions (local Win11
-        // vs CI Server); ceilings stay inside the 16px slot, floors prove ink.
-        QVERIFY2(ink.width() <= 12, qPrintable(inkInfo));
-        QVERIFY2(ink.height() <= 12, qPrintable(inkInfo));
-        QVERIFY2(ink.width() >= 4, qPrintable(inkInfo));
-        QVERIFY2(ink.height() >= 6, qPrintable(inkInfo));
-        QCOMPARE(slot.size(), QSize(chevronSlotSize, chevronSlotSize));
-        QVERIFY(qAbs(slot.center().y() - option.rect.center().y()) <= 1);
+            QRect ink;
+            for (int y = 0; y < image.height(); ++y) {
+                for (int x = 0; x < image.width(); ++x) {
+                    if (image.pixelColor(x, y).alpha() > 20)
+                        ink |= QRect(x, y, 1, 1);
+                }
+            }
+            QVERIFY2(!ink.isEmpty(), "submenu chevron produced no pixels");
+
+            const QRect logicalSlot(option.rect.right() - chevronRightPadding - chevronSlotSize + 1,
+                                    option.rect.center().y() - chevronSlotSize / 2, chevronSlotSize,
+                                    chevronSlotSize);
+            const QRect slot = QStyle::visualRect(direction, option.rect, logicalSlot);
+            const QString inkInfo = QStringLiteral("ink=%1x%2 in %3,%4-%5,%6")
+                                            .arg(ink.width())
+                                            .arg(ink.height())
+                                            .arg(slot.left())
+                                            .arg(slot.top())
+                                            .arg(slot.right())
+                                            .arg(slot.bottom());
+            QVERIFY2(slot.contains(ink.topLeft()) && slot.contains(ink.bottomRight()),
+                     qPrintable(QStringLiteral("chevron ink outside slot: ") + inkInfo));
+            // The WinUI template uses FontSize=12 in a 16px Viewbox. On the
+            // reference font that produces an approximately 8px-tall visible
+            // chevron, rather than the old 16px icon-engine paint (12px tall).
+            // Segoe Fluent raster extents drift across font versions (local Win11
+            // vs CI Server); ceilings stay inside the 16px slot, floors prove ink.
+            QVERIFY2(ink.width() <= 12, qPrintable(inkInfo));
+            QVERIFY2(ink.height() <= 12, qPrintable(inkInfo));
+            QVERIFY2(ink.width() >= 4, qPrintable(inkInfo));
+            QVERIFY2(ink.height() >= 6, qPrintable(inkInfo));
+            QCOMPARE(slot.size(), QSize(chevronSlotSize, chevronSlotSize));
+            QVERIFY(qAbs(slot.center().y() - option.rect.center().y()) <= 1);
+        }
     }
 }
 

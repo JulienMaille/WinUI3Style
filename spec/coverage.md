@@ -1,5 +1,29 @@
 # Control coverage ledger
 
+## Issue #22 — icon-font fallback mapping (2026-10-29)
+
+Mapping: `WinUI3::Icon` is the style's shared Fluent icon vocabulary, rendered
+through `QIconEngine` and consumed by the existing QStyle paint paths (including
+ComboBox arrows, button/menu indicators, dock close, and dialog actions). On
+Windows with Segoe Fluent Icons or Segoe MDL2 Assets installed, keep the
+existing Segoe private-use glyphs unchanged. When neither font exists, simple
+directional/mark glyphs (chevrons, arrows, check, close/cross) use small
+normalized vector paths painted by the shared icon engine; semantically richer
+symbols (folder, document, settings, search, and similar) use Unicode from the
+application/system font as a best-effort fallback. Menu submenu chevrons must
+use the same fallback policy. This is a platform fallback, not a claim that
+Unicode or these paths reproduce the full Segoe artwork. Linux/macOS live
+rendering evidence and pinned per-glyph Segoe reference geometry remain
+required before this row can be called verified.
+
+Evidence plan: force the no-Segoe route deterministically in icon-engine tests;
+assert glyph classification, nonempty raster output and geometry bounds at
+multiple sizes/DPRs, with direction-sensitive arrow/chevron output and the
+existing Segoe path unchanged when available. Also exercise the standalone menu
+chevron and style consumers. Live Gallery reproduction on Linux is not
+available from this Windows session; keep the issue/coverage status partial
+until Linux rendering is reviewed.
+
 ## Issue #28 — wrapped-style palette overrides (2026-10-29)
 
 Mapping: Qt's `QStyle::polish(QPalette &)` is the contract a style uses to
@@ -425,6 +449,7 @@ per-control live-verification status above:
 | Polish symmetry | palettes, autofill, hover/opaque attributes, margins, spacing, list spacing, navigation delegate/mouse tracking, timers and role properties are restored; a font explicitly set by the application after style polish survives unpolish while the style-owned default restores the pre-style font | `styleMutationRestoration`, `applicationFontOverrideSurvivesUnpolish` |
 | Accent role separation | selection uses `SystemAccentColor`; control AccentFill uses the theme-specific ramp role; text-on-accent has separate theme roles | `palettes`, `runtimeAppearanceAndDialogLifecycle` |
 | Palette-owned glyphs | Fluent glyphs are explicit foreground masks; arbitrary application icons retain their colors | `buttonToolButtonAndIconContracts` |
+| Icon-font fallback (#22) | Keep Segoe private-use glyphs when present; without Segoe, use vector paths for simple marks/arrows/chevrons and system-font Unicode for complex symbols; menu submenu arrows share the same policy. Status partial pending Linux live comparison and pinned per-glyph references. | `simpleMarksUseVectorFallback`, `complexSymbolsUseUnicodeFallback`, `iconFallbackResolution` |
 | Covered-style fallbacks | debug assertions reject covered primitives, controls and complex controls that reach `QCommonStyle`; covered content sizing is explicit | all render/state tests plus deterministic snapshot matrix |
 | RTL and hit testing | ComboBox, menus, GroupBox, ToolButton, Slider, tabs and headers use visual geometry and direct hit testing | `rtlGeometryAndHitTesting`, `buttonToolButtonAndIconContracts` |
 | Check/radio reverse motion | fill, check path and radio dot all consume the animated progress in both directions | `checkboxAndRadioUncheckMotion` |

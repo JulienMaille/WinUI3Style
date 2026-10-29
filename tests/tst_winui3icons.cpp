@@ -11,11 +11,28 @@
 #include <winui3style/winui3icons.h>
 
 #include <QApplication>
+#include <QColor>
 #include <QFont>
+#include <QImage>
+#include <QPainter>
+#include <QPixmap>
 #include <QThread>
 #include <QtTest>
 
 namespace {
+
+QRect alphaBounds(const QPixmap &pixmap)
+{
+    const QImage image = pixmap.toImage();
+    QRect bounds;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            if (qAlpha(image.pixel(x, y)))
+                bounds |= QRect(x, y, 1, 1);
+        }
+    }
+    return bounds;
+}
 
 class OffThreadProbe final : public QThread
 {
@@ -43,6 +60,8 @@ private slots:
     void cachedFontSurvivesInvalidate();
     void workerThreadResolutionIsIsolated();
     void iconFallbackResolution();
+    void simpleMarksUseVectorFallback();
+    void complexSymbolsUseUnicodeFallback();
 };
 
 void WinUI3IconsTest::cachedFontSurvivesInvalidate()
@@ -120,6 +139,80 @@ void WinUI3IconsTest::iconFallbackResolution()
 
     const QPixmap pix = chevronDown.pixmap(16, 16);
     QCOMPARE(pix.size(), QSize(16, 16));
+}
+
+void WinUI3IconsTest::simpleMarksUseVectorFallback()
+{
+    struct RestoreFontDetection
+    {
+        ~RestoreFontDetection() { WinUI3::Private::setIconFontAvailabilityOverrideForTest(-1); }
+    } restore;
+    WinUI3::Private::setIconFontAvailabilityOverrideForTest(0);
+    QVERIFY(!WinUI3::Private::segoeIconFontAvailable());
+
+    const auto render = [](WinUI3::Icon glyph, qreal dpr) {
+        const QSize logical(24, 24);
+        QPixmap pixmap(qRound(logical.width() * dpr), qRound(logical.height() * dpr));
+        pixmap.setDevicePixelRatio(dpr);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        WinUI3::icon(glyph, QColor(Qt::white)).paint(&painter, QRect(QPoint(), logical));
+        return pixmap;
+    };
+
+    // Vector artwork keeps its normalized geometry at 100% and 200% DPR.
+    const QPixmap close100 = render(WinUI3::Icon::Close, 1.0);
+    const QRect closeBounds100 = alphaBounds(close100);
+    QCOMPARE(close100.size(), QSize(24, 24));
+    QVERIFY(!closeBounds100.isEmpty());
+    QCOMPARE(closeBounds100.width(), closeBounds100.height());
+    QCOMPARE(closeBounds100.left() + closeBounds100.right(), 23);
+    QCOMPARE(closeBounds100.top() + closeBounds100.bottom(), 23);
+
+    const QPixmap close200 = render(WinUI3::Icon::Close, 2.0);
+    const QRect closeBounds200 = alphaBounds(close200);
+    QCOMPARE(close200.size(), QSize(48, 48));
+    QVERIFY(!closeBounds200.isEmpty());
+    QCOMPARE(closeBounds200.width(), closeBounds200.height());
+    QCOMPARE(closeBounds200.left() + closeBounds200.right(), 47);
+    QCOMPARE(closeBounds200.top() + closeBounds200.bottom(), 47);
+
+    const QPixmap check = render(WinUI3::Icon::Check, 1.0);
+    const QRect checkBounds = alphaBounds(check);
+    QCOMPARE(check.size(), QSize(24, 24));
+    QVERIFY(!checkBounds.isEmpty());
+    QVERIFY(checkBounds.left() < checkBounds.center().x());
+    QVERIFY(checkBounds.right() > checkBounds.center().x());
+
+    const QPixmap left = render(WinUI3::Icon::ChevronLeft, 1.0);
+    const QPixmap right = render(WinUI3::Icon::ChevronRight, 1.0);
+    QCOMPARE(left.size(), right.size());
+    QVERIFY(alphaBounds(left).isValid());
+    QVERIFY(alphaBounds(right).isValid());
+    QVERIFY(left.toImage() != right.toImage());
+}
+
+void WinUI3IconsTest::complexSymbolsUseUnicodeFallback()
+{
+    struct RestoreFontDetection
+    {
+        ~RestoreFontDetection() { WinUI3::Private::setIconFontAvailabilityOverrideForTest(-1); }
+    } restore;
+    WinUI3::Private::setIconFontAvailabilityOverrideForTest(0);
+    QVERIFY(!WinUI3::Private::segoeIconFontAvailable());
+
+    const QPixmap folder = WinUI3::icon(WinUI3::Icon::Folder, QColor(Qt::white)).pixmap(24, 24);
+    const QPixmap settings = WinUI3::icon(WinUI3::Icon::Settings, QColor(Qt::white)).pixmap(24, 24);
+    QCOMPARE(folder.size(), QSize(24, 24));
+    QCOMPARE(settings.size(), QSize(24, 24));
+    QVERIFY(!folder.isNull());
+    QVERIFY(!settings.isNull());
+    const QRect folderBounds = alphaBounds(folder);
+    const QRect settingsBounds = alphaBounds(settings);
+    QVERIFY(!folderBounds.isEmpty());
+    QVERIFY(!settingsBounds.isEmpty());
+    QCOMPARE(folderBounds.intersected(folder.rect()), folderBounds);
+    QCOMPARE(settingsBounds.intersected(settings.rect()), settingsBounds);
 }
 
 QTEST_MAIN(WinUI3IconsTest)

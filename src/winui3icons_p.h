@@ -22,5 +22,8 @@ WINUI3STYLE_EXPORT QFont fluentFontForTest(int pixelSize);
 WINUI3STYLE_EXPORT QFont offThreadFluentFontForTest(int pixelSize);
 WINUI3STYLE_EXPORT bool iconFontCacheResolvedForTest();
 WINUI3STYLE_EXPORT void invalidateIconCachesForTest();
+WINUI3STYLE_EXPORT bool segoeIconFontAvailable();
+// -1 restores automatic detection; 0/1 force the missing/present branches.
+WINUI3STYLE_EXPORT void setIconFontAvailabilityOverrideForTest(int available);
 
 } // namespace WinUI3::Private
