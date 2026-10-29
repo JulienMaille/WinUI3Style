@@ -1,5 +1,20 @@
 # Control coverage ledger
 
+## Issue #28 follow-up — control fill palette roles (2026-10-29)
+
+Mapping: checked `QCheckBox` and default `QPushButton` surfaces use the WinUI
+accent fill. On Qt 6.6+, the palette has separate `Highlight` and `Accent`
+roles; the reporter's proxy overrides only `Highlight`. The application palette
+now carries that proxy override into `Accent` only when the proxy left Accent at
+the style's standard value. An explicit proxy Accent override remains
+authoritative. No control mapping or official template claim changes.
+
+Mechanism evidence: `proxyStylePolishTintReachesCheckboxAndDefaultButton` checks
+the accent token and rendered fill for a checked checkbox and default button.
+With the propagation removed, `winui3style_apppalette_unit` fails; with it, the
+suite passes. Native Gallery/live WinUI comparison remains outstanding, so this
+does not promote either control's status to Verified.
+
 ## Issue #28 — wrapped-style palette overrides (2026-10-29)
 
 Mapping: Qt's `QStyle::polish(QPalette &)` is the contract a style uses to
