@@ -1513,6 +1513,25 @@ void Style::setAccentColor(const QColor &color)
     emit accentColorChanged(accentColor());
 }
 
+namespace {
+
+// Issue #28: a wrapping QProxyStyle rewrites the application palette from its
+// polish(QPalette &) hook, which is Qt's contract for a style to customize the
+// palette it is installed with. Installing the bare standard palette would
+// discard that customization, so run the standard palette through the
+// application style's own polish hook first — the same route Qt takes when it
+// installs a style. Without a wrapper this is a no-op (Style::polish(QPalette &)
+// returns standardPalette()).
+QPalette polishedApplicationPalette(const QStyle *style)
+{
+    QPalette palette = style->standardPalette();
+    if (QStyle *applicationStyle = QApplication::style())
+        applicationStyle->polish(palette);
+    return palette;
+}
+
+} // namespace
+
 void Style::refreshApplicationAppearance()
 {
     if (!qApp)
@@ -1521,7 +1540,7 @@ void Style::refreshApplicationAppearance()
         return;
     const bool applicationPaletteStillOwned = qApp->palette() == d->lastStyleApplicationPalette;
     const QPalette applicationPalette =
-            applicationPaletteStillOwned ? standardPalette() : qApp->palette();
+            applicationPaletteStillOwned ? polishedApplicationPalette(this) : qApp->palette();
     const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
     if (applicationPaletteStillOwned) {
         qApp->setPalette(applicationPalette);
@@ -1985,7 +2004,7 @@ void Style::polish(QApplication *application)
     font.setPixelSize(14);
     application->setFont(font);
     d->lastStyleApplicationFont = font;
-    const QPalette stylePalette = standardPalette();
+    const QPalette stylePalette = polishedApplicationPalette(this);
     application->setPalette(stylePalette);
     d->lastStyleApplicationPalette = stylePalette;
     QToolTip::setPalette(stylePalette);

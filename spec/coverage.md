@@ -1,5 +1,33 @@
 # Control coverage ledger
 
+## Issue #28 — wrapped-style palette overrides (2026-10-29)
+
+Mapping: Qt's `QStyle::polish(QPalette &)` is the contract a style uses to
+rewrite the application palette, and a `QProxyStyle` wrapping `WinUI3::Style`
+uses that hook to tint `QPalette::Highlight` / `HighlightedText`. WinUI's
+selection accent is `SystemAccentColor`, which the style sources from
+`QPalette::Highlight` (`Tokens::selectionAccent`) and paints as the 3 px
+item-view selection pill. A wrapper's tint therefore has to survive the style
+install and every later theme/accent refresh.
+
+Defect: `Style::polish(QApplication *)` installed the bare `standardPalette()`,
+discarding the palette the wrapper had just polished; `refreshApplicationAppearance()`
+did the same on each theme/accent change. The style now routes the standard
+palette through the application style's own `polish` hook before installing it
+(`polishedApplicationPalette`), so the outermost style in the chain — including
+a wrapper — decides the final palette. Without a wrapper this is a no-op, since
+`Style::polish(QPalette &)` returns `standardPalette()`.
+
+Evidence: `proxyStylePolishTintReachesApplicationPalette`,
+`proxyStylePolishTintReachesSelectionMarker` and
+`proxyStylePolishTintSurvivesThemeAndAccentRefresh` reproduce the lost tint
+against the reporter's proxy (application palette kept the WinUI accent
+`#696cc8` instead of the `#ffc107` tint) and pass GREEN after the fix, each
+paired with a `Tokens::selectionAccent` assertion on the same palette. The
+direct-palette variants `applicationHighlightOverrideDrivesTokens` /
+`applicationHighlightOverrideDrivesSelectionMarker` keep the plain-style path
+covered. Live Gallery comparison with the reporter's own proxy remains.
+
 ## Integration review — 2026-10-11
 
 NavigationView's existing runtime-theme/backdrop mapping is reopened for
@@ -403,6 +431,7 @@ per-control live-verification status above:
 | Navigation model lifecycle | delegate reconnects to replacement model and selection model and resynchronizes on scroll | `navigationModelReconnectAndScroll` |
 | Dialog lifecycle | opacity-only show motion avoids layout geometry changes; hide/reopen clears animation state | `runtimeAppearanceAndDialogLifecycle`, `contentDialogContract` |
 | Runtime theme/accent | System mode follows the platform color scheme, not the style-owned application palette (which only reports the theme the style last applied); the system scheme/accent watcher refreshes the style-owned application palette, owned palettes, open windows and opaque popups; an application palette explicitly replaced after polish is retained through theme changes and unpolish, including a child editor | `runtimeAppearanceAndDialogLifecycle`, `applicationPaletteOverrideSurvivesThemeAndUnpolish`, `systemModeFollowsPlatformSchemeOverStyleOwnedPalette`, `platformSchemeOutranksStyleOwnedPalette`, native `dialogThemeUpdate`, `comboPopupContract` |
+| Wrapped application style palette | a `QProxyStyle` wrapping `WinUI3::Style` rewrites the application palette from `polish(QPalette &)`; the install and every theme/accent refresh run the standard palette through the application style's own polish hook, so a wrapper's `QPalette::Highlight` / `HighlightedText` tint reaches `Tokens::selectionAccent` and the painted selection instead of being replaced by the bare standard palette | `proxyStylePolishTintReachesApplicationPalette`, `proxyStylePolishTintReachesSelectionMarker`, `proxyStylePolishTintSurvivesThemeAndAccentRefresh`, `applicationHighlightOverrideDrivesTokens`, `applicationHighlightOverrideDrivesSelectionMarker` |
 | Popup first frame | ComboBox selection/scroll are prepared before presentation; MenuFlyout insets are installed before its first size negotiation | `comboPopupContract`, `menuSizingContract`, native `comboPopupSurface` |
 
 Rows marked `partial` or `not covered` are explicitly not claims of complete
