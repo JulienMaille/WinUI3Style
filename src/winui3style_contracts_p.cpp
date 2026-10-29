@@ -622,6 +622,25 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         }
     }
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
+        if (element == QStyle::SE_ItemViewItemText
+            && qobject_cast<const QTableView *>(itemView(widget))
+            && !calendarPopupItemView(widget)) {
+            // QTableView is a consistency extension (Qt has no core WinUI
+            // DataGrid). Match the common Qt/Fusion cell text inset while
+            // keeping the 36px row rhythm and calendar's compact day cells.
+            constexpr int tableCellHorizontalPadding = 8;
+            if (source->direction == Qt::RightToLeft) {
+                result.setLeft(
+                        qMax(result.left(), source->rect.left() + tableCellHorizontalPadding));
+                result.setRight(
+                        qMin(result.right(), source->rect.right() - tableCellHorizontalPadding));
+            } else {
+                result.setLeft(
+                        qMax(result.left(), source->rect.left() + tableCellHorizontalPadding));
+                result.setRight(
+                        qMin(result.right(), source->rect.right() - tableCellHorizontalPadding));
+            }
+        }
         const QAbstractItemView *view = selectionMarkerView(widget);
         if (view
             && (element == QStyle::SE_ItemViewItemCheckIndicator

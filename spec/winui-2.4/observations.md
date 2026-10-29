@@ -132,7 +132,9 @@ not paint Qt's legacy branch lines. These template states are discrete.
 Qt has no core widget equivalent to WinUI's community DataGrid. `QTableView`
 is therefore a consistency extension, not a claimed direct mapping. It reuses
 the item-view subtle state layers, 36 px control rhythm, secondary header text,
-flat strokes and Fluent sort chevrons. Native model/delegate editing, keyboard
+flat strokes and Fluent sort chevrons. Cell text uses symmetric 8 px horizontal
+padding, matching the common Qt/Fusion item-view inset; no official WinUI
+DataGrid cell-padding metric exists. Native model/delegate editing, keyboard
 selection, column resizing and accessibility remain owned by Qt.
 
 RichEditBox shares the common text-control background, border and focused

@@ -741,9 +741,21 @@ void WinUI3ViewsTest::itemViewGutterContract()
     tableOption.widget = table.viewport();
     tableOption.index = table.model()->index(0, 0);
     tableOption.direction = Qt::LeftToRight;
+    // A plain cell: no decoration or check indicator, so the cell inset is the
+    // only thing that can move the text. The rect is the cell the delegate
+    // hands the style, not the stale list row this fixture started from.
+    tableOption.features = QStyleOptionViewItem::HasDisplay;
+    tableOption.rect = table.visualRect(tableOption.index);
     const QRect tableText = table.style()->subElementRect(QStyle::SE_ItemViewItemText, &tableOption,
                                                           table.viewport());
+    QCOMPARE(tableText.left(), tableOption.rect.left() + 8);
+    QCOMPARE(tableText.right(), tableOption.rect.right() - 8);
     QVERIFY(tableText.left() < listText.left());
+    tableOption.direction = Qt::RightToLeft;
+    const QRect tableTextRtl = table.style()->subElementRect(QStyle::SE_ItemViewItemText,
+                                                             &tableOption, table.viewport());
+    QCOMPARE(tableTextRtl.left(), tableOption.rect.left() + 8);
+    QCOMPARE(tableTextRtl.right(), tableOption.rect.right() - 8);
 }
 
 void WinUI3ViewsTest::treeViewContract()
