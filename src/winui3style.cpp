@@ -1524,9 +1524,20 @@ namespace {
 // returns standardPalette()).
 QPalette polishedApplicationPalette(const QStyle *style)
 {
-    QPalette palette = style->standardPalette();
+    const QPalette standard = style->standardPalette();
+    QPalette palette = standard;
     if (QStyle *applicationStyle = QApplication::style())
         applicationStyle->polish(palette);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    // A proxy commonly customizes Highlight as its application-wide accent
+    // tint. Checked controls and default buttons consume Accent, which has an
+    // independent value in Qt 6.6+. Carry the proxy's Highlight override into
+    // Accent unless it explicitly supplied a separate Accent value.
+    if (palette.color(QPalette::Highlight) != standard.color(QPalette::Highlight)
+        && palette.color(QPalette::Accent) == standard.color(QPalette::Accent)) {
+        palette.setColor(QPalette::Accent, palette.color(QPalette::Highlight));
+    }
+#endif
     return palette;
 }
 

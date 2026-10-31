@@ -11,6 +11,7 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QCheckBox>
 #include <QListWidget>
 #include <QPainter>
 #include <QProxyStyle>
@@ -90,6 +91,7 @@ private slots:
 
     void proxyStylePolishTintReachesApplicationPalette();
     void proxyStylePolishTintReachesSelectionMarker();
+    void proxyStylePolishTintReachesCheckboxAndDefaultButton();
     void proxyStylePolishTintSurvivesThemeAndAccentRefresh();
 
 private:
@@ -184,6 +186,35 @@ void WinUI3AppPaletteTest::proxyStylePolishTintReachesSelectionMarker()
              qPrintable(QStringLiteral("the polished Highlight must paint the selection "
                                        "marker, got %1 instead of %2")
                                 .arg(marker.name(), Tint.name())));
+}
+
+void WinUI3AppPaletteTest::proxyStylePolishTintReachesCheckboxAndDefaultButton()
+{
+    installProxyStyle();
+
+    QCheckBox checkBox;
+    checkBox.setChecked(true);
+    checkBox.resize(32, 32);
+    QCOMPARE(checkBox.palette().color(QPalette::Highlight), Tint);
+    const auto checkTokens = WinUI3::Private::tokens(checkBox.palette());
+    const QImage checkImage = checkBox.grab().toImage();
+    const QColor checkPixel = checkImage.pixelColor(6, 6);
+    QCOMPARE(checkTokens.accentFill, Tint);
+    QVERIFY2(colorDistance(checkPixel, checkTokens.accentFill) <= 12,
+             qPrintable(QStringLiteral("checked checkbox fill %1 did not use palette accent %2")
+                                .arg(checkPixel.name(), checkTokens.accentFill.name())));
+
+    QPushButton button(QStringLiteral("Default"));
+    button.setDefault(true);
+    button.resize(120, 40);
+    QCOMPARE(button.palette().color(QPalette::Highlight), Tint);
+    const auto buttonTokens = WinUI3::Private::tokens(button.palette());
+    const QImage buttonImage = button.grab().toImage();
+    const QColor buttonPixel = buttonImage.pixelColor(4, 20);
+    QCOMPARE(buttonTokens.accentFill, Tint);
+    QVERIFY2(colorDistance(buttonPixel, buttonTokens.accentFill) <= 12,
+             qPrintable(QStringLiteral("default button fill %1 did not use palette accent %2")
+                                .arg(buttonPixel.name(), buttonTokens.accentFill.name())));
 }
 
 void WinUI3AppPaletteTest::proxyStylePolishTintSurvivesThemeAndAccentRefresh()
