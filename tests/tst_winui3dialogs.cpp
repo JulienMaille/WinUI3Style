@@ -10,16 +10,20 @@
 #include <QColor>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDockWidget>
 #include <QEvent>
 #include <QImage>
 #include <QLabel>
 #include <QLayout>
+#include <QMainWindow>
 #include <QMargins>
 #include <QMessageBox>
 #include <QPalette>
 #include <QPoint>
 #include <QPointer>
 #include <QSize>
+#include <QStyle>
+#include <QStyleOptionDockWidget>
 #include <QTest>
 #include <QVBoxLayout>
 #include <QWizard>
@@ -45,6 +49,7 @@ private slots:
     void contentDialogScrimLifecycle();
     void contentDialogScrimOwnershipCleared();
     void messageBoxSyncGeometryConverges();
+    void dockTitleButtonsStayFlatAndInset();
 };
 
 void WinUI3DialogsTest::initTestCase()
@@ -487,6 +492,152 @@ void WinUI3DialogsTest::messageBoxSyncGeometryConverges()
     QVERIFY(!rendered.isNull());
     QCOMPARE(rendered.size(), settled);
     box.hide();
+}
+
+// QDockWidget::initStyleOption() is protected; this exposes the very option
+// Qt hands the style when it lays out and paints the dock title bar.
+class DockTitleProbe final : public QDockWidget
+{
+public:
+    using QDockWidget::QDockWidget;
+
+    void fillStyleOption(QStyleOptionDockWidget *option) const
+    {
+        const_cast<DockTitleProbe *>(this)->initStyleOption(option);
+    }
+};
+
+void WinUI3DialogsTest::dockTitleButtonsStayFlatAndInset()
+{
+    // The assertions run once per density profile: the inset is a Fluent card
+    // constant, so Compact must not inherit, shrink or grow it.
+    const auto verifyDockTitleButtons = [](WinUI3::DensityMode mode) {
+        // Live defect #43: the dock close button had no gap to the dock's end,
+        // and QCommonStyle's SH_DockWidget_ButtonsHaveFrame gave these
+        // Qt-internal buttons a stock tool-button frame. Fluent dock titles are
+        // a card: the buttons stay flat, and every side keeps the same 8 px
+        // content inset the title text already gets from
+        // PM_DockWidgetTitleMargin.
+        QMainWindow host;
+        DockTitleProbe dock(QStringLiteral("Inspector"), &host);
+        dock.setWidget(new QLabel(QStringLiteral("Dock content")));
+        dock.setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable
+                         | QDockWidget::DockWidgetMovable);
+        host.addDockWidget(Qt::RightDockWidgetArea, &dock);
+        host.resize(520, 260);
+        host.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+        QStyle *style = host.style();
+        QVERIFY(style);
+        if (mode == WinUI3::DensityMode::Compact) {
+            QVERIFY(style->setProperty("densityMode", int(WinUI3::DensityMode::Compact)));
+            QCoreApplication::processEvents();
+        }
+        QStyleOptionDockWidget option;
+        dock.fillStyleOption(&option);
+        const QRect titleArea = option.rect;
+        QVERIFY(!titleArea.isNull());
+
+        // Qt consults this hint before it draws anything, so 0 keeps the frame
+        // out of the dock title button's paint path entirely.
+        QCOMPARE(style->styleHint(QStyle::SH_DockWidget_ButtonsHaveFrame, &option, &dock), 0);
+
+        // The pinned Fluent content inset: 8 px, the same value the title text
+        // row already reports for PM_DockWidgetTitleMargin.
+        QCOMPARE(style->pixelMetric(QStyle::PM_DockWidgetTitleMargin, &option, &dock), 8);
+        const QRect closeRect =
+                style->subElementRect(QStyle::SE_DockWidgetCloseButton, &option, &dock);
+        const QRect floatRect =
+                style->subElementRect(QStyle::SE_DockWidgetFloatButton, &option, &dock);
+        QVERIFY(!closeRect.isNull());
+        QVERIFY(!floatRect.isNull());
+        // The trailing inset replaces QCommonStyle's flush placement: the close
+        // button's right edge sits 8 px inside the title area, and the float
+        // button keeps that inset one slot to the left instead of touching it.
+        QCOMPARE(titleArea.right() - closeRect.right(), 8);
+        QCOMPARE(titleArea.right() - floatRect.right(), 8 + closeRect.width() + 1);
+        QVERIFY2(floatRect.right() < closeRect.left(),
+                 qPrintable(QStringLiteral("float right=%1 close left=%2")
+                                    .arg(floatRect.right())
+                                    .arg(closeRect.left())));
+        QVERIFY(!closeRect.intersects(floatRect));
+        QCOMPARE(closeRect.height(), floatRect.height());
+        // Both buttons share the title text's centered axis.
+        QCOMPARE(closeRect.center().y(), floatRect.center().y());
+
+        // Right-to-left mirrors the same inset off the title area's leading edge.
+        QStyleOptionDockWidget mirrored = option;
+        mirrored.direction = Qt::RightToLeft;
+        const QRect mirroredClose =
+                style->subElementRect(QStyle::SE_DockWidgetCloseButton, &mirrored, &dock);
+        QVERIFY(!mirroredClose.isNull());
+        QCOMPARE(mirroredClose.left() - titleArea.left(), 8);
+        QCOMPARE(mirroredClose.width(), closeRect.width());
+        QCOMPARE(mirroredClose.y(), closeRect.y());
+
+        // The title row keeps the same 8 px inset on its leading edge. The base
+        // style started it flush against the card's stroke, so "Inspector" read
+        // as a clipped word; the row now begins where every other Fluent surface
+        // starts its content.
+        const QRect textRect =
+                style->subElementRect(QStyle::SE_DockWidgetTitleBarText, &option, &dock);
+        QVERIFY(!textRect.isNull());
+        QCOMPARE(textRect.left() - titleArea.left(), 8);
+        const QRect mirroredText =
+                style->subElementRect(QStyle::SE_DockWidgetTitleBarText, &mirrored, &dock);
+        QCOMPARE(titleArea.right() - mirroredText.right(), 8);
+
+        // The close glyph is still drawn, so a placement-only fix that emptied
+        // the button would pass the hint and geometry checks above while
+        // changing nothing the user sees.
+        QAbstractButton *closeButton = nullptr;
+        QAbstractButton *floatButton = nullptr;
+        for (QAbstractButton *button : dock.findChildren<QAbstractButton *>()) {
+            if (closeRect.contains(button->geometry().center()))
+                closeButton = button;
+            if (floatRect.contains(button->geometry().center()))
+                floatButton = button;
+        }
+        QVERIFY2(closeButton, "qt dock title close button not found");
+        QVERIFY2(floatButton, "qt dock title float button not found");
+        // Qt sizes these glyphs from PM_SmallIconSize for the button widget but
+        // from the slot metric for the layout, so the two only agree when the
+        // title row carries the 12 px Fluent mark instead of the 16 px toolbar
+        // one: 2 * PM_DockWidgetTitleBarButtonMargin + 12 == the slot width.
+        QCOMPARE(style->pixelMetric(QStyle::PM_SmallIconSize, nullptr, closeButton), 12);
+        QCOMPARE(style->pixelMetric(QStyle::PM_SmallIconSize, nullptr, floatButton), 12);
+        QCOMPARE(closeButton->sizeHint(), closeRect.size());
+        QCOMPARE(floatButton->sizeHint(), floatRect.size());
+        // The float mark is the Fluent two-window glyph, not the stock Windows
+        // restore pixmap whose filled faces and 2 px strokes outweighed the
+        // close cross by more than 2:1.
+        QVERIFY(WinUI3::isFluentIcon(
+                style->standardIcon(QStyle::SP_TitleBarNormalButton, &option, &dock)));
+        const qreal dpr = closeButton->devicePixelRatioF();
+        // The whole dock is grabbed so the button and the card beside it come
+        // from one image; both rects are in dock coordinates.
+        const QImage dockImage = dock.grab().toImage();
+        QVERIFY(!dockImage.isNull());
+        // The card tone sampled in the gutter between the float and close
+        // buttons, where no button can paint.
+        const QColor cardFill =
+                dockImage.pixelColor(qRound((floatRect.right() + closeRect.left()) / 2.0 * dpr),
+                                     qRound(closeRect.center().y() * dpr));
+        const int closeInk = inkPixels(dockImage, closeRect, dpr, cardFill);
+        const int floatInk = inkPixels(dockImage, floatRect, dpr, cardFill);
+        QVERIFY2(closeInk > 0, "dock title close glyph painted no ink");
+        QVERIFY2(floatInk > 0, "dock title float glyph painted no ink");
+        // Two 1 px outlines carry about the weight of one 1 px cross; the stock
+        // restore mark carried twice that, which is the heaviness the live
+        // review reported.
+        QVERIFY2(floatInk * 2 <= closeInk * 3,
+                 qPrintable(
+                         QStringLiteral("float ink=%1 close ink=%2").arg(floatInk).arg(closeInk)));
+    };
+
+    verifyDockTitleButtons(WinUI3::DensityMode::Standard);
+    verifyDockTitleButtons(WinUI3::DensityMode::Compact);
 }
 
 QTEST_MAIN(WinUI3DialogsTest)

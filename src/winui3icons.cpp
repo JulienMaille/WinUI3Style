@@ -23,7 +23,7 @@ namespace WinUI3 {
 namespace {
 
 constexpr auto fluentIconNamePrefix = "winui3-fluent-icon:";
-constexpr int fluentIconCount = static_cast<int>(Icon::Warning) + 1;
+constexpr int fluentIconCount = static_cast<int>(Icon::Restore) + 1;
 constexpr int MaxPixmapCacheCost = 4096;
 constexpr int MaxFontCacheCost = 64;
 // Coloured QIcons are normally requested from paint paths. Keep this cache
@@ -123,6 +123,11 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::Warning:
             ucs4 = 0xE7BA;
             break;
+        case Icon::Restore:
+            // ChromeRestore: two overlapping windows, the shape Qt asks for when
+            // it floats a dock widget or restores a sub-window.
+            ucs4 = 0xE923;
+            break;
         }
         return QString::fromUcs4(&ucs4, 1);
     }
@@ -211,6 +216,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::Warning:
         ucs4 = 0x26A0;
         break; // ⚠️
+    case Icon::Restore:
+        ucs4 = 0x29C9;
+        break; // ⧉ two joined squares
     }
     return QString::fromUcs4(&ucs4, 1);
 }
@@ -227,6 +235,7 @@ bool hasVectorFallback(Icon icon)
     case Icon::ChevronUp:
     case Icon::Clear:
     case Icon::Close:
+    case Icon::Restore:
         return true;
     default:
         return false;
@@ -282,6 +291,13 @@ QPainterPath vectorFallbackPath(Icon icon)
         path.lineTo(18, 18);
         path.moveTo(18, 6);
         path.lineTo(6, 18);
+        break;
+    case Icon::Restore:
+        // Two overlapping windows in the 24 px design box, drawn as outlines so
+        // the fallback keeps the same 1.8 px stroke as the other marks instead
+        // of the filled faces the base Windows style uses.
+        path.addRect(QRectF(8.0, 3.5, 12.5, 12.5));
+        path.addRect(QRectF(3.5, 8.0, 12.5, 12.5));
         break;
     default:
         break;
