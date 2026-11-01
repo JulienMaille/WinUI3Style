@@ -589,16 +589,13 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
                                                : (option->rect.right() - stack.right());
             const QRect textRect = style->QProxyStyle::subElementRect(
                     QStyle::SE_DockWidgetTitleBarText, &logical, widget);
-            int room = inset;
-            if (element == QStyle::SE_DockWidgetTitleBarText) {
-                // The row is the innermost slot, so only its own extent stops
-                // it from giving up the trailing columns the stack used.
-                room = qMax(0, (verticalTitleBar ? textRect.height() : textRect.width()) - 1);
-            } else {
-                // Never let the stack reach the title row.
-                room = verticalTitleBar ? qMax(0, textRect.top() - stack.top())
-                                        : qMax(0, stack.right() - textRect.right());
-            }
+            // The row is the innermost slot, so only its own extent stops it
+            // from giving up the trailing columns the stack used; every other
+            // element may never let the stack reach the title row.
+            const int room = element == QStyle::SE_DockWidgetTitleBarText
+                    ? qMax(0, (verticalTitleBar ? textRect.height() : textRect.width()) - 1)
+                    : (verticalTitleBar ? qMax(0, textRect.top() - stack.top())
+                                        : qMax(0, stack.right() - textRect.right()));
             const int pull = qMin(inset - slack, room);
             if (pull > 0) {
                 // The button slots move as a block, but the title row is not a
