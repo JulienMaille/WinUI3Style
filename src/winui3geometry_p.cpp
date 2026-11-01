@@ -88,6 +88,14 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
         return metrics.tabCloseHeight;
     case QStyle::PM_SmallIconSize:
     case QStyle::PM_ButtonIconSize:
+        // Qt sizes a dock title button's glyph from PM_SmallIconSize and paints
+        // it into the slot SE_DockWidgetCloseButton reports, so the 16 px
+        // toolbar mark fills the 20 px slot edge to edge. Fluent's title row
+        // carries a 12 px glyph in that slot instead, matching the 12 px marks
+        // its other 20 px command surfaces use.
+        if (metric == QStyle::PM_SmallIconSize && widget
+            && widget->inherits("QDockWidgetTitleButton"))
+            return 12;
         return 16;
     case QStyle::PM_ToolBarIconSize:
         return 20;

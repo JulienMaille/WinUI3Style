@@ -23,6 +23,7 @@
 #include <QTableView>
 #include <QTabBar>
 #include <QStyleOptionButton>
+#include <QStyleOptionDockWidget>
 #include <QStyleOptionMenuItem>
 #include <QStyleOptionProgressBar>
 #include <QStyleOptionToolButton>
@@ -538,6 +539,91 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         if (shift > 0)
             result.translate(shift, 0);
     }
+    if (element == QStyle::SE_DockWidgetCloseButton || element == QStyle::SE_DockWidgetFloatButton
+        || element == QStyle::SE_DockWidgetTitleBarText) {
+        // Live defect #43: Fluent keeps one content inset on every side of a
+        // surface, and the dock title card is no exception, but QCommonStyle
+        // docks the title buttons against the end of the title bar. Pull the
+        // button stack in from that end and give the title row the same room,
+        // so a long title elides before the buttons instead of running under
+        // them. The base slot sizes, the gutter between the float and close
+        // buttons and their shared centre line stay untouched.
+        const auto *dock = qstyleoption_cast<const QStyleOptionDockWidget *>(option);
+        const bool closable = !dock || dock->closable;
+        const bool verticalTitleBar = dock && dock->verticalTitleBar;
+        // A vertical title bar reads bottom-up, so the end its buttons sit
+        // against is the top of the strip; a horizontal one reads
+        // left-to-right, or the mirror when the layout is right-to-left.
+        const bool trailingIsLeft = !verticalTitleBar && option->direction == Qt::RightToLeft;
+        // Measure the base placement in one fixed frame: the logical rect is
+        // identical in both directions, but the rect the stack hands back is
+        // already mirrored back into visual coordinates.
+        QStyleOption logical = *option;
+        logical.direction = Qt::LeftToRight;
+        const int inset = style->pixelMetric(QStyle::PM_DockWidgetTitleMargin, option, widget);
+        // The same defect on the other side of the row: QCommonStyle starts the
+        // title flush against the leading edge and only the button stack eats
+        // into the trailing one, so "Inspector" reads as a clipped word sitting
+        // on the card's stroke. A Fluent surface keeps its content inset on
+        // every side, so the row begins one inset in as well. A vertical strip
+        // reads bottom-up, which makes its bottom edge the leading one.
+        if (element == QStyle::SE_DockWidgetTitleBarText) {
+            const int extent = verticalTitleBar ? result.height() : result.width();
+            if (extent > inset) {
+                if (verticalTitleBar)
+                    result.setBottom(result.bottom() - inset);
+                else if (trailingIsLeft)
+                    result.setRight(result.right() - inset);
+                else
+                    result.setLeft(result.left() + inset);
+            }
+        }
+        // The stack's outer member is whichever button sits at the end.
+        const QRect stack = style->QProxyStyle::subElementRect(
+                closable ? QStyle::SE_DockWidgetCloseButton : QStyle::SE_DockWidgetFloatButton,
+                &logical, widget);
+        if (!stack.isNull()) {
+            // Qt already leaves a column or two short of the end; close that
+            // remainder instead of adding the inset twice.
+            const int slack = verticalTitleBar ? (stack.top() - option->rect.top())
+                                               : (option->rect.right() - stack.right());
+            const QRect textRect = style->QProxyStyle::subElementRect(
+                    QStyle::SE_DockWidgetTitleBarText, &logical, widget);
+            int room = inset;
+            if (element == QStyle::SE_DockWidgetTitleBarText) {
+                // The row is the innermost slot, so only its own extent stops
+                // it from giving up the trailing columns the stack used.
+                room = qMax(0, (verticalTitleBar ? textRect.height() : textRect.width()) - 1);
+            } else {
+                // Never let the stack reach the title row.
+                room = verticalTitleBar ? qMax(0, textRect.top() - stack.top())
+                                        : qMax(0, stack.right() - textRect.right());
+            }
+            const int pull = qMin(inset - slack, room);
+            if (pull > 0) {
+                // The button slots move as a block, but the title row is not a
+                // slot: it only gives up columns at its trailing end. Moving it
+                // too would drag the text off the leading edge, which is what
+                // made "Inspector" read as a clipped word.
+                if (verticalTitleBar) {
+                    if (element == QStyle::SE_DockWidgetTitleBarText)
+                        result.setTop(result.top() + pull);
+                    else
+                        result.translate(0, pull);
+                } else if (trailingIsLeft) {
+                    if (element == QStyle::SE_DockWidgetTitleBarText)
+                        result.setLeft(result.left() + pull);
+                    else
+                        result.translate(pull, 0);
+                } else {
+                    if (element == QStyle::SE_DockWidgetTitleBarText)
+                        result.setRight(result.right() - pull);
+                    else
+                        result.translate(-pull, 0);
+                }
+            }
+        }
+    }
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
         const QAbstractItemView *view = selectionMarkerView(widget);
         if (view
@@ -596,6 +682,13 @@ int styleHint(const Style *style, QStyle::StyleHint hint, const QStyleOption *op
               const QWidget *widget, QStyleHintReturn *returnData)
 {
     switch (hint) {
+    case QStyle::SH_DockWidget_ButtonsHaveFrame:
+        // Dock title buttons are bare glyphs on the title card. On 0,
+        // QDockWidgetTitleButton skips its own PE_PanelButtonTool, so the
+        // stock Qt tool-button frame is never drawn around them (Qt would
+        // otherwise paint that frame under our own CC_ToolButton panel).
+        // QCommonStyle's default of 1 framed them as stock tool buttons.
+        return 0;
     case QStyle::SH_Widget_Animate:
         return Style::animationsAllowed() ? 1 : 0;
     case QStyle::SH_ScrollBar_Transient:
@@ -695,6 +788,13 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_ToolBarHorizontalExtensionButton:
     case QStyle::SP_ToolBarVerticalExtensionButton:
         return WinUI3::icon(Icon::More);
+    case QStyle::SP_TitleBarNormalButton:
+        // Qt's dock float button and every other "restore" slot: the base
+        // Windows style hands back a two-window mark drawn with 2 px strokes and
+        // filled faces, which reads as a heavy blob beside the 1 px close cross.
+        // Fluent's ChromeRestore keeps the same two-window shape at the same
+        // thin stroke as the rest of the title row.
+        return WinUI3::icon(Icon::Restore);
     default:
         return style->QProxyStyle::standardIcon(standard, option, widget);
     }

@@ -36,7 +36,10 @@ enum class Icon {
     Stop,
     Document,
     List,
-    Warning
+    Warning,
+    // Appended after Warning so every existing enumerator keeps its index and
+    // therefore its "winui3-fluent-icon:<n>" engine name.
+    Restore
 };
 
 WINUI3STYLE_EXPORT QIcon icon(Icon glyph);
