@@ -116,9 +116,10 @@ that the float mark is a Fluent icon, and that its ink stays within 1.5× the
 close cross's. `winui3style_snapshot_matrix` needed the two dock-page captures
 regenerated (`light/dark-page-3-scrolled.png`); the changed bounding box is
 `x 880..1118, y 494..514` — the dock title row only — and the rest of the
-70-file matrix is byte-identical. Live re-review of a real dock (floating,
-tabbed, RTL and vertical title bars) through the Gallery remains before this
-row can be called Verified.
+70-file matrix is byte-identical. The maintainer's live pass through the
+Gallery on 2026-11-02 — docked, floating, tabbed, RTL and vertical title bars —
+confirmed the title row inset, the button inset, the 12 px glyphs and the thin
+float mark, so this row is Verified.
 
 ## Integration review — 2026-10-11
 
@@ -202,7 +203,7 @@ to `source-audited`; missing evidence remains explicit in the last column.
 | `QScrollBar` | ScrollBar | Direct | source-audited | official 12 px extent, 8→12 px reveal, 400/500 ms delays, 167 ms reversal-safe expand/contract, arrows, 30 px thumb, RTL, disabled-zero-opacity and real `QScrollArea` interaction covered by offscreen contracts; 2026-10-06 disabled-groove min-clamp (exact-178 forced the faint Disabled Base to an opaque white band in dark Mica; `disabledBarGrooveKeepsRoleAlpha`); native light/dark comparison remains |
 | `QGroupBox` | Fluent card grouping | Consistency extension | source-audited | plain/checkable, hover/down check, disabled, focus; over a live backdrop the card keeps its `veiledCard(t.layer)` fill and child viewport/editor/splitter paints never Source-clear it (`groupCardChildKeepsCardFillOverComposited`, reopened 2026-10-03) |
 | `QSplitter` | Fluent separator | Consistency extension | source-audited | both axes, hover, drag, clamp, release |
-| `QDockWidget` | Fluent layer/card docking | Consistency extension | source-audited; #43 text/button insets, 12 px glyphs and flat-frame hint fixed 2026-11-01 | dock/floating title, buttons, separator hover/drag, focus; `dockTitleButtonsStayFlatAndInset` covers 8 px leading/trailing insets, 12 px glyph/slot sizing, thin Fluent Restore mark, Standard/Compact and RTL; light/dark Gallery baselines updated; full live floating/tabbed/RTL/vertical interaction review remains |
+| `QDockWidget` | Fluent layer/card docking | Consistency extension | Verified 2026-11-02 — source-audited; #43 text/button insets, 12 px glyphs and flat-frame hint fixed 2026-11-01, live-confirmed | dock/floating title, buttons, separator hover/drag, focus; `dockTitleButtonsStayFlatAndInset` covers 8 px leading/trailing insets, 12 px glyph/slot sizing, thin Fluent Restore mark, Standard/Compact and RTL; light/dark Gallery baselines updated; the maintainer's live pass over docked, floating, tabbed, RTL and vertical title bars confirmed the title row, both insets, the 12 px glyphs and the float mark `2026-11-02` |
 | `QStatusBar` / `QSizeGrip` | Window footer / resize affordance — **bare material, recipe 2 (chrome reveal)** | Consistency extension | reopened 2026-10-03 (round-2 capture mark) | Mapping corrected by the round-2 mark: the footer is not a layer surface. Over a live material `PE_PanelStatusBar` erases and returns with no Window fill — only the 1 px top stroke — so the material shows through (recipe 2, chrome reveal); the opaque Window fill below that branch is the non-Composited fallback only. Doc-only correction, no painter changed: the recipe the source implements is the one now named here. Top separator, automatic grip discovery, 16 px metric and all-corner glyph geometry stay as covered; live resize and high-DPI comparison remain |
 | opted-in `QDialog` / `QMessageBox` | ContentDialog | Compound mapping | source-audited | distinct content and command/footer surfaces, 320×184 minimum, 24 px content margin, 12 px spacing, accent default button, Fluent message glyphs and 83/250 ms show motion; live modality/dismissal/dark comparison remains |
 | `QWizard` / `QWizardPage` | Multi-step dialog composition | Consistency extension | source-audited | separate content/footer surfaces and automatic accent Next/Finish roles are covered; native navigation, cancellation, RTL and live WinUI comparison remain |
