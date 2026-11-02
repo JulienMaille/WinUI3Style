@@ -46,6 +46,12 @@ void prepareBackdropSurface(QWidget *window, Backdrop backdrop);
 // rounded window region.
 void applyPopupRoundedCorners(QWidget *window);
 
+// Round the corners of a tooltip window. Asks DWM for the *small* corner
+// preference first, because a ToolTip silhouette is the 4 px card radius and
+// the default window rounding is twice that; a granted native corner also
+// restores the composited drop shadow, which a window region suppresses.
+void applyTooltipRoundedCorners(QWidget *window);
+
 // Clip an opaque frameless window (e.g. a tooltip) to a rounded rectangle of
 // the given radius using a plain window region.
 void applyWindowRoundedRegion(QWidget *window, int radius);

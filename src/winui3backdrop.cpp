@@ -199,6 +199,42 @@ void applyPopupRoundedCorners(QWidget *window)
 #endif
 }
 
+void applyTooltipRoundedCorners(QWidget *window)
+{
+#ifdef Q_OS_WIN
+    if (!window || !window->isWindow())
+        return;
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        return;
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    constexpr DWORD cornerPreferenceAttribute = 33;
+    constexpr int cornerRoundSmall = 3; // DWMWCP_ROUNDSMALL, the ~4 px ToolTip radius
+    constexpr int cornerRound = 2; // DWMWCP_ROUND
+    // Read the preference back: Windows returns S_OK for attributes it then
+    // ignores, and a silently ignored request would leave the square window
+    // corners visible under an opaque fill.
+    const auto granted = [hwnd](int preference) {
+        if (FAILED(DwmSetWindowAttribute(hwnd, cornerPreferenceAttribute, &preference,
+                                         sizeof(preference))))
+            return false;
+        DWORD live = 0;
+        if (FAILED(DwmGetWindowAttribute(hwnd, cornerPreferenceAttribute, &live, sizeof(live))))
+            return false;
+        return live == static_cast<DWORD>(preference);
+    };
+    if (granted(cornerRoundSmall))
+        return;
+    // No small radius available (Windows 11 21H2): the default rounding still
+    // beats a hard region, because it brings the composited shadow back. The
+    // painted card then sits inside a slightly rounder silhouette.
+    if (granted(cornerRound))
+        return;
+    applyWindowRoundedRegion(window, 5);
+#else
+    Q_UNUSED(window)
+#endif
+}
+
 void applyWindowRoundedRegion(QWidget *window, int radius)
 {
 #ifdef Q_OS_WIN
