@@ -682,23 +682,35 @@ void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
         painter.end();
 
         QCOMPARE(inkPixels(image, image.rect(), 1.0, sentinel), image.width() * image.height());
-        // The outer band is the card's own tone, not the window's. The stroke
-        // antialiases a level or two into that band, so compare within the same
-        // tolerance inkPixels uses rather than for exact equality.
+        // The stroke sits on the window edge now that the compositor owns the
+        // silhouette, so the outermost pixel on each side is the card's stroke
+        // and the row just inside it is the card fill. A surface that stopped
+        // short of the edge would fail here exactly as it did against the live
+        // window, where the uncovered strip kept the darker QPalette::Window.
         const QColor fill = t.tooltipFill;
-        const QList<QPoint> band = { QPoint(0, image.height() / 2),
+        const QList<QPoint> edge = { QPoint(0, image.height() / 2),
                                      QPoint(image.width() - 1, image.height() / 2),
                                      QPoint(image.width() / 2, 0),
                                      QPoint(image.width() / 2, image.height() - 1) };
-        for (const QPoint &edge : band) {
-            QVERIFY2(colorDistance(image.pixelColor(edge), fill) <= 8,
-                     qPrintable(QStringLiteral("window band at %1,%2 is %3, fill is %4")
-                                        .arg(edge.x())
-                                        .arg(edge.y())
-                                        .arg(image.pixelColor(edge).name(), fill.name())));
+        for (const QPoint &point : edge) {
+            QVERIFY2(
+                    colorDistance(image.pixelColor(point), fill) > 8,
+                    qPrintable(QStringLiteral("no stroke on the window edge at %1,%2 (%3, fill %4)")
+                                       .arg(point.x())
+                                       .arg(point.y())
+                                       .arg(image.pixelColor(point).name(), fill.name())));
         }
-        // The card stroke still sits one pixel inside the band, on this state.
-        QVERIFY(colorDistance(image.pixelColor(1, image.height() / 2), fill) > 8);
+        const QList<QPoint> inner = { QPoint(1, image.height() / 2),
+                                      QPoint(image.width() - 2, image.height() / 2),
+                                      QPoint(image.width() / 2, 1),
+                                      QPoint(image.width() / 2, image.height() - 2) };
+        for (const QPoint &point : inner) {
+            QVERIFY2(colorDistance(image.pixelColor(point), fill) <= 8,
+                     qPrintable(QStringLiteral("card fill missing at %1,%2 (%3, fill %4)")
+                                        .arg(point.x())
+                                        .arg(point.y())
+                                        .arg(image.pixelColor(point).name(), fill.name())));
+        }
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }

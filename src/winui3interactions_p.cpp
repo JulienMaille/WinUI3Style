@@ -726,11 +726,15 @@ bool StyleInteractionController::handleUpdateRequest(QWidget *widget)
 
 bool StyleInteractionController::handleShow(QWidget *widget)
 {
-    // A tooltip HWND keeps the opaque system backing store; the rounded
-    // PE_PanelTipLabel card leaves dark corner rectangles visible. Clip
-    // the window to the card's 4px rounding with a window region.
+    // A tooltip HWND keeps the opaque system backing store, so its square
+    // corners and the region that used to clip them were both visible: a Win32
+    // region is a hard staircase, and Windows draws the window's shadow around
+    // that staircase, which is the hard dark rim the surface showed. Take the
+    // same road the menus and popups take - ask DWM for native rounded
+    // corners, which also restores the composited shadow, and fall back to a
+    // region only where that attribute is unavailable.
     if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
-        applyWindowRoundedRegion(widget, 5);
+        applyTooltipRoundedCorners(widget);
     // Establish popup margins before measuring or anchoring any child view.
     // Doing this after ComboBox centering shifts the reused popup by the
     // combined top/bottom inset on its second opening.
