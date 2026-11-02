@@ -273,7 +273,14 @@ bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,
     }
 
     if (element == QStyle::PE_PanelTipLabel) {
+        // Qt fills the tooltip window with QPalette::Window and the style clips
+        // that window to a native rounded region, while the card is inset one
+        // pixel so its stroke is never cut in half. The band the card leaves
+        // behind kept the window tone, which reads as a dark outline around the
+        // tooltip (and as stepped dark wedges where the region cuts the
+        // corners). Own the whole surface: the band is the card's own fill.
         const QColor fill = t.tooltipFill;
+        painter->fillRect(option->rect, fill);
         roundedRect(painter, QRectF(option->rect).adjusted(1, 1, -1, -1), fill, t.tooltipStroke, 4);
         return true;
     }

@@ -12,6 +12,7 @@
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
 #include "../src/winui3surfaces_p.h"
+#include "../src/winui3tokens_p.h"
 
 #include <QLabel>
 #include <QLineEdit>
@@ -29,6 +30,7 @@
 #include <QScrollArea>
 #include <QMoveEvent>
 #include <QStatusBar>
+#include <QStyleOption>
 #include <QStyleOptionButton>
 #include <QStyleOptionComboBox>
 #include <QStyleOptionSlider>
@@ -66,6 +68,7 @@ private slots:
     void backdropThemeSwitchRebasesIslandPalette();
     void themeSwitchRebasesChromeShell();
     void menuMaskRetrySettles();
+    void tooltipSurfaceCoversWindowRect();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
     void progressTimerScalingAndLifecycle();
@@ -650,6 +653,56 @@ void WinUI3SurfacesTest::themeSwitchRebasesChromeShell()
     QTRY_COMPARE(window.statusBar()->palette().color(QPalette::Window), darkChrome);
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
+
+void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
+{
+    // Live defect 2026-11-02: a tooltip showed a dark 1 px outline and stepped
+    // dark wedges at every corner. Qt fills the tooltip window with
+    // QPalette::Window and the style clips the window to a native rounded
+    // region, but PE_PanelTipLabel only painted the inset card: the band the
+    // card left behind kept the window tone (#202020 in Dark, twelve levels
+    // darker than the #2c2c2c card) and the region's steps exposed it at the
+    // corners. The primitive owns the whole window rect, so no pixel of the
+    // surface may be left for the window background.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    for (const WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
+        style->setThemeMode(mode);
+        QWidget host;
+        QStyleOption option;
+        option.initFrom(&host);
+        option.rect = QRect(0, 0, 146, 33);
+        const WinUI3::Private::Tokens t = WinUI3::Private::tokens(option.palette);
+
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        const QColor sentinel(255, 0, 255);
+        image.fill(sentinel);
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelTipLabel, &option, &painter, &host);
+        painter.end();
+
+        QCOMPARE(inkPixels(image, image.rect(), 1.0, sentinel), image.width() * image.height());
+        // The outer band is the card's own tone, not the window's. The stroke
+        // antialiases a level or two into that band, so compare within the same
+        // tolerance inkPixels uses rather than for exact equality.
+        const QColor fill = t.tooltipFill;
+        const QList<QPoint> band = { QPoint(0, image.height() / 2),
+                                     QPoint(image.width() - 1, image.height() / 2),
+                                     QPoint(image.width() / 2, 0),
+                                     QPoint(image.width() / 2, image.height() - 1) };
+        for (const QPoint &edge : band) {
+            QVERIFY2(colorDistance(image.pixelColor(edge), fill) <= 8,
+                     qPrintable(QStringLiteral("window band at %1,%2 is %3, fill is %4")
+                                        .arg(edge.x())
+                                        .arg(edge.y())
+                                        .arg(image.pixelColor(edge).name(), fill.name())));
+        }
+        // The card stroke still sits one pixel inside the band, on this state.
+        QVERIFY(colorDistance(image.pixelColor(1, image.height() / 2), fill) > 8);
+    }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
 void WinUI3SurfacesTest::menuMaskRetrySettles()
 {
     // Finding B mechanism: a zero-size popup menu must not schedule an
