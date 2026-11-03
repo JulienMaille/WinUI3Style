@@ -301,7 +301,7 @@ void prepareTooltipLabel(QLabel *label)
     // Qt's placeTip clamps against the size the label had when it was placed.
     // The template re-layout can grow it afterwards (the label's font is only
     // resolved on show), so keep the surface inside the screen it sits on.
-    const QScreen *screen = label->screen();
+    const QScreen *screen = widgetScreen(label);
     if (!screen)
         return;
     const QRect available = screen->availableGeometry();

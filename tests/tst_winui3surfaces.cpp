@@ -788,8 +788,18 @@ void WinUI3SurfacesTest::tooltipLabelFollowsTemplateMetrics()
         }
     }
     QVERIFY2(firstInk >= 0, "no tooltip text in the grabbed surface");
+#ifdef Q_OS_WIN
+    // DirectWrite's left side bearing for the default face is none, so the
+    // first ink column is exactly the padding edge.
     QVERIFY(qAbs(firstInk - expected.left()) <= 1);
     QVERIFY(qAbs((image.width() - 1 - lastInk) - expected.right()) <= 1);
+#else
+    // freetype may add a side bearing before the first stem. The mechanism
+    // under test is the padding: the ink must still sit inside the 1 px stroke
+    // plus the template padding, never against the window edge.
+    QVERIFY(firstInk >= expected.left() - 1);
+    QVERIFY((image.width() - 1 - lastInk) >= expected.right() - 1);
+#endif
     int firstInkRow = -1;
     int lastInkRow = -1;
     for (int y = 0; y < image.height(); ++y) {

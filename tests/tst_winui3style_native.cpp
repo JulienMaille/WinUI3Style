@@ -251,7 +251,7 @@ void WinUI3StyleNativeTest::tooltipLifecycleAndReuse()
 
     // Screen clamp: a tip placed at the bottom-right corner still fits inside
     // the screen's available geometry after the template re-layout.
-    const QScreen *screen = window.screen();
+    const QScreen *screen = testScreen(&window);
     QVERIFY(screen);
     const QRect available = screen->availableGeometry();
     QToolTip::showText(available.bottomRight() - QPoint(2, 2), longText, button);
