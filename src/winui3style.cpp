@@ -1381,6 +1381,8 @@ public:
     QPalette lastStyleApplicationPalette;
     QPalette originalToolTipPalette;
     QPalette lastStyleToolTipPalette;
+    QFont originalToolTipFont;
+    QFont lastStyleToolTipFont;
     std::unique_ptr<Private::StyleInteractionController> interactionController;
 };
 
@@ -1990,6 +1992,7 @@ void Style::polish(QApplication *application)
         d->originalApplicationFont = application->font();
         d->originalApplicationPalette = application->palette();
         d->originalToolTipPalette = QToolTip::palette();
+        d->originalToolTipFont = QToolTip::font();
         d->applicationStateSaved = true;
     }
     QByteArray overrideFamily = qgetenv("WINUI3STYLE_APP_FONT");
@@ -2015,6 +2018,14 @@ void Style::polish(QApplication *application)
     font.setPixelSize(14);
     application->setFont(font);
     d->lastStyleApplicationFont = font;
+    // WinUI's `ToolTipContentThemeFontSize` is 12 px, a step below the 14 px
+    // body size. QTipLabel resolves its font from the application font for the
+    // "QTipLabel" class, so the tooltip size is owned here and restored with
+    // the rest of the application state on unpolish.
+    QFont toolTipFont = font;
+    toolTipFont.setPixelSize(TooltipContentFontSize);
+    QToolTip::setFont(toolTipFont);
+    d->lastStyleToolTipFont = toolTipFont;
     const QPalette stylePalette = polishedApplicationPalette(this);
     application->setPalette(stylePalette);
     d->lastStyleApplicationPalette = stylePalette;
@@ -2514,12 +2525,22 @@ void Style::unpolish(QApplication *application)
     d->clearPaletteOwners();
     if (application && d->applicationStateSaved) {
         const bool toolTipStillOwned = QToolTip::palette() == d->lastStyleToolTipPalette;
+        // Read the tooltip font's ownership before the application font is
+        // restored: setting the global font drops the class-specific entry, so
+        // a later read would look like an application override and skip the
+        // restore.
+        const QFont toolTipFontAtUnpolish = QToolTip::font();
+        const bool toolTipFontStillOwned = toolTipFontAtUnpolish == d->lastStyleToolTipFont;
         if (application->font() == d->lastStyleApplicationFont)
             application->setFont(d->originalApplicationFont);
         if (application->palette() == d->lastStyleApplicationPalette)
             application->setPalette(d->originalApplicationPalette);
         if (toolTipStillOwned)
             QToolTip::setPalette(d->originalToolTipPalette);
+        // Re-assert the class font after the application font restore, which
+        // drops it: either the value the style replaced, or the host's own
+        // override that must survive.
+        QToolTip::setFont(toolTipFontStillOwned ? d->originalToolTipFont : toolTipFontAtUnpolish);
         d->applicationStateSaved = false;
     }
     QProxyStyle::unpolish(application);

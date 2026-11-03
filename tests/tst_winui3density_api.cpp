@@ -1,6 +1,8 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/navigationview.h>
 
+#include "../src/winui3tokens_p.h"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QMetaProperty>
@@ -63,6 +65,7 @@ private slots:
     void nullWidgetComplexPaintContracts();
     void pluginAliases();
     void applicationTooltipPaletteRestoration();
+    void applicationTooltipFontRestoration();
     void applicationFontOverrideSurvivesUnpolish();
     void applicationPaletteOverrideSurvivesThemeAndUnpolish();
     void largeFontControlSizing_data();
@@ -135,6 +138,37 @@ void WinUI3DensityApiTest::applicationTooltipPaletteRestoration()
     const QPalette afterUnpolish = QToolTip::palette();
     QToolTip::setPalette(before);
     QCOMPARE(restored, custom);
+    QCOMPARE(afterRefresh, runtime);
+    QCOMPARE(afterUnpolish, runtime);
+}
+
+void WinUI3DensityApiTest::applicationTooltipFontRestoration()
+{
+    // QToolTip resolves its label font from the application font registered
+    // for the "QTipLabel" class, so the 12 px ToolTipContentThemeFontSize is
+    // owned here and restored like the tooltip palette: an application font
+    // set before the style is restored on unpolish, and one set while the
+    // style is active survives both a theme refresh and unpolish.
+    const QFont before = QToolTip::font();
+    QFont custom = before;
+    custom.setPixelSize(21);
+    QToolTip::setFont(custom);
+
+    WinUI3::Style style(WinUI3::ThemeMode::Dark);
+    style.polish(qApp);
+    QCOMPARE(QToolTip::font().pixelSize(), WinUI3::Private::TooltipContentFontSize);
+    style.unpolish(qApp);
+    QCOMPARE(QToolTip::font(), custom);
+
+    style.polish(qApp);
+    QFont runtime = QToolTip::font();
+    runtime.setPixelSize(19);
+    QToolTip::setFont(runtime);
+    style.setThemeMode(WinUI3::ThemeMode::Light);
+    const QFont afterRefresh = QToolTip::font();
+    style.unpolish(qApp);
+    const QFont afterUnpolish = QToolTip::font();
+    QToolTip::setFont(before);
     QCOMPARE(afterRefresh, runtime);
     QCOMPARE(afterUnpolish, runtime);
 }

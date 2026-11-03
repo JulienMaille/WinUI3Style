@@ -2,6 +2,7 @@
 
 #define WINUI3STYLE_NATIVE_CAPTURE
 #include "winui3testhelpers.h"
+#include "winui3tokens_p.h"
 
 #include <QComboBox>
 #include <QAbstractItemView>
@@ -107,6 +108,7 @@ private slots:
     void initTestCase();
     void cleanup();
     void tooltipSurface();
+    void tooltipLifecycleAndReuse();
     void comboPopupSurface();
     void dialogThemeUpdate();
     void captionThemeAfterBackdropDisable_data();
@@ -159,6 +161,114 @@ void WinUI3StyleNativeTest::tooltipSurface()
                 return false;
             }(),
             1800);
+}
+
+void WinUI3StyleNativeTest::tooltipLifecycleAndReuse()
+{
+    QWidget window;
+    window.setWindowTitle(QStringLiteral("Native tooltip lifecycle"));
+    auto *button = new QPushButton(QStringLiteral("Hover target"), &window);
+    button->setToolTip(QStringLiteral("WinUI tooltip surface"));
+    button->move(24, 24);
+    window.resize(320, 160);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const auto visibleTip = []() -> QLabel * {
+        for (QWidget *candidate : qApp->topLevelWidgets()) {
+            if (candidate->windowType() == Qt::ToolTip && candidate->isVisible())
+                return qobject_cast<QLabel *>(candidate);
+        }
+        return nullptr;
+    };
+
+    // Hover delivery needs a real pointer over the window, which a test session
+    // without a foreground desktop cannot guarantee, so the harness drives
+    // QToolTip directly. From there the style owns everything the platform
+    // hands it: window shape, layout and typography.
+    const QPoint anchor = button->mapToGlobal(button->rect().center());
+    QToolTip::showText(anchor, QStringLiteral("WinUI tooltip surface"), button);
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() != nullptr, 2000);
+    QLabel *tip = visibleTip();
+    const WId firstHandle = tip->winId();
+    const QSize shortSize = tip->size();
+    QVERIFY(tip->height() >= 30);
+    QCOMPARE(tip->contentsMargins(), WinUI3::Private::tooltipContentMargins());
+    QCOMPARE(tip->font().pixelSize(), WinUI3::Private::TooltipContentFontSize);
+
+#ifdef Q_OS_WIN
+    const auto regionType = [](WId handle) {
+        const HRGN region = CreateRectRgn(0, 0, 0, 0);
+        const int type = GetWindowRgn(reinterpret_cast<HWND>(handle), region);
+        DeleteObject(region);
+        return type;
+    };
+    QCOMPARE(regionType(firstHandle), 0); // no hard window region
+    constexpr DWORD cornerAttribute = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
+    DWORD corner = 0;
+    QCOMPARE(DwmGetWindowAttribute(reinterpret_cast<HWND>(firstHandle), cornerAttribute, &corner,
+                                   sizeof(corner)),
+             S_OK);
+    QCOMPARE(corner, DWORD(3)); // DWMWCP_ROUNDSMALL: the 4 px ToolTip radius
+#endif
+
+    // A longer tip reuses the same label and HWND: Qt only resizes it, so the
+    // style's Resize path must re-apply the same surface contract. This is the
+    // regression the leftover `applyWindowRoundedRegion` on resize produced -
+    // the reused tip came back with a hard, non-antialiased region.
+    const QString longText = QStringLiteral(
+            "WinUI tooltips wrap at the template maximum width of 320 pixels and keep the same "
+            "window handle when the text changes under the pointer.");
+    QToolTip::showText(button->mapToGlobal(button->rect().center()), longText, button);
+    QTRY_COMPARE(tip->text(), longText);
+    QCOMPARE(tip->winId(), firstHandle);
+    QCOMPARE(tip->width(), WinUI3::Private::TooltipMaximumWidth);
+    QCOMPARE(tip->size() == shortSize, false);
+    QCOMPARE(tip->contentsMargins(), WinUI3::Private::tooltipContentMargins());
+#ifdef Q_OS_WIN
+    QCOMPARE(regionType(firstHandle), 0);
+#endif
+
+    // Qt's tooltip label is an application-wide event filter, so the Leave that
+    // ends a hover hides the tip through its 300 ms grace timer. Reopening the
+    // same widget then gives a fresh tip.
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(button, &leave);
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() == nullptr, 1500);
+    QToolTip::showText(anchor, QStringLiteral("WinUI tooltip surface"), button);
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() != nullptr, 2000);
+
+    // A click anywhere dismisses the visible tip immediately (the same filter
+    // stops on application mouse presses).
+    QTest::mouseClick(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() == nullptr, 1500);
+
+    // Display time: an explicit timeout closes the tip on its own.
+    QToolTip::showText(button->mapToGlobal(button->rect().center()),
+                       QStringLiteral("WinUI tooltip surface"), button, QRect(), 400);
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() != nullptr, 1500);
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() == nullptr, 3000);
+
+    // Screen clamp: a tip placed at the bottom-right corner still fits inside
+    // the screen's available geometry after the template re-layout.
+    const QScreen *screen = testScreen(&window);
+    QVERIFY(screen);
+    const QRect available = screen->availableGeometry();
+    QToolTip::showText(available.bottomRight() - QPoint(2, 2), longText, button);
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() != nullptr, 1500);
+    tip = visibleTip();
+    QVERIFY2(available.contains(tip->frameGeometry()),
+             qPrintable(QStringLiteral("tooltip %1,%2 %3x%4 escapes %5,%6 %7x%8")
+                                .arg(tip->frameGeometry().x())
+                                .arg(tip->frameGeometry().y())
+                                .arg(tip->width())
+                                .arg(tip->height())
+                                .arg(available.x())
+                                .arg(available.y())
+                                .arg(available.width())
+                                .arg(available.height())));
+    QToolTip::hideText();
+    QTRY_VERIFY_WITH_TIMEOUT(visibleTip() == nullptr, 1500);
 }
 
 void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
