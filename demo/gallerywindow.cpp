@@ -208,6 +208,12 @@ void GalleryWindow::configureGallery()
     splitMenu->addAction(tr("Run with options"));
     ui->splitToolButton->setMenu(splitMenu);
     ui->statusBar->showMessage(tr("Ready — QSizeGrip is enabled"));
+    // Real hover targets for the WinUI ToolTip surface: the coverage evidence
+    // needs a live tooltip in the product demo, not only a synthetic probe.
+    ui->themeCombo->setToolTip(tr("Choose the light, dark or system theme."));
+    ui->densityCombo->setToolTip(tr("Standard controls are 32 px high; Compact fits more."));
+    ui->floatDockButton->setToolTip(tr("Float or redock the inspector dock."));
+    ui->autoSuggestEdit->setToolTip(tr("Type to see completion suggestions."));
     connect(ui->floatDockButton, &QPushButton::clicked, ui->embeddedInspector,
             [this] { ui->embeddedInspector->setFloating(!ui->embeddedInspector->isFloating()); });
     const QList<QStyle::StandardPixmap> navigationIcons = {

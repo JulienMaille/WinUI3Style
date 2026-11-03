@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QEvent>
+#include <QFontMetrics>
 #include <QGroupBox>
 #include <QImage>
 #include <QMainWindow>
@@ -36,6 +37,7 @@
 #include <QStyleOptionSlider>
 #include <QSlider>
 #include <QToolBar>
+#include <QToolTip>
 #include <QTimer>
 #include <QTest>
 
@@ -69,6 +71,7 @@ private slots:
     void themeSwitchRebasesChromeShell();
     void menuMaskRetrySettles();
     void tooltipSurfaceCoversWindowRect();
+    void tooltipLabelFollowsTemplateMetrics();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
     void progressTimerScalingAndLifecycle();
@@ -684,21 +687,29 @@ void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
         QCOMPARE(inkPixels(image, image.rect(), 1.0, sentinel), image.width() * image.height());
         // The stroke sits on the window edge now that the compositor owns the
         // silhouette, so the outermost pixel on each side is the card's stroke
-        // and the row just inside it is the card fill. A surface that stopped
-        // short of the edge would fail here exactly as it did against the live
-        // window, where the uncovered strip kept the darker QPalette::Window.
+        // composited over the fill, and the row just inside it is the fill. The
+        // pinned `SurfaceStrokeColorFlyoutBrush` is black at 20% (Dark) or 6%
+        // (Light), so the edge is deliberately a few levels from the fill, not
+        // a hard outline; a surface that stopped short of the edge would still
+        // have kept the darker QPalette::Window there.
         const QColor fill = t.tooltipFill;
+        const auto over = [](const QColor &top, const QColor &bottom) {
+            const qreal alpha = top.alphaF();
+            return QColor::fromRgbF(top.redF() * alpha + bottom.redF() * (1.0 - alpha),
+                                    top.greenF() * alpha + bottom.greenF() * (1.0 - alpha),
+                                    top.blueF() * alpha + bottom.blueF() * (1.0 - alpha));
+        };
+        const QColor edgeTone = over(t.tooltipStroke, fill);
         const QList<QPoint> edge = { QPoint(0, image.height() / 2),
                                      QPoint(image.width() - 1, image.height() / 2),
                                      QPoint(image.width() / 2, 0),
                                      QPoint(image.width() / 2, image.height() - 1) };
         for (const QPoint &point : edge) {
-            QVERIFY2(
-                    colorDistance(image.pixelColor(point), fill) > 8,
-                    qPrintable(QStringLiteral("no stroke on the window edge at %1,%2 (%3, fill %4)")
-                                       .arg(point.x())
-                                       .arg(point.y())
-                                       .arg(image.pixelColor(point).name(), fill.name())));
+            QVERIFY2(colorDistance(image.pixelColor(point), edgeTone) <= 8,
+                     qPrintable(QStringLiteral("edge at %1,%2 is %3, expected stroke %4")
+                                        .arg(point.x())
+                                        .arg(point.y())
+                                        .arg(image.pixelColor(point).name(), edgeTone.name())));
         }
         const QList<QPoint> inner = { QPoint(1, image.height() / 2),
                                       QPoint(image.width() - 2, image.height() / 2),
@@ -713,6 +724,100 @@ void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
         }
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+void WinUI3SurfacesTest::tooltipLabelFollowsTemplateMetrics()
+{
+    // Pinned `DefaultToolTipStyle`: BorderThickness 1, ToolTipBorderPadding
+    // 9,6,9,8, ToolTipContentThemeFontSize 12, ToolTipMaxWidth 320. Qt builds a
+    // QTipLabel with `1 + PM_ToolTipLabelFrameWidth` on every side, a 1 px
+    // leading indent, the 14 px application font and no width cap, so the
+    // style re-lays the label out on Show and on the reuse resize.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+
+    QWidget host;
+    host.resize(320, 160);
+    auto *button = new QPushButton(QStringLiteral("Hover"), &host);
+    button->move(20, 20);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    const auto visibleTip = []() -> QLabel * {
+        for (QWidget *candidate : QApplication::topLevelWidgets()) {
+            if (candidate->windowType() == Qt::ToolTip && candidate->isVisible())
+                return qobject_cast<QLabel *>(candidate);
+        }
+        return nullptr;
+    };
+
+    const QString text = QStringLiteral("WinUI tooltip");
+    QToolTip::showText(host.mapToGlobal(QPoint(120, 90)), text, button);
+    QLabel *tip = nullptr;
+    QTRY_VERIFY_WITH_TIMEOUT((tip = visibleTip()) != nullptr, 2000);
+    QCOMPARE(tip->text(), text);
+
+    const QMargins expected =
+            QMargins(WinUI3::Private::TooltipBorderWidth + WinUI3::Private::TooltipPaddingLeft,
+                     WinUI3::Private::TooltipBorderWidth + WinUI3::Private::TooltipPaddingTop,
+                     WinUI3::Private::TooltipBorderWidth + WinUI3::Private::TooltipPaddingRight,
+                     WinUI3::Private::TooltipBorderWidth + WinUI3::Private::TooltipPaddingBottom);
+    QCOMPARE(tip->contentsMargins(), expected);
+    QCOMPARE(tip->indent(), 0);
+    QCOMPARE(tip->font().pixelSize(), WinUI3::Private::TooltipContentFontSize);
+    QCOMPARE(tip->size(), tip->sizeHint());
+
+    const QFontMetrics metrics(tip->font());
+    QCOMPARE(tip->height(), metrics.height() + expected.top() + expected.bottom());
+    QVERIFY(tip->width() > metrics.horizontalAdvance(text) + 18);
+
+    // The card's own ink must start inside the template padding: the 1 px
+    // stroke and the 9/6/9/8 padding put the first glyph at x=10 and keep the
+    // text block between y=7 and y=height-9.
+    const QImage image = tip->grab().toImage();
+    const QColor fill = WinUI3::Private::tokens(tip->palette()).tooltipFill;
+    const int row = image.height() / 2;
+    int firstInk = -1;
+    int lastInk = -1;
+    for (int x = 1; x < image.width() - 1; ++x) {
+        if (colorDistance(image.pixelColor(x, row), fill) > 120) {
+            if (firstInk < 0)
+                firstInk = x;
+            lastInk = x;
+        }
+    }
+    QVERIFY2(firstInk >= 0, "no tooltip text in the grabbed surface");
+    QVERIFY(qAbs(firstInk - expected.left()) <= 1);
+    QVERIFY(qAbs((image.width() - 1 - lastInk) - expected.right()) <= 1);
+    int firstInkRow = -1;
+    int lastInkRow = -1;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = firstInk; x <= lastInk; ++x) {
+            if (colorDistance(image.pixelColor(x, y), fill) > 120) {
+                if (firstInkRow < 0)
+                    firstInkRow = y;
+                lastInkRow = y;
+                break;
+            }
+        }
+    }
+    QVERIFY(firstInkRow >= expected.top());
+    QVERIFY(lastInkRow <= image.height() - 1 - expected.bottom());
+
+    // MaxWidth: the reused label has no Show, so this also covers Qt's resize-
+    // only reuse path.
+    const QString longText =
+            QStringLiteral("WinUI tooltips wrap at the template maximum width of 320 pixels, "
+                           "which Qt's own tooltip label never applies.");
+    QToolTip::showText(host.mapToGlobal(QPoint(120, 90)), longText, button);
+    QTRY_COMPARE(tip->text(), longText);
+    QCOMPARE(tip->width(), WinUI3::Private::TooltipMaximumWidth);
+    QVERIFY(tip->wordWrap());
+    QVERIFY(tip->height() > metrics.height() + expected.top() + expected.bottom());
+
+    QToolTip::hideText();
+    QTRY_VERIFY(!QToolTip::isVisible());
 }
 
 void WinUI3SurfacesTest::menuMaskRetrySettles()

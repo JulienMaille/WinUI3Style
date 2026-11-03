@@ -199,6 +199,63 @@ around #000000). The style therefore paints labels with
 `QFont::NoSubpixelAntialias` (`paintGrayscaleText`), trading a slightly softer
 LCD rendering for WinUI-neutral coverage on all outputs.
 
+ToolTip is pinned to `ToolTip_themeresources.xaml` (`DefaultToolTipStyle`)
+and not to the older system-XAML style in `dxaml/xcp/dxaml/themes/generic.xaml`.
+The template is a single `ContentPresenter` with `TextWrapping="Wrap"`,
+`CornerRadius={ThemeResource ControlCornerRadius}` (4), `BorderThickness` 1,
+`Padding` = `ToolTipBorderPadding` `9,6,9,8`, `MaxWidth` = `ToolTipMaxWidth`
+320, `FontSize` = `ToolTipContentThemeFontSize` 12, and `OpenStates` that fade
+the root in and out. Its brushes are `AcrylicInAppFillColorDefaultBrush` with
+`BackgroundSizing=InnerBorderEdge` and `SurfaceStrokeColorFlyoutBrush`. At the
+manifest pin the acrylic falls back to `#2C2C2C` (Dark) and `#F9F9F9` (Light),
+and the flyout stroke is black at 20% (`#33000000`, Dark) or 6% (`#0F000000`,
+Light) - the same `flyoutStroke` token the menus use. A ToolTip therefore has a
+*faint darkening* border in both themes; the earlier white-at-20% Dark stroke
+lightened the edge where WinUI darkens it.
+
+Qt owns the tooltip window (`QTipLabel`, a `QLabel` with
+`Qt::ToolTip | BypassGraphicsProxyWidget`), so the style maps the template onto
+it instead of restyling the control:
+
+- Surface: `PE_PanelTipLabel` paints the card over the whole window rect with
+  the stroke on the edge; the window itself takes DWM's
+  `DWMWCP_ROUNDSMALL` corner (read back after the request, `ROUND` and then a
+  window region are the fallbacks). A window region is a hard staircase and
+  Windows composites the drop shadow around it, which was the dark rim the
+  surface showed; the native corner also restores the composited shadow.
+- Layout: `QTipLabel` builds a symmetric `1 + PM_ToolTipLabelFrameWidth` margin
+  plus a 1 px leading indent, keeps a legacy `QLabel::margin()` that adds
+  2 x margin to the size hint, and has no maximum width. On Show and on every
+  resize the style resets the indent and the legacy margin, applies
+  `contentsMargins` = `10,7,10,9` (1 px border + the template padding), caps
+  the width at 320 with word wrap, and keeps the re-laid surface inside the
+  screen's available geometry. Qt only re-sizes a reused tip (no second Show),
+  so the Resize path carries the same layout.
+- Typography: `QToolTip::setFont` is set from the application font at 12 px,
+  owned and restored exactly like the tooltip palette.
+- Background material: the tooltip window is opaque and paints the acrylic
+  *fallback* colour. Qt cannot host an in-app acrylic backdrop on a tooltip
+  window, and the style does not claim one; this is the template's own
+  `FallbackColor`.
+
+The Qt and WinUI lifetimes differ and the style does not pretend otherwise.
+Qt opens the tip from a hover timer, hides it on Leave through a 300 ms grace
+timer, on any application mouse press/release/wheel, and on the display
+timeout (10 s + 40 ms per character past 100, or the explicit
+`msecDisplayTime`); it reuses one label - and one HWND - while the pointer
+stays inside the widget. Qt 6.12 has no Escape handler for tooltips (its
+`QTipLabel` event filter handles keys only on macOS), so no Escape dismissal
+is claimed. Live validation lives in
+`WinUI3StyleNativeTest::tooltipLifecycleAndReuse`, which drives `QToolTip`
+directly because a test session has no foreground desktop to deliver a real
+hover: a longer text reuses the same HWND with `regionType 0` and the DWM
+corner still granted, the Leave that ends a hover dismisses through the 300 ms
+grace timer, a click dismisses immediately, an explicit display time expires,
+and a tip placed at the screen corner stays inside the available geometry. The
+hover timer that raises the tip is Qt's and is part of the live pass.
+The composited DWM shadow is still only judgeable on a live desktop
+(`BitBlt`/`CopyFromScreen` return black in the capture environment).
+
 These observations are checked against the exact Microsoft XAML resource files
 listed in `manifest.json`. A Qt capture is rejected if it merely renders without
 crashing; every state above must be inspected or covered by a state-level test.

@@ -32,6 +32,7 @@
 #include <QHoverEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
 #include <QMenu>
@@ -266,6 +267,55 @@ bool revealsKeyboardFocus(int key)
     default:
         return false;
     }
+}
+
+// Qt builds a QTipLabel with `1 + PM_ToolTipLabelFrameWidth` on every side and
+// a 1 px leading indent, and Qt's tooltip has no maximum width: it only wraps
+// rich text or a tip wider than the screen. The pinned WinUI
+// `DefaultToolTipStyle` is a 1 px border around `9,6,9,8` padding, 12 px
+// content and `MaxWidth` 320. Re-lay the label out whenever it resizes: the
+// first Show is still before the window is mapped, and a reused tip (Qt only
+// re-sizes it, without a Show) takes the same path, so the template geometry
+// never shows as a jump. Resizing to the size the label already has is a
+// no-op, so the nested Resize this can trigger converges immediately.
+void prepareTooltipLabel(QLabel *label)
+{
+    if (!label)
+        return;
+    label->setIndent(0);
+    // QLabel keeps a legacy `margin` field *in addition to* contentsMargins
+    // and adds 2 x margin to its size hint, so leaving QTipLabel's
+    // `1 + PM_ToolTipLabelFrameWidth` there would inflate the tip by 14 px.
+    label->setMargin(0);
+    label->setContentsMargins(tooltipContentMargins());
+    label->setWordWrap(false);
+    QSize surface = label->sizeHint();
+    if (surface.width() > TooltipMaximumWidth) {
+        label->setWordWrap(true);
+        surface = QSize(TooltipMaximumWidth,
+                        qMax(label->heightForWidth(TooltipMaximumWidth),
+                             label->minimumSizeHint().height()));
+    }
+    if (label->size() != surface)
+        label->resize(surface);
+    // Qt's placeTip clamps against the size the label had when it was placed.
+    // The template re-layout can grow it afterwards (the label's font is only
+    // resolved on show), so keep the surface inside the screen it sits on.
+    const QScreen *screen = label->screen();
+    if (!screen)
+        return;
+    const QRect available = screen->availableGeometry();
+    QRect placed = label->geometry();
+    if (placed.right() > available.right())
+        placed.moveRight(available.right());
+    if (placed.bottom() > available.bottom())
+        placed.moveBottom(available.bottom());
+    if (placed.left() < available.left())
+        placed.moveLeft(available.left());
+    if (placed.top() < available.top())
+        placed.moveTop(available.top());
+    if (placed.topLeft() != label->geometry().topLeft())
+        label->move(placed.topLeft());
 }
 
 } // namespace
@@ -733,8 +783,11 @@ bool StyleInteractionController::handleShow(QWidget *widget)
     // same road the menus and popups take - ask DWM for native rounded
     // corners, which also restores the composited shadow, and fall back to a
     // region only where that attribute is unavailable.
-    if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
-        applyTooltipRoundedCorners(widget);
+    if (widget->isWindow() && widget->windowType() == Qt::ToolTip) {
+        prepareTooltipLabel(qobject_cast<QLabel *>(widget));
+        if (widget->windowHandle())
+            applyTooltipRoundedCorners(widget);
+    }
     // Establish popup margins before measuring or anchoring any child view.
     // Doing this after ComboBox centering shifts the reused popup by the
     // combined top/bottom inset on its second opening.
@@ -872,8 +925,13 @@ bool StyleInteractionController::handleResize(QWidget *widget)
     if (auto *menu = qobject_cast<QMenu *>(widget);
         menu && menu->isWindow() && menu->windowType() == Qt::Popup)
         applyMenuRoundedMask(menu);
-    if (widget->isWindow() && widget->windowType() == Qt::ToolTip && widget->windowHandle())
-        applyWindowRoundedRegion(widget, 5);
+    if (widget->isWindow() && widget->windowType() == Qt::ToolTip) {
+        // Qt only re-sizes a reused tip, so the template layout is applied on
+        // every resize, not just the first Show.
+        prepareTooltipLabel(qobject_cast<QLabel *>(widget));
+        if (widget->windowHandle())
+            applyTooltipRoundedCorners(widget);
+    }
     return false;
 }
 

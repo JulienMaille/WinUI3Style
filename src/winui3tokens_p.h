@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QColor>
+#include <QMargins>
 #include <QPalette>
 #include <array>
 #include <cstddef>
@@ -18,6 +19,23 @@ constexpr int CheckBoxDuration = FastDuration;
 constexpr int NormalDuration = 250;
 constexpr qreal ControlRadius = 4.0;
 constexpr qreal OverlayRadius = 8.0;
+// WinUI `DefaultToolTipStyle` (ToolTip_themeresources.xaml): a 1 px border,
+// the asymmetric `ToolTipBorderPadding` 9,6,9,8 and a 12 px content size.
+// Qt's QTipLabel margin is one symmetric value plus a leading indent, so the
+// style re-lays the label out with these margins on its first Show.
+constexpr int TooltipBorderWidth = 1;
+constexpr int TooltipPaddingLeft = 9;
+constexpr int TooltipPaddingTop = 6;
+constexpr int TooltipPaddingRight = 9;
+constexpr int TooltipPaddingBottom = 8;
+constexpr int TooltipMaximumWidth = 320;
+constexpr int TooltipContentFontSize = 12;
+inline QMargins tooltipContentMargins()
+{
+    return QMargins(TooltipBorderWidth + TooltipPaddingLeft, TooltipBorderWidth + TooltipPaddingTop,
+                    TooltipBorderWidth + TooltipPaddingRight,
+                    TooltipBorderWidth + TooltipPaddingBottom);
+}
 // Group cards over a live material veil to 178 so Mica shows through; opaque
 // windows keep the full card tone. One definition shared by the group frame
 // and the resting subtle button inside it (same surface, same alpha).
@@ -253,8 +271,13 @@ inline Tokens buildTokens(const QPalette &palette)
     t.flyoutStroke = t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15);
     t.selectedTabFill = t.dark ? QColor(44, 44, 44) : QColor(251, 251, 251);
     t.sliderThumbOuter = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
-    t.tooltipFill = t.dark ? QColor(43, 43, 43) : QColor(249, 249, 249);
-    t.tooltipStroke = withAlpha(t.dark ? QColor(Qt::white) : QColor(Qt::black), 20);
+    // WinUI `DefaultToolTipStyle` paints `AcrylicInAppFillColorDefaultBrush`
+    // with `BackgroundSizing=InnerBorderEdge`, so the pinned surface is the
+    // brush's FallbackColor (#2C2C2C Dark, #F9F9F9 Light) and the 1 px border
+    // is `SurfaceStrokeColorFlyoutBrush` (#33000000 / #0F000000) - the same
+    // flyout stroke the menus already use.
+    t.tooltipFill = t.dark ? QColor(44, 44, 44) : QColor(249, 249, 249);
+    t.tooltipStroke = t.flyoutStroke;
     // ContentDialog command-footer base (LayerFill derivation input) and
     // smoke-layer scrim; fixed WinUI values, not palette derivations.
     t.dialogCommandFill = dialogCommandFillColor(t.dark);
