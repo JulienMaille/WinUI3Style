@@ -253,8 +253,10 @@ corner still granted, the Leave that ends a hover dismisses through the 300 ms
 grace timer, a click dismisses immediately, an explicit display time expires,
 and a tip placed at the screen corner stays inside the available geometry. The
 hover timer that raises the tip is Qt's and is part of the live pass.
-The composited DWM shadow is still only judgeable on a live desktop
-(`BitBlt`/`CopyFromScreen` return black in the capture environment).
+The composited DWM shadow is judged on a live desktop (`BitBlt`/`CopyFromScreen`
+return black in the capture environment); the live pass over the Gallery's
+theme combo, density combo, float dock button and auto-suggest field accepted
+the shadow, border weight/colour and 12 px layout on 2026-11-03.
 
 These observations are checked against the exact Microsoft XAML resource files
 listed in `manifest.json`. A Qt capture is rejected if it merely renders without
