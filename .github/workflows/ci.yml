@@ -29,9 +29,15 @@ on:
 
 jobs:
   coverage-honesty:
-    # Fails a PR diff marking any coverage.md row Verified unless the diff
-    # also touches tests/. The semantic honesty stays reviewer-owned; this is
-    # a cheap git-diff tripwire, not a proof of live evidence (METHODOLOGY Â§6).
+    # A Verified row must name at least one test *function* that exists under
+    # tests/ (matched as `void ...::name(`), so a bare class or file mention
+    # cannot stand in for evidence. The old tripwire ("the diff also touches
+    # tests/") false-redded main: a live pass is recorded after the PR merge,
+    # so the promotion often lands in its own docs-only commit. Checking the
+    # evidence column is the real claim, works for both PR and push events,
+    # and still fails a promotion that names nothing. The semantic honesty
+    # stays reviewer-owned; this is a tripwire, not a proof of live evidence
+    # (METHODOLOGY §6).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +48,29 @@ jobs:
       - name: Require tests alongside Verified promotions
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
-          promoted=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md | grep -c "^+.*| *Verified" || true)
-          touched=$(git diff --name-only "$base"...HEAD -- tests/ | wc -l)
-          echo "verified_promotions=$promoted tests_touched=$touched"
-          if [ "$promoted" -gt 0 ] && [ "$touched" -eq 0 ]; then
-            echo "::error::coverage.md promotes a row to Verified without touching tests/. Tests alone never promote to Verified (METHODOLOGY Â§6); add evidence + tests or keep source-audited."
-            exit 1
+          rows=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md \
+                   | grep '^+.*| *Verified' || true)
+          if [ -z "$rows" ]; then
+            echo "no Verified promotions in $base...HEAD"
+            exit 0
           fi
+          missing=0
+          while IFS= read -r row; do
+            cited=0
+            for name in $(printf '%s\n' "$row" | grep -oE '`[^`]+`' | tr -d '`' \
+                            | grep -oE '^[A-Za-z_][A-Za-z0-9_]*$'); do
+              if grep -rqE "void[[:space:]]+([A-Za-z0-9_]+::)?${name}[[:space:]]*\(" tests/; then
+                echo "promoted row cites existing test: $name"
+                cited=1
+                break
+              fi
+            done
+            if [ "$cited" -eq 0 ]; then
+              echo "::error::coverage.md marks a row Verified without naming a test that exists under tests/. Tests alone never promote to Verified (METHODOLOGY §6); add evidence + tests or keep source-audited: $(printf '%s' "$row" | cut -c1-140)"
+              missing=1
+            fi
+          done <<< "$rows"
+          exit "$missing"
 
   format-check:
     runs-on: ubuntu-latest
