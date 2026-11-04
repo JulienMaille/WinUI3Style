@@ -78,7 +78,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (watched == m_wizard
+        if ((watched == m_wizard || watched == m_host)
             && (event->type() == QEvent::Resize || event->type() == QEvent::Show
                 || event->type() == QEvent::LayoutRequest || event->type() == QEvent::ChildAdded)) {
             queueGeometrySync();
@@ -112,6 +112,25 @@ private:
         return child ? child : m_wizard;
     }
 
+    // The buttons and the page stack live inside the host, so the host's own
+    // Resize/LayoutRequest is what moves the command strip. Watching only the
+    // wizard missed those: a sync taken while the host was still unlaid out
+    // produced a zero-height strip that stayed shown and never corrected
+    // (CI-only, Qt 6.8/6.11: the footer read as body #2C2C2C in the grab
+    // while the same wizard was correct in the Gallery snapshot).
+    void setHost(QWidget *host)
+    {
+        if (m_host == host)
+            return;
+        if (m_host)
+            m_host->removeEventFilter(this);
+        m_host = host;
+        if (m_host)
+            m_host->installEventFilter(this);
+        if (parentWidget() != host)
+            setParent(host);
+    }
+
     void syncGeometry()
     {
         if (!m_wizard)
@@ -138,20 +157,29 @@ private:
         QWidget *host = bodyHost();
         if (!host)
             host = m_wizard;
-        if (parentWidget() != host)
-            setParent(host);
+        setHost(host);
 
         // QWizard's native button row has a 12 px breathing room above and
         // below the controls. Paint the command surface behind that complete
         // row, including the native separator's former backing pixels.
         const int top = qBound(0, buttonTop - 12, m_wizard->height());
         const int topInHost = host->mapFrom(m_wizard, QPoint(0, top)).y();
-        setGeometry(0, topInHost, host->width(), host->height() - topInHost);
+        const int stripHeight = host->height() - topInHost;
+        // An unlaid-out host has no height yet. Hide instead of showing an
+        // empty strip: the host's own Resize/LayoutRequest re-syncs us, and a
+        // hidden surface cannot be mistaken for a painted one.
+        if (host->width() <= 0 || stripHeight <= 0) {
+            hide();
+            return;
+        }
+        setGeometry(0, topInHost, host->width(), stripHeight);
         lower();
         setVisible(m_wizard->isVisible());
+        host->update(geometry());
     }
 
     QPointer<QWizard> m_wizard;
+    QPointer<QWidget> m_host;
     QColor m_fill;
     QColor m_stroke;
     bool m_syncQueued = false;

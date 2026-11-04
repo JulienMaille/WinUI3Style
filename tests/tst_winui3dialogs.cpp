@@ -203,6 +203,11 @@ void WinUI3DialogsTest::wizardSurfaceContract()
             QStringLiteral("_winui_wizard_footer_surface"), Qt::FindChildrenRecursively);
     QVERIFY(darkFooter);
     QTRY_VERIFY(darkFooter->isVisible());
+    // A zero-height strip is still "visible" and would silently paint nothing
+    // (CI-only on Qt 6.8/6.11 until the host's own layout events re-synced it).
+    // Pair the pixel below with the geometry that makes it meaningful.
+    QTRY_VERIFY(darkFooter->height() >= 24);
+    QVERIFY(darkFooter->mapTo(&darkWizard, QPoint(0, 0)).y() < darkWizard.height());
     const QImage darkImage = darkWizard.grab().toImage();
     const QPoint darkBodyPixel = darkPage->mapTo(&darkWizard, QPoint(2, darkPage->height() / 2));
     QVERIFY(darkWizard.rect().contains(darkBodyPixel));
