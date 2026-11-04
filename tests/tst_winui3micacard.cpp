@@ -17,6 +17,8 @@
 
 #include <QCommandLinkButton>
 #include <QMainWindow>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QTreeWidget>
 
 class WinUI3MicaCardTest final : public QObject
@@ -30,6 +32,7 @@ private slots:
     void navSampleInCardKeepsCardFillOverComposited();
     void menuSampleInCardKeepsCardFillOverComposited();
     void palettePreviewCardKeepsCardFillOverComposited();
+    void tabBarBaseLineStaysPaintedOverComposited();
     void treeSelectionKeepsCardFillOverComposited();
     void galleryTreeKeepsCardFillOverComposited();
     void disabledInCardButtonKeepsCardToneOverComposited();
@@ -558,6 +561,65 @@ void WinUI3MicaCardTest::palettePreviewCardKeepsCardFillOverComposited()
         }
     }
     style->setDensityMode(previousDensity);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+void WinUI3MicaCardTest::tabBarBaseLineStaysPaintedOverComposited()
+{
+    // Collections page over a granted Mica backdrop (2026-11-05 live capture):
+    // the 1 px `PE_FrameTabBarBase` hairline that separates the tab strip from
+    // the pane card is the only painted thing on the tab bar's last row, and
+    // over the material it vanished - NONE paints it at (60,60,60), the Mica
+    // capture reads alpha 0 there. The hairline is drawn with the Midlight
+    // stroke, so it must stay visible on whatever the tab bar's own background
+    // does (the strip shares the island, the pane below it is the card).
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    for (const bool dark : { false, true }) {
+        style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+        QWidget window;
+        window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+        auto *island = new QWidget(&window);
+        island->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
+        island->setGeometry(0, 0, 480, 360);
+        auto *pane = new QTabWidget(island);
+        pane->setGeometry(20, 20, 420, 300);
+        pane->addTab(new QWidget, QStringLiteral("One"));
+        pane->addTab(new QWidget, QStringLiteral("Two"));
+        window.resize(480, 360);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        window.setProperty("_winui_backdrop", 1);
+        window.setProperty("_winui_backdrop_effective", 2); // Composited
+        WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+
+        QTabBar *bar = pane->tabBar();
+        QVERIFY(bar);
+        // Geometry/token pairing for the pixel assert below.
+        QCOMPARE(bar->geometry().top(), 0);
+        QVERIFY(bar->height() > 0);
+        const QColor stroke = WinUI3::Private::tokens(bar->palette()).strokeSecondary;
+        QVERIFY(stroke.alpha() > 0);
+        const int baseRow = bar->geometry().bottom();
+        QVERIFY(baseRow < pane->height());
+
+        const QImage frame = pane->grab().toImage();
+        const int probeX = bar->geometry().center().x();
+        // Precondition: the strip itself is on the material (alpha 0 in the
+        // empty area right of the tabs), so the scene really took the
+        // Composited path. Without this the hairline probe could pass on an
+        // opaque tab bar and prove nothing.
+        const QPoint stripProbe(bar->mapTo(pane, QPoint(bar->width() - 4, 2)));
+        QCOMPARE(frame.pixelColor(stripProbe).alpha(), 0);
+        const QColor line = frame.pixelColor(probeX, baseRow);
+        QVERIFY2(line.alpha() > 0,
+                 qPrintable(QStringLiteral("row %1 is %2 (alpha %3), stroke alpha %4")
+                                    .arg(baseRow)
+                                    .arg(line.name(QColor::HexArgb))
+                                    .arg(line.alpha())
+                                    .arg(stroke.alpha())));
+    }
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 
