@@ -95,6 +95,23 @@ protected:
     }
 
 private:
+    // Qt hosts the header, the page stack and the button row inside one
+    // full-size child of the wizard, and that child paints the dialog body
+    // over the whole rect. A footer that is a *sibling* of it is lowered
+    // underneath and never shows, which is why the command strip read as body
+    // #2C2C2C. Parent the footer into that body host instead: the host's own
+    // background still paints first, and lowering the footer below the page and
+    // buttons keeps every control on top.
+    QWidget *bodyHost() const
+    {
+        if (!m_wizard)
+            return nullptr;
+        QWidget *child = m_wizard->currentPage();
+        while (child && child->parentWidget() != m_wizard)
+            child = child->parentWidget();
+        return child ? child : m_wizard;
+    }
+
     void syncGeometry()
     {
         if (!m_wizard)
@@ -118,11 +135,18 @@ private:
             return;
         }
 
+        QWidget *host = bodyHost();
+        if (!host)
+            host = m_wizard;
+        if (parentWidget() != host)
+            setParent(host);
+
         // QWizard's native button row has a 12 px breathing room above and
         // below the controls. Paint the command surface behind that complete
         // row, including the native separator's former backing pixels.
         const int top = qBound(0, buttonTop - 12, m_wizard->height());
-        setGeometry(0, top, m_wizard->width(), m_wizard->height() - top);
+        const int topInHost = host->mapFrom(m_wizard, QPoint(0, top)).y();
+        setGeometry(0, topInHost, host->width(), host->height() - topInHost);
         lower();
         setVisible(m_wizard->isVisible());
     }
@@ -137,8 +161,11 @@ WizardFooterSurface *wizardFooterSurface(QWizard *wizard, bool create)
 {
     if (!wizard)
         return nullptr;
+    // The surface is reparented into the wizard's body host (a descendant), so
+    // look it up recursively; a direct-children search would create a second
+    // surface on every refresh.
     auto *surface = static_cast<WizardFooterSurface *>(wizard->findChild<QWidget *>(
-            QString::fromLatin1(wizardFooterName), Qt::FindDirectChildrenOnly));
+            QString::fromLatin1(wizardFooterName), Qt::FindChildrenRecursively));
     if (!surface && create)
         surface = new WizardFooterSurface(wizard);
     return surface;
@@ -206,8 +233,12 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
     wizard->setPalette(contentPalette);
     wizard->setAutoFillBackground(true);
     if (WizardFooterSurface *footer = wizardFooterSurface(wizard, true)) {
-        const QColor commandFill = applicationPalette.color(QPalette::Window);
-        footer->setColors(commandFill, tokens(commandPalette).stroke);
+        // ContentDialog's CommandSpace sits on SolidBackgroundFillColorBase,
+        // not on the application chrome layer that the polished application
+        // palette carries in Window (#2C2C2C Dark). Using the chrome tone made
+        // the footer indistinguishable from the raised dialog body.
+        const Tokens commandTokens = tokens(commandPalette);
+        footer->setColors(dialogCommandFillColor(commandTokens.dark), commandTokens.stroke);
         footer->queueGeometrySync();
     }
 }

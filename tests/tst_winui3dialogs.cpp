@@ -200,7 +200,7 @@ void WinUI3DialogsTest::wizardSurfaceContract()
     QCOMPARE(WinUI3::Style::controlRole(darkWizard.button(QWizard::FinishButton)),
              WinUI3::ControlRole::Accent);
     auto *darkFooter = darkWizard.findChild<QWidget *>(
-            QStringLiteral("_winui_wizard_footer_surface"), Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_wizard_footer_surface"), Qt::FindChildrenRecursively);
     QVERIFY(darkFooter);
     QTRY_VERIFY(darkFooter->isVisible());
     const QImage darkImage = darkWizard.grab().toImage();
@@ -208,7 +208,8 @@ void WinUI3DialogsTest::wizardSurfaceContract()
     QVERIFY(darkWizard.rect().contains(darkBodyPixel));
     QCOMPARE(darkImage.pixelColor(darkBodyPixel), QColor(44, 44, 44));
 #ifdef Q_OS_WIN
-    QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2, darkFooter->geometry().top() + 2),
+    QCOMPARE(darkImage.pixelColor(darkWizard.width() / 2,
+                                  darkFooter->mapTo(&darkWizard, QPoint(0, 2)).y()),
              QColor(32, 32, 32));
 #endif
 
@@ -234,7 +235,7 @@ void WinUI3DialogsTest::wizardSurfaceContract()
     QTRY_COMPARE(runtimeWizard.button(QWizard::NextButton)->palette().color(QPalette::Window),
                  QColor(32, 32, 32));
     auto *runtimeFooter = runtimeWizard.findChild<QWidget *>(
-            QStringLiteral("_winui_wizard_footer_surface"), Qt::FindDirectChildrenOnly);
+            QStringLiteral("_winui_wizard_footer_surface"), Qt::FindChildrenRecursively);
     QVERIFY(runtimeFooter);
     QTRY_VERIFY(runtimeFooter->isVisible());
 }
@@ -269,7 +270,7 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     wizard.show();
     QVERIFY(QTest::qWaitForWindowExposed(&wizard));
     auto *footer = wizard.findChild<QWidget *>(QStringLiteral("_winui_wizard_footer_surface"),
-                                               Qt::FindDirectChildrenOnly);
+                                               Qt::FindChildrenRecursively);
     QVERIFY(footer);
     QTRY_VERIFY(footer->isVisible());
     QAbstractButton *next = wizard.button(QWizard::NextButton);
@@ -288,7 +289,8 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
 #ifdef Q_OS_WIN
-    QCOMPARE(wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
+    QCOMPARE(wizard.grab().toImage().pixelColor(wizard.width() / 2,
+                                                footer->mapTo(&wizard, QPoint(0, 2)).y()),
              darkCommand);
 #endif
     style->setThemeMode(WinUI3::ThemeMode::Light);
@@ -302,9 +304,9 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
 #ifdef Q_OS_WIN
-    QTRY_COMPARE(
-            wizard.grab().toImage().pixelColor(wizard.width() / 2, footer->geometry().top() + 2),
-            darkCommand);
+    QTRY_COMPARE(wizard.grab().toImage().pixelColor(wizard.width() / 2,
+                                                    footer->mapTo(&wizard, QPoint(0, 2)).y()),
+                 darkCommand);
 #endif
 }
 
