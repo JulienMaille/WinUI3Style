@@ -186,6 +186,13 @@ pointer afterward. Two complete capture runs must have identical file sets and
 byte-identical PNG hashes; a mismatch is investigated by pixel bounds before
 it can be dismissed as environmental noise.
 
+The one deliberate exception is the `textbox-keyboard-focus` state capture: it
+exists to show the keyboard focus ring, so it keeps focus and its text cursor.
+That cursor is a real pixel of the baseline, and its tone is the composited
+`QPalette::Text` over the field fill (`#1B1B1B` in the Light baseline), not
+`#000000`. A cursor-colour diff therefore means the text role or the field fill
+changed - read it as a mechanism signal, not as capture noise.
+
 The inline Gallery calendar's selected date and displayed month are pinned to
 the approved fixture (2026-10-11), with French/France date formatting during
 snapshots; the previous date, month and locale are restored. The normal
