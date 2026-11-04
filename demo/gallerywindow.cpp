@@ -640,9 +640,11 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         sendPointerState(ui->galleryStandardButton, true, true);
         success = saveControl(ui->galleryStandardButton, "button-pressed") && success;
         sendPointerState(ui->galleryStandardButton, false, false);
-        ui->galleryLineEdit->setFocus(Qt::TabFocusReason);
-        success = saveControl(ui->galleryLineEdit, "textbox-keyboard-focus") && success;
-        ui->galleryLineEdit->clearFocus();
+        // No `textbox-keyboard-focus` state capture: the text caret is one real
+        // column of that raster and its ink is not stable across the Qt matrix
+        // (6.8 paints the bare palette text colour, 6.12 composites its alpha),
+        // and the matrix compares pixel-exact with no mask. The keyboard ring is
+        // covered by `textBoxStateMatrix` instead.
         sendPointerState(ui->galleryComboBox, true, true);
         success = saveControl(ui->galleryComboBox, "combobox-pressed") && success;
         sendPointerState(ui->galleryComboBox, false, false);
