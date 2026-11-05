@@ -22,6 +22,7 @@
 #include <QTextEdit>
 
 #include <QAbstractItemView>
+#include <QHeaderView>
 #include <QApplication>
 #include <QCalendarWidget>
 #include <QComboBox>
@@ -847,8 +848,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     if (element == QStyle::PE_IndicatorHeaderArrow) {
         const Tokens t = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
+        // Pinned DataGrid template: SortIconAscending U+E74A / Descending
+        // U+E74B, a 12 px FontIcon in the trailing 32 px sort column.
         const Icon glyph =
-                option->state & QStyle::State_UpArrow ? Icon::ChevronUp : Icon::ChevronDown;
+                option->state & QStyle::State_UpArrow ? Icon::SortAscending : Icon::SortDescending;
         icon(glyph, enabled ? t.textSecondary : t.textDisabled)
                 .paint(painter,
                        QRect(option->rect.center().x() - 6, option->rect.center().y() - 6, 12, 12),
@@ -1273,12 +1276,22 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             style->drawControl(QStyle::CE_HeaderSection, header, painter, widget);
             QStyleOptionHeader label = *header;
             label.sortIndicator = QStyleOptionHeader::None;
-            if (header->sortIndicator != QStyleOptionHeader::None) {
+            // The pinned DataGrid template always lays out a 32 px sort column
+            // (the glyph is just Opacity 0 while unsorted), so a sortable
+            // header keeps that space reserved for every column. Reserving it
+            // only once the glyph appears would shift a centred label by half
+            // the claimed width.
+            const auto *headerView = qobject_cast<const QHeaderView *>(widget);
+            const bool sortable = header->sortIndicator != QStyleOptionHeader::None
+                    || (headerView && headerView->isSortIndicatorShown());
+            if (sortable) {
                 const QRect arrowRect = headerSortIndicatorRect(*header);
+                // The template's content column ends where the 32 px sort
+                // column starts; the label keeps its own 10 px right inset.
                 if (header->direction == Qt::RightToLeft)
-                    label.rect.setLeft(qMin(label.rect.right(), arrowRect.right() + 6));
+                    label.rect.setLeft(qMin(label.rect.right(), arrowRect.right()));
                 else
-                    label.rect.setRight(qMax(label.rect.left(), arrowRect.left() - 6));
+                    label.rect.setRight(qMax(label.rect.left(), arrowRect.left()));
             }
             style->drawControl(QStyle::CE_HeaderLabel, &label, painter, widget);
             if (header->sortIndicator != QStyleOptionHeader::None) {

@@ -265,9 +265,12 @@ QPainterPath animatedAcceptTrimmedPath(const QRectF &indicator, qreal progress)
 
 QRect headerSortIndicatorRect(const QStyleOptionHeader &header)
 {
-    const QRect slot = header.rect.adjusted(10, 0, -10, 0);
-    return QStyle::alignedRect(header.direction, Qt::AlignRight | Qt::AlignVCenter, QSize(16, 16),
-                               slot);
+    // WinUI DataGrid column header template: the SortIcon sits in a trailing
+    // column with MinWidth="32", the 12 px glyph centred in that column, and
+    // the header's right padding ends at the section's trailing edge.
+    constexpr int sortIconColumn = 32;
+    return QStyle::alignedRect(header.direction, Qt::AlignRight | Qt::AlignVCenter,
+                               QSize(sortIconColumn, header.rect.height()), header.rect);
 }
 
 QRectF snappedSplitterGrip(const QRectF &grip, bool horizontal, const QPainter *painter)

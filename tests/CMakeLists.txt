@@ -185,6 +185,19 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_scrollbarcard_tests winui3styleplugin)
 endif()
 
+# DataGrid-like table header + sort indicator contracts (60 KB cap: views has
+# no headroom). Same shape as winui3style_scrollbarcard_tests: links the
+# public library plus Qt Test/Widgets, resolves the trailing-column seam in
+# src/winui3paint_p.h via the src include directory.
+add_executable(winui3style_tableheader_tests tst_winui3tableheader.cpp)
+target_include_directories(winui3style_tableheader_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_tableheader_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_tableheader_tests winui3styleplugin)
+endif()
+
 # Mica backdrop regression binary (60 KB cap: surfaces/views have no
 # headroom). Same shape as winui3style_scrollbarcard_tests: links the public
 # library plus Qt Test/Widgets, resolves private test seams via the src
@@ -337,6 +350,7 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_calendarheader_tests
         winui3style_calendarsurface_tests
         winui3style_scrollbarcard_tests
+        winui3style_tableheader_tests
         winui3style_micabackdrop_tests
         winui3style_micatheme_tests
         winui3style_micacard_tests
@@ -412,6 +426,8 @@ add_test(NAME winui3style_calendarsurface_unit
          COMMAND winui3style_calendarsurface_tests)
 add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
+add_test(NAME winui3style_tableheader_unit
+         COMMAND winui3style_tableheader_tests)
 add_test(NAME winui3style_micabackdrop_unit
          COMMAND winui3style_micabackdrop_tests)
 add_test(NAME winui3style_micatheme_unit
@@ -517,6 +533,9 @@ set_tests_properties(winui3style_calendarsurface_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_scrollbarcard_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_tableheader_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_micabackdrop_unit PROPERTIES

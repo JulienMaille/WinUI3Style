@@ -132,10 +132,16 @@ not paint Qt's legacy branch lines. These template states are discrete.
 Qt has no core widget equivalent to WinUI's community DataGrid. `QTableView`
 is therefore a consistency extension, not a claimed direct mapping. It reuses
 the item-view subtle state layers, 36 px control rhythm, secondary header text,
-flat strokes and Fluent sort chevrons. Cell text uses symmetric 8 px horizontal
-padding, matching the common Qt/Fusion item-view inset; no official WinUI
-DataGrid cell-padding metric exists. Native model/delegate editing, keyboard
-selection, column resizing and accessibility remain owned by Qt.
+flat strokes and the DataGrid column-header sort glyph. The pinned
+CommunityToolkit.WinUI `DataGrid.xaml` (commit `080bdb9`) gives the header
+`Padding="12,0,0,0"`, `FontSize="12"`, `MinHeight="32"`, and a trailing sort
+column of `MinWidth="32"` whose 12 px `SortIcon` uses `SortIconAscending`
+U+E74A and `SortIconDescending` U+E74B; the column exists for every header
+(the glyph is opacity 0 while unsorted), so the label never reflows when a sort
+starts. Cell text uses symmetric 8 px horizontal padding, matching the common
+Qt/Fusion item-view inset; no official WinUI DataGrid cell-padding metric
+exists. Native model/delegate editing, keyboard selection, column resizing and
+accessibility remain owned by Qt.
 
 RichEditBox shares the common text-control background, border and focused
 underline tokens with TextBox. Normal, pointer-over and focused surface changes

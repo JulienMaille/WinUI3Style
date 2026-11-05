@@ -351,6 +351,12 @@ void GalleryWindow::populateCollections()
             ui->tableViewTab->setItem(row, column, new QTableWidgetItem(rows[row][column]));
     ui->tableViewTab->setAlternatingRowColors(true);
     ui->tableViewTab->horizontalHeader()->setStretchLastSection(true);
+    // Keep one live sort on the Data grid so the WinUI DataGrid sort glyph
+    // (SortIconAscending E74A / Descending E74B in the trailing 32 px column)
+    // is a real, captured part of the Gallery surface; clicking any header
+    // flips the indicator through the stock QTableWidget behaviour.
+    ui->tableViewTab->setSortingEnabled(true);
+    ui->tableViewTab->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
 }
 
 void GalleryWindow::configurePaletteLab(bool captureMode)

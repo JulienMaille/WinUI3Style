@@ -39,7 +39,11 @@ enum class Icon {
     Warning,
     // Appended after Warning so every existing enumerator keeps its index and
     // therefore its "winui3-fluent-icon:<n>" engine name.
-    Restore
+    Restore,
+    // Pinned DataGrid column-header sort glyphs (SortIconAscending E74A /
+    // SortIconDescending E74B in the WinUI DataGrid template).
+    SortAscending,
+    SortDescending
 };
 
 WINUI3STYLE_EXPORT QIcon icon(Icon glyph);
