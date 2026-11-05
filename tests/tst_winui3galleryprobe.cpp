@@ -16,6 +16,7 @@
 
 #include <QComboBox>
 #include <QCheckBox>
+#include <QCommandLinkButton>
 #include <QCalendarWidget>
 #include <QDateEdit>
 #include <QGroupBox>
@@ -330,6 +331,44 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
                         .alpha()
                 != 0);
         QCOMPARE(focusGrab.pixelColor(probeInWindow(previewEdit, QPoint(0, 0))).alpha(), 0);
+        // Dialogs page: Qt translates a command link's painted contents by
+        // PM_ButtonShiftHorizontal/Vertical on press, so the real Gallery
+        // instance must report 0 on both axes (the pixel proof is
+        // commandLinkPressKeepsContentPosition; this is the same mechanism on
+        // the widget the reviewer actually sees).
+        auto *dialogsPage = mica.findChild<QScrollArea *>(QStringLiteral("dialogsPage"));
+        auto *commandLink =
+                mica.findChild<QCommandLinkButton *>(QStringLiteral("commandLinkButton"));
+        auto *disabledLink =
+                mica.findChild<QCommandLinkButton *>(QStringLiteral("disabledCommandLink"));
+        QVERIFY(dialogsPage && commandLink && disabledLink);
+        QCOMPARE(commandLink->isEnabled(), true);
+        QCOMPARE(disabledLink->isEnabled(), false);
+        QCOMPARE(commandLink->style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, nullptr,
+                                                   commandLink),
+                 0);
+        QCOMPARE(commandLink->style()->pixelMetric(QStyle::PM_ButtonShiftVertical, nullptr,
+                                                   commandLink),
+                 0);
+        QCOMPARE(disabledLink->style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, nullptr,
+                                                    disabledLink),
+                 0);
+        QCOMPARE(disabledLink->style()->pixelMetric(QStyle::PM_ButtonShiftVertical, nullptr,
+                                                    disabledLink),
+                 0);
+        pages->setCurrentWidget(dialogsPage);
+        dialogsPage->ensureWidgetVisible(commandLink);
+        qApp->processEvents();
+        const QRect linkRect = commandLink->rect();
+        const QImage linkRest = commandLink->grab().toImage();
+        QTest::mousePress(commandLink, Qt::LeftButton, Qt::NoModifier, linkRect.center());
+        QVERIFY(commandLink->isDown());
+        const QImage linkPressed = commandLink->grab().toImage();
+        QTest::mouseRelease(commandLink, Qt::LeftButton, Qt::NoModifier, linkRect.center());
+        QVERIFY(!commandLink->isDown());
+        // The press surface is real, and the widget never re-lays out.
+        QVERIFY(linkPressed != linkRest);
+        QCOMPARE(commandLink->rect(), linkRect);
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
