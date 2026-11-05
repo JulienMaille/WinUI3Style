@@ -138,7 +138,10 @@ CommunityToolkit.WinUI `DataGrid.xaml` (commit `080bdb9`) gives the header
 column of `MinWidth="32"` whose 12 px `SortIcon` uses `SortIconAscending`
 U+E74A and `SortIconDescending` U+E74B; the column exists for every header
 (the glyph is opacity 0 while unsorted), so the label never reflows when a sort
-starts. Cell text uses symmetric 8 px horizontal padding, matching the common
+starts. Header content is a `ContentPresenter` with
+`HorizontalAlignment="Left"` inside the template's `Padding="12,0,0,0"`, so
+column titles are leading-aligned, not centred; Qt's `AlignCenter` default is
+honoured only when the model publishes a `TextAlignmentRole` for the section. Cell text uses symmetric 8 px horizontal padding, matching the common
 Qt/Fusion item-view inset; no official WinUI DataGrid cell-padding metric
 exists. Native model/delegate editing, keyboard selection, column resizing and
 accessibility remain owned by Qt.

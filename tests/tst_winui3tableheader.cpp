@@ -113,26 +113,30 @@ void WinUI3TableHeaderTest::tableHeaderLabelKeepsLeadingEdgeWithSortColumn()
     table.resize(420, 180);
     table.show();
     QTRY_VERIFY(table.isVisible());
-    // A stock horizontal QHeaderView defaults to AlignCenter; that is what the
-    // Gallery table asks for while painting sections.
-    QCOMPARE(table.horizontalHeader()->defaultAlignment(), Qt::Alignment(Qt::AlignCenter));
+    QHeaderView *header = table.horizontalHeader();
+    // Qt's stock horizontal header defaults to AlignCenter and the Gallery
+    // table leaves it there; the pinned DataGrid template does not centre.
+    QCOMPARE(header->defaultAlignment(), Qt::Alignment(Qt::AlignCenter));
 
-    const auto render = [&table](QStyleOptionHeader::SortIndicator indicator) {
+    const auto render = [&table, header](QStyleOptionHeader::SortIndicator indicator,
+                                         const QString &text, int section) {
         QStyleOptionHeader option;
-        option.initFrom(table.horizontalHeader());
+        option.initFrom(header);
         option.rect = QRect(0, 0, 180, 32);
-        option.text = QStringLiteral("Control");
-        option.textAlignment = table.horizontalHeader()->defaultAlignment();
+        option.text = text;
+        option.section = section;
+        option.orientation = Qt::Horizontal;
+        option.textAlignment = header->defaultAlignment();
         option.sortIndicator = indicator;
         QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         QPainter painter(&image);
-        table.style()->drawControl(QStyle::CE_Header, &option, &painter, table.horizontalHeader());
+        table.style()->drawControl(QStyle::CE_Header, &option, &painter, header);
         return image;
     };
 
-    const QImage sorted = render(QStyleOptionHeader::SortDown);
-    const QImage unsorted = render(QStyleOptionHeader::None);
+    const QImage sorted = render(QStyleOptionHeader::SortDown, QStringLiteral("Control"), 0);
+    const QImage unsorted = render(QStyleOptionHeader::None, QStringLiteral("Control"), 0);
     QRect difference;
     for (int y = 0; y < sorted.height(); ++y) {
         for (int x = 0; x < sorted.width(); ++x) {
@@ -142,10 +146,31 @@ void WinUI3TableHeaderTest::tableHeaderLabelKeepsLeadingEdgeWithSortColumn()
     }
     // The trailing 32 px sort column may add the glyph and nothing else. The
     // template reserves that column while the header is sortable (Opacity 0
-    // glyph), so the centred label must not jump when a sort starts.
+    // glyph), so the label must not jump when a sort starts.
     const QRect column(180 - 32, 0, 32, 32);
     QVERIFY(!difference.isEmpty());
     QVERIFY(column.contains(difference));
+
+    // The label sits at the template's Padding="12,0,0,0" leading inset, not
+    // at Qt's centred default: the sort column must not push it off-centre
+    // relative to the column edge.
+    const QRect labelInk =
+            opaqueBounds(glyphInk(sorted, render(QStyleOptionHeader::SortDown, QString(), 0)));
+    QVERIFY(!labelInk.isEmpty());
+    QCOMPARE(labelInk.left(), 12);
+    QVERIFY(labelInk.right() < column.left());
+
+    // An explicit TextAlignmentRole still wins over the template default.
+    table.horizontalHeaderItem(0)->setTextAlignment(Qt::AlignRight);
+    const QImage rightAligned = render(QStyleOptionHeader::SortDown, QStringLiteral("Control"), 0);
+    const QRect rightAlignedInk = opaqueBounds(
+            glyphInk(rightAligned, render(QStyleOptionHeader::SortDown, QString(), 0)));
+    QVERIFY(!rightAlignedInk.isEmpty());
+    // Right-aligned ink ends at the content edge (10 px short of the sort
+    // column) instead of the 12 px leading inset.
+    QVERIFY(rightAlignedInk.right() >= column.left() - 11
+            && rightAlignedInk.right() <= column.left() - 9);
+    QVERIFY(rightAlignedInk.left() > labelInk.left());
 }
 
 void WinUI3TableHeaderTest::tableSortIndicatorGeometryContract()

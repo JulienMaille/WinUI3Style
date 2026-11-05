@@ -134,6 +134,29 @@ QRect selectionMarkerRect(const QStyleOptionViewItem &option, const QAbstractIte
     return QRect(viewport.left() + itemSelectionMarkerInset, y, itemSelectionMarkerWidth, 16);
 }
 
+// The pinned DataGrid column header template puts its content in a
+// ContentPresenter with HorizontalAlignment="Left" inside a Grid that carries
+// Padding="12,0,0,0", with the sort icon in a trailing MinWidth="32" column.
+// Qt's horizontal QHeaderView instead defaults to AlignCenter, which leaves a
+// sortable header visibly off-centre once the trailing sort column is
+// reserved. Keep the template's leading edge unless the model publishes an
+// explicit TextAlignmentRole for the section.
+Qt::Alignment headerContentAlignment(const QStyleOptionHeader &header, const QWidget *widget)
+{
+    const auto *view = qobject_cast<const QHeaderView *>(widget);
+    if (view && view->model()) {
+        const QVariant role = view->model()->headerData(header.section, header.orientation,
+                                                        Qt::TextAlignmentRole);
+        if (role.isValid()) {
+            const Qt::Alignment explicitAlignment = Qt::Alignment(role.toInt())
+                    & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
+            if (explicitAlignment)
+                return explicitAlignment;
+        }
+    }
+    return Qt::AlignLeft;
+}
+
 } // namespace
 
 bool calendarNavigationBarWidget(const QWidget *widget)
@@ -1331,8 +1354,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                 else
                     content.setLeft(iconRect.right() + 8);
             }
-            const Qt::Alignment horizontal =
-                    header->textAlignment & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
+            const Qt::Alignment horizontal = headerContentAlignment(*header, widget);
             painter->drawText(
                     content,
                     QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)
