@@ -296,7 +296,8 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         QVERIFY(liveGrab.pixelColor(probeInWindow(nav->viewport(), QPoint(4, rowRect.center().y())))
                         .alpha()
                 != 0);
-        // Palette Lab page: the preview card + editor keep the card tone.
+        // Palette Lab page: the editor keeps its own fill, while the preview
+        // panel stays on the bare material (uniform-mica direction).
         QStackedWidget *nonePages = none.findChild<QStackedWidget *>(QStringLiteral("pages"));
         QScrollArea *nonePalettePage =
                 none.findChild<QScrollArea *>(QStringLiteral("paletteLabPage"));
