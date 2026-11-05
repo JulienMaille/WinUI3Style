@@ -40,6 +40,7 @@
 #include <QStyleOptionViewItem>
 #include <QTableView>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QTreeView>
 #include <QVariant>
 
@@ -1154,8 +1155,21 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->restore();
         } else {
             // Unselected pill veils its hover fill over a live material so
-            // it cannot band or ghost; rest stays transparent.
-            eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+            // it cannot band or ghost; rest stays transparent. A tab bar
+            // hosted by a QTabWidget shares its last row with the pane frame
+            // (PM_TabBarBaseOverlap == 1), and the parent has already painted
+            // the pane's 1 px stroke there. Clearing that row erased the
+            // separator over the material - Collections lost its tab-strip
+            // hairline while NONE kept it - so stop the clear one row short.
+            QRect clearRect = option->rect;
+            const auto *bar = qobject_cast<const QTabBar *>(widget);
+            const bool paneBelow = bar
+                    && (bar->shape() == QTabBar::RoundedNorth
+                        || bar->shape() == QTabBar::TriangularNorth);
+            if (paneBelow && qobject_cast<const QTabWidget *>(bar->parentWidget())
+                && clearRect.height() > 1)
+                clearRect.adjust(0, 0, 0, -1);
+            eraseForBackdrop(painter, widget, clearRect, ControlRadius);
             QColor fill = Qt::transparent;
             if (option->state & QStyle::State_Sunken)
                 fill = veiledCard(t.controlPressed, paintsDirectlyOnBackdrop(widget));
