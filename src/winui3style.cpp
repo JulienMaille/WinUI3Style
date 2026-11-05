@@ -2493,6 +2493,15 @@ void Style::polishWizard(QWidget *widget)
     // theme change refreshes its internal page and command surfaces too.
     widget->setProperty(ownedPaletteProperty, true);
     d->registerPaletteOwner(widget);
+    // Qt <= 6.11 initializes QWizardPrivate::vistaInitPending to true for every
+    // wizard, so the first Show event rewrites wizStyle to AeroStyle even when
+    // styleHint(SH_WizardStyle) answered ModernStyle (fixed in 6.12: the flag is
+    // only set for AeroStyle). AeroStyle moves the content widget down by the
+    // Vista title bar and puts the Back button in the title area, which pushes
+    // the command row - and the footer surface behind it - outside the client
+    // rect. Naming the style we advertise clears the pending flag, so the
+    // modern layout survives the first Show on every Qt version.
+    wizard->setWizardStyle(QWizard::ModernStyle);
     for (QWizard::WizardButton button : { QWizard::NextButton, QWizard::FinishButton }) {
         if (QAbstractButton *primary = wizard->button(button))
             primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));

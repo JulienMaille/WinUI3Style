@@ -166,6 +166,9 @@ void WinUI3DialogsTest::wizardSurfaceContract()
              WinUI3::ControlRole::Accent);
     QCOMPARE(WinUI3::Style::controlRole(wizard.button(QWizard::FinishButton)),
              WinUI3::ControlRole::Accent);
+    // Qt <= 6.11 rewrites wizStyle to AeroStyle on the first Show; the style
+    // re-asserts ModernStyle during polish. See the dark-wizard block below.
+    QCOMPARE(wizard.wizardStyle(), QWizard::ModernStyle);
 
     const QImage image = wizard.grab().toImage();
     const QColor content = first->palette().color(QPalette::Window);
@@ -208,6 +211,13 @@ void WinUI3DialogsTest::wizardSurfaceContract()
     // Pair the pixel below with the geometry that makes it meaningful.
     QTRY_VERIFY(darkFooter->height() >= 24);
     QVERIFY(darkFooter->mapTo(&darkWizard, QPoint(0, 0)).y() < darkWizard.height());
+    // Mechanism guard for the pixel below: Qt <= 6.11 flips a wizard to
+    // AeroStyle on its first Show even when SH_WizardStyle answers ModernStyle,
+    // which offsets the content widget by the Vista title bar and moves the
+    // command row out of the client rect. The style re-asserts ModernStyle in
+    // polish; the content host must therefore still sit at the wizard's top.
+    QCOMPARE(darkWizard.wizardStyle(), QWizard::ModernStyle);
+    QCOMPARE(darkFooter->parentWidget()->mapTo(&darkWizard, QPoint(0, 0)).y(), 0);
     const QImage darkImage = darkWizard.grab().toImage();
     const QPoint darkBodyPixel = darkPage->mapTo(&darkWizard, QPoint(2, darkPage->height() / 2));
     QVERIFY(darkWizard.rect().contains(darkBodyPixel));
