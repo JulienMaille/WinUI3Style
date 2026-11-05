@@ -1334,7 +1334,14 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
     if (element == QStyle::CE_HeaderLabel) {
         if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
             const Tokens t = tokens(option->palette);
-            QRect content = header->rect.adjusted(12, 0, -10, 0);
+            // The template pads the header content only on the leading edge
+            // (Padding="12,0,0,0"); the trailing space comes from the reserved
+            // sort column, not from an extra header inset.
+            QRect content = header->rect;
+            if (header->direction == Qt::RightToLeft)
+                content.adjust(0, 0, -12, 0);
+            else
+                content.adjust(12, 0, 0, 0);
             painter->save();
             QFont font = controlLabelFont(widget);
             font.setWeight(QFont::DemiBold);

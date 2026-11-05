@@ -141,10 +141,12 @@ U+E74A and `SortIconDescending` U+E74B; the column exists for every header
 starts. Header content is a `ContentPresenter` with
 `HorizontalAlignment="Left"` inside the template's `Padding="12,0,0,0"`, so
 column titles are leading-aligned, not centred; Qt's `AlignCenter` default is
-honoured only when the model publishes a `TextAlignmentRole` for the section. Cell text uses symmetric 8 px horizontal padding, matching the common
-Qt/Fusion item-view inset; no official WinUI DataGrid cell-padding metric
-exists. Native model/delegate editing, keyboard selection, column resizing and
-accessibility remain owned by Qt.
+honoured only when the model publishes a `TextAlignmentRole` for the section.
+Cell text uses the pinned `DataGridTextColumn` margins (12 px on both sides,
+`DATAGRIDTEXTCOLUMN_leftMargin`/`_rightMargin` on the generated `TextBlock`),
+the same 12 px as the header's leading padding, so a cell and its header title
+start on one edge. Native model/delegate editing, keyboard selection, column
+resizing and accessibility remain owned by Qt.
 
 RichEditBox shares the common text-control background, border and focused
 underline tokens with TextBox. Normal, pointer-over and focused surface changes

@@ -746,14 +746,17 @@ void WinUI3ViewsTest::itemViewGutterContract()
     tableOption.rect = table.visualRect(tableOption.index);
     const QRect tableText = table.style()->subElementRect(QStyle::SE_ItemViewItemText, &tableOption,
                                                           table.viewport());
-    QCOMPARE(tableText.left(), tableOption.rect.left() + 8);
-    QCOMPARE(tableText.right(), tableOption.rect.right() - 8);
+    // Pinned DataGrid text column: 12 px on both sides
+    // (DataGridTextColumn DATAGRIDTEXTCOLUMN_leftMargin/_rightMargin), the
+    // same leading inset as the column header's Padding="12,0,0,0".
+    QCOMPARE(tableText.left(), tableOption.rect.left() + 12);
+    QCOMPARE(tableText.right(), tableOption.rect.right() - 12);
     QVERIFY(tableText.left() < listText.left());
     tableOption.direction = Qt::RightToLeft;
     const QRect tableTextRtl = table.style()->subElementRect(QStyle::SE_ItemViewItemText,
                                                              &tableOption, table.viewport());
-    QCOMPARE(tableTextRtl.left(), tableOption.rect.left() + 8);
-    QCOMPARE(tableTextRtl.right(), tableOption.rect.right() - 8);
+    QCOMPARE(tableTextRtl.left(), tableOption.rect.left() + 12);
+    QCOMPARE(tableTextRtl.right(), tableOption.rect.right() - 12);
 }
 
 void WinUI3ViewsTest::treeViewContract()

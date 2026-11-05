@@ -12,6 +12,7 @@
 #include <QImage>
 #include <QPainter>
 #include <QStyleOptionHeader>
+#include <QStyleOptionViewItem>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QtTest>
@@ -160,16 +161,30 @@ void WinUI3TableHeaderTest::tableHeaderLabelKeepsLeadingEdgeWithSortColumn()
     QCOMPARE(labelInk.left(), 12);
     QVERIFY(labelInk.right() < column.left());
 
+    // A header and its cells share one leading edge: the template's header
+    // Padding 12 and DataGridTextColumn's 12 px TextBlock margin are the same
+    // number, so a cell must not start 4 px left of its header title.
+    QStyleOptionViewItem cell;
+    cell.initFrom(table.viewport());
+    cell.index = table.model()->index(0, 0);
+    cell.rect = table.visualRect(cell.index);
+    cell.features = QStyleOptionViewItem::HasDisplay;
+    const QRect cellText =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &cell, table.viewport());
+    QVERIFY(cell.rect.isValid());
+    QCOMPARE(cellText.left() - cell.rect.left(), labelInk.left());
+
     // An explicit TextAlignmentRole still wins over the template default.
     table.horizontalHeaderItem(0)->setTextAlignment(Qt::AlignRight);
     const QImage rightAligned = render(QStyleOptionHeader::SortDown, QStringLiteral("Control"), 0);
     const QRect rightAlignedInk = opaqueBounds(
             glyphInk(rightAligned, render(QStyleOptionHeader::SortDown, QString(), 0)));
     QVERIFY(!rightAlignedInk.isEmpty());
-    // Right-aligned ink ends at the content edge (10 px short of the sort
-    // column) instead of the 12 px leading inset.
-    QVERIFY(rightAlignedInk.right() >= column.left() - 11
-            && rightAlignedInk.right() <= column.left() - 9);
+    // Right-aligned ink ends at the content edge (the sort column's left
+    // edge, since the template adds no trailing header inset) instead of the
+    // 12 px leading inset.
+    QVERIFY(rightAlignedInk.right() >= column.left() - 2
+            && rightAlignedInk.right() <= column.left());
     QVERIFY(rightAlignedInk.left() > labelInk.left());
 }
 
