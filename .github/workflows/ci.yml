@@ -285,6 +285,19 @@ jobs:
           # we need; the next step greps the full log.
           ctest --test-dir build -C $env:BUILD_CONFIGURATION --output-on-failure -V -LE native 2>&1 |
             Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
+      - name: Show failing assertions
+        if: failure()
+        shell: pwsh
+        run: |
+          # The step above only echoes the last 30 lines, which hides which
+          # assertion failed. The full -V stream is in ctest-verbose.log, so
+          # print the failure contexts from it here.
+          if (-not (Test-Path ctest-verbose.log)) {
+            Write-Output 'no ctest-verbose.log was written'
+            exit 0
+          }
+          Select-String -Path ctest-verbose.log -Pattern 'FAIL!|Received signal|Totals:' -Context 3,3 |
+            Select-Object -First 40 | Out-String -Width 400
       - name: Rerun failed binaries with QtTest -v2
         if: failure()
         shell: pwsh
@@ -293,7 +306,7 @@ jobs:
           $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
           $config = $env:BUILD_CONFIGURATION
-          foreach ($t in @('winui3style_icons_tests', 'winui3style_menus_tests', 'winui3style_editors_tests')) {
+          foreach ($t in @('winui3style_icons_tests', 'winui3style_menus_tests', 'winui3style_editors_tests', 'winui3style_dialogs_tests')) {
             Write-Output "===== $t per-function ====="
             $funcs = & "build/tests/$config/$t.exe" -functions 2>&1
             $listCode = $LASTEXITCODE
