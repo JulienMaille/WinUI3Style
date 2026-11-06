@@ -725,6 +725,7 @@ bool coveredControl(QStyle::ControlElement element)
     case QStyle::CE_MenuItem:
     case QStyle::CE_SizeGrip:
     case QStyle::CE_RubberBand:
+    case QStyle::CE_ToolBoxTab:
         return true;
     default:
         return false;

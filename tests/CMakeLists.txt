@@ -221,6 +221,16 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_keysequenceedit_tests winui3styleplugin)
 endif()
 
+# QToolBox accordion header (WinUI Expander mapping; Qt owns the row height).
+add_executable(winui3style_toolbox_tests tst_winui3toolbox.cpp)
+target_include_directories(winui3style_toolbox_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_toolbox_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_toolbox_tests winui3styleplugin)
+endif()
+
 # Mica backdrop regression binary (60 KB cap: surfaces/views have no
 # headroom). Same shape as winui3style_scrollbarcard_tests: links the public
 # library plus Qt Test/Widgets, resolves private test seams via the src
@@ -455,6 +465,8 @@ add_test(NAME winui3style_rubberband_unit
          COMMAND winui3style_rubberband_tests)
 add_test(NAME winui3style_keysequenceedit_unit
          COMMAND winui3style_keysequenceedit_tests)
+add_test(NAME winui3style_toolbox_unit
+         COMMAND winui3style_toolbox_tests)
 add_test(NAME winui3style_micabackdrop_unit
          COMMAND winui3style_micabackdrop_tests)
 add_test(NAME winui3style_micatheme_unit
@@ -489,7 +501,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons buttonpress toggles views alternateviews tabs apppalette menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe rubberband keysequenceedit)
+foreach(_suffix IN ITEMS buttons buttonpress toggles views alternateviews tabs apppalette menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe rubberband keysequenceedit toolbox)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )

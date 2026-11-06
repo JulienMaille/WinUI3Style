@@ -25,6 +25,7 @@
 #include <QStyleFactory>
 #include <QTableWidgetItem>
 #include <QTimer>
+#include <QToolBox>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -183,6 +184,18 @@ void GalleryWindow::configureGallery()
             makeAutoSuggestCompleter(autoSuggestWords, ui->standardDensityAutoSuggest));
     ui->compactDensityAutoSuggest->setCompleter(
             makeAutoSuggestCompleter(autoSuggestWords, ui->compactDensityAutoSuggest));
+
+    // QToolBox -> WinUI Expander accordion: three pages so the live pass can
+    // compare open/closed headers, hover/press on the chevron, and the shared
+    // card surface Qt builds from each page button's own palette role.
+    const QStringList expanderPages = { tr("Expander one"), tr("Expander two"),
+                                        tr("Expander three") };
+    for (const QString &title : expanderPages) {
+        auto *body = new QLabel(tr("ExpandDown body — Qt owns this page surface."), this);
+        body->setContentsMargins(16, 8, 16, 8);
+        ui->expandToolBox->addItem(body, title);
+    }
+    ui->expandToolBox->setCurrentIndex(0);
 
     const auto icon = [this](QStyle::StandardPixmap pixmap) {
         return style()->standardIcon(pixmap, nullptr, this);
