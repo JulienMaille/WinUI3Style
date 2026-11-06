@@ -1063,6 +1063,36 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                      QPainter *painter, const QWidget *widget,
                      const TableEditorOverlap &tableEditorOverlap)
 {
+    if (element == QStyle::CE_RubberBand) {
+        if (const auto *band = qstyleoption_cast<const QStyleOptionRubberBand *>(option)) {
+            const Tokens t = tokens(option->palette);
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, false);
+            // No WinUI XAML element covers a marquee: WinUI has no rubber
+            // band, and the style's own selection language is the neutral
+            // item layer plus the accent marker (QPalette::Highlight). Reuse
+            // that accent so the marquee belongs to the same family, at 20%
+            // so the rows it sweeps stay readable.
+            QColor fill = t.selectionAccent;
+            fill.setAlpha(band->opaque ? 255 : 51);
+            if (band->shape == QRubberBand::Rectangle) {
+                const QRect body = option->rect.adjusted(1, 1, -1, -1);
+                if (body.isValid()) {
+                    painter->fillRect(body, fill);
+                    painter->setPen(QPen(t.selectionAccent, 1));
+                    painter->setBrush(Qt::NoBrush);
+                    painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
+                }
+            } else {
+                painter->setPen(QPen(t.selectionAccent, 1));
+                painter->drawLine(option->rect.topLeft(), option->rect.bottomRight());
+            }
+            painter->restore();
+            return true;
+        }
+        return false;
+    }
+
     if (element == QStyle::CE_TabBarTab) {
         if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option)) {
             style->drawControl(QStyle::CE_TabBarTabShape, tab, painter, widget);

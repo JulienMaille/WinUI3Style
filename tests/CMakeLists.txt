@@ -198,6 +198,18 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_tableheader_tests winui3styleplugin)
 endif()
 
+# Rubber-band marquee contract (consistency extension; WinUI has no rubber
+# band). Separate binary so the views file keeps its headroom under the 60 KB
+# ratchet.
+add_executable(winui3style_rubberband_tests tst_winui3rubberband.cpp)
+target_include_directories(winui3style_rubberband_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_link_libraries(winui3style_rubberband_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_rubberband_tests winui3styleplugin)
+endif()
+
 # Mica backdrop regression binary (60 KB cap: surfaces/views have no
 # headroom). Same shape as winui3style_scrollbarcard_tests: links the public
 # library plus Qt Test/Widgets, resolves private test seams via the src
@@ -428,6 +440,8 @@ add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
 add_test(NAME winui3style_tableheader_unit
          COMMAND winui3style_tableheader_tests)
+add_test(NAME winui3style_rubberband_unit
+         COMMAND winui3style_rubberband_tests)
 add_test(NAME winui3style_micabackdrop_unit
          COMMAND winui3style_micabackdrop_tests)
 add_test(NAME winui3style_micatheme_unit
@@ -462,7 +476,7 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons buttonpress toggles views alternateviews tabs apppalette menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe)
+foreach(_suffix IN ITEMS buttons buttonpress toggles views alternateviews tabs apppalette menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe rubberband)
     set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
         ENVIRONMENT "${_winui3style_test_environment}"
     )
