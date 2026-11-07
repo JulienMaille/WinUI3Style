@@ -155,8 +155,8 @@ void WinUI3DialogsTest::messageBoxRichTextLabelsDoNotOverlap()
     QMessageBox dialog(QMessageBox::Information, QStringLiteral("WinUI 3 Style"), {},
                        QMessageBox::No | QMessageBox::Yes);
     dialog.setTextFormat(Qt::RichText);
-    dialog.setText(QStringLiteral(
-            "<h3>Version 0.1.0 of WinUI 3 Style has been<br/>released!</h3>"));
+    dialog.setText(
+            QStringLiteral("<h3>Version 0.1.0 of WinUI 3 Style has been<br/>released!</h3>"));
     dialog.setInformativeText(QStringLiteral(
             "Would you like to download the update now?<br/><br/>"
             "<strong>Change log:</strong><br/>"

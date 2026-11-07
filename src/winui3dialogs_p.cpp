@@ -406,7 +406,7 @@ private:
                     informativeLabel->move(informativeLabel->x(),
                                            informativeLabel->y() + verticalOffset);
                 if (icon && icon->isVisible())
-                    icon->move(icon->x(), icon->y() + verticalOffset);
+                    icon->move(icon->x(), contentCenter - icon->rect().center().y());
             }
         }
     }

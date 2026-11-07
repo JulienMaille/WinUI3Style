@@ -293,10 +293,10 @@ void GalleryWindow::configureGallery()
                            QMessageBox::No | QMessageBox::Yes, this);
         dialog.setTextFormat(Qt::RichText);
         dialog.setText(tr("<h3>Version 0.1.0 of WinUI 3 Style has been released!</h3>"));
-        dialog.setInformativeText(tr(
-                "Would you like to download the update now?<br/><br/>"
-                "<strong>Change log:</strong><br/>"
-                "Improved rich-text message layout, content spacing, and footer alignment."));
+        dialog.setInformativeText(
+                tr("Would you like to download the update now?<br/><br/>"
+                   "<strong>Change log:</strong><br/>"
+                   "Improved rich-text message layout, content spacing, and footer alignment."));
         dialog.setDefaultButton(QMessageBox::Yes);
         dialog.exec();
     });
