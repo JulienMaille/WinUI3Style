@@ -12,6 +12,7 @@
 #include <QDialogButtonBox>
 #include <QDockWidget>
 #include <QEvent>
+#include <QFont>
 #include <QImage>
 #include <QLabel>
 #include <QLayout>
@@ -21,6 +22,7 @@
 #include <QPalette>
 #include <QPoint>
 #include <QPointer>
+#include <QResizeEvent>
 #include <QSize>
 #include <QStyle>
 #include <QStyleOptionDockWidget>
@@ -42,6 +44,7 @@ private slots:
 
     void contentDialogContract();
     void messageBoxContentDialogContract();
+    void messageBoxRichTextLabelsDoNotOverlap();
     void wizardSurfaceContract();
     void wizardUsesModernStyleHint();
     void wizardOpenThemeSwitchLifecycle();
@@ -142,6 +145,58 @@ void WinUI3DialogsTest::messageBoxContentDialogContract()
     QVERIFY(label);
     QCOMPARE(label->focusPolicy(), Qt::NoFocus);
     QVERIFY(dialog.button(QMessageBox::Ok)->hasFocus());
+}
+
+void WinUI3DialogsTest::messageBoxRichTextLabelsDoNotOverlap()
+{
+    // Reproducer for issue #51: QMessageBox keeps its title and informative
+    // text in separate labels. A wrapped rich-text heading must not be moved
+    // into the informative label when the ContentDialog body is centered.
+    QMessageBox dialog(QMessageBox::Information, QStringLiteral("WinUI 3 Style"), {},
+                       QMessageBox::No | QMessageBox::Yes);
+    dialog.setTextFormat(Qt::RichText);
+    dialog.setText(QStringLiteral(
+            "<h3>Version 0.1.0 of WinUI 3 Style has been<br/>released!</h3>"));
+    dialog.setInformativeText(QStringLiteral(
+            "Would you like to download the update now?<br/><br/>"
+            "<strong>Change log:</strong><br/>"
+            "Improved rich-text message layout, content spacing, and footer alignment."));
+    dialog.setDefaultButton(QMessageBox::Yes);
+    QFont messageFont = dialog.font();
+    messageFont.setPointSize(12);
+    dialog.setFont(messageFont);
+    dialog.show();
+    QTRY_VERIFY(dialog.isVisible());
+    // The report's approximately 835x502 window and larger app font leave
+    // excess body height and exercise the footer sync's centering path.
+    dialog.setMinimumSize(640, 402);
+    QTRY_COMPARE(dialog.size(), QSize(640, 402));
+
+    auto *heading = dialog.findChild<QLabel *>(QStringLiteral("qt_msgbox_label"));
+    auto *details = dialog.findChild<QLabel *>(QStringLiteral("qt_msgbox_informativelabel"));
+    QVERIFY(heading);
+    QVERIFY(details);
+    QTRY_VERIFY(heading->isVisible());
+    QTRY_VERIFY(details->isVisible());
+    QVERIFY2(!heading->geometry().intersects(details->geometry()),
+             "message heading overlaps the informative text");
+    const int headingIndex = dialog.layout()->indexOf(heading);
+    const int detailsIndex = dialog.layout()->indexOf(details);
+    QVERIFY(headingIndex >= 0);
+    QVERIFY(detailsIndex >= 0);
+    const int headingLayoutY = dialog.layout()->itemAt(headingIndex)->geometry().y();
+    const int detailsLayoutY = dialog.layout()->itemAt(detailsIndex)->geometry().y();
+    // Simulate the title-label geometry update that arrives before the queued
+    // footer sync on the affected QMessageBox layout. The sync may translate
+    // the text block, but must preserve the relative gap between its labels.
+    const int gapBeforeSync = details->geometry().top() - heading->geometry().bottom();
+    heading->move(heading->x(), heading->y() + 24);
+    const QSize size = dialog.size();
+    QResizeEvent resizeEvent(size, size + QSize(1, 0));
+    QCoreApplication::sendEvent(&dialog, &resizeEvent);
+    QTRY_COMPARE(details->geometry().top() - heading->geometry().bottom(), gapBeforeSync);
+    // Keep both labels tied to their layout rows after the sync settles.
+    QCOMPARE(heading->y() - headingLayoutY, details->y() - detailsLayoutY);
 }
 
 void WinUI3DialogsTest::wizardSurfaceContract()
