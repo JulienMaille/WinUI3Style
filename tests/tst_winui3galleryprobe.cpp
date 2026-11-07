@@ -19,6 +19,7 @@
 #include <QCommandLinkButton>
 #include <QCalendarWidget>
 #include <QDateEdit>
+#include <QFrame>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
@@ -47,6 +48,7 @@ private slots:
     void galleryStaleReapplyAfterDisable();
     void gallerySnapshotPinsAndRestoresCalendarDate();
     void galleryComparisonStyleAvailabilityAndRestore();
+    void gallerySettingsExpanderAnimates();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -625,6 +627,41 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
     QCOMPARE(calendar->selectedDate(), originalDate);
     QCOMPARE(calendar->yearShown(), 2034);
     QCOMPARE(calendar->monthShown(), 7);
+}
+
+void WinUI3GalleryProbeTest::gallerySettingsExpanderAnimates()
+{
+    // The Designer composition must animate, not jump: click the Advanced
+    // header in the real gallery and sample the expansion mid-flight.
+    QVERIFY(!qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS"));
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("pages"));
+    auto *settingsPage = window.findChild<QScrollArea *>(QStringLiteral("settingsPage"));
+    auto *card = window.findChild<QFrame *>(QStringLiteral("advancedCard"));
+    auto *header = window.findChild<QWidget *>(QStringLiteral("advancedHeader"));
+    auto *details = window.findChild<QWidget *>(QStringLiteral("advancedDetailsHost"));
+    QVERIFY(pages && settingsPage && card && header && details);
+    pages->setCurrentWidget(settingsPage);
+    qApp->processEvents();
+
+    QCOMPARE(card->property(WinUI3::Style::SettingsCardProperty).toBool(), true);
+    QCOMPARE(card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), false);
+    QCOMPARE(details->maximumHeight(), 0);
+    const int contentHeight = details->sizeHint().height();
+    QVERIFY(contentHeight > 0);
+
+    const QPoint clickPoint(header->geometry().center().x(), header->geometry().center().y());
+    QTest::mouseClick(card, Qt::LeftButton, Qt::NoModifier, clickPoint);
+    QTest::qWait(80);
+    const qreal mid = frameReal(card, "_winui_card_expansion_progress");
+    QVERIFY2(mid > 0.0 && mid < 1.0, qPrintable(QString::number(mid)));
+    QVERIFY2(details->maximumHeight() > 0 && details->maximumHeight() < contentHeight,
+             qPrintable(QString::number(details->maximumHeight())));
+    QTRY_COMPARE_WITH_TIMEOUT(frameReal(card, "_winui_card_expansion_progress"), 1.0, 1500);
+    QCOMPARE(details->maximumHeight(), contentHeight);
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)
