@@ -24,7 +24,8 @@ public:
         setAttribute(Qt::WA_NoSystemBackground);
         setAttribute(Qt::WA_TransparentForMouseEvents);
         setObjectName(QStringLiteral("_winui_animated_stack_overlay"));
-        const QImage image = m_pixmap.toImage();
+        const QPixmap corner = m_pixmap.copy(0, 0, 1, 1);
+        const QImage image = corner.toImage();
         m_background = image.isNull() ? palette().color(QPalette::Window) : image.pixelColor(0, 0);
         // Gate the opaque fallback: over a live material a translucent
         // snapshot must keep its translucency, otherwise the fill below

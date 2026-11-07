@@ -65,6 +65,7 @@ add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     winui3viewrenderers_p.h
     winui3viewrenderers_p.cpp
     winui3tokens_p.h
+    winui3settingscardmotion_p.h
     navigationview_p.h
     navigationview_p.cpp
     winui3backdrop_p.h

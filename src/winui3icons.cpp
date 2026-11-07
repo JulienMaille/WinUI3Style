@@ -20,6 +20,68 @@
 #include <atomic>
 
 namespace WinUI3 {
+
+struct IconPixmapCacheKey
+{
+    int glyph = 0;
+    quint64 variant = 0;
+    int logicalWidth = 0;
+    int logicalHeight = 0;
+    int physicalWidth = 0;
+    int physicalHeight = 0;
+    qreal devicePixelRatio = 1.0;
+    quint64 rgba64 = 0;
+    int mode = 0;
+    int state = 0;
+
+    bool operator==(const IconPixmapCacheKey &other) const
+    {
+        return glyph == other.glyph && variant == other.variant
+                && logicalWidth == other.logicalWidth && logicalHeight == other.logicalHeight
+                && physicalWidth == other.physicalWidth && physicalHeight == other.physicalHeight
+                && devicePixelRatio == other.devicePixelRatio && rgba64 == other.rgba64
+                && mode == other.mode && state == other.state;
+    }
+};
+
+struct ColoredIconCacheKey
+{
+    int glyph = 0;
+    quint64 rgba64 = 0;
+
+    bool operator==(const ColoredIconCacheKey &other) const
+    {
+        return glyph == other.glyph && rgba64 == other.rgba64;
+    }
+};
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+size_t qHash(const IconPixmapCacheKey &key, size_t seed = 0)
+#else
+uint qHash(const IconPixmapCacheKey &key, uint seed = 0)
+#endif
+{
+    seed = ::qHash(key.glyph, seed);
+    seed = ::qHash(key.variant, seed);
+    seed = ::qHash(key.logicalWidth, seed);
+    seed = ::qHash(key.logicalHeight, seed);
+    seed = ::qHash(key.physicalWidth, seed);
+    seed = ::qHash(key.physicalHeight, seed);
+    seed = ::qHash(key.devicePixelRatio, seed);
+    seed = ::qHash(key.rgba64, seed);
+    seed = ::qHash(key.mode, seed);
+    return ::qHash(key.state, seed);
+}
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+size_t qHash(const ColoredIconCacheKey &key, size_t seed = 0)
+#else
+uint qHash(const ColoredIconCacheKey &key, uint seed = 0)
+#endif
+{
+    return ::qHash(key.rgba64, ::qHash(key.glyph, seed));
+}
+
 namespace {
 
 constexpr auto fluentIconNamePrefix = "winui3-fluent-icon:";
@@ -31,11 +93,6 @@ constexpr int MaxFontCacheCost = 64;
 // while still avoiding a QIconEngine allocation for every paint event.
 constexpr int MaxColoredIconCacheCost = 256;
 std::atomic<int> forcedSegoeFontAvailability{ -1 };
-
-QString colorKey(const QColor &color)
-{
-    return QString::number(quint64(color.rgba64()), 16);
-}
 
 QString codePointString(Icon icon, bool hasSegoeFont)
 {
@@ -356,7 +413,6 @@ void paintVectorFallback(QPainter *painter, const QRect &rect, Icon icon, const 
 struct ParsedFluentIcon
 {
     Icon glyph = Icon::Add;
-    QString variant;
 };
 
 bool parseFluentIconName(const QString &name, ParsedFluentIcon *parsed)
@@ -366,8 +422,9 @@ bool parseFluentIconName(const QString &name, ParsedFluentIcon *parsed)
         return false;
 
     const int variantSeparator = name.indexOf(QLatin1Char(':'), prefix.size());
-    const int numberLength =
-            variantSeparator >= 0 ? variantSeparator - prefix.size() : name.size() - prefix.size();
+    const int numberLength = variantSeparator >= 0
+            ? variantSeparator - prefix.size()
+            : name.size() - prefix.size();
     bool ok = false;
     const int value = name.mid(prefix.size(), numberLength).toInt(&ok);
     if (!ok || value < 0 || value >= fluentIconCount)
@@ -375,7 +432,6 @@ bool parseFluentIconName(const QString &name, ParsedFluentIcon *parsed)
 
     if (parsed) {
         parsed->glyph = static_cast<Icon>(value);
-        parsed->variant = variantSeparator >= 0 ? name.mid(variantSeparator + 1) : QString();
     }
     return true;
 }
@@ -462,9 +518,9 @@ public:
     bool fontFamilyResolvedForTest() const { return m_fontFamilyResolved; }
     void invalidateForTest() { invalidate(); }
 
-    QPixmap *findPixmap(const QString &key) { return m_pixmaps.object(key); }
+    QPixmap *findPixmap(const IconPixmapCacheKey &key) { return m_pixmaps.object(key); }
 
-    void insertPixmap(const QString &key, const QPixmap &pixmap)
+    void insertPixmap(const IconPixmapCacheKey &key, const QPixmap &pixmap)
     {
         const qint64 bytes = qint64(pixmap.width()) * pixmap.height() * 4;
         if (bytes <= 0 || bytes > qint64(MaxPixmapCacheCost) * 1024)
@@ -473,9 +529,9 @@ public:
         m_pixmaps.insert(key, new QPixmap(pixmap), cost);
     }
 
-    QIcon *findColoredIcon(const QString &key) { return m_coloredIcons.object(key); }
+    QIcon *findColoredIcon(const ColoredIconCacheKey &key) { return m_coloredIcons.object(key); }
 
-    void insertColoredIcon(const QString &key, const QIcon &icon)
+    void insertColoredIcon(const ColoredIconCacheKey &key, const QIcon &icon)
     {
         m_coloredIcons.insert(key, new QIcon(icon));
     }
@@ -496,8 +552,8 @@ private:
     bool m_fontFamilyResolved = false;
     bool m_hasSegoeFont = false;
     QCache<int, QFont> m_fonts;
-    QCache<QString, QPixmap> m_pixmaps;
-    QCache<QString, QIcon> m_coloredIcons;
+    QCache<IconPixmapCacheKey, QPixmap> m_pixmaps;
+    QCache<ColoredIconCacheKey, QIcon> m_coloredIcons;
 };
 
 IconRuntime &iconRuntime()
@@ -537,35 +593,13 @@ bool canUseGuiCache()
     return application && QThread::currentThread() == application->thread();
 }
 
-QString pixmapKey(const ParsedFluentIcon &parsed, const QSize &logicalSize,
-                  const QSize &physicalSize, qreal devicePixelRatio, const QColor &foreground,
-                  QIcon::Mode mode, QIcon::State state)
-{
-    return QStringLiteral("winui3-fluent-pixmap:%1:%2:%3:%4x%5:%6x%7:%8:%9:%10:%11")
-            .arg(static_cast<int>(parsed.glyph))
-            .arg(parsed.variant)
-            .arg(QString::number(devicePixelRatio, 'g', 17))
-            .arg(logicalSize.width())
-            .arg(logicalSize.height())
-            .arg(physicalSize.width())
-            .arg(physicalSize.height())
-            .arg(colorKey(foreground))
-            .arg(static_cast<int>(mode))
-            .arg(static_cast<int>(state));
-}
-
-QString coloredIconKey(Icon glyph, const QColor &color)
-{
-    return QStringLiteral("winui3-fluent-colored-icon:%1:%2")
-            .arg(static_cast<int>(glyph))
-            .arg(colorKey(color));
-}
-
 class FluentIconEngine final : public QIconEngine
 {
 public:
     explicit FluentIconEngine(Icon icon, const QColor &color = {})
-        : m_icon(icon), m_color(color) { }
+        : m_icon(icon), m_color(color),
+          m_iconName(QString::fromLatin1(fluentIconNamePrefix)
+                     + QString::number(static_cast<int>(icon))) { }
 
     QIconEngine *clone() const override { return new FluentIconEngine(m_icon, m_color); }
 
@@ -575,8 +609,7 @@ public:
     // Qt 6's QIconEngine::iconName() is not const (Qt 5's is).
     QString iconName() override
     {
-        return QString::fromLatin1(fluentIconNamePrefix)
-                + QString::number(static_cast<int>(m_icon));
+        return m_iconName;
     }
 #endif
 
@@ -629,6 +662,7 @@ public:
 private:
     Icon m_icon;
     QColor m_color;
+    QString m_iconName;
 };
 
 const QIcon &cachedIcon(Icon glyph)
@@ -718,7 +752,7 @@ QIcon icon(Icon glyph, const QColor &color)
 
     IconRuntime &runtime = iconRuntime();
     runtime.syncApplication();
-    const QString key = coloredIconKey(glyph, color);
+    const ColoredIconCacheKey key{ static_cast<int>(glyph), quint64(color.rgba64()) };
     if (QIcon *cached = runtime.findColoredIcon(key))
         return *cached;
 
@@ -751,16 +785,20 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size, qreal devicePixelRati
     // key and render its source directly to preserve its alpha. The neutral
     // source also carries the application WindowText alpha; include the
     // application palette identity so a palette change cannot reuse it.
+    quint64 variant = 0;
     if (!neutralSource) {
-        parsed.variant = QString::number(source.cacheKey(), 16);
+        variant = quint64(source.cacheKey());
     } else if (auto *application = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
-        parsed.variant = QString::number(application->palette().cacheKey(), 16);
+        variant = quint64(application->palette().cacheKey());
     }
 
     const QSize physicalSize(qMax(1, qRound(size.width() * devicePixelRatio)),
                              qMax(1, qRound(size.height() * devicePixelRatio)));
-    const QString key =
-            pixmapKey(parsed, size, physicalSize, devicePixelRatio, foreground, mode, state);
+    const IconPixmapCacheKey key{ static_cast<int>(parsed.glyph), variant,
+                                  size.width(), size.height(),
+                                  physicalSize.width(), physicalSize.height(),
+                                  devicePixelRatio, quint64(foreground.rgba64()),
+                                  static_cast<int>(mode), static_cast<int>(state) };
     if (!canUseGuiCache())
         return Private::iconPixmap(source, size, devicePixelRatio, mode, state);
 

@@ -13,6 +13,7 @@
 #include "winui3lineedithelpers_p.h"
 #include "winui3popupsurface_p.h"
 #include "winui3tokens_p.h"
+#include "winui3settingscardmotion_p.h"
 
 #include <winui3style/winui3style.h>
 
@@ -446,15 +447,10 @@ void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool exp
     auto *animation = new QVariantAnimation(card);
     animation->setStartValue(current);
     animation->setEndValue(expand ? 1.0 : 0.0);
-    // SettingsExpander.xaml: expand runs 0.333 s on the 0,0,0,1 spline,
-    // collapse 0.167 s on 1,1,0,1.
-    animation->setDuration(expand ? 333 : 167);
-    QEasingCurve curve(QEasingCurve::BezierSpline);
-    if (expand)
-        curve.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
-    else
-        curve.addCubicBezierSegment(QPointF(1.0, 1.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
-    animation->setEasingCurve(curve);
+    // SettingsExpander.xaml: asymmetric expand/collapse motion is shared with
+    // the compiled SettingsCard implementation.
+    animation->setDuration(settingsExpanderDuration(expand));
+    animation->setEasingCurve(settingsExpanderCurve(expand));
     QObject::connect(animation, QOverload<const QVariant &>::of(&QVariantAnimation::valueChanged),
                      card, [guardedCard, guardedHost, contentHeight](const QVariant &value) {
                          if (!guardedCard || !guardedHost)

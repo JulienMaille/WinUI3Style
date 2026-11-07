@@ -13,6 +13,7 @@ class QGridLayout;
 class QHideEvent;
 class QKeyEvent;
 class QMouseEvent;
+class QPaintEvent;
 class QPoint;
 class QResizeEvent;
 class QShowEvent;
@@ -86,6 +87,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
@@ -93,7 +95,7 @@ private:
     void setExpansionProgress(qreal progress);
     bool headerContains(const QPoint &position) const;
     void refreshIconPixmap();
-    void refreshChevronPixmap();
+    void refreshChevronState();
     void invalidateExpandableHeight();
     void scheduleExpandableHeightRefresh();
     void updateInteractivity();

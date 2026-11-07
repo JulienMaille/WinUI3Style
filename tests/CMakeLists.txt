@@ -352,11 +352,9 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
             -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_micanative.txt,txt -o -,txt)
 endif()
 
-# On Windows the executable directory is searched before PATH. Keep the
-# runtime DLL beside every linked test executable so an old manual copy can
-# never shadow the library that was just rebuilt.
-if(WIN32 AND NOT WINUI3STYLE_STATIC)
-    set(_winui3style_linked_test_targets
+# Test executables linked to WinUI3::Widgets. Keep this as the source of truth
+# for both the Windows runtime DLL copy and the common test environment.
+set(_winui3style_linked_test_targets
         winui3style_buttons_tests
         winui3style_buttonpress_tests
         winui3style_toggles_tests
@@ -387,7 +385,14 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         winui3style_micabackdrop_tests
         winui3style_micatheme_tests
         winui3style_micacard_tests
-        winui3style_galleryprobe_tests)
+        winui3style_galleryprobe_tests
+        winui3style_rubberband_tests
+        winui3style_keysequenceedit_tests
+        winui3style_toolbox_tests)
+# On Windows the executable directory is searched before PATH. Keep the
+# runtime DLL beside every linked test executable so an old manual copy can
+# never shadow the library that was just rebuilt.
+if(WIN32 AND NOT WINUI3STYLE_STATIC)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_micanative_tests)
         list(APPEND _winui3style_linked_test_targets winui3style_native_tests)
@@ -501,10 +506,13 @@ if(WIN32)
     string(REPLACE ";" "\\;" _winui3style_test_path "${_winui3style_test_path}")
     list(APPEND _winui3style_test_environment "PATH=${_winui3style_test_path}")
 endif()
-foreach(_suffix IN ITEMS buttons buttonpress toggles views alternateviews tabs apppalette menus editors combobox surfaces dialogs interaction settingscard animatedstack settings navigation micabackdrop micatheme micacard galleryprobe rubberband keysequenceedit toolbox)
-    set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
-        ENVIRONMENT "${_winui3style_test_environment}"
-    )
+foreach(_target IN LISTS _winui3style_linked_test_targets)
+    string(REGEX REPLACE "^winui3style_" "" _suffix "${_target}")
+    string(REGEX REPLACE "_tests$" "" _suffix "${_suffix}")
+    if(TEST winui3style_${_suffix}_unit)
+        set_tests_properties(winui3style_${_suffix}_unit PROPERTIES
+            ENVIRONMENT "${_winui3style_test_environment}")
+    endif()
 endforeach()
 
 # Phase 4 gate: an element a renderer claims must be listed in

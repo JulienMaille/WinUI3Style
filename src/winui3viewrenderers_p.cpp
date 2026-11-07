@@ -444,7 +444,6 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             // already keeps for the frame; the chevron stays centered on the
             // header, not on the whole expanded card.
             constexpr int chevronButtonSize = 32;
-            constexpr int chevronGlyphSize = 16;
             constexpr int chevronTrailingMargin = 8;
             const int headerHeight =
                     qBound(0, settingsCardHeaderHeight(widget), option->rect.height());
@@ -461,9 +460,9 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
             PaintPrivate::paintRotatedIcon(
                     painter, WinUI3::icon(WinUI3::Icon::ChevronDown, foreground),
-                    QRectF(chevronBox.center().x() - chevronGlyphSize / 2,
-                           chevronBox.center().y() - chevronGlyphSize / 2, chevronGlyphSize,
-                           chevronGlyphSize),
+                    QRectF(chevronBox.center().x() - SettingsExpanderChevronGlyphSize / 2,
+                           chevronBox.center().y() - SettingsExpanderChevronGlyphSize / 2,
+                           SettingsExpanderChevronGlyphSize, SettingsExpanderChevronGlyphSize),
                     angle, foreground, enabled ? QIcon::Normal : QIcon::Disabled);
         }
         return true;

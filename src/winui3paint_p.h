@@ -11,6 +11,12 @@ class QPainter;
 
 namespace WinUI3::PaintPrivate {
 
+// Private style entry used by the compiled SettingsCard to delegate its
+// continuously rotating chevron to QStyle without constructing rotated
+// pixmaps or adding a custom child widget.
+inline constexpr QStyle::PrimitiveElement SettingsCardChevronPrimitive =
+        static_cast<QStyle::PrimitiveElement>(QStyle::PE_CustomBase + 1);
+
 // Stateless drawing and device-pixel alignment primitives shared by the
 // style facade and private item delegates. Keeping these here avoids each
 // rendering path growing a subtly different copy of the same operation.

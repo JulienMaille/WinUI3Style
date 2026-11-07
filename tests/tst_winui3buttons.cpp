@@ -560,6 +560,10 @@ void WinUI3ButtonsTest::iconPixmapCacheDprAndPalette()
     QCOMPARE(first.size(), QSize(30, 30));
     QCOMPARE(first.toImage(), second.toImage());
 
+    const QPixmap differentForeground =
+            WinUI3::iconPixmap(fluent, QSize(20, 20), 1.5, QColor(210, 40, 30, 211));
+    QVERIFY(differentForeground.toImage() != first.toImage());
+
     const QPixmap differentDpr = WinUI3::iconPixmap(fluent, QSize(20, 20), 2.0, foreground);
     QVERIFY(!differentDpr.isNull());
     QCOMPARE(differentDpr.devicePixelRatioF(), 2.0);

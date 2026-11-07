@@ -17,6 +17,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
+#include "../src/winui3settingscardmotion_p.h"
 #include "../src/winui3style_properties_p.h"
 #include "../src/winui3tokens_p.h"
 
@@ -352,8 +353,33 @@ void WinUI3SettingsCardTest::settingsCardChevronAndStableHeader()
                                trailing->size());
     QVERIFY(!chevronInCard.intersects(trailingInCard));
 
+    // The compiled card delegates rotation to the style's painter transform:
+    // the glyph raster must change at an intermediate angle while its layout
+    // slot and reported state remain stable. This catches a missing paint
+    // dispatch without relying on a whole-card visual baseline.
+    card.setProperty("expansionProgress", 0.0);
+    QCoreApplication::processEvents();
+    QCOMPARE(chevronRotation(), 0.0);
+    QCOMPARE(chevron->geometry().size(), QSize(20, 20));
+    const QImage collapsedGlyph = card.grab().toImage().copy(chevronInCard);
+    card.setProperty("expansionProgress", 0.5);
+    QCoreApplication::processEvents();
+    QCOMPARE(chevronRotation(), 90.0);
+    QCOMPARE(chevron->geometry().size(), QSize(20, 20));
+    const QImage midpointGlyph = card.grab().toImage().copy(chevronInCard);
+    QVERIFY(collapsedGlyph != midpointGlyph);
+    card.setProperty("expansionProgress", 0.0);
+
     const QRect titleGeometry = title->geometry();
     card.setExpanded(true);
+    auto *compiledAnimation = card.findChild<QVariantAnimation *>(
+            QStringLiteral("_winui_settings_card_expansion_animation"));
+    QVERIFY(compiledAnimation);
+    QCOMPARE(WinUI3::Private::SettingsExpanderChevronGlyphSize, 16);
+    QCOMPARE(compiledAnimation->duration(), WinUI3::Private::SettingsExpanderExpandDuration);
+    QCOMPARE(compiledAnimation->easingCurve().type(), QEasingCurve::BezierSpline);
+    QCOMPARE(compiledAnimation->easingCurve().toCubicSpline(),
+             WinUI3::Private::settingsExpanderCurve(true).toCubicSpline());
     QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.0);
     QCOMPARE(title->geometry(), titleGeometry);
 
@@ -364,6 +390,10 @@ void WinUI3SettingsCardTest::settingsCardChevronAndStableHeader()
     QTRY_VERIFY(card.property("expansionProgress").toReal() > 0.99);
     QVERIFY(qAbs(chevronRotation() - card.property("expansionProgress").toReal() * 180.0) < 0.01);
     card.setExpanded(false);
+    QCOMPARE(compiledAnimation->duration(), WinUI3::Private::SettingsExpanderCollapseDuration);
+    QCOMPARE(compiledAnimation->easingCurve().type(), QEasingCurve::BezierSpline);
+    QCOMPARE(compiledAnimation->easingCurve().toCubicSpline(),
+             WinUI3::Private::settingsExpanderCurve(false).toCubicSpline());
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
     // Contract: collapsed 0 deg, expanded 180 deg.
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),

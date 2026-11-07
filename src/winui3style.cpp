@@ -1887,6 +1887,28 @@ QPalette Style::standardPalette() const
 void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter,
                           const QWidget *widget) const
 {
+    if (element == PaintPrivate::SettingsCardChevronPrimitive) {
+        if (!option || !painter || !widget)
+            return;
+        const int glyphValue = widget->property("_winui_settings_card_chevron_glyph").toInt();
+        if (glyphValue < static_cast<int>(Icon::Add)
+            || glyphValue > static_cast<int>(Icon::SortDescending))
+            return;
+        const qreal angle = widget->property("_winui_settings_card_chevron_rotation").toReal();
+        const bool enabled = widget->isEnabled();
+        const Private::Tokens t = Private::tokens(widget->palette());
+        const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
+        QRectF glyphRect(option->rect);
+        glyphRect.setSize(QSizeF(Private::SettingsExpanderChevronGlyphSize,
+                                 Private::SettingsExpanderChevronGlyphSize));
+        glyphRect.moveCenter(QRectF(option->rect).center());
+        PaintPrivate::paintRotatedIcon(
+                painter,
+                WinUI3::icon(static_cast<Icon>(glyphValue), foreground),
+                glyphRect, angle, foreground,
+                enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off);
+        return;
+    }
     if (Private::drawMenuPrimitive(this, element, option, painter, widget))
         return;
     if (Private::drawButtonPrimitive(this, element, option, painter, widget))

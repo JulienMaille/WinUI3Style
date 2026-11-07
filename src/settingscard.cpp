@@ -4,6 +4,8 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3tokens_p.h"
+#include "winui3settingscardmotion_p.h"
+#include "winui3paint_p.h"
 #include "winui3qtcompat_p.h"
 
 #include <QGridLayout>
@@ -15,7 +17,6 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPixmap>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QVariantAnimation>
@@ -24,28 +25,6 @@
 namespace WinUI3 {
 
 namespace {
-
-// WinUI expander chevron rotates 0 -> 180 deg with expansion progress.
-// Local helper (no shared primitive exists): rotate the ChevronDown source
-// so the lane owns a continuous transform instead of swapping Down/Up
-// pixmaps. Square 20 px logical box keeps the rotated glyph unclipped.
-QPixmap rotatedChevronPixmap(const QPixmap &source, qreal angleDegrees)
-{
-    if (source.isNull() || qFuzzyIsNull(angleDegrees))
-        return source;
-    const QSizeF logical = Private::deviceIndependentSize(source);
-    QPixmap rotated(source.size());
-    rotated.setDevicePixelRatio(source.devicePixelRatioF());
-    rotated.fill(Qt::transparent);
-    QPainter painter(&rotated);
-    painter.setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
-    const QPointF center(logical.width() / 2.0, logical.height() / 2.0);
-    painter.translate(center);
-    painter.rotate(angleDegrees);
-    painter.translate(-center);
-    painter.drawPixmap(QPointF(0.0, 0.0), source);
-    return rotated;
-}
 
 } // namespace
 
@@ -95,7 +74,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_titleLabel->setObjectName(QStringLiteral("_winui_settings_card_title"));
     m_descriptionLabel->setObjectName(QStringLiteral("_winui_settings_card_description"));
     m_chevronLabel->setObjectName(QStringLiteral("_winui_settings_card_chevron"));
-    m_chevronLabel->setFixedWidth(20);
+    m_chevronLabel->setFixedSize(20, 20);
     m_chevronLabel->setAlignment(Qt::AlignCenter);
     m_chevronLabel->setVisible(false);
     // Decorative header children let the header host receive the gesture so
@@ -132,7 +111,7 @@ SettingsCard::SettingsCard(QWidget *parent)
             [this](const QVariant &value) { setExpansionProgress(value.toReal()); });
     m_expansionAnimation->setObjectName(QStringLiteral("_winui_settings_card_expansion_animation"));
     updateInteractivity();
-    refreshChevronPixmap();
+    refreshChevronState();
     refreshHeaderGeometry();
 }
 
@@ -183,7 +162,7 @@ void SettingsCard::setIcon(const QIcon &icon)
         return;
     m_icon = icon;
     refreshIconPixmap();
-    refreshChevronPixmap();
+    refreshChevronState();
     m_iconLabel->setVisible(!icon.isNull());
     m_headerWidth = -1;
     refreshHeaderGeometry();
@@ -299,7 +278,7 @@ void SettingsCard::refreshIconPixmap()
     }
 }
 
-void SettingsCard::refreshChevronPixmap()
+void SettingsCard::refreshChevronState()
 {
     if (!m_chevronLabel)
         return;
@@ -315,16 +294,17 @@ void SettingsCard::refreshChevronPixmap()
     const Private::Tokens t = Private::tokens(palette());
     const bool enabled = isEnabled();
     const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
-    // The glyph is transient while the coloured Fluent icon is cached by
-    // glyph and colour. Rendering that stable source directly prevents a
-    // stale neutral-mask pixmap from surviving a Right/Down state change.
-    const QPixmap source =
-            Private::iconPixmap(WinUI3::icon(glyph, foreground), QSize(20, 20), devicePixelRatioF(),
-                                enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off);
-    m_chevronLabel->setPixmap(rotatedChevronPixmap(source, angle));
-    m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", static_cast<int>(glyph));
-    m_chevronLabel->setProperty("_winui_settings_card_chevron_rotation", angle);
+    // Keep state on the stock QLabel child; the style's private primitive
+    // consumes it and applies the continuous rotation directly to the active
+    // painter, so this animation path allocates no rotated QPixmap.
+    const int glyphValue = static_cast<int>(glyph);
+    if (m_chevronLabel->property("_winui_settings_card_chevron_glyph").toInt() != glyphValue)
+        m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", glyphValue);
+    if (!qFuzzyCompare(m_chevronLabel->property("_winui_settings_card_chevron_rotation").toReal() + 1.0,
+                       angle + 1.0))
+        m_chevronLabel->setProperty("_winui_settings_card_chevron_rotation", angle);
     m_chevronLabel->setVisible(m_expandableWidget != nullptr);
+    update();
 }
 
 bool SettingsCard::isCardInteractive() const
@@ -397,7 +377,7 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
                         m_expandableWidget = nullptr;
                         resetExpansionState(true);
                         updateInteractivity();
-                        refreshChevronPixmap();
+                        refreshChevronState();
                         updateGeometry();
                     }
                 });
@@ -405,7 +385,7 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
     }
     invalidateExpandableHeight();
     updateInteractivity();
-    refreshChevronPixmap();
+    refreshChevronState();
     m_headerWidth = -1;
     refreshHeaderGeometry();
     updateGeometry();
@@ -430,8 +410,8 @@ void SettingsCard::setExpanded(bool expanded)
     // so a mid-flight toggle does not jump back to an endpoint.
     m_expansionAnimation->setStartValue(m_expansionProgress);
     m_expansionAnimation->setEndValue(expanded ? 1.0 : 0.0);
-    m_expansionAnimation->setDuration(Private::NormalDuration);
-    m_expansionAnimation->setEasingCurve(QEasingCurve::OutCubic);
+    m_expansionAnimation->setDuration(Private::settingsExpanderDuration(expanded));
+    m_expansionAnimation->setEasingCurve(Private::settingsExpanderCurve(expanded));
     if (Style::animationsAllowed())
         m_expansionAnimation->start();
     else
@@ -462,7 +442,7 @@ void SettingsCard::setExpansionProgress(qreal progress)
         m_expandableHost->setVisible(false);
     // The chevron rotates with the expansion value: every progress tick
     // re-renders the glyph so start/mid/end frames show continuous motion.
-    refreshChevronPixmap();
+    refreshChevronState();
     // The header lives in a fixed-size host. The parent may still relayout to
     // accommodate the animated content, but title/description geometry is
     // independent of that changing height.
@@ -562,7 +542,7 @@ void SettingsCard::resetExpansionState(bool notify)
     m_expandableHost->setVisible(false);
     const bool wasExpanded = m_expanded;
     m_expanded = false;
-    refreshChevronPixmap();
+    refreshChevronState();
     if (notify && wasExpanded)
         emit expandedChanged(false);
 }
@@ -625,7 +605,7 @@ void SettingsCard::changeEvent(QEvent *event)
     if (refreshHeader) {
         m_headerWidth = -1;
         refreshHeaderGeometry();
-        refreshChevronPixmap();
+        refreshChevronState();
     }
 }
 
@@ -635,7 +615,7 @@ void SettingsCard::hideEvent(QHideEvent *event)
         m_expansionAnimation->stop();
         setExpansionProgress(m_expanded ? 1.0 : 0.0);
     }
-    refreshChevronPixmap();
+    refreshChevronState();
     QFrame::hideEvent(event);
 }
 
@@ -651,6 +631,20 @@ void SettingsCard::resizeEvent(QResizeEvent *event)
     QFrame::resizeEvent(event);
     m_headerWidth = -1;
     refreshHeaderGeometry();
+}
+
+void SettingsCard::paintEvent(QPaintEvent *event)
+{
+    QFrame::paintEvent(event);
+    if (!m_expandableWidget || !m_chevronLabel || !m_chevronLabel->isVisible())
+        return;
+
+    QStyleOption option;
+    option.initFrom(this);
+    option.rect = QRect(m_chevronLabel->mapTo(this, QPoint(0, 0)), m_chevronLabel->size());
+    QPainter painter(this);
+    style()->drawPrimitive(PaintPrivate::SettingsCardChevronPrimitive, &option, &painter,
+                           m_chevronLabel);
 }
 
 void SettingsCard::leaveEvent(QEvent *event)
