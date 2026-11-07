@@ -16,8 +16,12 @@ public:
     ~GalleryWindow() override;
     bool saveSnapshots(const QString &directory, const QString &backdrop = QStringLiteral("none"));
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
     void configureGallery();
+    void refreshCardIcons();
     void populateCollections();
     void configurePaletteLab(bool captureMode);
     void setTheme(int index);

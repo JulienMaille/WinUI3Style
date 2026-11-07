@@ -2070,6 +2070,26 @@ void Style::polish(QWidget *widget)
         d->registerPaletteOwner(widget);
     }
     polishSurfacePalette(widget);
+    if (auto *frame = qobject_cast<QFrame *>(widget)) {
+        // Stock SettingsExpander: the style owns the chevron, the header hit
+        // area, focus and the expand/collapse animation. Only the QFrame and
+        // the property-marked content child are needed, so a Designer form
+        // never links the compiled SettingsCard widget.
+        // The compiled SettingsCard is Fixed vertically so a stretched page
+        // gives spare height to its trailing stretch, not to the header band;
+        // mirror that for the stock composition.
+        if (frame->property(SettingsCardProperty).toBool())
+            frame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        if (QWidget *expansion = settingsCardExpansionHost(frame)) {
+            const bool expanded = frame->property(SettingsCardExpandedProperty).toBool();
+            framePropertyRegistry().set(frame, settingsCardExpansionProgressProperty,
+                                        expanded ? 1.0 : 0.0);
+            frame->setFocusPolicy(Qt::StrongFocus);
+            frame->setCursor(Qt::PointingHandCursor);
+            expansion->setVisible(true);
+            expansion->setMaximumHeight(expanded ? QWIDGETSIZE_MAX : 0);
+        }
+    }
     polishWizard(widget);
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);

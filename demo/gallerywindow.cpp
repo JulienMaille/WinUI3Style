@@ -11,7 +11,9 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEvent>
 #include <QEventLoop>
+#include <QFont>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
@@ -123,6 +125,34 @@ GalleryWindow::~GalleryWindow()
     delete ui;
 }
 
+void GalleryWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::PaletteChange)
+        refreshCardIcons();
+}
+
+void GalleryWindow::refreshCardIcons()
+{
+    // SettingsCard header icon: SettingsCardHeaderIconMaxSize 20, drawn from
+    // the style's themed standard icons. A QLabel stores a plain pixmap, so a
+    // theme switch must re-render it or the old ink stays on the new surface.
+    const auto setCardIcon = [this](QLabel *label, QStyle::StandardPixmap pixmap) {
+        label->setPixmap(style()->standardIcon(pixmap, nullptr, this).pixmap(QSize(20, 20)));
+    };
+    setCardIcon(ui->notificationsCardIcon, QStyle::SP_MessageBoxInformation);
+    setCardIcon(ui->updatesCardIcon, QStyle::SP_BrowserReload);
+    setCardIcon(ui->advancedIcon, QStyle::SP_FileDialogDetailedView);
+    // SettingsCardDescriptionFontSize is 12 px in SettingsCard.xaml. uic has
+    // no pixel-size font serialization, so the stock labels get it here.
+    for (QLabel *description : { ui->notificationsCardDescription, ui->updatesCardDescription,
+                                 ui->advancedDescription }) {
+        QFont font = description->font();
+        font.setPixelSize(12);
+        description->setFont(font);
+    }
+}
+
 void GalleryWindow::configureGallery()
 {
     // Let the scroll area honor the embedded QMainWindow/QDockWidget minimum
@@ -210,6 +240,7 @@ void GalleryWindow::configureGallery()
     ui->pinAction->setIcon(icon(QStyle::SP_DialogApplyButton));
     ui->standaloneToolButton->setIcon(icon(QStyle::SP_FileDialogDetailedView));
     ui->splitToolButton->setIcon(icon(QStyle::SP_DirOpenIcon));
+    refreshCardIcons();
     ui->iconCombo->setItemIcon(0, icon(QStyle::SP_FileIcon));
     ui->iconCombo->setItemIcon(1, icon(QStyle::SP_DirIcon));
     auto *buttonMenu = new QMenu(ui->menuButton);

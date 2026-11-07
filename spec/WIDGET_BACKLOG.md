@@ -47,8 +47,10 @@ and visual regression evidence before being promoted to `coverage.md`.
 
 ## Designer-only deployment note
 
-The gallery still instantiates `WinUI3::SettingsCard` as a promoted Designer
-widget. A later compatibility pass should determine whether all examples can
-be represented by a standard `QFrame`/`QGroupBox` with
-`winuiSettingsCard=true`, keeping the style-plugin-only deployment path free of
+The gallery no longer instantiates any compiled WinUI3 widget: the Settings
+page is a plain `QFrame[winuiSettingsCard=true]` composition, the expandable
+card marks its collapsible child with `winuiSettingsCardExpansion=true`, and
+the style owns the chevron, hit area, focus and expansion animation. The
+gallery target links only Qt, so the style-plugin-only deployment path
+(`styles/winui3styleplugin.dll` plus the runtime library) stays free of
 application recompilation requirements.

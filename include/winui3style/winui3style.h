@@ -106,6 +106,13 @@ public:
     static constexpr const char *ToggleSwitchOnTextProperty = "winuiOnText";
     static constexpr const char *ToggleSwitchOffTextProperty = "winuiOffText";
     static constexpr const char *SettingsCardProperty = "winuiSettingsCard";
+    // Stock composition for the expandable card: the card is a plain QFrame
+    // marked with winuiSettingsCard, and the direct child that holds the
+    // collapsible content carries winuiSettingsCardExpansion=true. The style
+    // owns the chevron, the header hit area, focus and the expand/collapse
+    // animation, so a Designer form needs no compiled widget.
+    static constexpr const char *SettingsCardExpansionProperty = "winuiSettingsCardExpansion";
+    static constexpr const char *SettingsCardExpandedProperty = "winuiSettingsCardExpanded";
     static constexpr const char *NavigationViewProperty = "winuiNavigationView";
     static constexpr const char *VerticalSpinButtonsProperty = "winuiVerticalSpinButtons";
     static constexpr const char *ContentDialogProperty = "winuiContentDialog";

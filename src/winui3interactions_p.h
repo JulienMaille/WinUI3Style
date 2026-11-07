@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QPoint>
+#include <QPointer>
 #include <QSet>
 #include <QVariant>
 
@@ -19,6 +20,7 @@ class QSlider;
 class QAbstractItemView;
 class QObject;
 class QEvent;
+class QVariantAnimation;
 class QWidget;
 
 namespace WinUI3 {
@@ -109,10 +111,17 @@ private:
     bool handleResize(QWidget *widget);
     bool handleActionChanged(QWidget *widget);
     bool handleDynamicPropertyChange(QWidget *widget, QEvent *event);
+    // Stock SettingsExpander: click/keyboard collapse, with the animation
+    // owned here so no compiled SettingsCard widget is required.
+    void setSettingsCardExpanded(QWidget *card, bool expand, bool animate);
+    bool handleSettingsCardPress(QWidget *widget, QEvent *event);
+    bool handleSettingsCardRelease(QWidget *widget, QEvent *event);
 
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;
     QSet<QComboBox *> m_comboPressStates;
+    QHash<QWidget *, QPointer<QVariantAnimation>> m_settingsCardExpansions;
+    QSet<QWidget *> m_settingsCardStateWrites;
 };
 
 } // namespace Private

@@ -60,6 +60,22 @@ void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
     painter->drawPixmap(topLeft, pixmap);
 }
 
+void paintRotatedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
+                      qreal angleDegrees, const QColor &foreground, QIcon::Mode mode,
+                      QIcon::State state)
+{
+    if (source.isNull() || rect.isEmpty())
+        return;
+    painter->save();
+    painter->setRenderHint(QPainter::SmoothPixmapTransform);
+    const QPointF center = rect.center();
+    painter->translate(center);
+    painter->rotate(angleDegrees);
+    painter->translate(-center);
+    paintThemedIcon(painter, source, rect, Qt::AlignCenter, foreground, mode, state);
+    painter->restore();
+}
+
 QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds, const QRectF &logical)
 {
     if (direction == Qt::LeftToRight)

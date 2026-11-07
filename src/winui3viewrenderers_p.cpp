@@ -402,21 +402,20 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
 
     if (element == QStyle::CE_ShapedFrame && widget
         && widget->property(WinUI3::Style::SettingsCardProperty).toBool()) {
-        // Card-interactive iff an expandable child is bound: trailing-only
-        // cards (Notifications/Updates) keep the resting control fill and
-        // never show hover/press. The expandable child lives under the
-        // _winui_settings_card_expandableHost, so presence of that host's
-        // layout marks interactivity without including settingscard.h here.
-        const QWidget *host =
-                widget->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
-        const bool interactive = host && host->layout() && host->layout()->count() > 0;
+        // Card-interactive iff an expandable child is present. The compiled
+        // SettingsCard spells it as an expandable host with a layout; the
+        // stock composition marks the collapsible child with
+        // winuiSettingsCardExpansion. Trailing-only cards (Notifications/
+        // Updates) keep the resting control fill and ignore header clicks.
+        const bool interactive = settingsCardInteractive(widget);
+        const QWidget *expansion = settingsCardExpansionHost(widget);
         const qreal hover = interactive
                 ? progress(widget, hoverProperty,
                            option->state & QStyle::State_MouseOver ? 1.0 : 0.0)
                 : 0.0;
-        const qreal press = interactive
-                ? progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0)
-                : 0.0;
+        const qreal press = interactive ? qMax(progress(widget, pressProperty),
+                                               (option->state & QStyle::State_Sunken) ? 1.0 : 0.0)
+                                        : 0.0;
         QColor fill = mix(t.control, t.controlHover, hover * (1.0 - press));
         fill = mix(fill, t.controlPressed, press);
         // Cards veil over a live material (VeiledCardAlpha, same recipe as
@@ -436,6 +435,36 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             painter->setPen(QPen(t.focusInner, 1.0));
             painter->drawRoundedRect(QRectF(option->rect).adjusted(4, 4, -5, -5), 5, 5);
             painter->restore();
+        }
+        if (expansion) {
+            // SettingsExpander.xaml: SettingsExpanderChevronButtonWidth/Height
+            // 32 in a 32 px box whose Margin is 0,0,8,0; the AnimatedIcon is
+            // 16x16 and rotates 0 -> 180 deg with IsExpanded. Expanded header
+            // corners are top-only (ExpandDown), which the card stroke above
+            // already keeps for the frame; the chevron stays centered on the
+            // header, not on the whole expanded card.
+            constexpr int chevronButtonSize = 32;
+            constexpr int chevronGlyphSize = 16;
+            constexpr int chevronTrailingMargin = 8;
+            const int headerHeight =
+                    qBound(0, settingsCardHeaderHeight(widget), option->rect.height());
+            const QRect header(option->rect.left(), option->rect.top(), option->rect.width(),
+                               headerHeight);
+            const QRect logicalChevron(header.right() - chevronTrailingMargin - chevronButtonSize
+                                               + 1,
+                                       header.top() + (header.height() - chevronButtonSize) / 2,
+                                       chevronButtonSize, chevronButtonSize);
+            const QRect chevronBox = QStyle::visualRect(option->direction, header,
+                                                        logicalChevron.intersected(header));
+            const qreal angle = 180.0 * progress(widget, settingsCardExpansionProgressProperty);
+            const bool enabled = option->state & QStyle::State_Enabled;
+            const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
+            PaintPrivate::paintRotatedIcon(
+                    painter, WinUI3::icon(WinUI3::Icon::ChevronDown, foreground),
+                    QRectF(chevronBox.center().x() - chevronGlyphSize / 2,
+                           chevronBox.center().y() - chevronGlyphSize / 2, chevronGlyphSize,
+                           chevronGlyphSize),
+                    angle, foreground, enabled ? QIcon::Normal : QIcon::Disabled);
         }
         return true;
     }
