@@ -33,7 +33,12 @@
     "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/ToolTip_themeresources.xaml",
     "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/Materials/Acrylic/AcrylicBrush_themeresources.xaml",
     "https://learn.microsoft.com/windows/apps/design/iconography/segoe-fluent-icons-font",
-    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/NavigationView/NavigationView_themeresources.xaml"
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/NavigationView/NavigationView_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/Expander/Expander_themeresources.xaml",
+    "https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/Expander/Expander.xaml"
+  ],
+  "extensions": [
+    "https://github.com/CommunityToolkit/WindowsCommunityToolkit/blob/080bdb99e6810eb2157ad635f00e64a64acabb50/CommunityToolkit.WinUI.UI.Controls.DataGrid/DataGrid/DataGrid.xaml"
   ],
   "motion": {
     "faster_ms": 83,

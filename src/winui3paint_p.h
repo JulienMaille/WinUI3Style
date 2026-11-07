@@ -27,6 +27,13 @@ void paintThemedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
                      Qt::Alignment alignment, const QColor &foreground,
                      QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off);
 
+// Draws a themed icon rotated in place around its own center. The
+// SettingsExpander/SettingsCard chevron rotates with expansion progress
+// (0 deg collapsed, 180 deg expanded) instead of swapping Down/Up artwork.
+void paintRotatedIcon(QPainter *painter, const QIcon &source, const QRectF &rect,
+                      qreal angleDegrees, const QColor &foreground,
+                      QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off);
+
 QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds, const QRectF &logical);
 
 void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,

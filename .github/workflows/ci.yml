@@ -29,9 +29,15 @@ on:
 
 jobs:
   coverage-honesty:
-    # Fails a PR diff marking any coverage.md row Verified unless the diff
-    # also touches tests/. The semantic honesty stays reviewer-owned; this is
-    # a cheap git-diff tripwire, not a proof of live evidence (METHODOLOGY Â§6).
+    # A Verified row must name at least one test *function* that exists under
+    # tests/ (matched as `void ...::name(`), so a bare class or file mention
+    # cannot stand in for evidence. The old tripwire ("the diff also touches
+    # tests/") false-redded main: a live pass is recorded after the PR merge,
+    # so the promotion often lands in its own docs-only commit. Checking the
+    # evidence column is the real claim, works for both PR and push events,
+    # and still fails a promotion that names nothing. The semantic honesty
+    # stays reviewer-owned; this is a tripwire, not a proof of live evidence
+    # (METHODOLOGY §6).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +48,29 @@ jobs:
       - name: Require tests alongside Verified promotions
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
-          promoted=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md | grep -c "^+.*| *Verified" || true)
-          touched=$(git diff --name-only "$base"...HEAD -- tests/ | wc -l)
-          echo "verified_promotions=$promoted tests_touched=$touched"
-          if [ "$promoted" -gt 0 ] && [ "$touched" -eq 0 ]; then
-            echo "::error::coverage.md promotes a row to Verified without touching tests/. Tests alone never promote to Verified (METHODOLOGY Â§6); add evidence + tests or keep source-audited."
-            exit 1
+          rows=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md \
+                   | grep '^+.*| *Verified' || true)
+          if [ -z "$rows" ]; then
+            echo "no Verified promotions in $base...HEAD"
+            exit 0
           fi
+          missing=0
+          while IFS= read -r row; do
+            cited=0
+            for name in $(printf '%s\n' "$row" | grep -oE '`[^`]+`' | tr -d '`' \
+                            | grep -oE '^[A-Za-z_][A-Za-z0-9_]*$'); do
+              if grep -rqE "void[[:space:]]+([A-Za-z0-9_]+::)?${name}[[:space:]]*\(" tests/; then
+                echo "promoted row cites existing test: $name"
+                cited=1
+                break
+              fi
+            done
+            if [ "$cited" -eq 0 ]; then
+              echo "::error::coverage.md marks a row Verified without naming a test that exists under tests/. Tests alone never promote to Verified (METHODOLOGY §6); add evidence + tests or keep source-audited: $(printf '%s' "$row" | cut -c1-140)"
+              missing=1
+            fi
+          done <<< "$rows"
+          exit "$missing"
 
   format-check:
     runs-on: ubuntu-latest
@@ -240,20 +262,6 @@ jobs:
       - name: Smoke-test clean installation with a Qt-only client
         shell: pwsh
         run: ./tools/install_smoke.ps1 -BuildDir build -Configuration $env:BUILD_CONFIGURATION
-      - name: Normalize Debug plugin deployment
-        if: matrix.configuration == 'Debug'
-        shell: pwsh
-        run: |
-          # Multi-config CMake appends Debug to the configured plugin output,
-          # while QT_PLUGIN_PATH expects the category directly below plugins.
-          # Flatten only this CI staging copy; Release already has an explicit
-          # styles output directory in plugin/CMakeLists.txt.
-          $source = Join-Path $PWD 'build/plugins/styles/Debug'
-          $target = Join-Path $PWD 'build/plugins/styles'
-          if (-not (Test-Path -LiteralPath $source)) {
-            throw "Debug plugin output missing: $source"
-          }
-          Get-ChildItem -LiteralPath $source -File | Copy-Item -Destination $target -Force
       - name: Test (exclude interactive native tests)
         shell: pwsh
         run: |
@@ -263,6 +271,19 @@ jobs:
           # we need; the next step greps the full log.
           ctest --test-dir build -C $env:BUILD_CONFIGURATION --output-on-failure -V -LE native 2>&1 |
             Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
+      - name: Show failing assertions
+        if: failure()
+        shell: pwsh
+        run: |
+          # The step above only echoes the last 30 lines, which hides which
+          # assertion failed. The full -V stream is in ctest-verbose.log, so
+          # print the failure contexts from it here.
+          if (-not (Test-Path ctest-verbose.log)) {
+            Write-Output 'no ctest-verbose.log was written'
+            exit 0
+          }
+          Select-String -Path ctest-verbose.log -Pattern 'FAIL!|Received signal|Totals:' -Context 3,3 |
+            Select-Object -First 40 | Out-String -Width 400
       - name: Rerun failed binaries with QtTest -v2
         if: failure()
         shell: pwsh
@@ -271,7 +292,7 @@ jobs:
           $env:QT_PLUGIN_PATH = "$PWD/build/plugins"
           $env:QT_QPA_FONTDIR = "$env:SystemRoot/Fonts"
           $config = $env:BUILD_CONFIGURATION
-          foreach ($t in @('winui3style_icons_tests', 'winui3style_menus_tests', 'winui3style_editors_tests')) {
+          foreach ($t in @('winui3style_icons_tests', 'winui3style_menus_tests', 'winui3style_editors_tests', 'winui3style_dialogs_tests')) {
             Write-Output "===== $t per-function ====="
             $funcs = & "build/tests/$config/$t.exe" -functions 2>&1
             $listCode = $LASTEXITCODE

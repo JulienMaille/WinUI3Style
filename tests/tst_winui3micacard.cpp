@@ -17,6 +17,8 @@
 
 #include <QCommandLinkButton>
 #include <QMainWindow>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QTreeWidget>
 
 class WinUI3MicaCardTest final : public QObject
@@ -744,6 +746,47 @@ void WinUI3MicaCardTest::galleryTreeKeepsCardFillOverComposited()
                             .alpha()
                     != 0);
             QVERIFY(retoggledGrab.pixelColor(bareCard).alpha() == 0);
+            // Collections tab strip (2026-11-05 Mica capture): the pane starts
+            // on the tab bar's last row (PM_TabBarBaseOverlap == 1) and that
+            // row carries PE_FrameTabWidget's 1 px stroke. The unselected tab
+            // shape Source-cleared its whole rect, which wiped the stroke to
+            // alpha 0 over the material (NONE kept it: no erase runs
+            // off-material), so the separator between strip and pane vanished.
+            ui.pages->setCurrentWidget(ui.collectionsPage);
+            qApp->processEvents();
+            QTabBar *collectionsBar = ui.collectionsTabs->tabBar();
+            QVERIFY(collectionsBar);
+            QCOMPARE(collectionsBar->shape(), QTabBar::RoundedNorth);
+            QVERIFY(collectionsBar->count() >= 2);
+            QVERIFY(collectionsBar->currentIndex() != 1);
+            const QRect unselectedTab = collectionsBar->tabRect(1);
+            QVERIFY(!unselectedTab.isEmpty());
+            const int barBottom = collectionsBar->height() - 1;
+            QVERIFY(barBottom > 1);
+            // The unselected tab really reaches the shared row, so the probe
+            // below exercises the erase that used to wipe the stroke.
+            QVERIFY(unselectedTab.bottom() >= barBottom);
+            const QPoint stripProbe =
+                    collectionsBar->mapTo(&window, QPoint(unselectedTab.center().x(), 2));
+            const QPoint hairlineProbe =
+                    collectionsBar->mapTo(&window, QPoint(unselectedTab.center().x(), barBottom));
+            QImage collectionsGrab(window.size(), QImage::Format_ARGB32_Premultiplied);
+            collectionsGrab.fill(Qt::transparent);
+            window.render(&collectionsGrab);
+            // The strip itself is bare material at that column, so the row
+            // below can only be the pane's stroke, not a tab fill.
+            QCOMPARE(collectionsGrab.pixelColor(stripProbe).alpha(), 0);
+            const QColor paneStroke = WinUI3::Private::tokens(ui.collectionsTabs->palette()).stroke;
+            QVERIFY(paneStroke.alpha() > 0);
+            const QColor hairline = collectionsGrab.pixelColor(hairlineProbe);
+            // Stroke composited over the pane veil, so at least as opaque as
+            // the stroke token itself (RED pre-fix: alpha 0).
+            QVERIFY2(hairline.alpha() > paneStroke.alpha(),
+                     qPrintable(QStringLiteral("row %1 at x %2 is %3 (stroke alpha %4)")
+                                        .arg(barBottom)
+                                        .arg(unselectedTab.center().x())
+                                        .arg(hairline.name(QColor::HexArgb))
+                                        .arg(paneStroke.alpha())));
         }
     }
     style->setDensityMode(previousDensity);

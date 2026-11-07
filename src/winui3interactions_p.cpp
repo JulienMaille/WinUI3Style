@@ -26,6 +26,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDynamicPropertyChangeEvent>
+#include <QEasingCurve>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFrame>
@@ -55,6 +56,8 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolBox>
+#include <QVariantAnimation>
 
 #ifdef Q_OS_WIN
 #  define NOMINMAX
@@ -322,7 +325,7 @@ void prepareTooltipLabel(QLabel *label)
 
 StyleInteractionController::StyleInteractionController(Style *style,
                                                        StyleInteractionCallbacks callbacks)
-    : m_style(style), m_callbacks(std::move(callbacks))
+    : m_style(style), m_callbacks(std::move(callbacks)), m_alive(std::make_shared<bool>(true))
 {
 }
 
@@ -411,6 +414,113 @@ bool StyleInteractionController::handleLeave(QWidget *widget)
     return false;
 }
 
+void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool expand, bool animate)
+{
+    QWidget *host = settingsCardExpansionHost(card);
+    if (!host)
+        return;
+    // The target state is the source of truth: a click during the opposite
+    // animation reverses from the live height instead of restarting at 0/1.
+    m_settingsCardStateWrites.insert(card);
+    card->setProperty(Style::SettingsCardExpandedProperty, expand);
+    m_settingsCardStateWrites.remove(card);
+    const QPointer<QWidget> guardedHost(host);
+    const QPointer<QWidget> guardedCard(card);
+    const qreal current = progress(card, settingsCardExpansionProgressProperty);
+    const int contentHeight = qMax(0, host->sizeHint().height());
+    if (const auto previous = m_settingsCardExpansions.take(card)) {
+        previous->stop();
+        previous->deleteLater();
+    }
+    if (!animate || !Style::animationsAllowed() || contentHeight <= 0) {
+        framePropertyRegistry().set(card, settingsCardExpansionProgressProperty,
+                                    expand ? 1.0 : 0.0);
+        // Expanded content keeps its natural height so a later resize (wrapped
+        // description, narrower card) can grow instead of being clipped by the
+        // height sampled at click time.
+        host->setMaximumHeight(expand ? QWIDGETSIZE_MAX : 0);
+        host->update();
+        card->update();
+        return;
+    }
+    auto *animation = new QVariantAnimation(card);
+    animation->setStartValue(current);
+    animation->setEndValue(expand ? 1.0 : 0.0);
+    // SettingsExpander.xaml: expand runs 0.333 s on the 0,0,0,1 spline,
+    // collapse 0.167 s on 1,1,0,1.
+    animation->setDuration(expand ? 333 : 167);
+    QEasingCurve curve(QEasingCurve::BezierSpline);
+    if (expand)
+        curve.addCubicBezierSegment(QPointF(0.0, 0.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
+    else
+        curve.addCubicBezierSegment(QPointF(1.0, 1.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0));
+    animation->setEasingCurve(curve);
+    QObject::connect(animation, QOverload<const QVariant &>::of(&QVariantAnimation::valueChanged),
+                     card, [guardedCard, guardedHost, contentHeight](const QVariant &value) {
+                         if (!guardedCard || !guardedHost)
+                             return;
+                         const qreal progressValue = qBound<qreal>(0.0, value.toReal(), 1.0);
+                         framePropertyRegistry().set(
+                                 guardedCard, settingsCardExpansionProgressProperty, progressValue);
+                         guardedHost->setMaximumHeight(qRound(contentHeight * progressValue));
+                         guardedHost->update();
+                         guardedCard->update();
+                     });
+    QObject::connect(animation, &QVariantAnimation::finished, card, [this, card] {
+        m_settingsCardExpansions.remove(card);
+        if (!card->property(Style::SettingsCardExpandedProperty).toBool())
+            return;
+        if (QWidget *host = settingsCardExpansionHost(card))
+            host->setMaximumHeight(QWIDGETSIZE_MAX);
+    });
+    m_settingsCardExpansions.insert(card, animation);
+    animation->start();
+}
+
+void StyleInteractionController::watchToolBox(QToolBox *box)
+{
+    if (!box)
+        return;
+    // Drop entries whose toolbox died while the controller kept running, then
+    // keep the watch idempotent across repolish.
+    // QList::removeIf is unavailable in Qt 5.12, which remains supported.
+    for (int index = m_toolBoxes.size() - 1; index >= 0; --index) {
+        if (m_toolBoxes.at(index).isNull())
+            m_toolBoxes.removeAt(index);
+    }
+    for (const QPointer<QToolBox> &watched : std::as_const(m_toolBoxes)) {
+        if (watched == box)
+            return;
+    }
+    m_toolBoxes.append(box);
+    // The controller is not a QObject, so the connections outlive it when the
+    // style is destroyed before the widget. A weak token makes the slots no-ops
+    // once the controller is gone.
+    const std::weak_ptr<bool> alive = m_alive;
+    const auto sync = [this, box, alive](bool animate) {
+        if (alive.expired())
+            return;
+        const int current = box->currentIndex();
+        int index = 0;
+        const auto children = box->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
+        for (QWidget *child : children) {
+            // QToolBoxButton is private to Qt; the class name is the stable
+            // seam, and direct children keep page order.
+            if (child->metaObject()->className() != QLatin1String("QToolBoxButton"))
+                continue;
+            const qreal target = index == current ? 1.0 : 0.0;
+            if (animate)
+                m_callbacks.animate(child, toolBoxChevronProperty, target,
+                                    target > 0.5 ? 333 : 167);
+            else
+                framePropertyRegistry().set(child, toolBoxChevronProperty, target);
+            ++index;
+        }
+    };
+    sync(false);
+    QObject::connect(box, &QToolBox::currentChanged, box, [sync](int) { sync(true); });
+}
+
 bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event)
 {
     *m_callbacks.keyboardInput = false;
@@ -419,6 +529,19 @@ bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event
         m_callbacks.clearPointerInteraction(widget);
         widget->update();
         return false;
+    }
+    if (settingsCardExpansionHost(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() == Qt::LeftButton
+            && mousePositionPoint(mouse).y() < settingsCardHeaderHeight(widget)) {
+            // WinUI cards are focusable surfaces: a click moves focus without
+            // showing the keyboard focus ring (focusVisible stays false).
+            widget->setFocus(Qt::MouseFocusReason);
+            m_callbacks.animate(widget, pressProperty, 1.0,
+                                interactionDuration(widget, InteractionMotion::Press, true));
+            widget->update();
+            return true;
+        }
     }
     if (auto *viewport = qobject_cast<QAbstractItemView *>(widget->parentWidget());
         viewport && viewport->viewport() == widget) {
@@ -510,6 +633,17 @@ bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
 
 bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *event)
 {
+    if (settingsCardExpansionHost(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() == Qt::LeftButton
+            && mousePositionPoint(mouse).y() < settingsCardHeaderHeight(widget)) {
+            m_callbacks.animate(widget, pressProperty, 0.0,
+                                interactionDuration(widget, InteractionMotion::Press, false));
+            setSettingsCardExpanded(
+                    widget, !widget->property(Style::SettingsCardExpandedProperty).toBool(), true);
+            return true;
+        }
+    }
     if (auto *combo = qobject_cast<QComboBox *>(widget)) {
         auto pending = m_comboPressStates.find(combo);
         if (pending != m_comboPressStates.end()
@@ -638,6 +772,16 @@ bool StyleInteractionController::handleLineEditHelperBirth(QWidget *widget)
 
 bool StyleInteractionController::handleKeyPress(QWidget *widget, QEvent *event)
 {
+    if (settingsCardExpansionHost(widget)) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        const bool activates = key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
+                || key->key() == Qt::Key_Return;
+        if (activates && !key->isAutoRepeat()) {
+            setSettingsCardExpanded(
+                    widget, !widget->property(Style::SettingsCardExpandedProperty).toBool(), true);
+            return true;
+        }
+    }
     if (auto *combo = qobject_cast<QComboBox *>(widget)) {
         const auto *key = static_cast<QKeyEvent *>(event);
         const bool activates = key->key() == Qt::Key_Space || key->key() == Qt::Key_Enter
@@ -982,6 +1126,9 @@ bool StyleInteractionController::handleDynamicPropertyChange(QWidget *widget, QE
         }
         widget->updateGeometry();
         widget->update();
+    } else if (name == Style::SettingsCardExpandedProperty) {
+        if (settingsCardExpansionHost(widget) && !m_settingsCardStateWrites.contains(widget))
+            setSettingsCardExpanded(widget, widget->property(name.constData()).toBool(), true);
     } else if (name == Style::ContentDialogProperty) {
         if (auto *dialog = qobject_cast<QDialog *>(widget);
             dialog && !qobject_cast<QMessageBox *>(dialog)) {

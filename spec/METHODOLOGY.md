@@ -186,6 +186,15 @@ pointer afterward. Two complete capture runs must have identical file sets and
 byte-identical PNG hashes; a mismatch is investigated by pixel bounds before
 it can be dismissed as environmental noise.
 
+The one deliberate exception used to be a `textbox-keyboard-focus` state
+capture. It is gone: that state keeps focus on purpose, so the text caret is
+one real column of the raster, and the caret ink is not stable across the Qt
+versions in the gate (6.8 paints the bare palette text colour, 6.12 composites
+its alpha; `#000000` vs `#1B1B1B` over the Light field fill). The matrix
+compares pixel-exact with no mask, so no single baseline can be green on both.
+The keyboard focus ring is evidenced by `textBoxStateMatrix` (accent underline
+pixels and `_winui_focus_visible`) rather than by a screenshot.
+
 The inline Gallery calendar's selected date and displayed month are pinned to
 the approved fixture (2026-10-11), with French/France date formatting during
 snapshots; the previous date, month and locale are restored. The normal

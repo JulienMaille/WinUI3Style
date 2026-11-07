@@ -22,6 +22,7 @@
 #include <QTextEdit>
 
 #include <QAbstractItemView>
+#include <QHeaderView>
 #include <QApplication>
 #include <QCalendarWidget>
 #include <QComboBox>
@@ -37,9 +38,11 @@
 #include <QStyleOptionProgressBar>
 #include <QStyleOptionSizeGrip>
 #include <QStyleOptionTab>
+#include <QStyleOptionToolBox>
 #include <QStyleOptionViewItem>
 #include <QTableView>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QTreeView>
 #include <QVariant>
 
@@ -130,6 +133,29 @@ QRect selectionMarkerRect(const QStyleOptionViewItem &option, const QAbstractIte
                      itemSelectionMarkerWidth, 16);
     }
     return QRect(viewport.left() + itemSelectionMarkerInset, y, itemSelectionMarkerWidth, 16);
+}
+
+// The pinned DataGrid column header template puts its content in a
+// ContentPresenter with HorizontalAlignment="Left" inside a Grid that carries
+// Padding="12,0,0,0", with the sort icon in a trailing MinWidth="32" column.
+// Qt's horizontal QHeaderView instead defaults to AlignCenter, which leaves a
+// sortable header visibly off-centre once the trailing sort column is
+// reserved. Keep the template's leading edge unless the model publishes an
+// explicit TextAlignmentRole for the section.
+Qt::Alignment headerContentAlignment(const QStyleOptionHeader &header, const QWidget *widget)
+{
+    const auto *view = qobject_cast<const QHeaderView *>(widget);
+    if (view && view->model()) {
+        const QVariant role = view->model()->headerData(header.section, header.orientation,
+                                                        Qt::TextAlignmentRole);
+        if (role.isValid()) {
+            const Qt::Alignment explicitAlignment = Qt::Alignment(role.toInt())
+                    & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
+            if (explicitAlignment)
+                return explicitAlignment;
+        }
+    }
+    return Qt::AlignLeft;
 }
 
 } // namespace
@@ -368,28 +394,28 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
     if (element != QStyle::CE_ShapedFrame && element != QStyle::CE_ComboBoxLabel
         && element != QStyle::CE_ProgressBar && element != QStyle::CE_ProgressBarGroove
         && element != QStyle::CE_ProgressBarContents && element != QStyle::CE_ProgressBarLabel
-        && element != QStyle::CE_ToolBar && element != QStyle::CE_SizeGrip)
+        && element != QStyle::CE_ToolBar && element != QStyle::CE_SizeGrip
+        && element != QStyle::CE_ToolBoxTab)
         return false;
     using namespace WinUI3::Private;
     const Tokens t = tokens(option->palette);
 
     if (element == QStyle::CE_ShapedFrame && widget
         && widget->property(WinUI3::Style::SettingsCardProperty).toBool()) {
-        // Card-interactive iff an expandable child is bound: trailing-only
-        // cards (Notifications/Updates) keep the resting control fill and
-        // never show hover/press. The expandable child lives under the
-        // _winui_settings_card_expandableHost, so presence of that host's
-        // layout marks interactivity without including settingscard.h here.
-        const QWidget *host =
-                widget->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
-        const bool interactive = host && host->layout() && host->layout()->count() > 0;
+        // Card-interactive iff an expandable child is present. The compiled
+        // SettingsCard spells it as an expandable host with a layout; the
+        // stock composition marks the collapsible child with
+        // winuiSettingsCardExpansion. Trailing-only cards (Notifications/
+        // Updates) keep the resting control fill and ignore header clicks.
+        const bool interactive = settingsCardInteractive(widget);
+        const QWidget *expansion = settingsCardExpansionHost(widget);
         const qreal hover = interactive
                 ? progress(widget, hoverProperty,
                            option->state & QStyle::State_MouseOver ? 1.0 : 0.0)
                 : 0.0;
-        const qreal press = interactive
-                ? progress(widget, pressProperty, option->state & QStyle::State_Sunken ? 1.0 : 0.0)
-                : 0.0;
+        const qreal press = interactive ? qMax(progress(widget, pressProperty),
+                                               (option->state & QStyle::State_Sunken) ? 1.0 : 0.0)
+                                        : 0.0;
         QColor fill = mix(t.control, t.controlHover, hover * (1.0 - press));
         fill = mix(fill, t.controlPressed, press);
         // Cards veil over a live material (VeiledCardAlpha, same recipe as
@@ -409,6 +435,36 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             painter->setPen(QPen(t.focusInner, 1.0));
             painter->drawRoundedRect(QRectF(option->rect).adjusted(4, 4, -5, -5), 5, 5);
             painter->restore();
+        }
+        if (expansion) {
+            // SettingsExpander.xaml: SettingsExpanderChevronButtonWidth/Height
+            // 32 in a 32 px box whose Margin is 0,0,8,0; the AnimatedIcon is
+            // 16x16 and rotates 0 -> 180 deg with IsExpanded. Expanded header
+            // corners are top-only (ExpandDown), which the card stroke above
+            // already keeps for the frame; the chevron stays centered on the
+            // header, not on the whole expanded card.
+            constexpr int chevronButtonSize = 32;
+            constexpr int chevronGlyphSize = 16;
+            constexpr int chevronTrailingMargin = 8;
+            const int headerHeight =
+                    qBound(0, settingsCardHeaderHeight(widget), option->rect.height());
+            const QRect header(option->rect.left(), option->rect.top(), option->rect.width(),
+                               headerHeight);
+            const QRect logicalChevron(header.right() - chevronTrailingMargin - chevronButtonSize
+                                               + 1,
+                                       header.top() + (header.height() - chevronButtonSize) / 2,
+                                       chevronButtonSize, chevronButtonSize);
+            const QRect chevronBox = QStyle::visualRect(option->direction, header,
+                                                        logicalChevron.intersected(header));
+            const qreal angle = 180.0 * progress(widget, settingsCardExpansionProgressProperty);
+            const bool enabled = option->state & QStyle::State_Enabled;
+            const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
+            PaintPrivate::paintRotatedIcon(
+                    painter, WinUI3::icon(WinUI3::Icon::ChevronDown, foreground),
+                    QRectF(chevronBox.center().x() - chevronGlyphSize / 2,
+                           chevronBox.center().y() - chevronGlyphSize / 2, chevronGlyphSize,
+                           chevronGlyphSize),
+                    angle, foreground, enabled ? QIcon::Normal : QIcon::Disabled);
         }
         return true;
     }
@@ -440,6 +496,154 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                     QStyle::visualAlignment(option->direction, Qt::AlignLeft | Qt::AlignVCenter),
                     option->fontMetrics.elidedText(combo->currentText, Qt::ElideRight,
                                                    content.width()));
+            return true;
+        }
+        return false;
+    }
+
+    if (element == QStyle::CE_ToolBoxTab) {
+        if (const auto *tab = qstyleoption_cast<const QStyleOptionToolBox *>(option)) {
+            const bool enabled = tab->state & QStyle::State_Enabled;
+            const bool selected = tab->state & QStyle::State_Selected;
+            const bool hovered = tab->state & QStyle::State_MouseOver;
+            const bool pressed = hovered && (tab->state & QStyle::State_Sunken);
+            // QToolBox is the stock stand-in for a WinUI Expander accordion:
+            // each page button is one Expander header. Pinned values from
+            // Expander_themeresources.xaml (microsoft-ui-xaml 9f89c2da,
+            // schema 2.4): the header is the card itself - CardBackgroundFill-
+            // ColorDefault with a 1 px CardStrokeColorDefault border that does
+            // not change with state - with a 16 px content inset and a 32 px
+            // trailing chevron button 8 px from the trailing edge, whose
+            // background is the only surface that reacts to the pointer
+            // (SubtleFillColorSecondary / Tertiary). Header typography is Body:
+            // Qt's QToolBoxButton bolds the selected page, so the bold is
+            // dropped by painting the option font as-is.
+            constexpr int headerContentInset = 16; // ExpanderHeaderPadding 16,0,0,0
+            constexpr int chevronButtonSize = 32; // ExpanderChevronButtonSize
+            constexpr int chevronGlyphSize = 12; // ExpanderChevronGlyphSize
+            constexpr int chevronTrailingMargin = 8; // ExpanderChevronMargin trailing 8
+            constexpr int chevronContentGap = 20; // ExpanderChevronMargin leading 20
+            constexpr qreal chevronRadius = 4.0; // ControlCornerRadius
+            // Expander CornerRadius is ControlCornerRadius (4). ExpandDown
+            // state keeps only the top corners on the header (TopCornerRadius-
+            // FilterConverter), because the expanded content owns the bottom
+            // ones; a collapsed header is a whole card.
+            constexpr qreal headerRadius = 4.0;
+            // Qt recolors each page button's palette from the page widget it
+            // follows, so the same card recipe would render the expanded
+            // header lighter than the collapsed ones. Resolve header tokens
+            // from the toolbox instead: every Expander header is the same card.
+            // Card recipe on the option palette, like every other renderer:
+            // the option palette carries the widget's theme/layer with opaque
+            // tokens, while an app-palette lookup can carry the translucent
+            // veil palette and composite over each button's own background.
+            const Tokens &ht = t;
+
+            eraseForBackdrop(painter, widget, tab->rect, headerRadius);
+            const QColor cardFill = veiledCard(ht.layer, paintsDirectlyOnBackdrop(widget));
+            if (cardFill.alpha() < 255 && !paintsDirectlyOnBackdrop(widget)) {
+                // Qt recolors each page button's Window role from the page
+                // widget that follows it, so a translucent card fill would
+                // composite over a different leftover tone per header and the
+                // accordion would show mismatched cards. The toolbox palette
+                // is the one surface every header shares; clear to it first.
+                painter->fillRect(tab->rect, tokens(widget->palette()).surface);
+            }
+            const auto headerPath = [&](const QRectF &r) {
+                QPainterPath path;
+                if (selected) {
+                    path.moveTo(r.left(), r.bottom());
+                    path.lineTo(r.left(), r.top() + headerRadius);
+                    path.quadTo(r.left(), r.top(), r.left() + headerRadius, r.top());
+                    path.lineTo(r.right() - headerRadius, r.top());
+                    path.quadTo(r.right(), r.top(), r.right(), r.top() + headerRadius);
+                    path.lineTo(r.right(), r.bottom());
+                    path.closeSubpath();
+                } else {
+                    path.addRoundedRect(r, headerRadius, headerRadius);
+                }
+                return path;
+            };
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(cardFill);
+            painter->drawPath(headerPath(QRectF(tab->rect)));
+            if (ht.stroke.alpha() > 0) {
+                // BorderThickness 1 is drawn inside the header bounds and stays
+                // on every edge in both states (the content's top edge is 0).
+                painter->setBrush(Qt::NoBrush);
+                painter->setPen(QPen(ht.stroke, 1.0));
+                painter->drawPath(headerPath(QRectF(tab->rect).adjusted(0.5, 0.5, -0.5, -0.5)));
+            }
+            painter->restore();
+
+            const QRect logicalChevron(
+                    tab->rect.right() - chevronTrailingMargin - chevronButtonSize + 1,
+                    tab->rect.top() + (tab->rect.height() - chevronButtonSize) / 2,
+                    chevronButtonSize, chevronButtonSize);
+            if (pressed || hovered) {
+                painter->save();
+                painter->setRenderHint(QPainter::Antialiasing);
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(pressed ? ht.subtlePressed : ht.subtleHover);
+                painter->drawRoundedRect(
+                        QStyle::visualRect(tab->direction, tab->rect, logicalChevron),
+                        chevronRadius, chevronRadius);
+                painter->restore();
+            }
+            const QColor headerText = enabled ? ht.textPrimary : ht.textDisabled;
+            // QToolBoxButton::sizeHint is fontMetrics + 8 with no style hook, so
+            // the row is ~27 px tall while ExpanderMinHeight is 48. Clamp the
+            // chevron box to the row instead of drawing past it, so the pinned
+            // corner radius stays visible.
+            const QRect chevronBox = QStyle::visualRect(
+                    tab->direction, tab->rect,
+                    logicalChevron.intersected(QRect(logicalChevron.left(), tab->rect.top(),
+                                                     logicalChevron.width(), tab->rect.height())));
+            // QToolBoxButton::paintEvent hands the *toolbox* to the style, not
+            // the button, so the per-header animation property is read from
+            // the painter's device when that is the button being painted.
+            const QWidget *chevronOwner = widget;
+            if (const auto *device = dynamic_cast<const QWidget *>(painter->device())) {
+                if (device != widget
+                    && qstrcmp(device->metaObject()->className(), "QToolBoxButton") == 0)
+                    chevronOwner = device;
+            }
+            const qreal chevronProgress = chevronOwner
+                    ? progress(chevronOwner, toolBoxChevronProperty, selected ? 1.0 : 0.0)
+                    : (selected ? 1.0 : 0.0);
+            PaintPrivate::paintRotatedIcon(
+                    painter, WinUI3::icon(WinUI3::Icon::ChevronDown, headerText),
+                    QRectF(chevronBox.center().x() - chevronGlyphSize / 2.0,
+                           chevronBox.center().y() - chevronGlyphSize / 2.0, chevronGlyphSize,
+                           chevronGlyphSize),
+                    180.0 * chevronProgress, headerText, enabled ? QIcon::Normal : QIcon::Disabled);
+
+            QRect content(tab->rect.left() + headerContentInset, tab->rect.top(),
+                          logicalChevron.left() - chevronContentGap
+                                  - (tab->rect.left() + headerContentInset),
+                          tab->rect.height());
+            content = QStyle::visualRect(tab->direction, tab->rect, content);
+            if (!tab->icon.isNull()) {
+                const int iconExtent = style->pixelMetric(QStyle::PM_SmallIconSize, tab, widget);
+                const QRect logicalIcon(content.left(), content.center().y() - iconExtent / 2,
+                                        iconExtent, iconExtent);
+                const QRect iconRect = QStyle::visualRect(tab->direction, content, logicalIcon);
+                paintThemedIcon(painter, tab->icon, iconRect, Qt::AlignCenter, headerText,
+                                enabled ? QIcon::Normal : QIcon::Disabled);
+                // 8 px icon/text gap, the same per-site value as CE_ComboBoxLabel.
+                content = tab->direction == Qt::RightToLeft
+                        ? content.adjusted(0, 0, -(iconRect.width() + 8), 0)
+                        : content.adjusted(iconRect.width() + 8, 0, 0, 0);
+            }
+            const QFont headerFont = widget ? widget->font() : QApplication::font();
+            paintGrayscaleText(
+                    painter, content,
+                    QStyle::visualAlignment(tab->direction, Qt::AlignLeft | Qt::AlignVCenter),
+                    headerFont, headerText,
+                    QFontMetrics(headerFont)
+                            .elidedText(tab->text, Qt::ElideRight, content.width()));
             return true;
         }
         return false;
@@ -846,8 +1050,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     if (element == QStyle::PE_IndicatorHeaderArrow) {
         const Tokens t = tokens(option->palette);
         const bool enabled = option->state & QStyle::State_Enabled;
+        // Pinned DataGrid template: SortIconAscending U+E74A / Descending
+        // U+E74B, a 12 px FontIcon in the trailing 32 px sort column.
         const Icon glyph =
-                option->state & QStyle::State_UpArrow ? Icon::ChevronUp : Icon::ChevronDown;
+                option->state & QStyle::State_UpArrow ? Icon::SortAscending : Icon::SortDescending;
         icon(glyph, enabled ? t.textSecondary : t.textDisabled)
                 .paint(painter,
                        QRect(option->rect.center().x() - 6, option->rect.center().y() - 6, 12, 12),
@@ -1036,6 +1242,36 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                      QPainter *painter, const QWidget *widget,
                      const TableEditorOverlap &tableEditorOverlap)
 {
+    if (element == QStyle::CE_RubberBand) {
+        if (const auto *band = qstyleoption_cast<const QStyleOptionRubberBand *>(option)) {
+            const Tokens t = tokens(option->palette);
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, false);
+            // No WinUI XAML element covers a marquee: WinUI has no rubber
+            // band, and the style's own selection language is the neutral
+            // item layer plus the accent marker (QPalette::Highlight). Reuse
+            // that accent so the marquee belongs to the same family, at 20%
+            // so the rows it sweeps stay readable.
+            QColor fill = t.selectionAccent;
+            fill.setAlpha(band->opaque ? 255 : 51);
+            if (band->shape == QRubberBand::Rectangle) {
+                const QRect body = option->rect.adjusted(1, 1, -1, -1);
+                if (body.isValid()) {
+                    painter->fillRect(body, fill);
+                    painter->setPen(QPen(t.selectionAccent, 1));
+                    painter->setBrush(Qt::NoBrush);
+                    painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
+                }
+            } else {
+                painter->setPen(QPen(t.selectionAccent, 1));
+                painter->drawLine(option->rect.topLeft(), option->rect.bottomRight());
+            }
+            painter->restore();
+            return true;
+        }
+        return false;
+    }
+
     if (element == QStyle::CE_TabBarTab) {
         if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option)) {
             style->drawControl(QStyle::CE_TabBarTabShape, tab, painter, widget);
@@ -1154,8 +1390,21 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->restore();
         } else {
             // Unselected pill veils its hover fill over a live material so
-            // it cannot band or ghost; rest stays transparent.
-            eraseForBackdrop(painter, widget, option->rect, ControlRadius);
+            // it cannot band or ghost; rest stays transparent. A tab bar
+            // hosted by a QTabWidget shares its last row with the pane frame
+            // (PM_TabBarBaseOverlap == 1), and the parent has already painted
+            // the pane's 1 px stroke there. Clearing that row erased the
+            // separator over the material - Collections lost its tab-strip
+            // hairline while NONE kept it - so stop the clear one row short.
+            QRect clearRect = option->rect;
+            const auto *bar = qobject_cast<const QTabBar *>(widget);
+            const bool paneBelow = bar
+                    && (bar->shape() == QTabBar::RoundedNorth
+                        || bar->shape() == QTabBar::TriangularNorth);
+            if (paneBelow && qobject_cast<const QTabWidget *>(bar->parentWidget())
+                && clearRect.height() > 1)
+                clearRect.adjust(0, 0, 0, -1);
+            eraseForBackdrop(painter, widget, clearRect, ControlRadius);
             QColor fill = Qt::transparent;
             if (option->state & QStyle::State_Sunken)
                 fill = veiledCard(t.controlPressed, paintsDirectlyOnBackdrop(widget));
@@ -1259,12 +1508,22 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             style->drawControl(QStyle::CE_HeaderSection, header, painter, widget);
             QStyleOptionHeader label = *header;
             label.sortIndicator = QStyleOptionHeader::None;
-            if (header->sortIndicator != QStyleOptionHeader::None) {
+            // The pinned DataGrid template always lays out a 32 px sort column
+            // (the glyph is just Opacity 0 while unsorted), so a sortable
+            // header keeps that space reserved for every column. Reserving it
+            // only once the glyph appears would shift a centred label by half
+            // the claimed width.
+            const auto *headerView = qobject_cast<const QHeaderView *>(widget);
+            const bool sortable = header->sortIndicator != QStyleOptionHeader::None
+                    || (headerView && headerView->isSortIndicatorShown());
+            if (sortable) {
                 const QRect arrowRect = headerSortIndicatorRect(*header);
+                // The template's content column ends where the 32 px sort
+                // column starts; the label keeps its own 10 px right inset.
                 if (header->direction == Qt::RightToLeft)
-                    label.rect.setLeft(qMin(label.rect.right(), arrowRect.right() + 6));
+                    label.rect.setLeft(qMin(label.rect.right(), arrowRect.right()));
                 else
-                    label.rect.setRight(qMax(label.rect.left(), arrowRect.left() - 6));
+                    label.rect.setRight(qMax(label.rect.left(), arrowRect.left()));
             }
             style->drawControl(QStyle::CE_HeaderLabel, &label, painter, widget);
             if (header->sortIndicator != QStyleOptionHeader::None) {
@@ -1284,7 +1543,14 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
     if (element == QStyle::CE_HeaderLabel) {
         if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
             const Tokens t = tokens(option->palette);
-            QRect content = header->rect.adjusted(12, 0, -10, 0);
+            // The template pads the header content only on the leading edge
+            // (Padding="12,0,0,0"); the trailing space comes from the reserved
+            // sort column, not from an extra header inset.
+            QRect content = header->rect;
+            if (header->direction == Qt::RightToLeft)
+                content.adjust(0, 0, -12, 0);
+            else
+                content.adjust(12, 0, 0, 0);
             painter->save();
             QFont font = controlLabelFont(widget);
             font.setWeight(QFont::DemiBold);
@@ -1304,8 +1570,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                 else
                     content.setLeft(iconRect.right() + 8);
             }
-            const Qt::Alignment horizontal =
-                    header->textAlignment & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter);
+            const Qt::Alignment horizontal = headerContentAlignment(*header, widget);
             painter->drawText(
                     content,
                     QStyle::visualAlignment(header->direction, horizontal | Qt::AlignVCenter)

@@ -6,7 +6,7 @@ add_executable(winui3style_gallery
 )
 
 target_link_libraries(winui3style_gallery PRIVATE
-    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Widgets)
+    Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(winui3style_gallery PRIVATE winui3style_warnings)
 set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 
@@ -23,6 +23,13 @@ if(TARGET winui3styleplugin)
             "$<TARGET_FILE_DIR:winui3style_gallery>/styles"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:winui3styleplugin>
+            "$<TARGET_FILE_DIR:winui3style_gallery>/styles"
+        # The plugin's import table resolves the style DLL from its own
+        # directory first when Qt loads it with an altered search path, so a
+        # stale styles/winui3styled.dll silently ran old code while the tests
+        # (linked directly) stayed green.
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:winui3style>
             "$<TARGET_FILE_DIR:winui3style_gallery>/styles"
     )
 endif()

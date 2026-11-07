@@ -23,7 +23,7 @@ namespace WinUI3 {
 namespace {
 
 constexpr auto fluentIconNamePrefix = "winui3-fluent-icon:";
-constexpr int fluentIconCount = static_cast<int>(Icon::Restore) + 1;
+constexpr int fluentIconCount = static_cast<int>(Icon::SortDescending) + 1;
 constexpr int MaxPixmapCacheCost = 4096;
 constexpr int MaxFontCacheCost = 64;
 // Coloured QIcons are normally requested from paint paths. Keep this cache
@@ -128,6 +128,12 @@ QString codePointString(Icon icon, bool hasSegoeFont)
             // it floats a dock widget or restores a sub-window.
             ucs4 = 0xE923;
             break;
+        case Icon::SortAscending:
+            ucs4 = 0xE74A;
+            break;
+        case Icon::SortDescending:
+            ucs4 = 0xE74B;
+            break;
         }
         return QString::fromUcs4(&ucs4, 1);
     }
@@ -219,6 +225,12 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::Restore:
         ucs4 = 0x29C9;
         break; // ⧉ two joined squares
+    case Icon::SortAscending:
+        ucs4 = 0x2191;
+        break; // ↑
+    case Icon::SortDescending:
+        ucs4 = 0x2193;
+        break; // ↓
     }
     return QString::fromUcs4(&ucs4, 1);
 }
@@ -236,6 +248,8 @@ bool hasVectorFallback(Icon icon)
     case Icon::Clear:
     case Icon::Close:
     case Icon::Restore:
+    case Icon::SortAscending:
+    case Icon::SortDescending:
         return true;
     default:
         return false;
@@ -299,6 +313,21 @@ QPainterPath vectorFallbackPath(Icon icon)
         path.addRect(QRectF(8.0, 3.5, 12.5, 12.5));
         path.addRect(QRectF(3.5, 8.0, 12.5, 12.5));
         break;
+    case Icon::SortAscending:
+    case Icon::SortDescending: {
+        // Pinned DataGrid sort glyph: one full-height stem with a V head at
+        // the ordered end (E74A points up, E74B points down).
+        const bool ascending = icon == Icon::SortAscending;
+        const qreal head = ascending ? 3.0 : 21.0;
+        const qreal bar = ascending ? 10.0 : 14.0;
+        path.moveTo(12.0, ascending ? 21.0 : 3.0);
+        path.lineTo(12.0, head);
+        path.moveTo(12.0, head);
+        path.lineTo(5.0, bar);
+        path.moveTo(12.0, head);
+        path.lineTo(19.0, bar);
+        break;
+    }
     default:
         break;
     }

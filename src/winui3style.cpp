@@ -83,6 +83,7 @@
 #include <QToolBar>
 #include <QWizard>
 #include <QToolButton>
+#include <QToolBox>
 #include <QTimer>
 #include <QVector>
 #include <QWidget>
@@ -724,6 +725,8 @@ bool coveredControl(QStyle::ControlElement element)
     case QStyle::CE_HeaderLabel:
     case QStyle::CE_MenuItem:
     case QStyle::CE_SizeGrip:
+    case QStyle::CE_RubberBand:
+    case QStyle::CE_ToolBoxTab:
         return true;
     default:
         return false;
@@ -2068,7 +2071,29 @@ void Style::polish(QWidget *widget)
         d->registerPaletteOwner(widget);
     }
     polishSurfacePalette(widget);
+    if (auto *frame = qobject_cast<QFrame *>(widget)) {
+        // Stock SettingsExpander: the style owns the chevron, the header hit
+        // area, focus and the expand/collapse animation. Only the QFrame and
+        // the property-marked content child are needed, so a Designer form
+        // never links the compiled SettingsCard widget.
+        // The compiled SettingsCard is Fixed vertically so a stretched page
+        // gives spare height to its trailing stretch, not to the header band;
+        // mirror that for the stock composition.
+        if (frame->property(SettingsCardProperty).toBool())
+            frame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        if (QWidget *expansion = settingsCardExpansionHost(frame)) {
+            const bool expanded = frame->property(SettingsCardExpandedProperty).toBool();
+            framePropertyRegistry().set(frame, settingsCardExpansionProgressProperty,
+                                        expanded ? 1.0 : 0.0);
+            frame->setFocusPolicy(Qt::StrongFocus);
+            frame->setCursor(Qt::PointingHandCursor);
+            expansion->setVisible(true);
+            expansion->setMaximumHeight(expanded ? QWIDGETSIZE_MAX : 0);
+        }
+    }
     polishWizard(widget);
+    if (auto *toolBox = qobject_cast<QToolBox *>(widget))
+        d->interactionController->watchToolBox(toolBox);
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);
         if (backdrop.isValid()) {
@@ -2493,6 +2518,15 @@ void Style::polishWizard(QWidget *widget)
     // theme change refreshes its internal page and command surfaces too.
     widget->setProperty(ownedPaletteProperty, true);
     d->registerPaletteOwner(widget);
+    // Qt <= 6.11 initializes QWizardPrivate::vistaInitPending to true for every
+    // wizard, so the first Show event rewrites wizStyle to AeroStyle even when
+    // styleHint(SH_WizardStyle) answered ModernStyle (fixed in 6.12: the flag is
+    // only set for AeroStyle). AeroStyle moves the content widget down by the
+    // Vista title bar and puts the Back button in the title area, which pushes
+    // the command row - and the footer surface behind it - outside the client
+    // rect. Naming the style we advertise clears the pending flag, so the
+    // modern layout survives the first Show on every Qt version.
+    wizard->setWizardStyle(QWizard::ModernStyle);
     for (QWizard::WizardButton button : { QWizard::NextButton, QWizard::FinishButton }) {
         if (QAbstractButton *primary = wizard->button(button))
             primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));

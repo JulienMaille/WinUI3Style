@@ -16,19 +16,24 @@
 
 #include <QComboBox>
 #include <QCheckBox>
+#include <QCommandLinkButton>
 #include <QCalendarWidget>
 #include <QDateEdit>
+#include <QFrame>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QLocale>
 #include <QMenuBar>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPushButton>
+#include <QRubberBand>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
 #include <QStyleFactory>
+#include <QTabWidget>
 #include <QTemporaryDir>
 
 class WinUI3GalleryProbeTest final : public QObject
@@ -46,6 +51,8 @@ private slots:
     void galleryStaleReapplyAfterDisable();
     void gallerySnapshotPinsAndRestoresCalendarDate();
     void galleryComparisonStyleAvailabilityAndRestore();
+    void gallerySettingsExpanderAnimates();
+    void galleryRubberBandReachable();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -296,7 +303,8 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
         QVERIFY(liveGrab.pixelColor(probeInWindow(nav->viewport(), QPoint(4, rowRect.center().y())))
                         .alpha()
                 != 0);
-        // Palette Lab page: the preview card + editor keep the card tone.
+        // Palette Lab page: the editor keeps its own fill, while the preview
+        // panel stays on the bare material (uniform-mica direction).
         QStackedWidget *nonePages = none.findChild<QStackedWidget *>(QStringLiteral("pages"));
         QScrollArea *nonePalettePage =
                 none.findChild<QScrollArea *>(QStringLiteral("paletteLabPage"));
@@ -329,6 +337,44 @@ void WinUI3GalleryProbeTest::galleryProbeKeepsCardFillOverComposited()
                         .alpha()
                 != 0);
         QCOMPARE(focusGrab.pixelColor(probeInWindow(previewEdit, QPoint(0, 0))).alpha(), 0);
+        // Dialogs page: Qt translates a command link's painted contents by
+        // PM_ButtonShiftHorizontal/Vertical on press, so the real Gallery
+        // instance must report 0 on both axes (the pixel proof is
+        // commandLinkPressKeepsContentPosition; this is the same mechanism on
+        // the widget the reviewer actually sees).
+        auto *dialogsPage = mica.findChild<QScrollArea *>(QStringLiteral("dialogsPage"));
+        auto *commandLink =
+                mica.findChild<QCommandLinkButton *>(QStringLiteral("commandLinkButton"));
+        auto *disabledLink =
+                mica.findChild<QCommandLinkButton *>(QStringLiteral("disabledCommandLink"));
+        QVERIFY(dialogsPage && commandLink && disabledLink);
+        QCOMPARE(commandLink->isEnabled(), true);
+        QCOMPARE(disabledLink->isEnabled(), false);
+        QCOMPARE(commandLink->style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, nullptr,
+                                                   commandLink),
+                 0);
+        QCOMPARE(commandLink->style()->pixelMetric(QStyle::PM_ButtonShiftVertical, nullptr,
+                                                   commandLink),
+                 0);
+        QCOMPARE(disabledLink->style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, nullptr,
+                                                    disabledLink),
+                 0);
+        QCOMPARE(disabledLink->style()->pixelMetric(QStyle::PM_ButtonShiftVertical, nullptr,
+                                                    disabledLink),
+                 0);
+        pages->setCurrentWidget(dialogsPage);
+        dialogsPage->ensureWidgetVisible(commandLink);
+        qApp->processEvents();
+        const QRect linkRect = commandLink->rect();
+        const QImage linkRest = commandLink->grab().toImage();
+        QTest::mousePress(commandLink, Qt::LeftButton, Qt::NoModifier, linkRect.center());
+        QVERIFY(commandLink->isDown());
+        const QImage linkPressed = commandLink->grab().toImage();
+        QTest::mouseRelease(commandLink, Qt::LeftButton, Qt::NoModifier, linkRect.center());
+        QVERIFY(!commandLink->isDown());
+        // The press surface is real, and the widget never re-lays out.
+        QVERIFY(linkPressed != linkRest);
+        QCOMPARE(commandLink->rect(), linkRect);
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
@@ -585,6 +631,103 @@ void WinUI3GalleryProbeTest::gallerySnapshotPinsAndRestoresCalendarDate()
     QCOMPARE(calendar->selectedDate(), originalDate);
     QCOMPARE(calendar->yearShown(), 2034);
     QCOMPARE(calendar->monthShown(), 7);
+}
+
+void WinUI3GalleryProbeTest::gallerySettingsExpanderAnimates()
+{
+    // The Designer composition must animate, not jump: click the Advanced
+    // header in the real gallery and sample the expansion mid-flight.
+    QVERIFY(!qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS"));
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("pages"));
+    auto *settingsPage = window.findChild<QScrollArea *>(QStringLiteral("settingsPage"));
+    auto *card = window.findChild<QFrame *>(QStringLiteral("advancedCard"));
+    auto *header = window.findChild<QWidget *>(QStringLiteral("advancedHeader"));
+    auto *title = window.findChild<QLabel *>(QStringLiteral("advancedTitle"));
+    auto *details = window.findChild<QWidget *>(QStringLiteral("advancedDetailsHost"));
+    QVERIFY(pages && settingsPage && card && header && title && details);
+    pages->setCurrentWidget(settingsPage);
+    qApp->processEvents();
+
+    QCOMPARE(card->property(WinUI3::Style::SettingsCardProperty).toBool(), true);
+    QCOMPARE(card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), false);
+    QCOMPARE(details->maximumHeight(), 0);
+    const int contentHeight = details->sizeHint().height();
+    const int collapsedHeight = card->height();
+    QVERIFY(contentHeight > 0);
+
+    // Click the header label, not the frame: this is the live path where Qt
+    // propagates an ignored press up through the nested header widget.
+    QTest::mouseClick(title, Qt::LeftButton, Qt::NoModifier, title->rect().center());
+    QTest::qWait(80);
+    const qreal mid = frameReal(card, "_winui_card_expansion_progress");
+    QVERIFY2(mid > 0.0 && mid < 1.0, qPrintable(QString::number(mid)));
+    QVERIFY2(details->maximumHeight() > 0 && details->maximumHeight() < contentHeight,
+             qPrintable(QString::number(details->maximumHeight())));
+    QVERIFY2(card->height() > collapsedHeight
+                     && card->height() < collapsedHeight + details->sizeHint().height(),
+             qPrintable(QStringLiteral("%1 -> %2").arg(collapsedHeight).arg(card->height())));
+    QTRY_COMPARE_WITH_TIMEOUT(frameReal(card, "_winui_card_expansion_progress"), 1.0, 1500);
+    QCOMPARE(details->maximumHeight(), QWIDGETSIZE_MAX);
+    // The wrapped QLabel's cached sizeHint can disagree with the height the
+    // layout actually needs; the contract is that the expanded host is at
+    // least its minimum (nothing clipped) and the card grew by that height.
+    QVERIFY2(details->height() >= details->minimumSizeHint().height(),
+             qPrintable(QStringLiteral("%1 < %2")
+                                .arg(details->height())
+                                .arg(details->minimumSizeHint().height())));
+    QCOMPARE(card->height(), details->y() + details->height());
+}
+
+void WinUI3GalleryProbeTest::galleryRubberBandReachable()
+{
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("pages"));
+    auto *collections = window.findChild<QScrollArea *>(QStringLiteral("collectionsPage"));
+    auto *tabs = window.findChild<QTabWidget *>(QStringLiteral("collectionsTabs"));
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("listViewTab"));
+    QVERIFY(pages && collections && tabs && list);
+    pages->setCurrentWidget(collections);
+    tabs->setCurrentWidget(list);
+    qApp->processEvents();
+    QCOMPARE(list->selectionMode(), QAbstractItemView::ExtendedSelection);
+    // QListView only rubbers up in IconMode unless this is set explicitly.
+    QCOMPARE(list->isSelectionRectVisible(), true);
+    QVERIFY(list->viewport()->height() > 160);
+
+    const QPoint start(24, list->viewport()->height() - 24);
+    const QPoint end(340, list->viewport()->height() - 110);
+    QTest::mousePress(list->viewport(), Qt::LeftButton, Qt::NoModifier, start);
+    QMouseEvent move(QEvent::MouseMove, QPointF(end), QPointF(list->viewport()->mapToGlobal(end)),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(list->viewport(), &move);
+    QTest::qWait(40);
+    // Qt 6 does not create a QRubberBand widget for item views: QListView
+    // paints CE_RubberBand itself while it is in DragSelectingState.
+    const QImage image = list->viewport()->grab().toImage();
+    const auto tokens = WinUI3::Private::tokens(list->palette());
+    QRect painted;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            if (colorDistance(image.pixelColor(x, y), tokens.selectionAccent) <= 8)
+                painted |= QRect(x, y, 1, 1);
+        }
+    }
+    QTest::mouseRelease(list->viewport(), Qt::LeftButton, Qt::NoModifier, end);
+    // The accent outline follows the dragged rectangle (Qt insets the
+    // rectangle by 1 px before stroking the top and bottom edges).
+    QVERIFY2(painted.isValid(), "no accent pixels: the marquee is invisible");
+    const QRect expected = QRect(start, end).normalized();
+    QCOMPARE(painted.left(), expected.left());
+    QCOMPARE(painted.right(), expected.right());
+    QVERIFY(qAbs(painted.top() - expected.top()) <= 1);
+    QVERIFY(qAbs(painted.bottom() - expected.bottom()) <= 1);
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)

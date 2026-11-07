@@ -41,6 +41,7 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
 #include <QKeySequence>
@@ -95,6 +96,48 @@
 
 #include "winui3testhelpers.h"
 
+namespace {
+
+// Stock SettingsExpander composition: no compiled widget. The card is a plain
+// QFrame with winuiSettingsCard, its header is a QWidget, and the collapsible
+// content is a direct child carrying winuiSettingsCardExpansion. Geometry is
+// the pinned SettingsExpanderHeaderPadding (16,16,4,16) plus the 8 px trailing
+// chevron margin, i.e. 44 px reserved on the header's trailing edge.
+struct StockSettingsCard
+{
+    QFrame *card = nullptr;
+    QWidget *header = nullptr;
+    QWidget *details = nullptr;
+};
+
+StockSettingsCard makeStockSettingsCard(const QString &density = QString())
+{
+    StockSettingsCard parts;
+    parts.card = new QFrame;
+    parts.card->setProperty(WinUI3::Style::SettingsCardProperty, true);
+    if (!density.isEmpty())
+        parts.card->setProperty("winuiDensity", density);
+    auto *cardLayout = new QVBoxLayout(parts.card);
+    cardLayout->setContentsMargins(0, 0, 0, 0);
+    cardLayout->setSpacing(0);
+
+    parts.header = new QWidget;
+    auto *headerLayout = new QHBoxLayout(parts.header);
+    headerLayout->setContentsMargins(16, 16, 44, 16);
+    headerLayout->addWidget(new QLabel(QStringLiteral("Advanced options")));
+
+    parts.details = new QWidget;
+    parts.details->setProperty(WinUI3::Style::SettingsCardExpansionProperty, true);
+    auto *detailsLayout = new QVBoxLayout(parts.details);
+    detailsLayout->addWidget(new QLabel(QStringLiteral("Expanded details")));
+
+    cardLayout->addWidget(parts.header);
+    cardLayout->addWidget(parts.details);
+    return parts;
+}
+
+} // namespace
+
 class WinUI3SettingsCardTest final : public QObject, private WinUI3StandardTestFixture
 {
     Q_OBJECT
@@ -110,6 +153,10 @@ private slots:
     void settingsCardChevronAndStableHeader();
     void settingsCardExpansionLoad();
     void settingsCardExpansionInScrollingPage();
+    void settingsCardStockHeaderGeometry_data();
+    void settingsCardStockHeaderGeometry();
+    void settingsCardStockExpansionInteraction();
+    void settingsCardStockTrailingCardStaysInert();
 };
 
 void WinUI3SettingsCardTest::initTestCase()
@@ -547,6 +594,149 @@ void WinUI3SettingsCardTest::settingsCardExpansionInScrollingPage()
     }
     area->hide();
     delete area;
+}
+
+void WinUI3SettingsCardTest::settingsCardStockHeaderGeometry_data()
+{
+    QTest::addColumn<QString>("density");
+    QTest::newRow("standard") << QStringLiteral("standard");
+    QTest::newRow("compact") << QStringLiteral("compact");
+}
+
+void WinUI3SettingsCardTest::settingsCardStockHeaderGeometry()
+{
+    QFETCH(QString, density);
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    layout->setContentsMargins(20, 20, 20, 20);
+    const StockSettingsCard parts = makeStockSettingsCard(density);
+    layout->addWidget(parts.card);
+    host.resize(480, 300);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardProperty).toBool(), true);
+    QCOMPARE(WinUI3::Private::settingsCardExpansionHost(parts.card), parts.details);
+    QCOMPARE(parts.card->focusPolicy(), Qt::StrongFocus);
+    QCOMPARE(parts.details->maximumHeight(), 0);
+    // The header bottom is the collapsible child's top edge in both states;
+    // the renderer paints the chevron inside that band.
+    QCOMPARE(WinUI3::Private::settingsCardHeaderHeight(parts.card), parts.header->height());
+    QCOMPARE(parts.details->y(), parts.header->height());
+    QCOMPARE(WinUI3::Private::progress(parts.card,
+                                       WinUI3::Private::settingsCardExpansionProgressProperty),
+             0.0);
+
+    // SettingsExpanderChevronButtonWidth/Height 32 with Margin 0,0,8,0 and a
+    // 16 px glyph: ink must stay inside the centered 16 px square, and the
+    // 32 px box must end 8 px before the card's trailing edge.
+    const QRect chevron(parts.card->width() - 8 - 32, (parts.header->height() - 32) / 2, 32, 32);
+    QCOMPARE(chevron.right(), parts.card->width() - 9);
+    const QRect glyph(chevron.center().x() - 8, chevron.center().y() - 8, 16, 16);
+    const QImage image = parts.card->grab().toImage();
+    const QColor surface = image.pixelColor(chevron.left() - 4, chevron.center().y());
+    int inkCount = 0;
+    QRect inkBounds;
+    for (int y = chevron.top(); y <= chevron.bottom(); ++y) {
+        for (int x = chevron.left(); x <= chevron.right(); ++x) {
+            if (colorDistance(image.pixelColor(x, y), surface) <= 8)
+                continue;
+            ++inkCount;
+            inkBounds =
+                    inkBounds.isNull() ? QRect(x, y, 1, 1) : inkBounds.united(QRect(x, y, 1, 1));
+        }
+    }
+    QVERIFY2(inkCount > 6, qPrintable(QString::number(inkCount)));
+    QVERIFY2(glyph.contains(inkBounds),
+             qPrintable(QStringLiteral("%1x%2 at %3,%4")
+                                .arg(inkBounds.width())
+                                .arg(inkBounds.height())
+                                .arg(inkBounds.x())
+                                .arg(inkBounds.y())));
+}
+
+void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
+{
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    layout->setContentsMargins(20, 20, 20, 20);
+    const StockSettingsCard parts = makeStockSettingsCard();
+    layout->addWidget(parts.card);
+    host.resize(480, 320);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    QCOMPARE(parts.details->maximumHeight(), 0);
+    const int headerHeight = parts.header->height();
+
+    const QPoint headerPoint(headerHeight, parts.header->height() / 2);
+    QTest::mouseMove(parts.card, headerPoint);
+    QTest::mousePress(parts.card, Qt::LeftButton, Qt::NoModifier, headerPoint);
+    QTest::qWait(30);
+    const qreal pressed = frameReal(parts.card, "_winui_press_progress");
+    QVERIFY2(pressed > 0.0, qPrintable(QString::number(pressed)));
+    QTest::mouseRelease(parts.card, Qt::LeftButton, Qt::NoModifier, headerPoint);
+
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), true);
+    QTest::qWait(80);
+    const qreal mid = WinUI3::Private::progress(
+            parts.card, WinUI3::Private::settingsCardExpansionProgressProperty);
+    QVERIFY2(mid > 0.0 && mid < 1.0, qPrintable(QString::number(mid)));
+    QVERIFY2(parts.details->maximumHeight() > 0
+                     && parts.details->maximumHeight() < parts.details->sizeHint().height(),
+             qPrintable(QString::number(parts.details->maximumHeight())));
+    QTRY_COMPARE(WinUI3::Private::progress(parts.card,
+                                           WinUI3::Private::settingsCardExpansionProgressProperty),
+                 1.0);
+    QCOMPARE(parts.details->maximumHeight(), QWIDGETSIZE_MAX);
+    QTRY_COMPARE(parts.details->height(), parts.details->sizeHint().height());
+    QCOMPARE(parts.details->y(), headerHeight);
+
+    // Clicking inside the expanded content must not toggle the card.
+    QTest::mouseClick(parts.details, Qt::LeftButton, Qt::NoModifier,
+                      parts.details->rect().center());
+    QTest::qWait(20);
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), true);
+
+    // Keyboard: Space collapses (167 ms), Enter expands again (333 ms).
+    parts.card->setFocus();
+    QTest::keyClick(parts.card, Qt::Key_Space);
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), false);
+    QTest::qWait(60);
+    const qreal collapsing = WinUI3::Private::progress(
+            parts.card, WinUI3::Private::settingsCardExpansionProgressProperty);
+    QVERIFY2(collapsing > 0.0 && collapsing < 1.0, qPrintable(QString::number(collapsing)));
+    QTRY_COMPARE(parts.details->maximumHeight(), 0);
+    QTest::keyClick(parts.card, Qt::Key_Return);
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), true);
+    QTRY_COMPARE(WinUI3::Private::progress(parts.card,
+                                           WinUI3::Private::settingsCardExpansionProgressProperty),
+                 1.0);
+}
+
+void WinUI3SettingsCardTest::settingsCardStockTrailingCardStaysInert()
+{
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    auto *card = new QFrame;
+    card->setProperty(WinUI3::Style::SettingsCardProperty, true);
+    auto *cardLayout = new QHBoxLayout(card);
+    cardLayout->setContentsMargins(16, 16, 16, 16);
+    cardLayout->addWidget(new QLabel(QStringLiteral("Notifications")));
+    auto *toggle = new QCheckBox;
+    WinUI3::Style::setToggleSwitch(toggle);
+    cardLayout->addWidget(toggle);
+    layout->addWidget(card);
+    host.resize(480, 160);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    QCOMPARE(WinUI3::Private::settingsCardExpansionHost(card), nullptr);
+    QCOMPARE(WinUI3::Private::settingsCardInteractive(card), false);
+    QCOMPARE(card->focusPolicy(), Qt::NoFocus);
+    QTest::mouseClick(card, Qt::LeftButton, Qt::NoModifier, QPoint(40, 20));
+    QTest::qWait(20);
+    QCOMPARE(card->property(WinUI3::Style::SettingsCardExpandedProperty).isValid(), false);
+    QCOMPARE(toggle->isChecked(), false);
 }
 
 QTEST_MAIN(WinUI3SettingsCardTest)

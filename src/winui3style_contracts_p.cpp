@@ -626,9 +626,13 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
             && qobject_cast<const QTableView *>(itemView(widget))
             && !calendarPopupItemView(widget)) {
             // QTableView is a consistency extension (Qt has no core WinUI
-            // DataGrid). Match the common Qt/Fusion cell text inset while
-            // keeping the 36px row rhythm and calendar's compact day cells.
-            constexpr int tableCellHorizontalPadding = 8;
+            // DataGrid), so its text inset comes from the pinned DataGrid
+            // text column: DATAGRIDTEXTCOLUMN_leftMargin / _rightMargin are
+            // both 12.0 and the generated TextBlock gets exactly that margin
+            // (DataGridTextColumn.cs), which is also the column header's
+            // Padding="12,0,0,0" leading inset. A header and its cells must
+            // share the leading edge.
+            constexpr int tableCellHorizontalPadding = 12;
             if (source->direction == Qt::RightToLeft) {
                 result.setLeft(
                         qMax(result.left(), source->rect.left() + tableCellHorizontalPadding));

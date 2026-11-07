@@ -36,28 +36,38 @@ if(_dialog_button_width_count LESS 2)
         "Designer gallery ContentDialog must retain 120 px primary/close buttons")
 endif()
 
-# Settings cards are real promoted widgets, not QFrame/QGroupBox lookalikes.
-# Their internal header/chevron/expansion hit testing is part of the widget
-# contract and cannot be reproduced by a dynamic winuiSettingsCard property.
-foreach(_required
-        "<class>WinUI3::SettingsCard</class>"
-        "<widget class=\"WinUI3::SettingsCard\" name=\"notificationsCard\">"
-        "<widget class=\"WinUI3::SettingsCard\" name=\"updatesCard\">"
-        "<widget class=\"WinUI3::SettingsCard\" name=\"advancedCard\">"
-        "<property name=\"trailingWidgetName\">"
-        "<property name=\"expandableWidgetName\">")
-    string(FIND "${_gallery_ui}" "${_required}" _found)
-    if(_found EQUAL -1)
-        message(FATAL_ERROR "Designer gallery is missing promoted SettingsCard contract: ${_required}")
-    endif()
-endforeach()
-foreach(_forbidden_card
+# Settings cards are stock QFrame + winuiSettingsCard compositions: the style
+# owns the surface, the chevron and the expansion, so the gallery stays a plain
+# Qt client that only deploys the style plugin.
+foreach(_required_card
         "<widget class=\"QFrame\" name=\"notificationsCard\">"
         "<widget class=\"QFrame\" name=\"updatesCard\">"
-        "<widget class=\"QGroupBox\" name=\"advancedCard\">")
+        "<widget class=\"QFrame\" name=\"advancedCard\">")
+    string(FIND "${_gallery_ui}" "${_required_card}" _found)
+    if(_found EQUAL -1)
+        message(FATAL_ERROR "Designer gallery is missing stock settings card: ${_required_card}")
+    endif()
+endforeach()
+string(REGEX MATCHALL "winuiSettingsCard\" stdset=\"0\"" _card_properties "${_gallery_ui}")
+list(LENGTH _card_properties _card_property_count)
+if(NOT _card_property_count EQUAL 3)
+    message(FATAL_ERROR
+        "Every settings card must declare winuiSettingsCard (found ${_card_property_count}/3)")
+endif()
+string(FIND "${_gallery_ui}" "<widget class=\"QWidget\" name=\"advancedDetailsHost\">" _expansion_host)
+string(FIND "${_gallery_ui}" "winuiSettingsCardExpansion\" stdset=\"0\"" _expansion_property)
+if(_expansion_host EQUAL -1 OR _expansion_property EQUAL -1)
+    message(FATAL_ERROR
+        "The Advanced card must mark its collapsible child with winuiSettingsCardExpansion")
+endif()
+foreach(_forbidden_card
+        "WinUI3::"
+        "winui3style/"
+        "<customwidgets>")
     string(FIND "${_gallery_ui}" "${_forbidden_card}" _found)
     if(NOT _found EQUAL -1)
-        message(FATAL_ERROR "Designer gallery regressed to a placeholder settings card: ${_forbidden_card}")
+        message(FATAL_ERROR
+            "The gallery must not depend on a compiled WinUI3 widget: ${_forbidden_card}")
     endif()
 endforeach()
 
@@ -112,9 +122,9 @@ endforeach()
 
 file(READ "${_demo_dir}/CMakeLists.txt" _demo_cmake)
 string(FIND "${_demo_cmake}" "WinUI3::Widgets" _linked)
-if(_linked EQUAL -1)
+if(NOT _linked EQUAL -1)
     message(FATAL_ERROR
-        "The gallery must link WinUI3::Widgets because the .ui promotes SettingsCard")
+        "The gallery must not link WinUI3::Widgets: the settings cards are stock Qt widgets")
 endif()
 
 # Zero-QSS claim loop: Designer-set stylesheets bypass the setStyleSheet

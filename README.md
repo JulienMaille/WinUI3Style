@@ -95,6 +95,8 @@ painting or animation is required. See `RELEASE_NOTES.md`.
 | `winuiControlRole`: `standard`, `accent`, `subtle`, `navigation`, `destructive` | Buttons |
 | `winuiVerticalSpinButtons=true` | `QSpinBox`/`QDoubleSpinBox` (stacked buttons; default is horizontal inline) |
 | `winuiSettingsCard=true` | `QFrame`/`QGroupBox` |
+| `winuiSettingsCardExpansion=true` | Direct child of a settings card: its collapsible content |
+| `winuiSettingsCardExpanded` | Settings card: read/write expanded state (animates) |
 | `winuiNavigationView=true` | Standard Qt item view |
 | `winuiContentDialog=true` | `QDialog` (plus automatic `QMessageBox` surface with Segoe Fluent glyphs) |
 | `winuiBackdrop`: `none`, `mica`, `mica-alt`, `acrylic` | Top-level window |

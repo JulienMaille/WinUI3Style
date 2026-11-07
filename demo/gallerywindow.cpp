@@ -11,7 +11,9 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEvent>
 #include <QEventLoop>
+#include <QFont>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
@@ -25,6 +27,7 @@
 #include <QStyleFactory>
 #include <QTableWidgetItem>
 #include <QTimer>
+#include <QToolBox>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -122,6 +125,34 @@ GalleryWindow::~GalleryWindow()
     delete ui;
 }
 
+void GalleryWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::PaletteChange)
+        refreshCardIcons();
+}
+
+void GalleryWindow::refreshCardIcons()
+{
+    // SettingsCard header icon: SettingsCardHeaderIconMaxSize 20, drawn from
+    // the style's themed standard icons. A QLabel stores a plain pixmap, so a
+    // theme switch must re-render it or the old ink stays on the new surface.
+    const auto setCardIcon = [this](QLabel *label, QStyle::StandardPixmap pixmap) {
+        label->setPixmap(style()->standardIcon(pixmap, nullptr, this).pixmap(QSize(20, 20)));
+    };
+    setCardIcon(ui->notificationsCardIcon, QStyle::SP_MessageBoxInformation);
+    setCardIcon(ui->updatesCardIcon, QStyle::SP_BrowserReload);
+    setCardIcon(ui->advancedIcon, QStyle::SP_FileDialogDetailedView);
+    // SettingsCardDescriptionFontSize is 12 px in SettingsCard.xaml. uic has
+    // no pixel-size font serialization, so the stock labels get it here.
+    for (QLabel *description : { ui->notificationsCardDescription, ui->updatesCardDescription,
+                                 ui->advancedDescription }) {
+        QFont font = description->font();
+        font.setPixelSize(12);
+        description->setFont(font);
+    }
+}
+
 void GalleryWindow::configureGallery()
 {
     // Let the scroll area honor the embedded QMainWindow/QDockWidget minimum
@@ -184,6 +215,18 @@ void GalleryWindow::configureGallery()
     ui->compactDensityAutoSuggest->setCompleter(
             makeAutoSuggestCompleter(autoSuggestWords, ui->compactDensityAutoSuggest));
 
+    // QToolBox -> WinUI Expander accordion: three pages so the live pass can
+    // compare open/closed headers, hover/press on the chevron, and the shared
+    // card surface Qt builds from each page button's own palette role.
+    const QStringList expanderPages = { tr("Expander one"), tr("Expander two"),
+                                        tr("Expander three") };
+    for (const QString &title : expanderPages) {
+        auto *body = new QLabel(tr("ExpandDown body — Qt owns this page surface."), this);
+        body->setContentsMargins(16, 8, 16, 8);
+        ui->expandToolBox->addItem(body, title);
+    }
+    ui->expandToolBox->setCurrentIndex(0);
+
     const auto icon = [this](QStyle::StandardPixmap pixmap) {
         return style()->standardIcon(pixmap, nullptr, this);
     };
@@ -197,6 +240,7 @@ void GalleryWindow::configureGallery()
     ui->pinAction->setIcon(icon(QStyle::SP_DialogApplyButton));
     ui->standaloneToolButton->setIcon(icon(QStyle::SP_FileDialogDetailedView));
     ui->splitToolButton->setIcon(icon(QStyle::SP_DirOpenIcon));
+    refreshCardIcons();
     ui->iconCombo->setItemIcon(0, icon(QStyle::SP_FileIcon));
     ui->iconCombo->setItemIcon(1, icon(QStyle::SP_DirIcon));
     auto *buttonMenu = new QMenu(ui->menuButton);
@@ -351,6 +395,12 @@ void GalleryWindow::populateCollections()
             ui->tableViewTab->setItem(row, column, new QTableWidgetItem(rows[row][column]));
     ui->tableViewTab->setAlternatingRowColors(true);
     ui->tableViewTab->horizontalHeader()->setStretchLastSection(true);
+    // Keep one live sort on the Data grid so the WinUI DataGrid sort glyph
+    // (SortIconAscending E74A / Descending E74B in the trailing 32 px column)
+    // is a real, captured part of the Gallery surface; clicking any header
+    // flips the indicator through the stock QTableWidget behaviour.
+    ui->tableViewTab->setSortingEnabled(true);
+    ui->tableViewTab->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
 }
 
 void GalleryWindow::configurePaletteLab(bool captureMode)
@@ -640,9 +690,11 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         sendPointerState(ui->galleryStandardButton, true, true);
         success = saveControl(ui->galleryStandardButton, "button-pressed") && success;
         sendPointerState(ui->galleryStandardButton, false, false);
-        ui->galleryLineEdit->setFocus(Qt::TabFocusReason);
-        success = saveControl(ui->galleryLineEdit, "textbox-keyboard-focus") && success;
-        ui->galleryLineEdit->clearFocus();
+        // No `textbox-keyboard-focus` state capture: the text caret is one real
+        // column of that raster and its ink is not stable across the Qt matrix
+        // (6.8 paints the bare palette text colour, 6.12 composites its alpha),
+        // and the matrix compares pixel-exact with no mask. The keyboard ring is
+        // covered by `textBoxStateMatrix` instead.
         sendPointerState(ui->galleryComboBox, true, true);
         success = saveControl(ui->galleryComboBox, "combobox-pressed") && success;
         sendPointerState(ui->galleryComboBox, false, false);

@@ -78,7 +78,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (watched == m_wizard
+        if ((watched == m_wizard || watched == m_host)
             && (event->type() == QEvent::Resize || event->type() == QEvent::Show
                 || event->type() == QEvent::LayoutRequest || event->type() == QEvent::ChildAdded)) {
             queueGeometrySync();
@@ -95,6 +95,42 @@ protected:
     }
 
 private:
+    // Qt hosts the header, the page stack and the button row inside one
+    // full-size child of the wizard, and that child paints the dialog body
+    // over the whole rect. A footer that is a *sibling* of it is lowered
+    // underneath and never shows, which is why the command strip read as body
+    // #2C2C2C. Parent the footer into that body host instead: the host's own
+    // background still paints first, and lowering the footer below the page and
+    // buttons keeps every control on top.
+    QWidget *bodyHost() const
+    {
+        if (!m_wizard)
+            return nullptr;
+        QWidget *child = m_wizard->currentPage();
+        while (child && child->parentWidget() != m_wizard)
+            child = child->parentWidget();
+        return child ? child : m_wizard;
+    }
+
+    // The buttons and the page stack live inside the host, so the host's own
+    // Resize/LayoutRequest is what moves the command strip. Watching only the
+    // wizard missed those: a sync taken while the host was still unlaid out
+    // produced a zero-height strip that stayed shown and never corrected
+    // (CI-only, Qt 6.8/6.11: the footer read as body #2C2C2C in the grab
+    // while the same wizard was correct in the Gallery snapshot).
+    void setHost(QWidget *host)
+    {
+        if (m_host == host)
+            return;
+        if (m_host)
+            m_host->removeEventFilter(this);
+        m_host = host;
+        if (m_host)
+            m_host->installEventFilter(this);
+        if (parentWidget() != host)
+            setParent(host);
+    }
+
     void syncGeometry()
     {
         if (!m_wizard)
@@ -118,16 +154,32 @@ private:
             return;
         }
 
+        QWidget *host = bodyHost();
+        if (!host)
+            host = m_wizard;
+        setHost(host);
+
         // QWizard's native button row has a 12 px breathing room above and
         // below the controls. Paint the command surface behind that complete
         // row, including the native separator's former backing pixels.
         const int top = qBound(0, buttonTop - 12, m_wizard->height());
-        setGeometry(0, top, m_wizard->width(), m_wizard->height() - top);
+        const int topInHost = host->mapFrom(m_wizard, QPoint(0, top)).y();
+        const int stripHeight = host->height() - topInHost;
+        // An unlaid-out host has no height yet. Hide instead of showing an
+        // empty strip: the host's own Resize/LayoutRequest re-syncs us, and a
+        // hidden surface cannot be mistaken for a painted one.
+        if (host->width() <= 0 || stripHeight <= 0) {
+            hide();
+            return;
+        }
+        setGeometry(0, topInHost, host->width(), stripHeight);
         lower();
         setVisible(m_wizard->isVisible());
+        host->update(geometry());
     }
 
     QPointer<QWizard> m_wizard;
+    QPointer<QWidget> m_host;
     QColor m_fill;
     QColor m_stroke;
     bool m_syncQueued = false;
@@ -137,8 +189,11 @@ WizardFooterSurface *wizardFooterSurface(QWizard *wizard, bool create)
 {
     if (!wizard)
         return nullptr;
+    // The surface is reparented into the wizard's body host (a descendant), so
+    // look it up recursively; a direct-children search would create a second
+    // surface on every refresh.
     auto *surface = static_cast<WizardFooterSurface *>(wizard->findChild<QWidget *>(
-            QString::fromLatin1(wizardFooterName), Qt::FindDirectChildrenOnly));
+            QString::fromLatin1(wizardFooterName), Qt::FindChildrenRecursively));
     if (!surface && create)
         surface = new WizardFooterSurface(wizard);
     return surface;
@@ -206,8 +261,12 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
     wizard->setPalette(contentPalette);
     wizard->setAutoFillBackground(true);
     if (WizardFooterSurface *footer = wizardFooterSurface(wizard, true)) {
-        const QColor commandFill = applicationPalette.color(QPalette::Window);
-        footer->setColors(commandFill, tokens(commandPalette).stroke);
+        // ContentDialog's CommandSpace sits on SolidBackgroundFillColorBase,
+        // not on the application chrome layer that the polished application
+        // palette carries in Window (#2C2C2C Dark). Using the chrome tone made
+        // the footer indistinguishable from the raised dialog body.
+        const Tokens commandTokens = tokens(commandPalette);
+        footer->setColors(dialogCommandFillColor(commandTokens.dark), commandTokens.stroke);
         footer->queueGeometrySync();
     }
 }

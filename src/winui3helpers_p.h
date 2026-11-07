@@ -20,6 +20,7 @@
 #include <QComboBox>
 #include <QGroupBox>
 #include <QGuiApplication>
+#include <QLayout>
 #include <QLineEdit>
 #include <QPalette>
 #include <QPainter>
@@ -111,6 +112,50 @@ inline bool buttonPressPulse(const QWidget *widget)
                 // A 250 ms RadioButton state transition can otherwise be
                 // reversed before producing a painted frame during rapid clicks.
                 || qobject_cast<const QRadioButton *>(widget));
+}
+
+// Stock SettingsExpander composition (no compiled widget): the card is a
+// QFrame carrying winuiSettingsCard, and its collapsible content is the direct
+// child that carries winuiSettingsCardExpansion. The QToolBox/Expander header
+// chevron is painted by the style, so the card needs no child label for it.
+// The expansion child stays visible at height 0 when collapsed, which keeps
+// its layout position (and thus the header's bottom edge) stable for hit
+// testing and painting.
+inline QWidget *settingsCardExpansionHost(const QWidget *card)
+{
+    if (!card || !card->property(Style::SettingsCardProperty).toBool())
+        return nullptr;
+    const auto children = card->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
+    for (QWidget *child : children) {
+        if (child->property(Style::SettingsCardExpansionProperty).toBool())
+            return child;
+    }
+    return nullptr;
+}
+
+// Height of the clickable/painted header: the expansion child sits directly
+// below it, so its y position is the header's bottom edge in both states.
+inline int settingsCardHeaderHeight(const QWidget *card)
+{
+    const QWidget *host = settingsCardExpansionHost(card);
+    if (!host)
+        return 0;
+    if (host->isVisible() && host->y() > 0)
+        return host->y();
+    return card->height();
+}
+
+// The compiled SettingsCard exposes the same seam through its private host
+// name; keep both paths interactive so existing compositions are unchanged.
+inline bool settingsCardInteractive(const QWidget *card)
+{
+    if (!card || !card->property(Style::SettingsCardProperty).toBool())
+        return false;
+    if (settingsCardExpansionHost(card))
+        return true;
+    const QWidget *host =
+            card->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
+    return host && host->layout() && host->layout()->count() > 0;
 }
 
 // Backdrop erase policy (single strategy; mapping first per METHODOLOGY section 1).

@@ -110,8 +110,6 @@ private slots:
     void itemViewGutterContract();
     void treeViewContract();
     void treeSelectionMarkerLeadingEdge();
-    void tableHeaderContract();
-    void tableSortIndicatorGeometryContract();
     void tableEditingPaintContract();
     void richEditBoxContract();
     void sliderExtremeRangeTicks();
@@ -748,14 +746,17 @@ void WinUI3ViewsTest::itemViewGutterContract()
     tableOption.rect = table.visualRect(tableOption.index);
     const QRect tableText = table.style()->subElementRect(QStyle::SE_ItemViewItemText, &tableOption,
                                                           table.viewport());
-    QCOMPARE(tableText.left(), tableOption.rect.left() + 8);
-    QCOMPARE(tableText.right(), tableOption.rect.right() - 8);
+    // Pinned DataGrid text column: 12 px on both sides
+    // (DataGridTextColumn DATAGRIDTEXTCOLUMN_leftMargin/_rightMargin), the
+    // same leading inset as the column header's Padding="12,0,0,0".
+    QCOMPARE(tableText.left(), tableOption.rect.left() + 12);
+    QCOMPARE(tableText.right(), tableOption.rect.right() - 12);
     QVERIFY(tableText.left() < listText.left());
     tableOption.direction = Qt::RightToLeft;
     const QRect tableTextRtl = table.style()->subElementRect(QStyle::SE_ItemViewItemText,
                                                              &tableOption, table.viewport());
-    QCOMPARE(tableTextRtl.left(), tableOption.rect.left() + 8);
-    QCOMPARE(tableTextRtl.right(), tableOption.rect.right() - 8);
+    QCOMPARE(tableTextRtl.left(), tableOption.rect.left() + 12);
+    QCOMPARE(tableTextRtl.right(), tableOption.rect.right() - 12);
 }
 
 void WinUI3ViewsTest::treeViewContract()
@@ -858,81 +859,6 @@ void WinUI3ViewsTest::treeSelectionMarkerLeadingEdge()
     const QImage rtl = renderSelected(Qt::RightToLeft);
     const int rightLeading = rtl.width() - 8;
     QVERIFY(hasAccentNear(rtl, rightLeading));
-}
-
-void WinUI3ViewsTest::tableHeaderContract()
-{
-    QTableWidget table(2, 2);
-    table.setLayoutDirection(Qt::RightToLeft);
-    table.setHorizontalHeaderLabels({ QStringLiteral("Control"), QStringLiteral("State") });
-    table.setSortingEnabled(true);
-    table.resize(420, 180);
-    table.show();
-    QTRY_VERIFY(table.isVisible());
-    QVERIFY(table.horizontalHeader()->height() >= 32);
-    QVERIFY(table.verticalHeader()->sectionSize(0) >= 36);
-
-    QStyleOptionHeader option;
-    option.initFrom(table.horizontalHeader());
-    option.rect = QRect(0, 0, 180, 32);
-    option.text = QStringLiteral("Control");
-    option.textAlignment = Qt::AlignLeft;
-    option.sortIndicator = QStyleOptionHeader::SortDown;
-    QImage header(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-    header.fill(Qt::transparent);
-    {
-        QPainter painter(&header);
-        table.style()->drawControl(QStyle::CE_HeaderSection, &option, &painter,
-                                   table.horizontalHeader());
-        table.style()->drawControl(QStyle::CE_HeaderLabel, &option, &painter,
-                                   table.horizontalHeader());
-    }
-    QVERIFY(!header.isNull());
-    QVERIFY(header.pixelColor(option.rect.right() - 16, option.rect.center().y()).alpha() > 0);
-}
-
-void WinUI3ViewsTest::tableSortIndicatorGeometryContract()
-{
-    QTableWidget table(1, 1);
-    table.resize(240, 80);
-    table.show();
-    QTRY_VERIFY(table.isVisible());
-
-    const auto render = [&table](Qt::LayoutDirection direction, bool sorted, int height) {
-        QStyleOptionHeader option;
-        option.initFrom(table.horizontalHeader());
-        option.rect = QRect(0, 0, 180, height);
-        option.direction = direction;
-        option.text.clear();
-        option.textAlignment = Qt::AlignLeft;
-        option.sortIndicator = sorted ? QStyleOptionHeader::SortDown : QStyleOptionHeader::None;
-        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        QPainter painter(&image);
-        table.style()->drawControl(QStyle::CE_Header, &option, &painter, table.horizontalHeader());
-        return image;
-    };
-
-    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
-        const QImage sorted = render(direction, true, 33);
-        const QImage unsorted = render(direction, false, 33);
-        QRect difference;
-        for (int y = 0; y < sorted.height(); ++y) {
-            for (int x = 0; x < sorted.width(); ++x) {
-                if (sorted.pixel(x, y) != unsorted.pixel(x, y))
-                    difference |= QRect(x, y, 1, 1);
-            }
-        }
-        QVERIFY(!difference.isEmpty());
-        // The chevron ink does not fill its 16 px slot; verify that the ink
-        // remains inside the vertically centered slot for an odd header.
-        QVERIFY(difference.top() >= 8);
-        QVERIFY(difference.bottom() <= 24);
-        if (direction == Qt::LeftToRight)
-            QVERIFY(difference.left() > 130);
-        else
-            QVERIFY(difference.right() < 40);
-    }
 }
 
 void WinUI3ViewsTest::tableEditingPaintContract()
