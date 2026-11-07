@@ -434,7 +434,10 @@ void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool exp
     if (!animate || !Style::animationsAllowed() || contentHeight <= 0) {
         framePropertyRegistry().set(card, settingsCardExpansionProgressProperty,
                                     expand ? 1.0 : 0.0);
-        host->setMaximumHeight(expand ? contentHeight : 0);
+        // Expanded content keeps its natural height so a later resize (wrapped
+        // description, narrower card) can grow instead of being clipped by the
+        // height sampled at click time.
+        host->setMaximumHeight(expand ? QWIDGETSIZE_MAX : 0);
         host->update();
         card->update();
         return;
@@ -462,8 +465,13 @@ void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool exp
                          guardedHost->update();
                          guardedCard->update();
                      });
-    QObject::connect(animation, &QVariantAnimation::finished, card,
-                     [this, card] { m_settingsCardExpansions.remove(card); });
+    QObject::connect(animation, &QVariantAnimation::finished, card, [this, card] {
+        m_settingsCardExpansions.remove(card);
+        if (!card->property(Style::SettingsCardExpandedProperty).toBool())
+            return;
+        if (QWidget *host = settingsCardExpansionHost(card))
+            host->setMaximumHeight(QWIDGETSIZE_MAX);
+    });
     m_settingsCardExpansions.insert(card, animation);
     animation->start();
 }

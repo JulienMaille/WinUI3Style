@@ -687,7 +687,8 @@ void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
     QTRY_COMPARE(WinUI3::Private::progress(parts.card,
                                            WinUI3::Private::settingsCardExpansionProgressProperty),
                  1.0);
-    QCOMPARE(parts.details->maximumHeight(), parts.details->sizeHint().height());
+    QCOMPARE(parts.details->maximumHeight(), QWIDGETSIZE_MAX);
+    QTRY_COMPARE(parts.details->height(), parts.details->sizeHint().height());
     QCOMPARE(parts.details->y(), headerHeight);
 
     // Clicking inside the expanded content must not toggle the card.

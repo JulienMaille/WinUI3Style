@@ -642,8 +642,9 @@ void WinUI3GalleryProbeTest::gallerySettingsExpanderAnimates()
     auto *settingsPage = window.findChild<QScrollArea *>(QStringLiteral("settingsPage"));
     auto *card = window.findChild<QFrame *>(QStringLiteral("advancedCard"));
     auto *header = window.findChild<QWidget *>(QStringLiteral("advancedHeader"));
+    auto *title = window.findChild<QLabel *>(QStringLiteral("advancedTitle"));
     auto *details = window.findChild<QWidget *>(QStringLiteral("advancedDetailsHost"));
-    QVERIFY(pages && settingsPage && card && header && details);
+    QVERIFY(pages && settingsPage && card && header && title && details);
     pages->setCurrentWidget(settingsPage);
     qApp->processEvents();
 
@@ -651,17 +652,30 @@ void WinUI3GalleryProbeTest::gallerySettingsExpanderAnimates()
     QCOMPARE(card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), false);
     QCOMPARE(details->maximumHeight(), 0);
     const int contentHeight = details->sizeHint().height();
+    const int collapsedHeight = card->height();
     QVERIFY(contentHeight > 0);
 
-    const QPoint clickPoint(header->geometry().center().x(), header->geometry().center().y());
-    QTest::mouseClick(card, Qt::LeftButton, Qt::NoModifier, clickPoint);
+    // Click the header label, not the frame: this is the live path where Qt
+    // propagates an ignored press up through the nested header widget.
+    QTest::mouseClick(title, Qt::LeftButton, Qt::NoModifier, title->rect().center());
     QTest::qWait(80);
     const qreal mid = frameReal(card, "_winui_card_expansion_progress");
     QVERIFY2(mid > 0.0 && mid < 1.0, qPrintable(QString::number(mid)));
     QVERIFY2(details->maximumHeight() > 0 && details->maximumHeight() < contentHeight,
              qPrintable(QString::number(details->maximumHeight())));
+    QVERIFY2(card->height() > collapsedHeight
+                     && card->height() < collapsedHeight + details->sizeHint().height(),
+             qPrintable(QStringLiteral("%1 -> %2").arg(collapsedHeight).arg(card->height())));
     QTRY_COMPARE_WITH_TIMEOUT(frameReal(card, "_winui_card_expansion_progress"), 1.0, 1500);
-    QCOMPARE(details->maximumHeight(), contentHeight);
+    QCOMPARE(details->maximumHeight(), QWIDGETSIZE_MAX);
+    // The wrapped QLabel's cached sizeHint can disagree with the height the
+    // layout actually needs; the contract is that the expanded host is at
+    // least its minimum (nothing clipped) and the card grew by that height.
+    QVERIFY2(details->height() >= details->minimumSizeHint().height(),
+             qPrintable(QStringLiteral("%1 < %2")
+                                .arg(details->height())
+                                .arg(details->minimumSizeHint().height())));
+    QCOMPARE(card->height(), details->y() + details->height());
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)
