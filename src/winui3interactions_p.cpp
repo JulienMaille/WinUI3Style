@@ -483,7 +483,11 @@ void StyleInteractionController::watchToolBox(QToolBox *box)
         return;
     // Drop entries whose toolbox died while the controller kept running, then
     // keep the watch idempotent across repolish.
-    m_toolBoxes.removeIf([](const QPointer<QToolBox> &watched) { return watched.isNull(); });
+    // QList::removeIf is unavailable in Qt 5.12, which remains supported.
+    for (int index = m_toolBoxes.size() - 1; index >= 0; --index) {
+        if (m_toolBoxes.at(index).isNull())
+            m_toolBoxes.removeAt(index);
+    }
     for (const QPointer<QToolBox> &watched : std::as_const(m_toolBoxes)) {
         if (watched == box)
             return;
