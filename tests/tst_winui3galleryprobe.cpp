@@ -26,11 +26,14 @@
 #include <QLocale>
 #include <QMenuBar>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPushButton>
+#include <QRubberBand>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
 #include <QStyleFactory>
+#include <QTabWidget>
 #include <QTemporaryDir>
 
 class WinUI3GalleryProbeTest final : public QObject
@@ -49,6 +52,7 @@ private slots:
     void gallerySnapshotPinsAndRestoresCalendarDate();
     void galleryComparisonStyleAvailabilityAndRestore();
     void gallerySettingsExpanderAnimates();
+    void galleryRubberBandReachable();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -676,6 +680,54 @@ void WinUI3GalleryProbeTest::gallerySettingsExpanderAnimates()
                                 .arg(details->height())
                                 .arg(details->minimumSizeHint().height())));
     QCOMPARE(card->height(), details->y() + details->height());
+}
+
+void WinUI3GalleryProbeTest::galleryRubberBandReachable()
+{
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("pages"));
+    auto *collections = window.findChild<QScrollArea *>(QStringLiteral("collectionsPage"));
+    auto *tabs = window.findChild<QTabWidget *>(QStringLiteral("collectionsTabs"));
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("listViewTab"));
+    QVERIFY(pages && collections && tabs && list);
+    pages->setCurrentWidget(collections);
+    tabs->setCurrentWidget(list);
+    qApp->processEvents();
+    QCOMPARE(list->selectionMode(), QAbstractItemView::ExtendedSelection);
+    // QListView only rubbers up in IconMode unless this is set explicitly.
+    QCOMPARE(list->isSelectionRectVisible(), true);
+    QVERIFY(list->viewport()->height() > 160);
+
+    const QPoint start(24, list->viewport()->height() - 24);
+    const QPoint end(340, list->viewport()->height() - 110);
+    QTest::mousePress(list->viewport(), Qt::LeftButton, Qt::NoModifier, start);
+    QMouseEvent move(QEvent::MouseMove, QPointF(end), QPointF(list->viewport()->mapToGlobal(end)),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(list->viewport(), &move);
+    QTest::qWait(40);
+    // Qt 6 does not create a QRubberBand widget for item views: QListView
+    // paints CE_RubberBand itself while it is in DragSelectingState.
+    const QImage image = list->viewport()->grab().toImage();
+    const auto tokens = WinUI3::Private::tokens(list->palette());
+    QRect painted;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            if (colorDistance(image.pixelColor(x, y), tokens.selectionAccent) <= 8)
+                painted |= QRect(x, y, 1, 1);
+        }
+    }
+    QTest::mouseRelease(list->viewport(), Qt::LeftButton, Qt::NoModifier, end);
+    // The accent outline follows the dragged rectangle (Qt insets the
+    // rectangle by 1 px before stroking the top and bottom edges).
+    QVERIFY2(painted.isValid(), "no accent pixels: the marquee is invisible");
+    const QRect expected = QRect(start, end).normalized();
+    QCOMPARE(painted.left(), expected.left());
+    QCOMPARE(painted.right(), expected.right());
+    QVERIFY(qAbs(painted.top() - expected.top()) <= 1);
+    QVERIFY(qAbs(painted.bottom() - expected.bottom()) <= 1);
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)

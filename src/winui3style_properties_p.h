@@ -24,6 +24,7 @@ inline constexpr auto sliderToolTipValueProperty = "_winui_slider_tooltip_value"
 inline constexpr auto sliderToolTipSurfacePendingProperty = "_winui_slider_tooltip_surface_pending";
 inline constexpr auto progressPhaseProperty = "_winui_progress_phase";
 inline constexpr auto comboChevronProperty = "_winui_combo_chevron_progress";
+inline constexpr auto toolBoxChevronProperty = "_winui_toolbox_chevron_progress";
 inline constexpr auto settingsCardExpansionProgressProperty = "_winui_card_expansion_progress";
 inline constexpr auto originalPaletteProperty = "_winui_original_palette";
 inline constexpr auto originalPaletteExplicitProperty = "_winui_original_palette_explicit";

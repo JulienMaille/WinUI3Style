@@ -83,6 +83,7 @@
 #include <QToolBar>
 #include <QWizard>
 #include <QToolButton>
+#include <QToolBox>
 #include <QTimer>
 #include <QVector>
 #include <QWidget>
@@ -2091,6 +2092,8 @@ void Style::polish(QWidget *widget)
         }
     }
     polishWizard(widget);
+    if (auto *toolBox = qobject_cast<QToolBox *>(widget))
+        d->interactionController->watchToolBox(toolBox);
     if (widget->isWindow()) {
         const QVariant backdrop = widget->property(BackdropProperty);
         if (backdrop.isValid()) {

@@ -601,12 +601,24 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                     tab->direction, tab->rect,
                     logicalChevron.intersected(QRect(logicalChevron.left(), tab->rect.top(),
                                                      logicalChevron.width(), tab->rect.height())));
-            icon(selected ? Icon::ChevronUp : Icon::ChevronDown, headerText)
-                    .paint(painter,
-                           QRect(chevronBox.center().x() - chevronGlyphSize / 2,
-                                 chevronBox.center().y() - chevronGlyphSize / 2, chevronGlyphSize,
-                                 chevronGlyphSize),
-                           Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+            // QToolBoxButton::paintEvent hands the *toolbox* to the style, not
+            // the button, so the per-header animation property is read from
+            // the painter's device when that is the button being painted.
+            const QWidget *chevronOwner = widget;
+            if (const auto *device = dynamic_cast<const QWidget *>(painter->device())) {
+                if (device != widget
+                    && qstrcmp(device->metaObject()->className(), "QToolBoxButton") == 0)
+                    chevronOwner = device;
+            }
+            const qreal chevronProgress = chevronOwner
+                    ? progress(chevronOwner, toolBoxChevronProperty, selected ? 1.0 : 0.0)
+                    : (selected ? 1.0 : 0.0);
+            PaintPrivate::paintRotatedIcon(
+                    painter, WinUI3::icon(WinUI3::Icon::ChevronDown, headerText),
+                    QRectF(chevronBox.center().x() - chevronGlyphSize / 2.0,
+                           chevronBox.center().y() - chevronGlyphSize / 2.0, chevronGlyphSize,
+                           chevronGlyphSize),
+                    180.0 * chevronProgress, headerText, enabled ? QIcon::Normal : QIcon::Disabled);
 
             QRect content(tab->rect.left() + headerContentInset, tab->rect.top(),
                           logicalChevron.left() - chevronContentGap

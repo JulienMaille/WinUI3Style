@@ -13,6 +13,8 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3testhelpers.h"
+#include "../src/winui3helpers_p.h"
+#include "../src/winui3style_properties_p.h"
 #include "../src/winui3tokens_p.h"
 
 #include <QAbstractButton>
@@ -96,6 +98,7 @@ private slots:
     void expanderHeaderUsesPinnedGeometry_data();
     void expanderHeaderUsesPinnedGeometry();
     void headersShareOneCardAcrossPages();
+    void chevronRotatesWithCurrentPage();
 };
 
 void WinUI3ToolBoxTest::initTestCase()
@@ -237,6 +240,50 @@ void WinUI3ToolBoxTest::headersShareOneCardAcrossPages()
         QCOMPARE(fill, firstFill);
         QCOMPARE(strokePixel, firstStroke);
     }
+}
+
+void WinUI3ToolBoxTest::chevronRotatesWithCurrentPage()
+{
+    QToolBox box;
+    for (int i = 0; i < 3; ++i)
+        box.addItem(new QWidget, QStringLiteral("Expander %1").arg(i + 1));
+    box.resize(320, 300);
+    box.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&box));
+
+    const auto buttons = box.findChildren<QAbstractButton *>();
+    QCOMPARE(buttons.size(), 3);
+    const auto progressOf = [](const QAbstractButton *button) {
+        return WinUI3::Private::progress(button, WinUI3::Private::toolBoxChevronProperty);
+    };
+    // Polish seeded the open page's header from the current index.
+    QCOMPARE(progressOf(buttons.at(0)), 1.0);
+    QCOMPARE(progressOf(buttons.at(1)), 0.0);
+
+    const auto inkOf = [](QAbstractButton *button) {
+        const QImage image = button->grab().toImage();
+        return chevronInk(image, image.pixelColor(image.width() - 70, 3));
+    };
+    const QRect collapsedInk = inkOf(buttons.at(1));
+    const QRect expandedInk = inkOf(buttons.at(0));
+    QVERIFY(!collapsedInk.isEmpty());
+    QVERIFY(!expandedInk.isEmpty());
+    QVERIFY(collapsedInk != expandedInk);
+
+    box.setCurrentIndex(1);
+    // Expander.xaml rotates the glyph 0 -> 180 with the expand transition;
+    // catching it mid-flight proves the header reads the animated progress.
+    QTRY_VERIFY_WITH_TIMEOUT(progressOf(buttons.at(1)) > 0.25 && progressOf(buttons.at(1)) < 0.75,
+                             1500);
+    const QRect midInk = inkOf(buttons.at(1));
+    QVERIFY(!midInk.isEmpty());
+    QVERIFY2(midInk != collapsedInk, "the chevron never left the collapsed glyph");
+    QVERIFY2(midInk != expandedInk, "the chevron jumped to the expanded glyph");
+    QTRY_COMPARE_WITH_TIMEOUT(progressOf(buttons.at(0)), 0.0, 1500);
+    QTRY_COMPARE_WITH_TIMEOUT(progressOf(buttons.at(1)), 1.0, 1500);
+    // At rest the rotated glyph lands on the pinned E70E (mirror of E70D).
+    QCOMPARE(inkOf(buttons.at(1)), expandedInk);
+    QCOMPARE(inkOf(buttons.at(0)), collapsedInk);
 }
 
 QTEST_MAIN(WinUI3ToolBoxTest)

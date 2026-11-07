@@ -2,12 +2,14 @@
 #pragma once
 
 #include <QHash>
+#include <QList>
 #include <QPoint>
 #include <QPointer>
 #include <QSet>
 #include <QVariant>
 
 #include <functional>
+#include <memory>
 
 class QCheckBox;
 class QDialog;
@@ -20,6 +22,7 @@ class QSlider;
 class QAbstractItemView;
 class QObject;
 class QEvent;
+class QToolBox;
 class QVariantAnimation;
 class QWidget;
 
@@ -81,6 +84,7 @@ public:
     StyleInteractionController(Style *style, StyleInteractionCallbacks callbacks);
 
     bool eventFilter(QObject *watched, QEvent *event);
+    void watchToolBox(QToolBox *box);
 
 private:
     void cancelComboPress(QComboBox *combo, bool releaseMouse);
@@ -122,6 +126,11 @@ private:
     QSet<QComboBox *> m_comboPressStates;
     QHash<QWidget *, QPointer<QVariantAnimation>> m_settingsCardExpansions;
     QSet<QWidget *> m_settingsCardStateWrites;
+    // QPointer, not raw: a QToolBox can outlive the controller when the style
+    // is torn down before the gallery's widgets, and the destroyed() signal
+    // would otherwise remove from freed memory.
+    QList<QPointer<QToolBox>> m_toolBoxes;
+    std::shared_ptr<bool> m_alive;
 };
 
 } // namespace Private

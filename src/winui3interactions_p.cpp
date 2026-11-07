@@ -56,6 +56,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolBox>
 #include <QVariantAnimation>
 
 #ifdef Q_OS_WIN
@@ -324,7 +325,7 @@ void prepareTooltipLabel(QLabel *label)
 
 StyleInteractionController::StyleInteractionController(Style *style,
                                                        StyleInteractionCallbacks callbacks)
-    : m_style(style), m_callbacks(std::move(callbacks))
+    : m_style(style), m_callbacks(std::move(callbacks)), m_alive(std::make_shared<bool>(true))
 {
 }
 
@@ -474,6 +475,46 @@ void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool exp
     });
     m_settingsCardExpansions.insert(card, animation);
     animation->start();
+}
+
+void StyleInteractionController::watchToolBox(QToolBox *box)
+{
+    if (!box)
+        return;
+    // Drop entries whose toolbox died while the controller kept running, then
+    // keep the watch idempotent across repolish.
+    m_toolBoxes.removeIf([](const QPointer<QToolBox> &watched) { return watched.isNull(); });
+    for (const QPointer<QToolBox> &watched : std::as_const(m_toolBoxes)) {
+        if (watched == box)
+            return;
+    }
+    m_toolBoxes.append(box);
+    // The controller is not a QObject, so the connections outlive it when the
+    // style is destroyed before the widget. A weak token makes the slots no-ops
+    // once the controller is gone.
+    const std::weak_ptr<bool> alive = m_alive;
+    const auto sync = [this, box, alive](bool animate) {
+        if (alive.expired())
+            return;
+        const int current = box->currentIndex();
+        int index = 0;
+        const auto children = box->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
+        for (QWidget *child : children) {
+            // QToolBoxButton is private to Qt; the class name is the stable
+            // seam, and direct children keep page order.
+            if (child->metaObject()->className() != QLatin1String("QToolBoxButton"))
+                continue;
+            const qreal target = index == current ? 1.0 : 0.0;
+            if (animate)
+                m_callbacks.animate(child, toolBoxChevronProperty, target,
+                                    target > 0.5 ? 333 : 167);
+            else
+                framePropertyRegistry().set(child, toolBoxChevronProperty, target);
+            ++index;
+        }
+    };
+    sync(false);
+    QObject::connect(box, &QToolBox::currentChanged, box, [sync](int) { sync(true); });
 }
 
 bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event)
