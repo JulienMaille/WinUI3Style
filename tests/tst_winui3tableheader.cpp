@@ -31,12 +31,14 @@ QRect opaqueBounds(const QImage &image)
     return bounds;
 }
 
-int opaqueCountInRow(const QImage &image, int y)
+int opaqueCountInRows(const QImage &image, int firstRow, int lastRow)
 {
     int count = 0;
-    for (int x = 0; x < image.width(); ++x) {
-        if (qAlpha(image.pixel(x, y)))
-            ++count;
+    for (int y = firstRow; y <= lastRow; ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            if (qAlpha(image.pixel(x, y)))
+                ++count;
+        }
     }
     return count;
 }
@@ -236,17 +238,19 @@ void WinUI3TableHeaderTest::tableSortIndicatorGeometryContract()
         QVERIFY(column.contains(difference));
         // Keep the glyph's rasterized ink inside the reserved sort column;
         // its exact trailing ink gap depends on the platform font rasterizer.
-        // SortDown points at the bottom row, SortUp at the top row; a chevron
-        // of the opposite orientation (the old mapping) reverses these.
-        QVERIFY(opaqueCountInRow(descending, difference.bottom())
-                > opaqueCountInRow(descending, difference.top()));
+        // SortDown puts the two diagonal head strokes in the lower half;
+        // comparing half-glyph ink is robust to rasterizer endpoint rounding.
+        const int middle = difference.center().y();
+        QVERIFY(opaqueCountInRows(descending, middle + 1, difference.bottom())
+                > opaqueCountInRows(descending, difference.top(), middle));
         const QImage ascending =
                 glyphInk(render(direction, QStyleOptionHeader::SortUp, 33), unsorted);
         const QRect ascendingInk = opaqueBounds(ascending);
         QVERIFY(!ascendingInk.isEmpty());
         QVERIFY(ascendingInk.height() >= 10);
-        QVERIFY(opaqueCountInRow(ascending, ascendingInk.top())
-                > opaqueCountInRow(ascending, ascendingInk.bottom()));
+        const int ascendingMiddle = ascendingInk.center().y();
+        QVERIFY(opaqueCountInRows(ascending, ascendingInk.top(), ascendingMiddle)
+                > opaqueCountInRows(ascending, ascendingMiddle + 1, ascendingInk.bottom()));
         QVERIFY(ascending != descending);
     }
 }
