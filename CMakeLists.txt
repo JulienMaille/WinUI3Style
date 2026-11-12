@@ -104,6 +104,26 @@ if(WINUI_ENABLE_TESTS)
     enable_testing()
     find_package(${WINUI3STYLE_QT} REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
+    # The installed package currently declares a Qt 6 dependency.
+    if(Qt6_FOUND)
+        add_test(
+            NAME winui3style_static_package_contract
+            COMMAND ${CMAKE_COMMAND}
+                "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+                "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/static-package-contract"
+                "-DQT6_DIR=${Qt6_DIR}"
+                "-DGENERATOR=${CMAKE_GENERATOR}"
+                "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+                "-DGENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
+                "-DCXX_COMPILER=${CMAKE_CXX_COMPILER}"
+                "-DMAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+                "-DBUILD_CONFIG=$<CONFIG>"
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_static_package.cmake
+        )
+        set_tests_properties(winui3style_static_package_contract PROPERTIES
+            LABELS "distribution;contract"
+        )
+    endif()
 endif()
 
 if(WINUI3STYLE_BUILD_BENCHMARKS)
