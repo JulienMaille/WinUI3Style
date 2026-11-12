@@ -94,7 +94,11 @@ target_include_directories(winui3style
 target_link_libraries(winui3style PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
 
 # Keep warning policy private to the library; consumers do not inherit it.
-target_link_libraries(winui3style PRIVATE winui3style_warnings)
+# BUILD_INTERFACE keeps the helper out of install(EXPORT): a STATIC
+# winui3style would otherwise drag it into WinUI3StyleTargets as a
+# $<LINK_ONLY:> dependency and fail generation ("requires target
+# winui3style_warnings that is not in any export set").
+target_link_libraries(winui3style PRIVATE $<BUILD_INTERFACE:winui3style_warnings>)
 
 if(WIN32)
     target_link_libraries(winui3style PRIVATE advapi32 dwmapi user32)
