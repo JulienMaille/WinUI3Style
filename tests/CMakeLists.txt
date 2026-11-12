@@ -640,6 +640,9 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_native.txt,txt -o -,txt)
     add_test(NAME winui3style_menus_native COMMAND winui3style_menus_native_tests
         -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_menus_native.txt,txt -o -,txt)
+    add_test(NAME winui3style_popupcorners_native
+        COMMAND winui3style_popupcorners_tests nativePopupPaintMatchesCornerDpi
+            -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_popupcorners_native.txt,txt -o -,txt)
     add_test(NAME winui3style_autosuggest_native
         COMMAND winui3style_autosuggest_native_tests)
     if(WINUI3STYLE_BUILD_DEMO)
@@ -673,6 +676,13 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         RESOURCE_LOCK winui3style_desktop
         LABELS "native;interactive"
         TIMEOUT 180
+    )
+    set_tests_properties(winui3style_popupcorners_native PROPERTIES
+        ENVIRONMENT "${_winui3style_native_environment};QT_SCALE_FACTOR=2.109375"
+        RUN_SERIAL TRUE
+        RESOURCE_LOCK winui3style_desktop
+        LABELS "native;interactive"
+        TIMEOUT 60
     )
     set_tests_properties(winui3style_autosuggest_native PROPERTIES
         ENVIRONMENT "${_winui3style_native_environment}"

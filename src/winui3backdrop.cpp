@@ -199,6 +199,30 @@ void applyPopupRoundedCorners(QWidget *window)
 #endif
 }
 
+qreal popupCornerRadius(const QWidget *window)
+{
+#ifdef Q_OS_WIN
+    if (window && window->windowType() == Qt::Popup && window->mask().isEmpty()
+        && QGuiApplication::platformName() == QStringLiteral("windows")) {
+        const QWindow *handle = window->windowHandle();
+        if (handle && handle->handle()) {
+            const HWND hwnd = reinterpret_cast<HWND>(handle->winId());
+            DWORD preference = 0;
+            if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 33, &preference, sizeof(preference)))
+                && preference == 2) {
+                const UINT dpi = GetDpiForWindow(hwnd);
+                // DWM ignores QT_SCALE_FACTOR; paint must follow the HWND's corner DPI.
+                if (dpi)
+                    return OverlayRadius * dpi / (96.0 * window->devicePixelRatioF());
+            }
+        }
+    }
+#else
+    Q_UNUSED(window)
+#endif
+    return OverlayRadius;
+}
+
 void applyTooltipRoundedCorners(QWidget *window)
 {
 #ifdef Q_OS_WIN

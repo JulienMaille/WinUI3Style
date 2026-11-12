@@ -272,3 +272,51 @@ the shadow, border weight/colour and 12 px layout on 2026-11-03.
 These observations are checked against the exact Microsoft XAML resource files
 listed in `manifest.json`. A Qt capture is rejected if it merely renders without
 crashing; every state above must be inspected or covered by a state-level test.
+
+## Supplementary popup comparison — 2026-11-12 (not the 2.4 pin)
+
+The installed official Gallery has updated to `Microsoft.WinUI3ControlsGallery`
+3.0.4.0. It is self-contained, with `Microsoft.WindowsAppSDK`
+2.5.4-experimental in its dependency manifest; the Home page reports Windows
+App SDK 2.5 (experimental). This comparison does not replace the 2.4 reference
+pin above.
+
+Focused screen captures compared the official ComboBox, MenuFlyout,
+DropDownButton MenuFlyout and SplitButton Flyout in Light and Dark against the
+actual Qt Gallery ComboBox, menu button and split tool button, extracted into
+a popup-only host. The active Qt style was confirmed as `WinUI3::Style`,
+Qt 6.9.2, Standard density, `QT_SCALE_FACTOR=1`, Qt DPR 2 and HWND DPI 192 on
+a 200% display. The earlier Standard/Compact DPI-mismatch regression remains
+a separate test at Qt DPR 4.21875.
+
+Rest, hover, held press, Escape and same-selection reopening were exercised
+with native input. No untinted gray corner wedge was visible in the repaired
+Qt panels. The official ComboBox and MenuFlyout native window rectangles
+stayed fixed across sampled opening and repeated-open frames. The official
+SplitButton sample instead hosts a Flyout inside the main window; its palette
+content is not a MenuFlyout row-layout reference.
+
+Original-resolution corner crops show an approximately 16-physical-pixel
+radius (8 logical pixels) in both implementations, not identical antialiasing.
+Straight top/bottom strokes occupy two physical rows. Stroke contrast differs
+with material and backdrop: Qt menu/tool sides retain their stroke, but the
+ComboBox's straight side stroke is not visible in these captures. The patch
+outside the ComboBox's top-left curve is exposed backdrop, not an untinted
+wedge inside the panel. These differences preclude a pixel-parity claim.
+
+Opening motion is not pixel-equivalent: Qt moves the entire popup HWND by a
+12-logical-pixel sweep and fades it, while official WinUI reveals content
+inside a fixed popup HWND. Early captures were sampled after Show/input, not
+synchronized to the first compositor-presented frame, and their nominal delays
+do not establish exact animation durations. Official captures include shadow
+margins; the Qt captures stop at the popup HWND rectangle, so outer-shadow
+parity is not established. Full Verified status and pinned-2.4 parity are not
+claimed by this supplementary pass.
+
+Commit review also checks all four stale-buffer corners in Light/Dark and
+Standard/Compact, and confirms the fallback radius query creates no native
+handle. The 12-case native DPI-mismatch regression passes. The legacy native
+menu snapshot suite rejects captures at Qt DPR 2 because it compares physical
+pixmap sizes to logical widget sizes; it passes with `QT_SCALE_FACTOR=0.5`
+(Qt DPR 1 on this 200% display). That existing test limitation is not repaired
+or hidden by this corner change.

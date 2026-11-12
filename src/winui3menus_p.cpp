@@ -2,6 +2,7 @@
 #include "winui3menus_p.h"
 
 #include "winui3density_p.h"
+#include "winui3backdrop_p.h"
 #include "winui3paint_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3helpers_p.h"
@@ -130,15 +131,21 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         const QRect surface = widget ? widget->rect() : option->rect;
         const QColor fill = option->palette.color(QPalette::Window);
         const QColor stroke = t.flyoutStroke;
+        const qreal radius = popupCornerRadius(widget);
         // The 1px flyout stroke must read as a solid hairline on every
         // edge, even over a live material: rebuild the panel (not just
         // its rect, which excludes the contents margins) then draw the
         // stroke on top, centered on device pixels so antialiasing does
         // not flatten it to half-strength grey on two of the four sides.
-        const bool erased = eraseForBackdrop(painter, widget, surface, OverlayRadius);
+        const bool erased = eraseForBackdrop(painter, widget, surface, radius);
         const bool alphaSurface = widget && widget->testAttribute(Qt::WA_TranslucentBackground);
         if (erased) {
-            roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
+            // The rounded erase alone would retain stale pixels outside the curve.
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            painter->fillRect(surface, Qt::transparent);
+            painter->restore();
+            roundedRect(painter, QRectF(surface), fill, Qt::transparent, radius);
         } else if (alphaSurface) {
             // Wayland masks constrain input and opaque regions, not buffer
             // pixels. Clear stale backing-store content before rebuilding a
@@ -148,7 +155,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
             painter->setCompositionMode(QPainter::CompositionMode_Source);
             painter->fillRect(surface, Qt::transparent);
             painter->restore();
-            roundedRect(painter, QRectF(surface), fill, Qt::transparent, OverlayRadius);
+            roundedRect(painter, QRectF(surface), fill, Qt::transparent, radius);
         } else {
             painter->fillRect(surface, fill);
         }
@@ -157,7 +164,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         painter->setBrush(Qt::NoBrush);
         painter->setPen(QPen(stroke, 1.0));
         painter->drawRoundedRect(QRectF(surface).adjusted(0.5, 0.5, -0.5, -0.5),
-                                 OverlayRadius - 0.5, OverlayRadius - 0.5);
+                                 qMax(0.0, radius - 0.5), qMax(0.0, radius - 0.5));
         painter->restore();
         return true;
     }
@@ -266,7 +273,8 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
             // already translucent surface roles explicitly so the
             // pill composites exactly one SubtleFill layer.
             if (!clearForBackdropFill(painter, widget, menu->rect,
-                                      option->palette.color(QPalette::Window), OverlayRadius)) {
+                                      option->palette.color(QPalette::Window),
+                                      popupCornerRadius(widget))) {
                 painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
             }
             paintPopupRowPill(painter, popupRowPillRect(menu->rect, comboItem),

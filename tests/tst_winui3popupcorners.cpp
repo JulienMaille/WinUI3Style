@@ -7,7 +7,9 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3testhelpers.h"
+#include "../src/winui3backdrop_p.h"
 
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QImage>
@@ -16,6 +18,8 @@
 #include <QMenuBar>
 #include <QPainter>
 #include <QStyleOption>
+#include <QToolButton>
+#include <QVBoxLayout>
 #include <QWindow>
 #include <QtTest>
 #include <functional>
@@ -129,7 +133,12 @@ private slots:
     void popupCornersMaskGeometry();
     void menuAlphaSurfacePaintsTransparentCorners_data();
     void menuAlphaSurfacePaintsTransparentCorners();
-    void popupCornersPanelFringe();
+    void menuPopupSurfaceClearsStaleCorners_data();
+    void menuPopupSurfaceClearsStaleCorners();
+    void comboPopupSurfaceClearsStaleCorners_data();
+    void comboPopupSurfaceClearsStaleCorners();
+    void nativePopupPaintMatchesCornerDpi_data();
+    void nativePopupPaintMatchesCornerDpi();
     void menuSubmenuGrantConverges();
     void menuReopenReadbackParity();
     void menuReopenGrantParityNative();
@@ -236,35 +245,202 @@ void WinUI3PopupCornersTest::menuAlphaSurfacePaintsTransparentCorners()
     QCOMPARE(canvas.pixelColor(canvas.width() / 2, canvas.height() / 2), fill);
 }
 
-void WinUI3PopupCornersTest::popupCornersPanelFringe()
+void WinUI3PopupCornersTest::menuPopupSurfaceClearsStaleCorners_data()
 {
-    // Fringe mechanism RED->GREEN gate: the erase-then-fill must stay
-    // inside the r8 surface, so the diagonal corner pixel keeps the
-    // canvas fill. Pre-fix the unclipped Source clear left it
-    // transparent (alpha distance 255), rendering as a dark fringe over
-    // the live material wherever the mask keeps that pixel.
+    QTest::addColumn<int>("density");
+    QTest::addColumn<bool>("dark");
+    QTest::newRow("Light-Standard") << int(WinUI3::DensityMode::Standard) << false;
+    QTest::newRow("Dark-Standard") << int(WinUI3::DensityMode::Standard) << true;
+    QTest::newRow("Light-Compact") << int(WinUI3::DensityMode::Compact) << false;
+    QTest::newRow("Dark-Compact") << int(WinUI3::DensityMode::Compact) << true;
+}
+
+void WinUI3PopupCornersTest::menuPopupSurfaceClearsStaleCorners()
+{
+    QFETCH(int, density);
+    QFETCH(bool, dark);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setDensityMode(static_cast<WinUI3::DensityMode>(density));
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+
     QMenu menu;
     menu.addAction(QStringLiteral("&New project"));
+    menu.addAction(QStringLiteral("E&xit"));
     menu.resize(240, 160);
     menu.setAttribute(Qt::WA_TranslucentBackground, true);
     menu.setProperty("_winui_backdrop", static_cast<int>(WinUI3::Backdrop::Acrylic));
     menu.setProperty("_winui_backdrop_effective", 2); // BackdropSurface::Composited.
+    QCOMPARE(WinUI3::Private::OverlayRadius, 8.0);
+    QVERIFY(!menu.windowHandle());
+    QCOMPARE(WinUI3::Private::popupCornerRadius(&menu), WinUI3::Private::OverlayRadius);
+    QVERIFY(!menu.windowHandle());
+
     const QColor fill = menu.palette().color(QPalette::Window);
+    const QColor stale(Qt::magenta);
     QImage canvas(menu.size(), QImage::Format_ARGB32_Premultiplied);
-    canvas.fill(fill);
+    canvas.fill(stale);
     QStyleOption option;
     option.initFrom(&menu);
     option.rect = menu.rect();
     QPainter painter(&canvas);
     qApp->style()->drawPrimitive(QStyle::PE_PanelMenu, &option, &painter, &menu);
     painter.end();
+
     QCOMPARE(canvas.size(), menu.size());
     QCOMPARE(canvas.pixelColor(canvas.width() / 2, canvas.height() / 2), fill);
-    const QColor fringe = canvas.pixelColor(0, 0);
-    QVERIFY2(colorDistance(fringe, fill) <= 12,
-             qPrintable(QStringLiteral("corner fringe %1 vs fill %2")
-                                .arg(fringe.name(QColor::HexArgb))
-                                .arg(fill.name(QColor::HexArgb))));
+    QCOMPARE(canvas.pixelColor(0, 0).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(canvas.width() - 1, 0).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(0, canvas.height() - 1).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(canvas.width() - 1, canvas.height() - 1).alpha(), 0);
+}
+
+void WinUI3PopupCornersTest::comboPopupSurfaceClearsStaleCorners_data()
+{
+    QTest::addColumn<int>("density");
+    QTest::addColumn<bool>("dark");
+    QTest::newRow("Light-Standard") << int(WinUI3::DensityMode::Standard) << false;
+    QTest::newRow("Dark-Standard") << int(WinUI3::DensityMode::Standard) << true;
+    QTest::newRow("Light-Compact") << int(WinUI3::DensityMode::Compact) << false;
+    QTest::newRow("Dark-Compact") << int(WinUI3::DensityMode::Compact) << true;
+}
+
+void WinUI3PopupCornersTest::comboPopupSurfaceClearsStaleCorners()
+{
+    QFETCH(int, density);
+    QFETCH(bool, dark);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setDensityMode(static_cast<WinUI3::DensityMode>(density));
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+
+    QWidget popup;
+    popup.setWindowFlags(Qt::Popup);
+    popup.resize(200, 128);
+    popup.setAttribute(Qt::WA_TranslucentBackground, true);
+    popup.setAttribute(Qt::WA_NoSystemBackground, true);
+    popup.setAttribute(Qt::WA_StyledBackground, true);
+    popup.setAutoFillBackground(false);
+    popup.setProperty("_winui_backdrop", static_cast<int>(WinUI3::Backdrop::Acrylic));
+    popup.setProperty("_winui_backdrop_effective", 2); // BackdropSurface::Composited.
+    QVERIFY(!qobject_cast<QMenu *>(&popup));
+    QVERIFY(popup.mask().isEmpty());
+    QCOMPARE(WinUI3::Private::OverlayRadius, 8.0);
+    QVERIFY(!popup.windowHandle());
+    QCOMPARE(WinUI3::Private::popupCornerRadius(&popup), WinUI3::Private::OverlayRadius);
+    QVERIFY(!popup.windowHandle());
+
+    const QColor fill = popup.palette().color(QPalette::Window);
+    const QColor stale(Qt::magenta);
+    QImage canvas(popup.size(), QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(stale);
+    QStyleOption option;
+    option.initFrom(&popup);
+    option.rect = popup.rect();
+    QPainter painter(&canvas);
+    qApp->style()->drawPrimitive(QStyle::PE_PanelMenu, &option, &painter, &popup);
+    painter.end();
+
+    QCOMPARE(canvas.size(), popup.size());
+    QCOMPARE(canvas.pixelColor(canvas.width() / 2, canvas.height() / 2), fill);
+    QCOMPARE(canvas.pixelColor(0, 0).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(canvas.width() - 1, 0).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(0, canvas.height() - 1).alpha(), 0);
+    QCOMPARE(canvas.pixelColor(canvas.width() - 1, canvas.height() - 1).alpha(), 0);
+}
+
+void WinUI3PopupCornersTest::nativePopupPaintMatchesCornerDpi_data()
+{
+    QTest::addColumn<int>("density");
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<QString>("kind");
+    for (const auto density : { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        for (const bool dark : { false, true }) {
+            for (const QString &kind : { QStringLiteral("combo"), QStringLiteral("menu"),
+                                         QStringLiteral("tool") }) {
+                const QByteArray name = kind.toLatin1() + (dark ? "-Dark" : "-Light")
+                        + (density == WinUI3::DensityMode::Compact ? "-Compact" : "-Standard");
+                QTest::newRow(name.constData()) << int(density) << dark << kind;
+            }
+        }
+    }
+}
+
+void WinUI3PopupCornersTest::nativePopupPaintMatchesCornerDpi()
+{
+#if !defined(Q_OS_WIN)
+    QSKIP("Native popup corner DPI needs Windows");
+#else
+    if (QGuiApplication::platformName() != QStringLiteral("windows"))
+        QSKIP("Native popup corner DPI needs the windows QPA");
+    QFETCH(int, density);
+    QFETCH(bool, dark);
+    QFETCH(QString, kind);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setDensityMode(static_cast<WinUI3::DensityMode>(density));
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QWidget host;
+    QVBoxLayout layout(&host);
+    QComboBox combo;
+    combo.addItems({ QStringLiteral("First"), QStringLiteral("Second"), QStringLiteral("Third") });
+    combo.setCurrentIndex(1);
+    QToolButton tool;
+    tool.setText(QStringLiteral("Menu"));
+    tool.setPopupMode(QToolButton::InstantPopup);
+    QMenu menu;
+    menu.addAction(QStringLiteral("First"));
+    menu.addAction(QStringLiteral("Second"));
+    if (kind == QStringLiteral("tool")) {
+        menu.setParent(&tool, menu.windowFlags());
+        tool.setMenu(&menu);
+    }
+    layout.addWidget(kind == QStringLiteral("combo") ? static_cast<QWidget *>(&combo) : &tool);
+    host.resize(240, 100);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    if (kind == QStringLiteral("combo"))
+        combo.showPopup();
+    else
+        menu.popup(host.mapToGlobal(QPoint(20, 40)));
+    QWidget *popup = kind == QStringLiteral("combo") ? combo.view()->window() : &menu;
+    QTRY_VERIFY(popup->isVisible());
+    QTest::qWait(500);
+    QVERIFY(popup->windowHandle());
+    const HWND hwnd = reinterpret_cast<HWND>(popup->windowHandle()->winId());
+    DWORD preference = 0;
+    QVERIFY(SUCCEEDED(DwmGetWindowAttribute(hwnd, 33, &preference, sizeof(preference))));
+    if (preference != 2)
+        QSKIP("DWM rounded corners unavailable");
+    const qreal nativeDpr = GetDpiForWindow(hwnd) / 96.0;
+    const qreal qtDpr = popup->devicePixelRatioF();
+    if (qtDpr / nativeDpr < 2.0)
+        QSKIP("Run with QT_SCALE_FACTOR=2.109375 to expose the native/Qt DPI mismatch");
+    QCOMPARE(preference, DWORD(2));
+    QVERIFY(popup->mask().isEmpty());
+    QCOMPARE(WinUI3::Private::OverlayRadius, 8.0);
+    const qreal nativeRadius = WinUI3::Private::OverlayRadius * nativeDpr;
+    QCOMPARE(WinUI3::Private::popupCornerRadius(popup), nativeRadius / qtDpr);
+    const QColor fill = popup->palette().color(QPalette::Window);
+    const QSize pixels(qRound(popup->width() * qtDpr), qRound(popup->height() * qtDpr));
+    QImage canvas(pixels, QImage::Format_ARGB32_Premultiplied);
+    canvas.setDevicePixelRatio(qtDpr);
+    canvas.fill(Qt::magenta);
+    QStyleOption option;
+    option.initFrom(popup);
+    option.rect = popup->rect();
+    QPainter painter(&canvas);
+    style->drawPrimitive(QStyle::PE_PanelMenu, &option, &painter, popup);
+    painter.end();
+    QCOMPARE(canvas.size(), pixels);
+    const int inset = qRound(nativeRadius / 2.0);
+    // DWM keeps this pixel; an oversized Qt curve leaves its Acrylic untinted.
+    QCOMPARE(canvas.pixelColor(inset, inset).rgba(), fill.rgba());
+    QCOMPARE(canvas.pixelColor(canvas.width() - 1 - inset, inset).rgba(), fill.rgba());
+    QCOMPARE(canvas.pixelColor(inset, canvas.height() - 1 - inset).rgba(), fill.rgba());
+    QCOMPARE(canvas.pixelColor(canvas.width() - 1 - inset, canvas.height() - 1 - inset).rgba(),
+             fill.rgba());
+#endif
 }
 
 void WinUI3PopupCornersTest::menuSubmenuGrantConverges()

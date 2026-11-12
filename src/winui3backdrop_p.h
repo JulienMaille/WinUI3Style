@@ -46,6 +46,8 @@ void prepareBackdropSurface(QWidget *window, Backdrop backdrop);
 // rounded window region.
 void applyPopupRoundedCorners(QWidget *window);
 
+WINUI3STYLE_EXPORT qreal popupCornerRadius(const QWidget *window);
+
 // Round the corners of a tooltip window. Asks DWM for the *small* corner
 // preference first, because a ToolTip silhouette is the 4 px card radius and
 // the default window rounding is twice that; a granted native corner also
