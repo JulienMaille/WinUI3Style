@@ -1,5 +1,4 @@
-# Domain split of tst_winui3style.cpp (plan step 8): test-function names are
-# kept identical so the DPI reruns below keep addressing tests by function name.
+# Test-function names stay stable so the DPI reruns below can address them by name.
 set(_winui3style_split_tests
     winui3style_buttons_tests tst_winui3buttons.cpp
     winui3style_buttonpress_tests tst_winui3buttonpress.cpp
@@ -519,7 +518,7 @@ foreach(_target IN LISTS _winui3style_linked_test_targets)
     endif()
 endforeach()
 
-# Phase 4 gate: an element a renderer claims must be listed in
+# Gate: an element a renderer claims must be listed in
 # coveredPrimitive / coveredControl / coveredComplex, otherwise the
 # Q_ASSERT_X in Style::draw* cannot fire and a covered control could silently
 # reach QCommonStyle (METHODOLOGY section 1). Registered after the shared test

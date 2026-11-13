@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Domain split of tst_winui3interaction.cpp (plan step 8): the AnimatedStack
+// Split from tst_winui3interaction.cpp: the AnimatedStack
 // widget-lifetime tests outgrew the 60 KB source ratchet alongside the
 // settings-card and interaction suites, so they moved here. Test-function
 // names stay identical to the pre-split file so the DPI reruns in

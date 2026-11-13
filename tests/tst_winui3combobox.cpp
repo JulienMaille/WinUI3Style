@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Domain split of tst_winui3style.cpp (plan step 8): test-function names
-// kept identical so the DPI reruns in tests/CMakeLists.txt keep working.
+// Test-function names stay stable so the DPI reruns in tests/CMakeLists.txt keep working.
 #include <winui3style/animatedstack.h>
 #include <winui3style/navigationview.h>
 #include <winui3style/settingscard.h>

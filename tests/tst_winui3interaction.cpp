@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Domain split of tst_winui3style.cpp (plan step 8): test-function names
-// kept identical so the DPI reruns in tests/CMakeLists.txt keep working.
+// Test-function names stay stable so the DPI reruns in tests/CMakeLists.txt keep working.
 // SettingsCard interaction contracts live in tst_winui3settingscard.cpp
-// (S6 ratchet split); settingsCardInteractiveFrames stays here (DPI-pinned).
+// (60 KB ratchet split); settingsCardInteractiveFrames stays here (DPI-pinned).
 #include <winui3style/navigationview.h>
 #include <winui3style/settingscard.h>
 #include <winui3style/toggleswitch.h>

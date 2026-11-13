@@ -1,5 +1,4 @@
-# Source-contract gate (plan steps 6 + 13): same file(READ) + FATAL_ERROR
-# idiom as tests/check_designer_gallery.cmake.
+# Source-contract gate: same file(READ) + FATAL_ERROR idiom as tests/check_designer_gallery.cmake.
 #
 # (a) QSS ban: fail on setStyleSheet in src/ and demo/ (spec/METHODOLOGY.md
 #     section 4 forbids QSS; .ui stylesheets are covered by the extended
@@ -10,7 +9,7 @@
 # (c) License headers: every src/*, include/**/*, plugin/*, benchmarks/*
 #     file must reference LGPL-2.1-or-later; the package includes LICENSE.
 # (d) Test size ratchet: fail if any tests/tst_*.cpp exceeds 60 KB, so the
-#     split test binaries of plan step 8 cannot regrow into one giant file.
+#     split test binaries cannot regrow into one giant file.
 # (e) Qt 5.12 namespace metadata: Q_NAMESPACE_EXPORT only exists from Qt 5.14;
 #     the public header must retain a guarded Q_NAMESPACE fallback.
 
@@ -81,7 +80,7 @@ foreach(_file IN LISTS _test_sources)
     if(_size GREATER 61440)
         message(FATAL_ERROR
             "Test size ratchet: ${_file} is ${_size} bytes (> 60 KB); "
-            "split by domain per plan step 8 instead of growing one file")
+            "split by domain instead of growing one file")
     endif()
 endforeach()
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Shared visual-test helpers (plan step 9): probes + frameReal/setFrame +
+// Shared visual-test helpers: probes + frameReal/setFrame +
 // colorDistance/verifyHitSurface/renderComplex/inkPixels live here so split
 // binaries cannot regrow copy-pasted copies.
 #pragma once

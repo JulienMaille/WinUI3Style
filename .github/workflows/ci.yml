@@ -1,4 +1,4 @@
-# CI gate for WinUI3Style (plan step A).
+# CI gate for WinUI3Style.
 #
 # Baseline refresh procedure (never auto-accept):
 #   1. Build Release and run the gallery capture locally:

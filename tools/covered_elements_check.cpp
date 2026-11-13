@@ -1,4 +1,4 @@
-// Phase 4 consistency gate: every element a renderer CLAIMS (from the
+// Consistency gate: every element a renderer CLAIMS (from the
 // `if (element != ...)` filter at the head of its draw* function, and from the
 // per-element branches inside) must be listed in
 // coveredPrimitive / coveredControl / coveredComplex. A covered element absent

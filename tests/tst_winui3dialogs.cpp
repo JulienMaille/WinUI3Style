@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// ContentDialog surface tests, split out of tst_winui3surfaces.cpp (plan step
-// S6: keep every domain binary under the 60 KB ratchet). Test-function names
+// ContentDialog surface tests, split out of tst_winui3surfaces.cpp to keep
+// every domain binary under the 60 KB ratchet. Test-function names
 // are kept identical, like the earlier domain splits.
 #include <winui3style/winui3style.h>
 
