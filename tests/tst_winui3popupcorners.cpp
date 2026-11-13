@@ -412,7 +412,11 @@ void WinUI3PopupCornersTest::nativePopupPaintMatchesCornerDpi()
     QVERIFY(SUCCEEDED(DwmGetWindowAttribute(hwnd, 33, &preference, sizeof(preference))));
     if (preference != 2)
         QSKIP("DWM rounded corners unavailable");
-    const qreal nativeDpr = GetDpiForWindow(hwnd) / 96.0;
+    // Runtime-resolved: the Qt 5.12 MinGW headers do not declare the export.
+    const unsigned int nativeDpi = WinUI3::Private::nativeWindowDpi(popup->windowHandle());
+    if (nativeDpi == 0)
+        QSKIP("GetDpiForWindow is unavailable on this Windows build");
+    const qreal nativeDpr = nativeDpi / 96.0;
     const qreal qtDpr = popup->devicePixelRatioF();
     if (qtDpr / nativeDpr < 2.0)
         QSKIP("Run with QT_SCALE_FACTOR=2.109375 to expose the native/Qt DPI mismatch");

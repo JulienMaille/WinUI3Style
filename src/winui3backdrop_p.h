@@ -48,6 +48,14 @@ void applyPopupRoundedCorners(QWidget *window);
 
 WINUI3STYLE_EXPORT qreal popupCornerRadius(const QWidget *window);
 
+// DPI the window's HWND really renders at, or 0 when it cannot be read.
+// DWM ignores QT_SCALE_FACTOR, so corner geometry painted in Qt coordinates
+// must follow this value instead of devicePixelRatioF(). GetDpiForWindow is
+// resolved at runtime because the export is a Windows 10 addition and the
+// MinGW 7.3 headers shipped with Qt 5.12 do not declare it (CI's oldest
+// toolchain); an absent export reports 0 and callers keep the fallback.
+WINUI3STYLE_EXPORT unsigned int nativeWindowDpi(const QWindow *window);
+
 // Round the corners of a tooltip window. Asks DWM for the *small* corner
 // preference first, because a ToolTip silhouette is the 4 px card radius and
 // the default window rounding is twice that; a granted native corner also

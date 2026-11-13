@@ -64,27 +64,6 @@ a Qt 5, MinGW, ARM64 or 32-bit binary. Build those configurations separately.
   archive before publication; earlier manual checks do not certify it.
 - Publication requires green hosted CI for the exact candidate commit.
   Local whole-tree clang-format 18.1.8 passes.
-- A buttons-suite failure occurred during parallel CTest execution without
-  an attributable assertion. Serial validation passes; persistent QtTest
-  logs now retain diagnostics. The intermittent cause remains unconfirmed.
-
-Local preflight on 2026-10-12: official Qt 6.11.1 Release configure/build,
-whole-tree clang-format 18.1.8, all 59 CTest entries and all 26 split domain
-binaries pass. Current package preflight has nine source-guard, test-policy,
-deployment-prerequisite and startup-process cases. The strict 70-frame snapshot matrix is
-included. Calendar snapshots preserve the approved
-2026-10-11 fixture without changing the live Gallery's date. The native
-submenu fallback uses nested keyboard input, retaining the parent snapshot
-assertions when pointer delivery is blocked. Neither result establishes
-complete official WinUI parity or native shadow/motion verification.
-Local preflight on 2026-10-26 additionally passes the 60 hosted-compatible
-Release CTest entries. Navigation, Mica-card and Gallery-probe Debug suites
-also pass after explicitly consuming the covered `PE_Widget` no-op path.
-The Gallery now offers View → Style → Windows 11 for comparison with Qt's
-style; the action is disabled when that style cannot be instantiated.
-Packaging refuses dirty/untracked sources and requires the complete Release
-suite before staging; no archive is produced when that gate is red.
-
 Create the annotated tag only after these gates pass. Neither an old green
 run nor the local candidate ZIP certifies the new release revision.
 

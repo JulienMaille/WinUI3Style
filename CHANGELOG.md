@@ -2,9 +2,9 @@
 
 All notable changes to WinUI3Style are recorded here. Versioning follows
 `CMakeLists.txt` (`project(WinUI3Style VERSION x.y.z)`); the current version
-is 0.1.0. See `RELEASE_NOTES.md` for the public API / Designer / experimental
-split and `spec/coverage.md` for the per-control evidence ledger (all rows
-remain `source-audited` until a live WinUI comparison promotes them).
+is 0.1.0. See `RELEASE_NOTES.md` for the public API and distribution details,
+and `spec/coverage.md` for the per-control evidence ledger and its current
+source-audited, partial, and verified statuses.
 
 ## 0.1.0-experimental.1
 

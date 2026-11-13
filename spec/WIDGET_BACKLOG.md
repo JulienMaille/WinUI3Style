@@ -1,56 +1,32 @@
 # QWidget coverage backlog
 
-This document records the coverage audit performed on 2026-09-04. It is a
-planning ledger, not a claim of WinUI fidelity. `coverage.md` remains the
-evidence ledger for implemented controls.
+This is a short list of follow-up candidates, not a coverage claim. The
+authoritative mapping and evidence status for implemented controls is
+[`coverage.md`](coverage.md); acceptance rules are in
+[`METHODOLOGY.md`](METHODOLOGY.md). Remove a candidate here once it has a
+coverage row, rather than copying implementation details into this list.
 
-## Deferred defects in existing coverage
+## Validation still open
 
-- `QSplitter`: the visual separator/grip can be displaced by one device pixel
-  at some scale factors.
-- `QScrollBar`: the remaining reported scrollbar/"ascenseur" defect must be
-  reproduced and reduced to a precise geometry or interaction contract before
-  changing the renderer.
-- Dialogs: ContentDialog and wizard-like surfaces must preserve the two WinUI
-  layers (content surface and command/footer surface) in both themes.
+- `QSplitter`: the coverage row is source-audited; high-DPI separator and live
+  drag review remain. Reproduce the older one-device-pixel report before
+  changing geometry.
+- `QScrollBar`: the coverage row is source-audited; native Light/Dark review
+  remains. Reproduce the older reported defect before changing behavior.
+- `QDialog` / `QMessageBox`: content/footer contracts are tested; live modal,
+  dismissal, and Dark comparison remain (see the coverage row).
 
-## Implemented families that received gallery coverage in this pass
+## Widget families without a coverage row
 
-- checkable `QPushButton` (ToggleButton) and a button with a menu;
-- standalone `QToolButton`, including checkable and split-menu variants;
-- `QDoubleSpinBox`, combined `QDateTimeEdit`, and disabled/icon-bearing
-  `QComboBox` variants;
-- vertical and inverted `QProgressBar` variants;
-- `QCommandLinkButton`, including its disabled state;
-- the main-window `QStatusBar` and its automatic `QSizeGrip`;
-- a standard `QWizard` reachable from the dialogs page;
-- disabled and RTL item-view variants;
-- an explicit floating/docked toggle for `QDockWidget`;
-- persistent `QDialogButtonBox` and `QCalendarWidget` examples.
+Scope these before implementation; the list does not imply a WinUI equivalent:
 
-## Next common widgets
+- `QGraphicsView`, `QFontComboBox`, `QColumnView`, and `QUndoView`;
+- `QMdiArea` / `QMdiSubWindow`, `QLCDNumber`, and `QDial`;
+- non-native `QFileDialog`, `QColorDialog`, `QFontDialog`, `QInputDialog`, and
+  `QProgressDialog` composition.
 
-1. `QGraphicsView`, `QRubberBand`, `QKeySequenceEdit`, `QFontComboBox`, and `QToolBox`.
-2. Non-native `QFileDialog`, `QColorDialog`, `QFontDialog`, `QInputDialog`, and
-   `QProgressDialog` composition.
-
-## Lower-priority or specialised widgets
-
-- `QColumnView` and `QUndoView`;
-- `QMdiArea` / `QMdiSubWindow`;
-- `QLCDNumber` and `QDial`.
-
-Subclass/composite widgets are not considered covered merely because their
-children happen to inherit a useful palette. Each row must receive geometry,
-mouse, keyboard, disabled, theme, density, RTL (where applicable), lifecycle,
-and visual regression evidence before being promoted to `coverage.md`.
-
-## Designer-only deployment note
-
-The gallery no longer instantiates any compiled WinUI3 widget: the Settings
-page is a plain `QFrame[winuiSettingsCard=true]` composition, the expandable
-card marks its collapsible child with `winuiSettingsCardExpansion=true`, and
-the style owns the chevron, hit area, focus and expansion animation. The
-gallery target links only Qt, so the style-plugin-only deployment path
-(`styles/winui3styleplugin.dll` plus the runtime library) stays free of
-application recompilation requirements.
+Any candidate that is implemented must first receive an explicit Qt-to-WinUI
+mapping in `coverage.md`. Composite widgets are not covered merely because
+their children inherit a useful palette; geometry, input, disabled state,
+theme, density, RTL where applicable, lifecycle, and visual evidence all
+belong in that mapping's acceptance criteria.
