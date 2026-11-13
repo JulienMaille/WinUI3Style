@@ -1,14 +1,14 @@
 param(
     [ValidateSet('Light', 'Dark')][string]$Theme = 'Light',
     [string]$Raw = "$env:TEMP\winui3style-demo-$Theme-raw.mp4",
-    [string]$QtRoot = 'C:\Qt\6-build\qt-6.12.0-dynamic-msvc-x64',
-    [string]$BuildDir = 'D:\Dev\win11style\build-wysiwyg-capture',
+    [string]$QtRoot = 'C:\Qt\6.12.0\msvc2022_64',
+    [string]$BuildDir = (Join-Path $PSScriptRoot '..\..\build'),
     [string]$Exe = "$env:TEMP\winui3showcase-build\Release\winui3showcase.exe",
     [string]$Ffmpeg = '',
     [double]$Scale = 2.109375,
-    [int]$MonitorX = 1920,
+    [int]$MonitorX = 0,
     [int]$MonitorY = 0,
-    [int]$DurationSeconds = 27
+    [int]$DurationSeconds = 30
 )
 $ErrorActionPreference = 'Stop'
 Get-Process winui3showcase -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -95,7 +95,9 @@ $pt = New-Object ShowCapture3+POINT
 $w = $cr.R
 $hgt = $cr.B
 "client: $($pt.X),$($pt.Y) ${w}x${hgt} (pid $($app.Id))"
-if ($pt.X + $w -gt 3840 -or $pt.Y + $hgt -gt 1200) { throw "client area does not fit monitor 2" }
+Add-Type -AssemblyName System.Windows.Forms
+$vs = [System.Windows.Forms.SystemInformation]::VirtualScreen
+if ($pt.X + $w -gt $vs.Right -or $pt.Y + $hgt -gt $vs.Bottom) { throw "client area does not fit the virtual screen" }
 
 if (-not $Ffmpeg) {
     $Ffmpeg = (Get-Command ffmpeg.exe -ErrorAction SilentlyContinue).Source
@@ -109,6 +111,7 @@ $args = @(
     '-y', '-f', 'gdigrab', '-framerate', '30',
     '-video_size', $size, '-offset_x', "$($pt.X)", '-offset_y', "$($pt.Y)",
     '-draw_mouse', '1', '-i', 'desktop', '-t', "$DurationSeconds",
+    '-vf', 'crop=trunc(iw/2)*2:trunc(ih/2)*2',
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', $raw
 )
 [ShowCapture3]::SetThreadExecutionState([uint32]2147483651) | Out-Null
@@ -117,4 +120,4 @@ $rec.WaitForExit()
 [ShowCapture3]::SetThreadExecutionState([uint32]2147483648) | Out-Null
 
 Get-Item $raw | Select-Object FullName, Length, LastWriteTime
-[ShowCapture3]::SetWindowPos($h, [IntPtr](-2), $winX, $winY, 1936, 1119, 0x0040) | Out-Null
+Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue

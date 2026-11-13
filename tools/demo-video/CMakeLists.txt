@@ -7,6 +7,6 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
-add_executable(winui3showcase main.cpp)
+add_executable(winui3showcase showcase-main.cpp)
 target_link_libraries(winui3showcase PRIVATE Qt6::Widgets dwmapi)
 set_target_properties(winui3showcase PROPERTIES WIN32_EXECUTABLE TRUE)
