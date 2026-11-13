@@ -771,7 +771,7 @@ void WinUI3MenusTest::groupBoxContract()
     QVERIFY(!group.isChecked());
 
     group.setChecked(true);
-    QTest::qWait(55);
+    setAnimationTime(&group, 55);
     const qreal midway = frameReal(&group, "_winui_check_progress");
     QVERIFY(midway > 0.0 && midway < 1.0);
     QTRY_VERIFY(frameReal(&group, "_winui_check_progress") > 0.99);

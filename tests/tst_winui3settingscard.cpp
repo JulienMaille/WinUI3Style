@@ -187,15 +187,25 @@ void WinUI3SettingsCardTest::settingsCardExpansion()
     QSignalSpy spy(&card, &WinUI3::SettingsCard::expandedChanged);
     QTest::mouseMove(&card, QPoint(20, 20));
     QTest::mousePress(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
-    QTest::qWait(35);
+    setAnimationTime(&card, 35);
     const qreal pressed = frameReal(&card, "_winui_press_progress");
     QVERIFY2(pressed > 0.0 && pressed < 1.0, qPrintable(QString::number(pressed)));
     QTest::mouseRelease(&card, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
     QVERIFY(card.isExpanded());
     QCOMPARE(spy.count(), 1);
-    QTest::qWait(280);
+    auto *animation = card.findChild<QVariantAnimation *>(
+            QStringLiteral("_winui_settings_card_expansion_animation"));
+    QVERIFY(animation);
+    QCOMPARE(animation->duration(), WinUI3::Private::SettingsExpanderExpandDuration);
+    QCOMPARE(animation->easingCurve(), WinUI3::Private::settingsExpanderCurve(true));
+    setAnimationTime(&card, 280);
+    const qreal expanding = card.property("expansionProgress").toReal();
+    QVERIFY(expanding > 0.0 && expanding < 1.0);
     card.setExpanded(false);
-    QTest::qWait(90);
+    QCOMPARE(card.property("expansionProgress").toReal(), expanding);
+    QCOMPARE(animation->duration(), WinUI3::Private::SettingsExpanderCollapseDuration);
+    QCOMPARE(animation->easingCurve(), WinUI3::Private::settingsExpanderCurve(false));
+    setAnimationTime(&card, 90);
     const qreal reverse = card.property("expansionProgress").toReal();
     QVERIFY(reverse > 0.0 && reverse < 1.0);
     QTRY_VERIFY(card.property("expansionProgress").toReal() < 0.01);
@@ -707,7 +717,7 @@ void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
     QTest::mouseRelease(parts.card, Qt::LeftButton, Qt::NoModifier, headerPoint);
 
     QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), true);
-    QTest::qWait(80);
+    setAnimationTime(parts.card, 80);
     const qreal mid = WinUI3::Private::progress(
             parts.card, WinUI3::Private::settingsCardExpansionProgressProperty);
     QVERIFY2(mid > 0.0 && mid < 1.0, qPrintable(QString::number(mid)));
@@ -731,7 +741,7 @@ void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
     parts.card->setFocus();
     QTest::keyClick(parts.card, Qt::Key_Space);
     QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), false);
-    QTest::qWait(60);
+    setAnimationTime(parts.card, 60);
     const qreal collapsing = WinUI3::Private::progress(
             parts.card, WinUI3::Private::settingsCardExpansionProgressProperty);
     QVERIFY2(collapsing > 0.0 && collapsing < 1.0, qPrintable(QString::number(collapsing)));

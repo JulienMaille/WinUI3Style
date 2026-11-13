@@ -205,7 +205,7 @@ void WinUI3ViewsTest::sliderStateMotion()
     QTRY_VERIFY(frameReal(&slider, "_winui_hover_progress") < 0.01);
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&slider, &enter);
-    QTest::qWait(100);
+    setAnimationTime(&slider, 100);
     const qreal hoverMidway = frameReal(&slider, "_winui_hover_progress");
     QVERIFY(hoverMidway > 0.0 && hoverMidway < 1.0);
     QTRY_VERIFY(frameReal(&slider, "_winui_hover_progress") > 0.99);
@@ -219,7 +219,7 @@ void WinUI3ViewsTest::sliderStateMotion()
     const QRect handle = slider.style()->subControlRect(QStyle::CC_Slider, &option,
                                                         QStyle::SC_SliderHandle, &slider);
     QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
-    QTest::qWait(100);
+    setAnimationTime(&slider, 100);
     const qreal pressMidway = frameReal(&slider, "_winui_press_progress");
     QVERIFY(pressMidway > 0.0 && pressMidway < 1.0);
     QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());

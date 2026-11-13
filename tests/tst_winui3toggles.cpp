@@ -162,7 +162,7 @@ void WinUI3TogglesTest::toggleConvenienceWidget()
     toggle.setChecked(false);
     QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") < 0.01);
     toggle.setChecked(true);
-    QTest::qWait(35);
+    setAnimationTime(&toggle, 35);
     const qreal beforeTextChange = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(beforeTextChange > 0.0 && beforeTextChange < 0.99);
     toggle.setOnText(QStringLiteral("Enabled"));
@@ -185,12 +185,12 @@ void WinUI3TogglesTest::toggleInteraction()
     QTest::mouseClick(&toggle, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
     QVERIFY(toggle.isChecked());
     QCOMPARE(spy.count(), 1);
-    QTest::qWait(35);
+    setAnimationTime(&toggle, 35);
     const qreal midway = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
     QTRY_VERIFY(frameReal(&toggle, "_winui_toggle_position") > 0.99);
     toggle.setChecked(false);
-    QTest::qWait(35);
+    setAnimationTime(&toggle, 35);
     const qreal reverse = frameReal(&toggle, "_winui_toggle_position");
     QVERIFY(reverse > 0.0 && reverse < 1.0);
     toggle.setChecked(true);
@@ -368,7 +368,7 @@ void WinUI3TogglesTest::checkboxAcceptAnimation()
 
     setFrame(&check, "_winui_check_progress", 0.0);
     check.setChecked(true);
-    QTest::qWait(55);
+    setAnimationTime(&check, 55);
     const qreal midway = frameReal(&check, "_winui_check_progress");
     QVERIFY2(midway > 0.0 && midway < 1.0, qPrintable(QString::number(midway)));
     // After the initial generated hold, the accept stroke must still be in a

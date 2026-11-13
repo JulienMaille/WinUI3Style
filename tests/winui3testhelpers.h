@@ -668,6 +668,21 @@ public:
     WinUI3::Private::framePropertyRegistry().set(object, name, value);
 }
 
+// Seek without timer jitter, then resume so endpoint checks still exercise live motion.
+[[maybe_unused]] static void setAnimationTime(QWidget *widget, int milliseconds)
+{
+    auto animations = widget->style()->findChildren<QVariantAnimation *>();
+    animations.append(widget->findChildren<QVariantAnimation *>());
+    for (auto *animation : animations) {
+        if (animation->state() != QAbstractAnimation::Running)
+            continue;
+        animation->pause();
+        animation->setCurrentTime(milliseconds);
+        if (animation->state() == QAbstractAnimation::Paused)
+            animation->resume();
+    }
+}
+
 class FrameDynamicPropertyProbe final : public QObject
 {
 public:
