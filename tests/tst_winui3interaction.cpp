@@ -112,6 +112,8 @@ private slots:
     void hoverAnimationProgresses();
     void readOnlyActionRestoration();
     void rtlGeometryAndHitTesting();
+    void sliderHandleInputMapping_data();
+    void sliderHandleInputMapping();
     void runtimeAppearanceAndDialogLifecycle();
     void callbackCoalescingAndAnimationReuse();
 };
@@ -665,8 +667,8 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
         option.rect = chevron->rect();
         {
             QPainter painter(&expected);
-            card.style()->drawPrimitive(WinUI3::PaintPrivate::SettingsCardChevronPrimitive,
-                                        &option, &painter, chevron);
+            card.style()->drawPrimitive(WinUI3::PaintPrivate::SettingsCardChevronPrimitive, &option,
+                                        &painter, chevron);
         }
         QVERIFY(expected != empty);
         QCOMPARE(rendered, expected);
@@ -965,6 +967,109 @@ void WinUI3InteractionTest::rtlGeometryAndHitTesting()
     QTest::mouseClick(&slider, Qt::MiddleButton, Qt::NoModifier,
                       QPoint(slider.width() - 4, slider.height() / 2));
     QCOMPARE(slider.value(), before);
+}
+
+void WinUI3InteractionTest::sliderHandleInputMapping_data()
+{
+    QTest::addColumn<QString>("density");
+    QTest::addColumn<bool>("horizontal");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<bool>("inverted");
+    for (const QString &density : { QStringLiteral("standard"), QStringLiteral("compact") }) {
+        for (const bool horizontal : { true, false }) {
+            for (const bool rtl : { false, true }) {
+                for (const bool inverted : { false, true }) {
+                    const QByteArray name =
+                            QStringLiteral("%1-%2-%3-%4")
+                                    .arg(density,
+                                         horizontal ? QStringLiteral("horizontal")
+                                                    : QStringLiteral("vertical"),
+                                         rtl ? QStringLiteral("rtl") : QStringLiteral("ltr"),
+                                         inverted ? QStringLiteral("inverted")
+                                                  : QStringLiteral("normal"))
+                                    .toLatin1();
+                    QTest::newRow(name.constData()) << density << horizontal << rtl << inverted;
+                }
+            }
+        }
+    }
+}
+
+void WinUI3InteractionTest::sliderHandleInputMapping()
+{
+    QFETCH(QString, density);
+    QFETCH(bool, horizontal);
+    QFETCH(bool, rtl);
+    QFETCH(bool, inverted);
+    QSlider slider(horizontal ? Qt::Horizontal : Qt::Vertical);
+    slider.setProperty("winuiDensity", density);
+    slider.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    slider.setInvertedAppearance(inverted);
+    slider.setRange(-100, 900);
+    slider.setValue(400);
+    slider.resize(horizontal ? QSize(320, 40) : QSize(40, 320));
+    slider.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&slider));
+    QStyleOptionSlider option;
+    option.initFrom(&slider);
+    option.orientation = slider.orientation();
+    option.minimum = slider.minimum();
+    option.maximum = slider.maximum();
+    option.upsideDown = horizontal ? (inverted != rtl) : !inverted;
+    const auto handleRect = [&] {
+        option.sliderPosition = slider.sliderPosition();
+        option.sliderValue = slider.value();
+        return slider.style()->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle,
+                                              &slider);
+    };
+    const QRect groove = slider.style()->subControlRect(QStyle::CC_Slider, &option,
+                                                        QStyle::SC_SliderGroove, &slider);
+    QCOMPARE(handleRect().size(), QSize(18, 18));
+    const int handleSize = horizontal ? handleRect().width() : handleRect().height();
+    const int grooveLength = horizontal ? groove.width() : groove.height();
+    const int grooveLeading = horizontal ? groove.left() : groove.top();
+    const int grooveTrailing = horizontal ? groove.right() : groove.bottom();
+    const auto pointAt = [&](int pixel) {
+        return horizontal ? QPoint(pixel, groove.center().y()) : QPoint(groove.center().x(), pixel);
+    };
+    // Qt centers the inclusive handle rectangle before mapping an absolute click.
+    const int handleCenterOffset = (handleSize - 1) / 2;
+    const int clickPixel = grooveLeading + grooveLength / 4;
+    const QPoint clickPoint = pointAt(clickPixel);
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, clickPoint);
+    QVERIFY(slider.isSliderDown());
+    QCOMPARE(slider.value(),
+             QStyle::sliderValueFromPosition(slider.minimum(), slider.maximum(),
+                                             clickPixel - grooveLeading - handleCenterOffset,
+                                             grooveLength - handleSize, option.upsideDown));
+    const QRect handle = handleRect();
+    QVERIFY(qAbs((horizontal ? handle.left() : handle.top()) - (clickPixel - handleSize / 2)) <= 1);
+    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, clickPoint);
+    QVERIFY(!slider.isSliderDown());
+
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
+    QVERIFY(slider.isSliderDown());
+    const QPoint dragPoint = handle.center() + (horizontal ? QPoint(60, 0) : QPoint(0, 60));
+    QTest::mouseMove(&slider, dragPoint);
+    QCOMPARE(slider.value(),
+             QStyle::sliderValueFromPosition(slider.minimum(), slider.maximum(),
+                                             (horizontal ? handle.left() : handle.top())
+                                                     - grooveLeading + 60,
+                                             grooveLength - handleSize, option.upsideDown));
+    QTest::mouseMove(&slider, pointAt(grooveTrailing + handleSize));
+    QCOMPARE(slider.value(), option.upsideDown ? slider.minimum() : slider.maximum());
+    QCOMPARE(horizontal ? handleRect().right() : handleRect().bottom(), grooveTrailing);
+    QTest::mouseMove(&slider, pointAt(grooveLeading - handleSize));
+    QCOMPARE(slider.value(), option.upsideDown ? slider.maximum() : slider.minimum());
+    QCOMPARE(horizontal ? handleRect().left() : handleRect().top(), grooveLeading);
+    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
+                        pointAt(grooveLeading - handleSize));
+    QVERIFY(!slider.isSliderDown());
+
+    QTest::keyClick(&slider, Qt::Key_Home);
+    QCOMPARE(slider.value(), slider.minimum());
+    QTest::keyClick(&slider, Qt::Key_End);
+    QCOMPARE(slider.value(), slider.maximum());
 }
 
 void WinUI3InteractionTest::runtimeAppearanceAndDialogLifecycle()

@@ -151,20 +151,18 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
             if (subControl == QStyle::SC_SliderGroove)
                 return groove;
             if (subControl == QStyle::SC_SliderHandle) {
-                const int span = qMax(0, (horizontal ? groove.width() : groove.height()) - 1);
+                const int handleSize = metrics.sliderHandleSize;
+                const int grooveLength = horizontal ? groove.width() : groove.height();
+                // Match QSliderPrivate::pixelPosToRangeValue's leading-edge travel span.
+                const int span = qMax(0, grooveLength - handleSize);
                 const int offset = QStyle::sliderPositionFromValue(slider->minimum, slider->maximum,
                                                                    slider->sliderPosition, span,
                                                                    slider->upsideDown);
-                const QPoint center = horizontal
-                        ? QPoint(groove.left() + offset, groove.center().y())
-                        : QPoint(groove.center().x(), groove.top() + offset);
-                const int handleSize = metrics.sliderHandleSize;
-                // QRect::center() rounds an even-sized rectangle toward its
-                // top/left.  Use the historical asymmetric offset so the
-                // reported handle center stays exactly on the groove end.
                 const int handleOffset = (handleSize - 1) / 2;
-                return QRect(center.x() - handleOffset, center.y() - handleOffset, handleSize,
-                             handleSize);
+                const QPoint topLeft = horizontal
+                        ? QPoint(groove.left() + offset, groove.center().y() - handleOffset)
+                        : QPoint(groove.center().x() - handleOffset, groove.top() + offset);
+                return QRect(topLeft, QSize(handleSize, handleSize));
             }
             if (subControl == QStyle::SC_SliderTickmarks)
                 return slider->rect;

@@ -97,6 +97,7 @@ private slots:
     void initTestCase();
     void init();
     void cleanup();
+    void sliderGeometryContract_data();
     void sliderGeometryContract();
     void sliderStateMotion();
     void sliderDragInteraction();
@@ -133,9 +134,18 @@ void WinUI3ViewsTest::cleanup()
     cleanupStandardWinUI3TestWidgets();
 }
 
+void WinUI3ViewsTest::sliderGeometryContract_data()
+{
+    QTest::addColumn<QString>("density");
+    QTest::newRow("standard") << QStringLiteral("standard");
+    QTest::newRow("compact") << QStringLiteral("compact");
+}
+
 void WinUI3ViewsTest::sliderGeometryContract()
 {
-    const auto verifyEndPoints = [](QSlider &slider) {
+    QFETCH(QString, density);
+    const auto verifyEndPoints = [&density](QSlider &slider) {
+        slider.setProperty("winuiDensity", density);
         QStyleOptionSlider option;
         slider.setValue(slider.minimum());
         option.initFrom(&slider);
@@ -153,26 +163,23 @@ void WinUI3ViewsTest::sliderGeometryContract()
                 QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, &slider);
         QCOMPARE(minimumHandle.size(), QSize(18, 18));
         QCOMPARE(slider.orientation() == Qt::Horizontal ? groove.height() : groove.width(), 4);
-        const int minimumCenter = slider.orientation() == Qt::Horizontal
-                ? minimumHandle.center().x()
-                : minimumHandle.center().y();
-        const int minimumEnd = slider.orientation() == Qt::Horizontal
-                ? (option.upsideDown ? groove.right() : groove.left())
-                : (option.upsideDown ? groove.bottom() : groove.top());
-        QCOMPARE(minimumCenter, minimumEnd);
+        const bool horizontal = slider.orientation() == Qt::Horizontal;
+        const int grooveLeading = horizontal ? groove.left() : groove.top();
+        const int grooveTrailing = horizontal ? groove.right() : groove.bottom();
+        const int minLeading = horizontal ? minimumHandle.left() : minimumHandle.top();
+        const int minTrailing = horizontal ? minimumHandle.right() : minimumHandle.bottom();
+        QCOMPARE(option.upsideDown ? minTrailing : minLeading,
+                 option.upsideDown ? grooveTrailing : grooveLeading);
 
         slider.setValue(slider.maximum());
         option.sliderPosition = slider.sliderPosition();
         option.sliderValue = slider.value();
         const QRect maximumHandle = slider.style()->subControlRect(
                 QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, &slider);
-        const int maximumCenter = slider.orientation() == Qt::Horizontal
-                ? maximumHandle.center().x()
-                : maximumHandle.center().y();
-        const int maximumEnd = slider.orientation() == Qt::Horizontal
-                ? (option.upsideDown ? groove.left() : groove.right())
-                : (option.upsideDown ? groove.top() : groove.bottom());
-        QCOMPARE(maximumCenter, maximumEnd);
+        const int maxLeading = horizontal ? maximumHandle.left() : maximumHandle.top();
+        const int maxTrailing = horizontal ? maximumHandle.right() : maximumHandle.bottom();
+        QCOMPARE(option.upsideDown ? maxLeading : maxTrailing,
+                 option.upsideDown ? grooveLeading : grooveTrailing);
     };
 
     QSlider horizontal(Qt::Horizontal);
