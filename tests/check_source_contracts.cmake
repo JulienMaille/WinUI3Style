@@ -8,8 +8,7 @@
 #     outside the approved token homes winui3tokens_p.h, winui3paint_p.cpp,
 #     winui3geometry_p.cpp, and winui3theme_p.cpp (palette/accent-ramp home).
 # (c) License headers: every src/*, include/**/*, plugin/*, benchmarks/*
-#     file must reference LGPL-2.1-or-later (LICENSE + LICENSES/README.md
-#     story: implementation LGPL, Qt-only runtime).
+#     file must reference LGPL-2.1-or-later; the package includes LICENSE.
 # (d) Test size ratchet: fail if any tests/tst_*.cpp exceeds 60 KB, so the
 #     split test binaries of plan step 8 cannot regrow into one giant file.
 # (e) Qt 5.12 namespace metadata: Q_NAMESPACE_EXPORT only exists from Qt 5.14;

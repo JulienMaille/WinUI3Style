@@ -68,7 +68,6 @@ $stage = Join-Path $output $name
 New-Item -ItemType Directory -Path (Join-Path $stage 'styles') -Force | Out-Null
 Copy-Item -LiteralPath $gallery, $runtime -Destination $stage
 Copy-Item -LiteralPath $plugin -Destination (Join-Path $stage 'styles')
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'poc/qt.conf') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'poc/README.md') -Destination $stage
 
 $savedPath = $env:Path
@@ -99,8 +98,6 @@ $licenses = Join-Path $stage 'licenses'
 New-Item -ItemType Directory -Path $licenses -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE') `
     -Destination (Join-Path $licenses 'WinUI3Style-LGPL-2.1.txt')
-Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSES/README.md') `
-    -Destination (Join-Path $licenses 'WinUI3Style-NOTICE.md')
 foreach ($module in @('qtbase', 'qtsvg', 'qtimageformats')) {
     $modulePath = Join-Path $qtSourcePath $module
     $moduleNotices = Join-Path $licenses $module

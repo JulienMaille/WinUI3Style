@@ -15,7 +15,7 @@ production readiness or complete pixel-identical WinUI coverage.
 
 The Windows x64 archive contains the gallery, `winui3style.dll`,
 `styles/qwinui3style.dll`, `styles/qmodernwindowsstyle.dll`, compatible
-unmodified Qt DLLs/platform plugins, `vc_redist.x64.exe`, `qt.conf`,
+  unmodified Qt DLLs/platform plugins, `vc_redist.x64.exe`,
 license/third-party notices, corresponding-source information, the WinUI3Style
 source archive and a SHA-256 manifest. The VC runtime installer is bundled but
 not auto-launched. The published build must identify its exact commit, Qt
