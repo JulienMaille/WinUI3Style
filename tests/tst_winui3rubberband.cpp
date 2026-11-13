@@ -6,7 +6,7 @@
 // backs the value; the row stays source-audited until a live pass accepts it.
 #include <winui3style/winui3style.h>
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 #include "winui3testhelpers.h"
 
 #include <QImage>

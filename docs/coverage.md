@@ -80,7 +80,7 @@ glyph. The style now implements all three: the hint returns 0 (flat glyphs, no
 frame), `subElementRect` pulls the button stack in so its outermost edge sits
 8 px inside the title area, and the text row begins 8 px in from that same
 edge. Eight pixels is the content inset `PM_DockWidgetTitleMargin` already
-gives the title text and the value pinned in `spec/winui-2.4/observations.md`
+gives the title text and the value pinned in `docs/winui-2.4/observations.md`
 ("dock titles use the translucent layer fill, semibold body typography, and
 the same 8 px content inset as other Fluent surfaces"); the reporter chose it
 from a 0/2/4/6/8 live comparison. The text row only *trims* at its trailing

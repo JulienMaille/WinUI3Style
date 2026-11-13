@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Native, opt-in PrintWindow evidence for the Gallery AutoSuggestBox.
-#include "../demo/gallerywindow.h"
+#include "../src/gallery/gallerywindow.h"
 #include "winui3testhelpers.h"
 
 #include <QCompleter>

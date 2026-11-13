@@ -7,7 +7,7 @@
 // survive the style install and every later theme/accent refresh.
 #include <winui3style/winui3style.h>
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QAbstractItemView>
 #include <QApplication>

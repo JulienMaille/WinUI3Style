@@ -72,7 +72,7 @@ QSet<QString> coveredList(const QString &sources, const QString &functionName)
 // lists (the assert would fire on a legitimate fallback). This set is the
 // whole exception surface: adding an element here requires the same argument
 // as removing it from a covered* list, and it is documented at
-// coveredPrimitive in src/winui3style.cpp.
+// coveredPrimitive in src/lib/winui3style.cpp.
 const QSet<QString> &partialElements()
 {
     static const QSet<QString> partial = {

@@ -13,8 +13,8 @@
 
 #include "winui3testhelpers.h"
 
-#include "../src/winui3surfaces_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3surfaces_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QStyleOptionDockWidget>
 

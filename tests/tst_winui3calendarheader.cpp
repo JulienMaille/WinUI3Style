@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Uniform-acrylic calendar header (spec/coverage.md QCalendarWidget row):
+// Uniform-acrylic calendar header (docs/coverage.md QCalendarWidget row):
 // Body uses the effective popup tint (opaque on fallback); header/lane
 // must have indistinguishable idle fill/stroke. Stock QDateEdit input,
 // light/dark and standard/compact; captures pair same-state geometry contracts.
@@ -7,7 +7,7 @@
 
 #include "winui3testhelpers.h"
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>

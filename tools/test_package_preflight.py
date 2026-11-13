@@ -32,8 +32,8 @@ class PackageSourceGuardTests(unittest.TestCase):
         self.sources = root / "Qt sources"
         for base, relative in (
             (self.build, "CMakeCache.txt"),
-            (self.build, "demo/Release/winui3style_gallery.exe"),
-            (self.build, "src/Release/winui3style.dll"),
+            (self.build, "src/gallery/Release/winui3style_gallery.exe"),
+            (self.build, "src/lib/Release/winui3style.dll"),
             (self.build, "plugins/styles/qwinui3style.dll"),
             (self.qt, "bin/windeployqt.exe"),
             (self.qt, "plugins/styles/qmodernwindowsstyle.dll"),

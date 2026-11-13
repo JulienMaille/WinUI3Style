@@ -8,10 +8,10 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
-#include "../src/winui3frameproperties_p.h"
-#include "../src/winui3helpers_p.h"
-#include "../src/winui3surfaces_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3frameproperties_p.h"
+#include "../src/lib/winui3helpers_p.h"
+#include "../src/lib/winui3surfaces_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QLabel>
 #include <QListWidget>

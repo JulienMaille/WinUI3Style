@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// DataGrid-like table header contracts (spec/coverage.md QTableView row).
+// DataGrid-like table header contracts (docs/coverage.md QTableView row).
 // Split out of tst_winui3views.cpp at the 60 KB ratchet. The sort indicator
 // is pinned to the WinUI DataGrid column header template: a trailing sort
 // column with MinWidth="32", a 12 px SortIcon centred in it, and the

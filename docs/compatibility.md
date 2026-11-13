@@ -35,7 +35,7 @@ non-Windows hosts (issue #21). What is Windows-only and compiles out:
   (`winui3appearancewatcher_p.cpp`, `winui3theme_p.cpp`);
 - everything under `LABELS native` (real tooltips, menus, popups, focus,
   compositor corners) and `winui3style_snapshot_matrix`, which is not even
-  registered off Windows: `spec/baselines/gallery` is the pinned Windows raster
+  registered off Windows: `tests/baselines/gallery` is the pinned Windows raster
   (Segoe UI, Fluent glyphs, `QT_QPA_FONTDIR`), so Linux font substitution would
   fail it for reasons that are not regressions. The oracle it uses,
   `winui3style_image_comparison_contract`, is portable and does run on Linux.
@@ -77,9 +77,9 @@ deliberately does not claim to fix that report.
 
 ## Capture reproduction
 
-Snapshots are deterministic by construction (`spec/METHODOLOGY.md` sections
+Snapshots are deterministic by construction (`docs/METHODOLOGY.md` sections
 5/5a): two fresh gallery processes must produce identical file sets and
-byte-identical PNGs, then match `spec/baselines/gallery`:
+byte-identical PNGs, then match `tests/baselines/gallery`:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
@@ -90,7 +90,7 @@ ctest --test-dir build -C Release -R winui3style_snapshot_matrix -V
 Or directly:
 
 ```powershell
-build\demo\Release\winui3style_gallery.exe --capture-dir <absolute-dir>
+build\src\gallery\Release\winui3style_gallery.exe --capture-dir <absolute-dir>
 python tools/compare_images.py <baseline.png> <candidate.png>
 ```
 
@@ -101,5 +101,5 @@ The matrix runs offscreen (`QT_QPA_PLATFORM=offscreen`,
 not observable offscreen; they belong to the live compositor pass
 (`winui3style_native`, serial, `QT_QPA_PLATFORM=windows`, excluded from the
 hosted gate) and to side-by-side comparison with the pinned WinUI 3
-Gallery 2.9.3 (`spec/winui-2.4/manifest.json`, Windows App Runtime per the
+Gallery 2.9.3 (`docs/winui-2.4/manifest.json`, Windows App Runtime per the
 manifest's release link).

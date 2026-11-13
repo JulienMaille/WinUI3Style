@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include <winui3style/winui3style.h>
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QAbstractItemView>
 #include <QTableWidget>

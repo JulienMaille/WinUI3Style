@@ -3,8 +3,8 @@
 #include <winui3style/winui3backdrop.h>
 #include <winui3style/winui3style.h>
 
-#include "../src/winui3backdrop_p.h"
-#include "../src/winui3density_p.h"
+#include "../src/lib/winui3backdrop_p.h"
+#include "../src/lib/winui3density_p.h"
 #include "winui3testhelpers.h"
 
 #include <QCalendarWidget>

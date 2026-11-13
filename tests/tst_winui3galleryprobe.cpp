@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Exact-construction live repro: the REAL GalleryWindow class (the same
-// demo/gallerywindow.cpp/.h/.ui sources the reviewer runs live) driven
+// src/gallery/gallerywindow.cpp/.h/.ui sources the reviewer runs live) driven
 // through the live Mica-toggle property path ("winuiBackdrop").
 // Offscreen-capable: the DWM grant is simulated the same way the micacard
 // mechanism tests do (Composited publish + chrome/content syncs in live
@@ -8,11 +8,11 @@
 // (Navigation/MenuBar/Password) + Palette Lab page visit; exact widget
 // rects probed against a NONE twin. Every pixel assert pairs with a
 // token/geometry assert on the same state.
-#include "../demo/gallerywindow.h"
+#include "../src/gallery/gallerywindow.h"
 #include "winui3testhelpers.h"
 
-#include "../src/winui3surfaces_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3surfaces_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QComboBox>
 #include <QCheckBox>

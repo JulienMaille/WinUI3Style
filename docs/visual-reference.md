@@ -37,7 +37,7 @@ or a crash-free screenshot is not visual validation.
 For automated repeatability, run the CTest target
 `winui3style_snapshot_matrix`; it creates two fresh gallery processes, checks
 the strict manifest and pixel identity, and compares an approved
-`spec/baselines/gallery` directory when present. CI uploads
+`tests/baselines/gallery` directory when present. CI uploads
 `snapshot-report.json` plus both capture dirs as artifacts on failure.
 
 Baseline refresh (never auto-accept): regenerate via

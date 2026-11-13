@@ -4,7 +4,7 @@ if(NOT DEFINED SOURCE_DIR)
     message(FATAL_ERROR "SOURCE_DIR must be passed on the command line")
 endif()
 
-file(READ "${SOURCE_DIR}/cmake/WinUI3StyleConfig.cmake.in" _template)
+file(READ "${SOURCE_DIR}/src/lib/WinUI3StyleConfig.cmake.in" _template)
 
 string(FIND "${_template}" "find_dependency(Qt6" _hardcoded6)
 string(FIND "${_template}" "find_dependency(Qt5" _hardcoded5)

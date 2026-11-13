@@ -2,11 +2,11 @@
 #
 # Baseline refresh procedure (never auto-accept):
 #   1. Build Release and run the gallery capture locally:
-#      build\demo\Release\winui3style_gallery.exe --capture-dir <absolute-dir>
-#   2. Review every PNG diff pixel-by-pixel against spec/baselines/gallery
+#      build\src\gallery\Release\winui3style_gallery.exe --capture-dir <absolute-dir>
+#   2. Review every PNG diff pixel-by-pixel against tests/baselines/gallery
 #      (tools/compare_images.py --diff diff.png reports RMS, differing-pixel
 #      count, max delta, bounding box; RMS is a regression signal, geometry
-#      and state semantics are the acceptance criterion per spec/METHODOLOGY.md).
+#      and state semantics are the acceptance criterion per docs/METHODOLOGY.md).
 #   3. Commit the new approved PNGs. A red baseline is debugged from the
 #      uploaded snapshot-report.json + capture artifacts, never by
 #      re-running until green.
@@ -48,7 +48,7 @@ jobs:
       - name: Require tests alongside Verified promotions
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
-          rows=$(git diff --unified=0 "$base"...HEAD -- spec/coverage.md \
+          rows=$(git diff --unified=0 "$base"...HEAD -- docs/coverage.md \
                    | grep '^+.*| *Verified' || true)
           if [ -z "$rows" ]; then
             echo "no Verified promotions in $base...HEAD"
@@ -79,7 +79,7 @@ jobs:
       - name: clang-format whole tree
         run: |
           pip install "clang-format==18.1.8"
-          clang-format --dry-run --Werror $(git ls-files src include tests demo plugin benchmarks | grep -E '\.(cpp|h)$')
+          clang-format --dry-run --Werror $(git ls-files src tests | grep -E '\.(cpp|h)$')
 
   clang-tidy:
     # Minimal mechanical gate (5 checks, warnings are errors): runs on
@@ -121,7 +121,7 @@ jobs:
     # paths are compiled out by Q_OS_WIN. Native tests are excluded because
     # they need an interactive Windows desktop and DWM. The gallery snapshot
     # matrix is not registered off Windows at all, because
-    # spec/baselines/gallery is the pinned Windows raster (Segoe UI, Fluent
+    # tests/baselines/gallery is the pinned Windows raster (Segoe UI, Fluent
     # glyphs) and Linux font substitution would fail it for reasons that are
     # not regressions; its oracle, winui3style_image_comparison_contract, is
     # portable and does run here.
@@ -165,7 +165,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QT_QPA_FONTDIR: /usr/share/fonts/truetype/dejavu
         run: >
-          build-linux/demo/winui3style_gallery
+          build-linux/src/gallery/winui3style_gallery
           --capture-dir build-linux/linux-gallery-captures
       - name: Upload Linux Gallery captures
         if: always()

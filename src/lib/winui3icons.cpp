@@ -511,7 +511,7 @@ public:
         return *m_fonts.object(pixelSize);
     }
 
-    // Test-only seams (see src/winui3icons_p.h): the icons unit test drives
+    // Test-only seams (see winui3icons_p.h): the icons unit test drives
     // these to prove worker-thread isolation and value semantics. Production
     // code must not use them.
     bool fontFamilyResolvedForTest() const { return m_fontFamilyResolved; }

@@ -1,4 +1,4 @@
-set(_demo_dir "${SOURCE_DIR}/demo")
+set(_demo_dir "${SOURCE_DIR}/src/gallery")
 if(NOT EXISTS "${_demo_dir}/gallerywindow.ui")
     message(FATAL_ERROR "The gallery must be defined by a Qt Designer .ui file")
 endif()

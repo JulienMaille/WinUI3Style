@@ -4,7 +4,7 @@
 // are kept identical, like the earlier domain splits.
 #include <winui3style/winui3style.h>
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QAbstractButton>
 #include <QColor>

@@ -651,7 +651,7 @@ void invalidateDensityTree(QWidget *root)
 //   * the CE_* buttons dispatched through the renderer seams — a seam returns
 //     false when it does not handle the element, which is a fallthrough, not a
 //     missed case.
-// The rule is checked mechanically by tools/covered_elements_check.cpp, wired
+// The rule is checked mechanically by tests/contracts/covered_elements_check.cpp, wired
 // as the winui3style_covered_elements CTest, so a newly claimed element cannot
 // be added silently.
 bool coveredPrimitive(QStyle::PrimitiveElement element)

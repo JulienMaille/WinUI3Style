@@ -6,7 +6,7 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QCheckBox>
 #include <QCoreApplication>

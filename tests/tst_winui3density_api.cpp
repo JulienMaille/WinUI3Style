@@ -1,7 +1,7 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/navigationview.h>
 
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QApplication>
 #include <QCoreApplication>

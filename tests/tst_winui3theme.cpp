@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Thread-safety mechanism tests for the system-appearance cache
-// (src/winui3theme_p.cpp). The cache is the only appearance surface designed
+// (src/lib/winui3theme_p.cpp). The cache is the only appearance surface designed
 // for concurrent access: worker threads may read the theme/accent while the
 // GUI thread invalidates. Standalone like winui3style_appearancewatcher_tests
 // (compiles the private theme source directly) because the cache symbols are

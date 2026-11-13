@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Menu corner convergence (spec/coverage.md MenuFlyout row): paint r8 +
+// Menu corner convergence (docs/coverage.md MenuFlyout row): paint r8 +
 // mask r8 at the 50% threshold + concentric stroke. Both cases drive the
 // real style dispatch offscreen; every grab()/paint pairs a QCOMPARE on
 // the same state.
@@ -7,7 +7,7 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3testhelpers.h"
-#include "../src/winui3backdrop_p.h"
+#include "../src/lib/winui3backdrop_p.h"
 
 #include <QComboBox>
 #include <QElapsedTimer>

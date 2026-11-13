@@ -25,7 +25,7 @@ foreach(_i RANGE 0 ${_winui3style_split_last} 2)
     list(GET _winui3style_split_tests ${_src_i} _src)
     add_executable(${_target} ${_src})
     target_include_directories(${_target} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
     target_link_libraries(${_target} PRIVATE WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
         target_compile_definitions(${_target} PRIVATE WINUI3STYLE_TEST_PLUGIN)
@@ -36,15 +36,15 @@ endforeach()
 add_executable(winui3style_frameproperties_tests
     tst_winui3frameproperties.cpp)
 target_include_directories(winui3style_frameproperties_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_frameproperties_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Core)
 
 add_executable(winui3style_appearancewatcher_tests
     tst_winui3appearancewatcher.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3appearancewatcher_p.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3appearancewatcher_p.cpp)
 target_include_directories(winui3style_appearancewatcher_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_appearancewatcher_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Core)
 
@@ -54,11 +54,11 @@ target_link_libraries(winui3style_appearancewatcher_tests PRIVATE
 # for the in-binary copy; advapi32/dwmapi back the registry/DWM probes.
 add_executable(winui3style_theme_tests
     tst_winui3theme.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3theme_p.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3theme_p.cpp)
 target_compile_definitions(winui3style_theme_tests PRIVATE WINUI3STYLE_STATIC)
 target_include_directories(winui3style_theme_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/include)
 target_link_libraries(winui3style_theme_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WIN32)
@@ -81,20 +81,20 @@ endif()
 # is compiled into the test binary instead of linking WinUI3::Widgets.
 add_executable(winui3style_animations_tests
     tst_winui3animations.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3animations_p.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3frameproperties_p.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3animations_p.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3frameproperties_p.cpp)
 # WINUI3STYLE_STATIC empties WINUI3STYLE_EXPORT so the registry symbols
 # compiled into this binary are plain statics instead of dllimport stubs.
 target_compile_definitions(winui3style_animations_tests PRIVATE WINUI3STYLE_STATIC)
 target_include_directories(winui3style_animations_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/include)
 target_link_libraries(winui3style_animations_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 
 add_executable(winui3style_density_tests tst_winui3density.cpp)
 target_include_directories(winui3style_density_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_density_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -104,10 +104,10 @@ endif()
 # Fluent icon font-cache mechanism tests (thread isolation + value
 # semantics of the cached QFont). Same shape as winui3style_density_tests:
 # links the public library plus Qt Test/Widgets, resolves the private test
-# seams in src/winui3icons_p.h via the src include directory.
+# seams in src/lib/winui3icons_p.h via the src/lib include directory.
 add_executable(winui3style_icons_tests tst_winui3icons.cpp)
 target_include_directories(winui3style_icons_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_icons_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -135,7 +135,7 @@ endif()
 # headers via the src include directory.
 add_executable(winui3style_popupcorners_tests tst_winui3popupcorners.cpp)
 target_include_directories(winui3style_popupcorners_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_popupcorners_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WIN32)
@@ -151,7 +151,7 @@ endif()
 # the src include directory.
 add_executable(winui3style_calendarheader_tests tst_winui3calendarheader.cpp)
 target_include_directories(winui3style_calendarheader_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_calendarheader_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -164,7 +164,7 @@ endif()
 # the src include directory.
 add_executable(winui3style_calendarsurface_tests tst_winui3calendarsurface.cpp)
 target_include_directories(winui3style_calendarsurface_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_calendarsurface_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -177,7 +177,7 @@ endif()
 # headers via the src include directory.
 add_executable(winui3style_scrollbarcard_tests tst_winui3scrollbarcard.cpp)
 target_include_directories(winui3style_scrollbarcard_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_scrollbarcard_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -187,10 +187,10 @@ endif()
 # DataGrid-like table header + sort indicator contracts (60 KB cap: views has
 # no headroom). Same shape as winui3style_scrollbarcard_tests: links the
 # public library plus Qt Test/Widgets, resolves the trailing-column seam in
-# src/winui3paint_p.h via the src include directory.
+# src/lib/winui3paint_p.h via the src/lib include directory.
 add_executable(winui3style_tableheader_tests tst_winui3tableheader.cpp)
 target_include_directories(winui3style_tableheader_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_tableheader_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -202,7 +202,7 @@ endif()
 # ratchet.
 add_executable(winui3style_rubberband_tests tst_winui3rubberband.cpp)
 target_include_directories(winui3style_rubberband_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_rubberband_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -213,7 +213,7 @@ endif()
 # shows the style's read-only TextBox field through its QLineEdit child).
 add_executable(winui3style_keysequenceedit_tests tst_winui3keysequenceedit.cpp)
 target_include_directories(winui3style_keysequenceedit_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_keysequenceedit_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -223,7 +223,7 @@ endif()
 # QToolBox accordion header (WinUI Expander mapping; Qt owns the row height).
 add_executable(winui3style_toolbox_tests tst_winui3toolbox.cpp)
 target_include_directories(winui3style_toolbox_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_toolbox_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -238,7 +238,7 @@ endif()
 # the micatheme binary, so this file stays under the ratchet.
 add_executable(winui3style_micabackdrop_tests tst_winui3micabackdrop.cpp)
 target_include_directories(winui3style_micabackdrop_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_micabackdrop_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -249,7 +249,7 @@ endif()
 # headroom). Same shape as winui3style_micabackdrop_tests.
 add_executable(winui3style_micatheme_tests tst_winui3micatheme.cpp)
 target_include_directories(winui3style_micatheme_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_micatheme_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -260,11 +260,11 @@ endif()
 # In-card nav/menu veils live here so the backdrop binary stays under the
 # ratchet. Same shape as winui3style_micabackdrop_tests.
 add_executable(winui3style_micacard_tests tst_winui3micacard.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
 set_target_properties(winui3style_micacard_tests PROPERTIES
-    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
 target_include_directories(winui3style_micacard_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
 target_link_libraries(winui3style_micacard_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -276,14 +276,14 @@ endif()
 # the autosuggest-native target shape without its native-capture define.
 add_executable(winui3style_galleryprobe_tests
     tst_winui3galleryprobe.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
 set_target_properties(winui3style_galleryprobe_tests PROPERTIES
-    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
 target_include_directories(winui3style_galleryprobe_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
 target_link_libraries(winui3style_galleryprobe_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
@@ -293,7 +293,7 @@ endif()
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
     target_link_libraries(winui3style_native_tests PRIVATE
         WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
@@ -302,7 +302,7 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
 
     add_executable(winui3style_menus_native_tests tst_winui3menus_native.cpp)
     target_include_directories(winui3style_menus_native_tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
     target_link_libraries(winui3style_menus_native_tests PRIVATE
         WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
@@ -311,14 +311,14 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
 
     add_executable(winui3style_autosuggest_native_tests
         tst_winui3autosuggest_native.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
     target_compile_definitions(winui3style_autosuggest_native_tests PRIVATE
         WINUI3STYLE_NATIVE_CAPTURE)
     target_include_directories(winui3style_autosuggest_native_tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
     target_link_libraries(winui3style_autosuggest_native_tests PRIVATE
         WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
@@ -332,14 +332,14 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     # (issue #21: the sources must never reach a non-Windows compile).
     add_executable(winui3style_micanative_tests
         tst_winui3micanative.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo/gallerywindow.ui)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
     set_target_properties(winui3style_micanative_tests PROPERTIES
-        AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+        AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
     target_include_directories(winui3style_micanative_tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src
-        ${CMAKE_CURRENT_SOURCE_DIR}/../demo)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
     target_link_libraries(winui3style_micanative_tests PRIVATE
         WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
     if(WINUI3STYLE_BUILD_PLUGIN)
@@ -487,15 +487,15 @@ set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 180)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_designer_gallery.cmake)
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/contracts/check_designer_gallery.cmake)
 add_test(NAME winui3style_source_contracts
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_source_contracts.cmake)
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/contracts/check_source_contracts.cmake)
 add_test(NAME winui3style_package_config_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_package_config.cmake)
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/contracts/check_package_config.cmake)
 set(_winui3style_test_environment
     "QT_QPA_PLATFORM=offscreen"
     "QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"
@@ -524,18 +524,18 @@ endforeach()
 # reach QCommonStyle (METHODOLOGY section 1). Registered after the shared test
 # environment so the binary finds the Qt runtime DLL.
 add_executable(winui3style_covered_elements_check
-    ${CMAKE_CURRENT_SOURCE_DIR}/../tools/covered_elements_check.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/contracts/covered_elements_check.cpp)
 target_link_libraries(winui3style_covered_elements_check PRIVATE
     Qt${QT_VERSION_MAJOR}::Core)
 add_test(NAME winui3style_covered_elements
     COMMAND winui3style_covered_elements_check
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3style.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3buttons_p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3menus_p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3viewrenderers_p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3complex_p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3surfaces_p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/winui3popupsurface_p.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3style.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3buttons_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3menus_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3viewrenderers_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3complex_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3surfaces_p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3popupsurface_p.cpp)
 set_tests_properties(winui3style_covered_elements PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
     LABELS "contract")

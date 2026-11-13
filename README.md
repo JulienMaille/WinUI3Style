@@ -7,8 +7,8 @@ Mica main-window and opaque rounded popup surfaces, property-driven
 native-widget variants, settings/navigation composition, a demo gallery,
 and Qt Test coverage.
 
-![WinUI3Style gallery, light theme](docs/hero-gallery-light.png)
-![WinUI3Style gallery, dark theme](docs/hero-gallery-dark.png)
+![WinUI3Style gallery, light theme](docs/images/hero-gallery-light.png)
+![WinUI3Style gallery, dark theme](docs/images/hero-gallery-dark.png)
 
 The gallery uses stock Qt widgets with no QSS; all visuals are QStyle-painted.
 Deterministic offscreen captures from `winui3style_snapshot_matrix` (gallery page 0, light and dark).
@@ -21,6 +21,21 @@ The project deliberately contains no QSS. All visuals are produced by
 Version 0.1.0 is an experimental preview, not a claim of complete WinUI parity.
 See [the PoC instructions](tools/poc/README.md) for the portable Windows x64
 gallery package, deployment requirements, limitations, and publication checks.
+
+## Repository layout
+
+| Path | Contents |
+|------|----------|
+| `src/include/winui3style/` | Public headers (`WinUI3::Widgets`) |
+| `src/lib/` | Style library implementation, tokens, and CMake package template |
+| `src/plugin/` | `QStylePlugin` exposing the `winui3`/`winui3compact` keys |
+| `src/gallery/` | `winui3style_gallery` reference application |
+| `tests/` | Qt Test binaries and shared helpers (`winui3testhelpers.h`) |
+| `tests/baselines/gallery/` | Pinned Windows snapshot baselines |
+| `tests/contracts/` | Source, Designer, package, and covered-element gates |
+| `tests/benchmarks/` | Opt-in render benchmark |
+| `tools/` | Snapshot runner, image oracle, packaging and install scripts |
+| `docs/` | Methodology, coverage, compatibility, and pinned WinUI evidence |
 
 ## Build
 
@@ -44,7 +59,7 @@ ctest --test-dir build --output-on-failure -LE native
 The `linux-gate` CI job runs exactly that, including the portable
 `winui3style_image_comparison_contract` oracle. The gallery snapshot matrix
 (`winui3style_snapshot_matrix`) is registered on Windows only, because
-`spec/baselines/gallery` is the pinned Windows raster.
+`tests/baselines/gallery` is the pinned Windows raster.
 
 `WINUI_ENABLE_TESTS` (default `ON` for the top-level build) builds the test
 suite and `WINUI3STYLE_BUILD_DEMO` builds the gallery. Both default to `OFF`
@@ -62,7 +77,7 @@ target_link_libraries(app PRIVATE WinUI3::Widgets)
 still honored.
 
 The `winui3style_gallery` executable is the interactive reference application.
-Its widget hierarchy lives in `demo/gallerywindow.ui`. The gallery
+Its widget hierarchy lives in `src/gallery/gallerywindow.ui`. The gallery
 loads the style plugin through Qt's factory; it also links `WinUI3::Widgets`
 for diagnostic/capture support. An independent Qt-only application is checked
 by `tools/install_smoke.ps1`, demonstrating plugin deployment without linking
@@ -73,7 +88,7 @@ plugin is deployed under Qt's `styles` plugin directory. The optional
 default; it is an alias, not a second implementation.
 
 The visual comparison workflow and pinned Microsoft sources are documented in
-`spec/`. The public CMake target is `WinUI3::Widgets`. The implementation uses
+`docs/`. The public CMake target is `WinUI3::Widgets`. The implementation uses
 `QCommonStyle` only as a small, public Qt fallback for semantic text/icon
 layout and explicitly unsupported controls; all covered visual and interaction
 contracts live in `WinUI3::Style`.
@@ -81,7 +96,7 @@ contracts live in `WinUI3::Style`.
 ## Opt-in render benchmark
 
 Build with `-DWINUI3STYLE_BUILD_BENCHMARKS=ON` and run
-`winui3style_render_benchmark.exe` offscreen; see `spec/compatibility.md`.
+`winui3style_render_benchmark.exe` offscreen; see `docs/compatibility.md`.
 
 ## Native widget variants
 
@@ -109,7 +124,7 @@ Density is independent of theme: `winui3` starts Standard, `winui3compact`
 starts Compact, switchable globally via `style()->setProperty("densityMode", 1)`
 or per-form via the inherited `winuiDensity` property in Designer.
 Compact scope follows WinUI Compact Sizing; Fluent consistency extensions (NumberBox-height
-spin boxes, `QTableView`/multi-column tree headers) are one-liners here — see `spec/coverage.md`.
+spin boxes, `QTableView`/multi-column tree headers) are one-liners here — see `docs/coverage.md`.
 
 Item views use standard Qt models and delegates: `QListView` maps to ListView,
 a headerless `QTreeView` to TreeView. The style supplies ContentDialog surface,

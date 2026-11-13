@@ -213,7 +213,7 @@ The repository implements the deterministic portion of this policy as the
 processes with animations and accessibility disabled before construction,
 requires identical file manifests and image dimensions, and compares every
 pixel. It then requires the same strict comparison against the approved
-`spec/baselines/gallery`; a missing baseline or missing/extra state capture is
+`tests/baselines/gallery`; a missing baseline or missing/extra state capture is
 a failure. On Windows, offscreen captures explicitly use the system font
 directory so Segoe and Fluent glyphs cannot silently become tofu boxes.
 `tools/compare_images.py`

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Mechanism regression tests for the Fluent icon font cache
-// (spec/METHODOLOGY.md section 6: reproduce the mechanism, add a failing
-// test, then fix). Two defects in src/winui3icons.cpp: the worker-thread
+// (docs/METHODOLOGY.md section 6: reproduce the mechanism, add a failing
+// test, then fix). Two defects in src/lib/winui3icons.cpp: the worker-thread
 // paint fallback mutated the GUI-thread-only IconRuntime (QPointer,
 // QString, bool, QCache), and IconRuntime::fluentFont() returned a
 // cache-owned const QFont& that invalidate()/clear() or LRU eviction could

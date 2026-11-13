@@ -1,7 +1,7 @@
-# PR checklist — routes to spec/METHODOLOGY.md (normative), never duplicates it.
+# PR checklist — routes to docs/METHODOLOGY.md (normative), never duplicates it.
 
 ## Mapping
-- [ ] Declared the Qt→WinUI mapping in `spec/coverage.md` (Direct / Semantic
+- [ ] Declared the Qt→WinUI mapping in `docs/coverage.md` (Direct / Semantic
   variant / Consistency extension / Compound / Not covered, METHODOLOGY §1).
 
 ## Live evidence (METHODOLOGY §3)
@@ -18,5 +18,5 @@
   (`styleMutationRestoration` covers the touched path).
 
 ## Coverage ledger (METHODOLOGY §6)
-- [ ] Updated the `spec/coverage.md` row status (`source-audited` vs
+- [ ] Updated the `docs/coverage.md` row status (`source-audited` vs
   `Verified` — tests alone never promote a row to `Verified`).

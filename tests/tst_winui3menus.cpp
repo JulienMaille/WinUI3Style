@@ -8,11 +8,11 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
-#include "../src/winui3icons_p.h"
+#include "../src/lib/winui3icons_p.h"
 
-#include "../src/winui3frameproperties_p.h"
-#include "../src/winui3helpers_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3frameproperties_p.h"
+#include "../src/lib/winui3helpers_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QLabel>
 #include <QListWidget>
@@ -1002,7 +1002,7 @@ void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
 {
     // RED-first double-open parity: open1 vs open2 identical settled frames
     // (standalone popup + InstantPopup tool-button with persistent QMenu
-    // mirroring demo/gallerywindow.cpp:129-136, persistent per-button HWND).
+    // mirroring src/gallery/gallerywindow.cpp:129-136, persistent per-button HWND).
     DisableAnimationsGuard animations;
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);

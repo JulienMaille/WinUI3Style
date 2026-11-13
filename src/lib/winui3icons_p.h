@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
-// Test seams for the Fluent icon font cache (spec/METHODOLOGY.md section 6:
+// Test seams for the Fluent icon font cache (docs/METHODOLOGY.md section 6:
 // defect tests target the mechanism, not the screenshot). Production code
 // must not use these; they expose the GUI-thread-only IconRuntime so the
 // icons unit test can prove worker-thread paint never touches the shared

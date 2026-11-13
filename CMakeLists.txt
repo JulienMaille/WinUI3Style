@@ -92,14 +92,14 @@ if(WINUI3STYLE_CLANG_TIDY)
     set(CMAKE_CXX_CLANG_TIDY ${WINUI3STYLE_CLANG_TIDY_EXE})
 endif()
 
-add_subdirectory(src)
+add_subdirectory(src/lib)
 
 if(WINUI3STYLE_BUILD_PLUGIN)
-    add_subdirectory(plugin)
+    add_subdirectory(src/plugin)
 endif()
 
 if(WINUI3STYLE_BUILD_DEMO)
-    add_subdirectory(demo)
+    add_subdirectory(src/gallery)
 endif()
 
 if(WINUI_ENABLE_TESTS)
@@ -119,7 +119,7 @@ if(WINUI_ENABLE_TESTS)
             "-DCXX_COMPILER=${CMAKE_CXX_COMPILER}"
             "-DMAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
             "-DBUILD_CONFIG=$<CONFIG>"
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_static_package.cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/contracts/test_static_package.cmake
     )
     set_tests_properties(winui3style_static_package_contract PROPERTIES
         LABELS "distribution;contract"
@@ -127,7 +127,7 @@ if(WINUI_ENABLE_TESTS)
 endif()
 
 if(WINUI3STYLE_BUILD_BENCHMARKS)
-    add_subdirectory(benchmarks)
+    add_subdirectory(tests/benchmarks)
 endif()
 
 if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
@@ -160,7 +160,7 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
             LABELS "distribution;contract"
         )
     endif()
-    # The approved baseline in spec/baselines/gallery is the Windows raster:
+    # The approved baseline in tests/baselines/gallery is the Windows raster:
     # Segoe UI, Fluent glyphs, and the offscreen Windows platform plugin.
     # Registering the gallery matrix on a non-Windows host would fail every
     # capture on font substitution alone, so the portable half of the policy
@@ -172,7 +172,7 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
                     COMMAND ${Python3_EXECUTABLE}
                         ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_snapshot_matrix.py
                         --gallery $<TARGET_FILE:winui3style_gallery>
-                        --baseline ${CMAKE_CURRENT_SOURCE_DIR}/spec/baselines/gallery
+                        --baseline ${CMAKE_CURRENT_SOURCE_DIR}/tests/baselines/gallery
                         --report ${CMAKE_CURRENT_BINARY_DIR}/snapshot-report.json
                         --keep-captures ${CMAKE_CURRENT_BINARY_DIR}/snapshot-captures
             )
@@ -185,7 +185,7 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
             get_filename_component(_winui3style_snapshot_qt_bin
                 "${${WINUI3STYLE_QT}_DIR}/../../../bin" ABSOLUTE)
             set(_winui3style_snapshot_path
-                "${_winui3style_snapshot_qt_bin};${CMAKE_BINARY_DIR}/src/$<CONFIG>;${CMAKE_BINARY_DIR}/demo/$<CONFIG>;${CMAKE_BINARY_DIR}/plugins/styles;$ENV{PATH}")
+                "${_winui3style_snapshot_qt_bin};${CMAKE_BINARY_DIR}/src/lib/$<CONFIG>;${CMAKE_BINARY_DIR}/src/gallery/$<CONFIG>;${CMAKE_BINARY_DIR}/plugins/styles;$ENV{PATH}")
             string(REPLACE ";" "\\;" _winui3style_snapshot_path
                    "${_winui3style_snapshot_path}")
             set_tests_properties(winui3style_snapshot_matrix PROPERTIES
@@ -194,7 +194,7 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
 endif()
 
 configure_package_config_file(
-    cmake/WinUI3StyleConfig.cmake.in
+    src/lib/WinUI3StyleConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/WinUI3StyleConfig.cmake
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/WinUI3Style
 )

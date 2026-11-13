@@ -13,9 +13,9 @@
 #include <winui3style/winui3style.h>
 
 #include "winui3testhelpers.h"
-#include "../src/winui3helpers_p.h"
-#include "../src/winui3style_properties_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3helpers_p.h"
+#include "../src/lib/winui3style_properties_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QAbstractButton>
 #include <QImage>

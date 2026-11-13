@@ -107,7 +107,7 @@ endif()
 
 if(NOT WINUI3STYLE_STATIC AND TARGET winui3styleplugin)
     # Order the plugin after the library; the TARGET_LINKER_FILE link
-    # in plugin/CMakeLists.txt makes MSVC relink it on style rebuilds.
+    # in src/plugin/CMakeLists.txt makes MSVC relink it on style rebuilds.
     add_dependencies(winui3styleplugin winui3style)
 endif()
 

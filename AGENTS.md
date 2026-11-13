@@ -1,13 +1,13 @@
-# WinUI3Style agent guardrails (routes only — normative text lives in spec/).
+# WinUI3Style agent guardrails (routes only — normative text lives in docs/).
 
-- Read `spec/METHODOLOGY.md` first. It is the acceptance policy: mapping-first
+- Read `docs/METHODOLOGY.md` first. It is the acceptance policy: mapping-first
   (§1), pinned WinUI evidence (§2), live-input sequence (§3), no QSS or
   per-widget Fluent paint (§4), four validation levels (§5), Verified bar + 
   reproduce-first defect protocol (§6).
-- Mapping first: declare the Qt→WinUI mapping in `spec/coverage.md` before
+- Mapping first: declare the Qt→WinUI mapping in `docs/coverage.md` before
   coding. No silent base-style fallback for covered controls.
-- Tokens: `src/winui3tokens_p.h` owns values. Never add `QColor(` numeric
-  literals in `src/*.cpp` (gated by `winui3style_source_contracts`).
+- Tokens: `src/lib/winui3tokens_p.h` owns values. Never add `QColor(` numeric
+  literals in `src/lib/*.cpp` (gated by `winui3style_source_contracts`).
 - No QSS anywhere (`setStyleSheet` fails the build, including `.ui` files).
   No custom widgets: prefer stock widget + `winui*` property; QStyle owns
   visuals, states, animation.

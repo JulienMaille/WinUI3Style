@@ -5,13 +5,13 @@
 // the REAL GalleryWindow toggle path and the REAL DWM grant on the windows
 // platform (skipped honestly offscreen). Companion to the offscreen recipe
 // tests; the verdict here is presented pixels, not palette roles.
-#include "../demo/gallerywindow.h"
+#include "../src/gallery/gallerywindow.h"
 
 #include "winui3testhelpers.h"
 
-#include "../src/winui3backdrop_p.h"
-#include "../src/winui3surfaces_p.h"
-#include "../src/winui3tokens_p.h"
+#include "../src/lib/winui3backdrop_p.h"
+#include "../src/lib/winui3surfaces_p.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QCheckBox>
 #include <QComboBox>

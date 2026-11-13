@@ -56,7 +56,7 @@ in the repository README.
 
 The preview demonstrates controls, collections, settings, dialogs, density,
 theme switching and native backdrop integration. Coverage remains governed by
-`spec/coverage.md`; green tests do not certify every WinUI state or animation.
+`docs/coverage.md`; green tests do not certify every WinUI state or animation.
 Native backdrops depend on Windows support and may fall back to opaque
 surfaces. CommandLinkButton, tables and some compound Qt widgets are Fluent
 consistency extensions rather than exact WinUI control templates. Splitter

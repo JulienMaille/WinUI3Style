@@ -17,7 +17,7 @@ constexpr int FastDuration = 167;
 // Start marker, so frames preceding the marker must not become an extra hold.
 constexpr int CheckBoxDuration = FastDuration;
 constexpr int NormalDuration = 250;
-// SettingsExpander.xaml motion (spec/coverage.md SettingsCard row): the two
+// SettingsExpander.xaml motion (docs/coverage.md SettingsCard row): the two
 // directions have deliberately asymmetric durations.
 constexpr int SettingsExpanderExpandDuration = 333;
 constexpr int SettingsExpanderCollapseDuration = 167;
