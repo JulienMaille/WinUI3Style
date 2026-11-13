@@ -10,8 +10,8 @@ and Qt Test coverage.
 [![Live 60 fps Light/Dark demo: stock Qt widgets driven by real mouse and keyboard input](docs/images/winui3style-widgets-live.webp)](docs/images/winui3style-widgets-live.mp4)
 
 Real-time capture of stock Qt widgets driven by real mouse and keyboard
-input ([60 fps MP4](docs/images/winui3style-widgets-live.mp4)). The capture
-tooling lives on the `feature/demo-video-and-popup-corners` branch.
+input ([60 fps MP4](docs/images/winui3style-widgets-live.mp4); recipe in
+[tools/demo-video](tools/demo-video/README.md)).
 
 ![WinUI3Style gallery, light theme](docs/images/hero-gallery-light.png)
 ![WinUI3Style gallery, dark theme](docs/images/hero-gallery-dark.png)
@@ -41,6 +41,7 @@ gallery package, deployment requirements, limitations, and publication checks.
 | `tests/contracts/` | Source, Designer, package, and covered-element gates |
 | `tests/benchmarks/` | Opt-in render benchmark |
 | `tools/` | Snapshot runner, image oracle, packaging and install scripts |
+| `tools/demo-video/` | Showcase app, capture script, and overlay for the README movie |
 | `docs/` | Methodology, coverage, compatibility, and pinned WinUI evidence |
 
 ## Build
