@@ -105,10 +105,14 @@ int main(int argc, char *argv[])
     // The PE_/CE_ elements are claimed by the renderers AND dispatched by the
     // facade (Style::drawPrimitive routes PE_Widget and the CE_ button family),
     // so both sources count as claims.
-    const QString allRenderers = rendererSources.join(QLatin1Char('\n')) + QLatin1Char('\n')
-            + styleSource;
+    const QString allRenderers =
+            rendererSources.join(QLatin1Char('\n')) + QLatin1Char('\n') + styleSource;
 
-    struct Entry { const char *prefix; const char *covered; };
+    struct Entry
+    {
+        const char *prefix;
+        const char *covered;
+    };
     const Entry entries[] = { { "PE_", "coveredPrimitive" },
                               { "CE_", "coveredControl" },
                               { "CC_", "coveredComplex" } };
@@ -125,8 +129,9 @@ int main(int argc, char *argv[])
         for (const QString &element : claimed) {
             if (covered.contains(element) || partialElements().contains(element))
                 continue;
-            QTextStream(stdout) << "UNCOVERED " << element << " (claimed by a renderer, absent from "
-                                << entry.covered << " and not a known partial element)\n";
+            QTextStream(stdout) << "UNCOVERED " << element
+                                << " (claimed by a renderer, absent from " << entry.covered
+                                << " and not a known partial element)\n";
             ++failures;
         }
         for (const QString &element : covered) {
@@ -136,7 +141,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    QTextStream(stdout) << (failures ? "FAIL " : "PASS ") << failures
-                        << " uncovered element(s)\n";
+    QTextStream(stdout) << (failures ? "FAIL " : "PASS ") << failures << " uncovered element(s)\n";
     return failures ? 1 : 0;
 }

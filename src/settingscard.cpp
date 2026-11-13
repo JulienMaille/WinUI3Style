@@ -300,7 +300,8 @@ void SettingsCard::refreshChevronState()
     const int glyphValue = static_cast<int>(glyph);
     if (m_chevronLabel->property("_winui_settings_card_chevron_glyph").toInt() != glyphValue)
         m_chevronLabel->setProperty("_winui_settings_card_chevron_glyph", glyphValue);
-    if (!qFuzzyCompare(m_chevronLabel->property("_winui_settings_card_chevron_rotation").toReal() + 1.0,
+    if (!qFuzzyCompare(m_chevronLabel->property("_winui_settings_card_chevron_rotation").toReal()
+                               + 1.0,
                        angle + 1.0))
         m_chevronLabel->setProperty("_winui_settings_card_chevron_rotation", angle);
     m_chevronLabel->setVisible(m_expandableWidget != nullptr);

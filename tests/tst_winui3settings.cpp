@@ -136,22 +136,23 @@ void WinUI3SettingsTest::settingsCardChevronMidpointRotates()
     QVERIFY(QTest::qWaitForWindowExposed(&card));
     auto *chevron = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_chevron"));
     QVERIFY(chevron && chevron->isVisible());
-    const QPixmap collapsed = labelPixmap(chevron);
-    QVERIFY(!collapsed.isNull());
-    // Drive the midpoint directly through the expansion progress contract:
-    // the glyph must re-render as a true rotation, not an endpoint snap.
+    QCOMPARE(chevron->size(), QSize(20, 20));
+    QCOMPARE(WinUI3::Private::SettingsExpanderChevronGlyphSize, 16);
+    const QRect slot(chevron->mapTo(&card, QPoint()), chevron->size());
+    const QImage collapsed = card.grab(slot).toImage();
+    QCOMPARE(chevron->property("_winui_settings_card_chevron_rotation").toReal(), 0.0);
     card.setProperty("expansionProgress", 0.5);
     QCOMPARE(card.property("expansionProgress").toReal(), 0.5);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     QCOMPARE(chevron->property("_winui_settings_card_chevron_rotation").toReal(), 90.0);
-    const QPixmap midpoint = labelPixmap(chevron);
-    QVERIFY(!midpoint.isNull());
-    QVERIFY(midpoint.cacheKey() != collapsed.cacheKey());
+    QCOMPARE(chevron->size(), QSize(20, 20));
+    const QImage midpoint = card.grab(slot).toImage();
+    QVERIFY(midpoint != collapsed);
     card.setProperty("expansionProgress", 1.0);
-    const QPixmap expanded = labelPixmap(chevron);
-    QVERIFY(!expanded.isNull());
-    QVERIFY(midpoint.cacheKey() != expanded.cacheKey());
+    QCOMPARE(chevron->size(), QSize(20, 20));
+    const QImage expanded = card.grab(slot).toImage();
+    QVERIFY(midpoint != expanded);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_rotation").toReal(), 180.0);
     card.setProperty("expansionProgress", 0.0);
     QCOMPARE(chevron->property("_winui_settings_card_chevron_rotation").toReal(), 0.0);

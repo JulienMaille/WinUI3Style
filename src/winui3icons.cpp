@@ -422,9 +422,8 @@ bool parseFluentIconName(const QString &name, ParsedFluentIcon *parsed)
         return false;
 
     const int variantSeparator = name.indexOf(QLatin1Char(':'), prefix.size());
-    const int numberLength = variantSeparator >= 0
-            ? variantSeparator - prefix.size()
-            : name.size() - prefix.size();
+    const int numberLength =
+            variantSeparator >= 0 ? variantSeparator - prefix.size() : name.size() - prefix.size();
     bool ok = false;
     const int value = name.mid(prefix.size(), numberLength).toInt(&ok);
     if (!ok || value < 0 || value >= fluentIconCount)
@@ -597,9 +596,12 @@ class FluentIconEngine final : public QIconEngine
 {
 public:
     explicit FluentIconEngine(Icon icon, const QColor &color = {})
-        : m_icon(icon), m_color(color),
+        : m_icon(icon),
+          m_color(color),
           m_iconName(QString::fromLatin1(fluentIconNamePrefix)
-                     + QString::number(static_cast<int>(icon))) { }
+                     + QString::number(static_cast<int>(icon)))
+    {
+    }
 
     QIconEngine *clone() const override { return new FluentIconEngine(m_icon, m_color); }
 
@@ -607,10 +609,7 @@ public:
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt 6's QIconEngine::iconName() is not const (Qt 5's is).
-    QString iconName() override
-    {
-        return m_iconName;
-    }
+    QString iconName() override { return m_iconName; }
 #endif
 
     QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override
@@ -794,11 +793,16 @@ QPixmap iconPixmap(const QIcon &source, const QSize &size, qreal devicePixelRati
 
     const QSize physicalSize(qMax(1, qRound(size.width() * devicePixelRatio)),
                              qMax(1, qRound(size.height() * devicePixelRatio)));
-    const IconPixmapCacheKey key{ static_cast<int>(parsed.glyph), variant,
-                                  size.width(), size.height(),
-                                  physicalSize.width(), physicalSize.height(),
-                                  devicePixelRatio, quint64(foreground.rgba64()),
-                                  static_cast<int>(mode), static_cast<int>(state) };
+    const IconPixmapCacheKey key{ static_cast<int>(parsed.glyph),
+                                  variant,
+                                  size.width(),
+                                  size.height(),
+                                  physicalSize.width(),
+                                  physicalSize.height(),
+                                  devicePixelRatio,
+                                  quint64(foreground.rgba64()),
+                                  static_cast<int>(mode),
+                                  static_cast<int>(state) };
     if (!canUseGuiCache())
         return Private::iconPixmap(source, size, devicePixelRatio, mode, state);
 
