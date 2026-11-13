@@ -53,30 +53,22 @@ QRectF devicePixelCenteredRect(const QPainter *painter, const QRectF &rect)
     return logical.mapRect(pixels);
 }
 
+QRectF editorClearSurfaceRect(const QRect &editorRect, const QRect &buttonRect,
+                              Qt::LayoutDirection direction)
+{
+    const qreal left = direction == Qt::RightToLeft ? buttonRect.left() : buttonRect.right() - 25.0;
+    return QRectF(editorRect.left() + left, editorRect.top() + 4.0, 26.0,
+                  editorRect.height() - 8.0);
+}
+
 void drawEditorScopedClearSurface(const QStyleOption *option, QPainter *painter,
                                   const QLineEdit *lineEdit, const QColor &fill)
 {
     const auto *button = lineEditClearButton(lineEdit);
     if (!option || !painter || !lineEdit || !button)
         return;
-
-    QRectF surface(
-            button->geometry().translated(option->rect.topLeft() - lineEdit->rect().topLeft()));
-    surface.setTop(option->rect.top() + 3.0);
-    // QRectF's bottom/right edges are geometric (exclusive for the final
-    // raster row/column); subtract two from the QRect's inclusive edge so
-    // the visible surface occupies rows/columns through the three-pixel
-    // outline inset.
-    surface.setBottom(option->rect.bottom() - 2.0);
-    const qreal side = surface.height();
-    if (option->direction == Qt::RightToLeft) {
-        surface.setLeft(option->rect.left() + 3.0);
-        surface.setRight(surface.left() + side);
-    } else {
-        surface.setRight(option->rect.right() - 2.0);
-        surface.setLeft(surface.right() - side);
-    }
-    surface = surface.intersected(option->rect);
+    const QRectF surface =
+            editorClearSurfaceRect(option->rect, button->geometry(), option->direction);
     if (!surface.isEmpty())
         roundedRect(painter, surface, fill, Qt::transparent, ControlRadius);
 }
@@ -708,12 +700,11 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
                          : buttonRoleTextColor(tool->palette, t, enabled, pressed);
         const QRectF buttonRect(
                 style->subControlRect(QStyle::CC_ToolButton, tool, QStyle::SC_ToolButton, widget));
-        // WinUI's 30 px DeleteButton contains a 12 px E894 glyph inside
-        // TextBoxInnerButtonMargin 0,4,4,4. Mirror that asymmetric margin
-        // in RTL instead of centring Qt's default 16 px icon in the slot.
-        const QRectF content = clearHelper ? visualRectF(tool->direction, buttonRect,
-                                                         buttonRect.adjusted(0.0, 4.0, -4.0, -4.0))
-                                           : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
+        // Qt's private button stays 22x18 when the editor's density changes.
+        const QRectF content = clearHelper
+                ? editorClearSurfaceRect(helperEditor->rect(), widget->geometry(), tool->direction)
+                          .translated(-widget->pos())
+                : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
         Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
         if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
             buttonStyle = toolButton->toolButtonStyle();
@@ -757,17 +748,6 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
             QRectF iconRect(content.center().x() - iconSize.width() / 2.0,
                             content.center().y() - iconSize.height() / 2.0, iconSize.width(),
                             iconSize.height());
-            // Segoe Fluent's E894 ink sits three pixels above/left of its
-            // nominal 12 px advance box in Qt. WinUI's GlyphElement
-            // compensates through its text layout; match the visible ink
-            // centre explicitly in the private QLineEdit button.
-            if (clearHelper) {
-                // The private Qt button is not centred in the editor-scoped
-                // DeleteButton surface.  WinUI's asymmetric 0,4,4,4 inner
-                // margin requires a small trailing/down compensation, but
-                // the previous 3 px shift put the X visibly low and right.
-                iconRect.translate(2.0, 1.0);
-            }
             paintThemedIcon(painter, tool->icon, iconRect, Qt::AlignCenter, textColor,
                             enabled ? QIcon::Normal : QIcon::Disabled,
                             tool->state & QStyle::State_On ? QIcon::On : QIcon::Off);

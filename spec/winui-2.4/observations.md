@@ -31,6 +31,13 @@ setters for `PointerOver` and `Focused`, but no timed `VisualTransition` or
 surface `Pressed` state. Its exact content padding is `10,5,6,6`; normal border
 thickness is 1 px and focused thickness is `1,1,1,2`. The optional 30 px clear
 button uses Segoe Fluent glyph U+E894 and owns independent hover/pressed states.
+The pinned `TextBox_themeresources_perf2026.xaml` places that button in a trailing
+30 px column and applies `TextBoxInnerButtonMargin` `0,4,4,4` to its painted grid;
+the 12 px glyph is centered in that grid. Compact keeps its width and margins,
+so the surface is 26×24 at a 32 px editor height and 26×16 at 24 px, not a square.
+Qt retains its private 22×18 hit rectangle and action spacing; the style aligns
+both surface and glyph in editor coordinates, mirrored in RTL and following the
+clear button when additional trailing actions move it inward.
 The Qt style therefore must not reuse Button's 83 ms brush transition for the
 TextBox surface.
 

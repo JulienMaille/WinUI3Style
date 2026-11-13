@@ -102,6 +102,8 @@ private slots:
     void clearButtonStateContract();
     void clearButtonLivePressGlyph();
     void clearButtonFocusAndGlyphContract();
+    void clearButtonDensityGeometry_data();
+    void clearButtonDensityGeometry();
     void textBoxStateMatrix();
     void indeterminateProgressDeterminism();
     void numberBoxSubcontrolContract();
@@ -118,6 +120,8 @@ void WinUI3EditorsTest::initTestCase()
 void WinUI3EditorsTest::init()
 {
     resetStandardWinUI3TestStyle();
+    if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style()))
+        style->setDensityMode(WinUI3::DensityMode::Standard);
 }
 
 void WinUI3EditorsTest::cleanup()
@@ -209,22 +213,10 @@ void WinUI3EditorsTest::clearButtonStateContract()
              qPrintable(QString::fromLatin1("private clear button has no editor intersection")));
     QVERIFY(helperRect.height() < edit.height());
     QVERIFY(helperRect.top() > edit.rect().top());
-    QRectF surfaceGeometry(helperRect);
-    surfaceGeometry.setTop(edit.rect().top() + 3.0);
-    surfaceGeometry.setBottom(edit.rect().bottom() - 2.0);
-    const qreal surfaceSide = surfaceGeometry.height();
-    if (edit.layoutDirection() == Qt::RightToLeft) {
-        surfaceGeometry.setLeft(edit.rect().left() + 3.0);
-        surfaceGeometry.setRight(surfaceGeometry.left() + surfaceSide);
-    } else {
-        surfaceGeometry.setRight(edit.rect().right() - 2.0);
-        surfaceGeometry.setLeft(surfaceGeometry.right() - surfaceSide);
-    }
+    const QRectF surfaceGeometry(edit.width() - 30, 4, 26, edit.height() - 8);
+    QCOMPARE(surfaceGeometry, QRectF(210, 4, 26, 24));
     const QRect surfaceRect = surfaceGeometry.toAlignedRect();
     QVERIFY(surfaceRect.isValid());
-    QVERIFY(qAbs(surfaceGeometry.width() - surfaceGeometry.height()) < 0.01);
-    QVERIFY(qAbs(surfaceGeometry.center().x() - helperRect.center().x()) <= 1.5);
-    QVERIFY(qAbs(surfaceGeometry.center().y() - edit.rect().center().y()) <= 1.0);
     UpdateRequestProbe parentRepaint;
     edit.installEventFilter(&parentRepaint);
     QCoreApplication::processEvents();
@@ -407,45 +399,7 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
     edit.setFocus(Qt::MouseFocusReason);
     QTRY_VERIFY(clearButton->isVisible());
 
-    QStyleOptionToolButton option;
-    option.initFrom(clearButton);
-    option.rect = QRect(QPoint(), QSize(30, 32));
-    option.icon = clearButton->icon();
-    option.iconSize = QSize(16, 16); // Qt default; style must enforce WinUI 12 px.
-    option.state = QStyle::State_Enabled;
-    QImage glyph(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-    glyph.fill(Qt::transparent);
-    {
-        QPainter painter(&glyph);
-        edit.style()->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, clearButton);
-    }
-    QRect ink;
-    for (int y = 0; y < glyph.height(); ++y) {
-        for (int x = 0; x < glyph.width(); ++x) {
-            if (glyph.pixelColor(x, y).alpha() > 24)
-                ink |= QRect(x, y, 1, 1);
-        }
-    }
-    QVERIFY(!ink.isEmpty());
-    QVERIFY(ink.width() <= 12);
-    QVERIFY(ink.height() <= 12);
-    const QPointF officialCenter(13.0, 16.0);
-    QVERIFY2(qAbs(ink.center().x() - officialCenter.x()) <= 2.0,
-             qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
-                                .arg(ink.x())
-                                .arg(ink.y())
-                                .arg(ink.width())
-                                .arg(ink.height())));
-    QVERIFY2(qAbs(ink.center().y() - officialCenter.y()) <= 2.0,
-             qPrintable(QStringLiteral("ink=%1,%2 %3x%4")
-                                .arg(ink.x())
-                                .arg(ink.y())
-                                .arg(ink.width())
-                                .arg(ink.height())));
-
-    // Validate the real private-button geometry against the editor-scoped
-    // hover surface.  A synthetic 30x32 slot previously allowed an X that was
-    // visibly low/right in a live TextBox.
+    // Qt's private hit rectangle is not the WinUI DeleteButton surface.
     QStyleOptionToolButton liveOption;
     liveOption.initFrom(clearButton);
     liveOption.rect = clearButton->rect();
@@ -466,11 +420,7 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
     QVERIFY(!liveInk.isEmpty());
     const QPointF inkCenter =
             QPointF(clearButton->geometry().topLeft()) + QPointF(liveInk.center());
-    const qreal surfaceTop = edit.rect().top() + 3.0;
-    const qreal surfaceBottom = edit.rect().bottom() - 2.0;
-    const qreal surfaceSide = surfaceBottom - surfaceTop;
-    const QPointF surfaceCenter(edit.rect().right() - 2.0 - surfaceSide / 2.0,
-                                (surfaceTop + surfaceBottom) / 2.0);
+    const QPointF surfaceCenter(edit.width() - 17.0, edit.height() / 2.0);
     QVERIFY2(qAbs(inkCenter.x() - surfaceCenter.x()) <= 1.0,
              qPrintable(QStringLiteral("ink x=%1 surface x=%2")
                                 .arg(inkCenter.x())
@@ -479,6 +429,142 @@ void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()
              qPrintable(QStringLiteral("ink y=%1 surface y=%2")
                                 .arg(inkCenter.y())
                                 .arg(surfaceCenter.y())));
+}
+
+void WinUI3EditorsTest::clearButtonDensityGeometry_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<bool>("trailingAction");
+    QTest::addColumn<qreal>("scale");
+    for (const bool dark : { false, true }) {
+        for (const bool compact : { false, true }) {
+            for (const bool rtl : { false, true }) {
+                for (const bool trailingAction : { false, true }) {
+                    for (const qreal scale : { 1.0, 1.25, 1.5, 2.0 }) {
+                        const QByteArray name =
+                                QStringLiteral("%1-%2-%3-%4-%5")
+                                        .arg(dark ? QStringLiteral("dark")
+                                                  : QStringLiteral("light"),
+                                             compact ? QStringLiteral("compact")
+                                                     : QStringLiteral("standard"),
+                                             rtl ? QStringLiteral("rtl") : QStringLiteral("ltr"))
+                                        .arg(trailingAction ? QStringLiteral("action")
+                                                            : QStringLiteral("clear-only"))
+                                        .arg(scale)
+                                        .toLatin1();
+                        QTest::newRow(name.constData())
+                                << dark << compact << rtl << trailingAction << scale;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void WinUI3EditorsTest::clearButtonDensityGeometry()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    QFETCH(bool, trailingAction);
+    QFETCH(qreal, scale);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
+    QWidget host;
+    QLineEdit edit(QStringLiteral("Clear me"), &host);
+    edit.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    edit.setClearButtonEnabled(true);
+    edit.resize(240, compact ? 32 : 24);
+    host.resize(260, 80);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    edit.setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
+    QAbstractButton *button = edit.findChildren<QAbstractButton *>().constFirst();
+    QTRY_VERIFY(button->isVisible());
+    if (trailingAction)
+        edit.addAction(WinUI3::icon(WinUI3::Icon::Settings), QLineEdit::TrailingPosition);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    edit.resize(240, compact ? 24 : 32);
+    QCoreApplication::processEvents();
+    const int height = compact ? 24 : 32;
+    const int actionOffset = trailingAction ? 26 : 0;
+    const QRectF surface(rtl ? 4 + actionOffset : edit.width() - 30 - actionOffset, 4, 26,
+                         height - 8);
+    QCOMPARE(edit.height(), height);
+    QCOMPARE(surface.size(), QSizeF(26, compact ? 16 : 24));
+    const auto renderPanel = [&](qreal hover) {
+        setFrame(button, "_winui_hover_progress", hover);
+        setFrame(button, "_winui_press_progress", 0.0);
+        QStyleOptionFrame panel;
+        panel.initFrom(&edit);
+        panel.rect = edit.rect();
+        panel.state = QStyle::State_Enabled | QStyle::State_HasFocus;
+        QImage image(qCeil(edit.width() * scale), qCeil(edit.height() * scale),
+                     QImage::Format_ARGB32_Premultiplied);
+        image.setDevicePixelRatio(scale);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_PanelLineEdit, &panel, &painter, &edit);
+        return image;
+    };
+    const QImage normal = renderPanel(0.0);
+    const QImage hover = renderPanel(1.0);
+    QRect changed;
+    for (int y = 0; y < hover.height(); ++y)
+        for (int x = 0; x < hover.width(); ++x)
+            if (normal.pixelColor(x, y) != hover.pixelColor(x, y))
+                changed |= QRect(x, y, 1, 1);
+    QCOMPARE(changed,
+             QRectF(surface.x() * scale, surface.y() * scale, surface.width() * scale,
+                    surface.height() * scale)
+                     .toAlignedRect());
+
+    QStyleOptionToolButton option;
+    option.initFrom(button);
+    option.rect = button->rect();
+    option.icon = button->icon();
+    option.iconSize = QSize(16, 16);
+    QCOMPARE(style->sizeFromContents(QStyle::CT_ToolButton, &option, QSize(16, 16), button),
+             compact ? QSize(24, 24) : QSize(30, 32));
+    for (const bool pressed : { false, true }) {
+        option.state = QStyle::State_Enabled | QStyle::State_MouseOver;
+        if (pressed)
+            option.state |= QStyle::State_Sunken;
+        QImage glyph(qCeil(button->width() * scale), qCeil(button->height() * scale),
+                     QImage::Format_ARGB32_Premultiplied);
+        glyph.setDevicePixelRatio(scale);
+        glyph.fill(Qt::transparent);
+        {
+            QPainter painter(&glyph);
+            style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, button);
+        }
+        QRect ink;
+        for (int y = 0; y < glyph.height(); ++y)
+            for (int x = 0; x < glyph.width(); ++x)
+                if (glyph.pixelColor(x, y).alpha() > 24)
+                    ink |= QRect(x, y, 1, 1);
+        QVERIFY(!ink.isEmpty());
+        QVERIFY(ink.width() <= qCeil(12 * scale));
+        QVERIFY(ink.height() <= qCeil(12 * scale));
+        const QPointF center = QPointF(button->pos()) + QRectF(ink).center() / scale;
+        const QString diagnostic = QStringLiteral("ink=(%1,%2) surface=(%3,%4) child=(%5,%6 %7x%8)")
+                                           .arg(center.x())
+                                           .arg(center.y())
+                                           .arg(surface.center().x())
+                                           .arg(surface.center().y())
+                                           .arg(button->x())
+                                           .arg(button->y())
+                                           .arg(button->width())
+                                           .arg(button->height());
+        const qreal tolerance = 0.5 / scale + 1e-6;
+        QVERIFY2(qAbs(center.x() - surface.center().x()) <= tolerance, qPrintable(diagnostic));
+        QVERIFY2(qAbs(center.y() - surface.center().y()) <= tolerance, qPrintable(diagnostic));
+    }
 }
 
 void WinUI3EditorsTest::textBoxStateMatrix()

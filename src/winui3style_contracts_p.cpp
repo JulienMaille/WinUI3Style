@@ -215,12 +215,7 @@ static QSize toolButtonSize(const QStyleOption *option, QSize size, const QWidge
                             const DensityMetrics &density)
 {
     if (textBoxHelperButton(widget)) {
-        // QLineEditIconButton is a private QToolButton.  Its geometry is
-        // used by QLineEdit to reserve the DeleteButton slot, so leaving
-        // the historical 30x32 helper size in Compact mode makes a
-        // 24px TextBox grow back to the Standard height.  Keep the
-        // established Standard slot byte-for-byte and compact both axes
-        // with the editor template.
+        // Qt positions these children explicitly; keep size hints within the editor height.
         if (densityModeFor(widget) == DensityMode::Compact)
             return QSize(density.textBoxHeight, density.textBoxHeight);
         return QSize(30, density.toolButtonHeight);
