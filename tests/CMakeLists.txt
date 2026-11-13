@@ -493,6 +493,10 @@ add_test(NAME winui3style_source_contracts
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/check_source_contracts.cmake)
+add_test(NAME winui3style_package_config_contract
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_package_config.cmake)
 set(_winui3style_test_environment
     "QT_QPA_PLATFORM=offscreen"
     "QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins"

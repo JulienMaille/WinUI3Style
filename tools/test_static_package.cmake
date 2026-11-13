@@ -5,8 +5,11 @@ if(NOT BUILD_CONFIG)
 endif()
 
 set(configure_args -G "${GENERATOR}"
-    "-DQt6_DIR=${QT6_DIR}"
+    "-D${QT_PACKAGE}_DIR=${QT_DIR}"
     "-DCMAKE_BUILD_TYPE=${BUILD_CONFIG}")
+if(QT_PACKAGE STREQUAL "Qt5")
+    list(APPEND configure_args -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON)
+endif()
 foreach(setting GENERATOR_PLATFORM GENERATOR_TOOLSET CXX_COMPILER MAKE_PROGRAM)
     if(NOT "${${setting}}" STREQUAL "")
         list(APPEND configure_args "-DCMAKE_${setting}=${${setting}}")

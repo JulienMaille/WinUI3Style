@@ -53,10 +53,12 @@ find_package(Qt6 6.5 QUIET COMPONENTS Core Gui Widgets)
 if(NOT Qt6_FOUND)
     find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets)
     set(WINUI3STYLE_QT Qt5)
+    set(WINUI3STYLE_QT_MIN_VERSION 5.12)
     # Qt5's CMake config does not define QT_VERSION_MAJOR like Qt6 does.
     set(QT_VERSION_MAJOR 5)
 else()
     set(WINUI3STYLE_QT Qt6)
+    set(WINUI3STYLE_QT_MIN_VERSION 6.5)
 endif()
 
 # Shared warning policy: /W4 (MSVC) or -Wall -Wextra -Wpedantic (GCC/Clang)
@@ -104,26 +106,24 @@ if(WINUI_ENABLE_TESTS)
     enable_testing()
     find_package(${WINUI3STYLE_QT} REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
-    # The installed package currently declares a Qt 6 dependency.
-    if(Qt6_FOUND)
-        add_test(
-            NAME winui3style_static_package_contract
-            COMMAND ${CMAKE_COMMAND}
-                "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-                "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/static-package-contract"
-                "-DQT6_DIR=${Qt6_DIR}"
-                "-DGENERATOR=${CMAKE_GENERATOR}"
-                "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
-                "-DGENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
-                "-DCXX_COMPILER=${CMAKE_CXX_COMPILER}"
-                "-DMAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
-                "-DBUILD_CONFIG=$<CONFIG>"
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_static_package.cmake
-        )
-        set_tests_properties(winui3style_static_package_contract PROPERTIES
-            LABELS "distribution;contract"
-        )
-    endif()
+    add_test(
+        NAME winui3style_static_package_contract
+        COMMAND ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/static-package-contract"
+            "-DQT_PACKAGE=${WINUI3STYLE_QT}"
+            "-DQT_DIR=${${WINUI3STYLE_QT}_DIR}"
+            "-DGENERATOR=${CMAKE_GENERATOR}"
+            "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+            "-DGENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
+            "-DCXX_COMPILER=${CMAKE_CXX_COMPILER}"
+            "-DMAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+            "-DBUILD_CONFIG=$<CONFIG>"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_static_package.cmake
+    )
+    set_tests_properties(winui3style_static_package_contract PROPERTIES
+        LABELS "distribution;contract"
+    )
 endif()
 
 if(WINUI3STYLE_BUILD_BENCHMARKS)
