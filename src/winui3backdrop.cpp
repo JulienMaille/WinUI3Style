@@ -210,7 +210,14 @@ qreal popupCornerRadius(const QWidget *window)
             DWORD preference = 0;
             if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 33, &preference, sizeof(preference)))
                 && preference == 2) {
-                const UINT dpi = GetDpiForWindow(hwnd);
+                // GetDpiForWindow is a Windows 10 user32 export that the MinGW 7.3
+                // headers bundled with Qt 5.12 do not declare; resolve it at runtime
+                // and keep the logical radius when the export is absent.
+                using GetDpiForWindowFn = UINT(WINAPI *)(HWND);
+                static const auto getDpiForWindow =
+                        reinterpret_cast<GetDpiForWindowFn>(reinterpret_cast<void *>(GetProcAddress(
+                                GetModuleHandleW(L"user32.dll"), "GetDpiForWindow")));
+                const UINT dpi = getDpiForWindow ? getDpiForWindow(hwnd) : 0;
                 // DWM ignores QT_SCALE_FACTOR; paint must follow the HWND's corner DPI.
                 if (dpi)
                     return OverlayRadius * dpi / (96.0 * window->devicePixelRatioF());

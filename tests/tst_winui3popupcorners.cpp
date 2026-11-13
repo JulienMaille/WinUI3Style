@@ -356,8 +356,8 @@ void WinUI3PopupCornersTest::nativePopupPaintMatchesCornerDpi_data()
     QTest::addColumn<QString>("kind");
     for (const auto density : { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
         for (const bool dark : { false, true }) {
-            for (const QString &kind : { QStringLiteral("combo"), QStringLiteral("menu"),
-                                         QStringLiteral("tool") }) {
+            for (const QString &kind :
+                 { QStringLiteral("combo"), QStringLiteral("menu"), QStringLiteral("tool") }) {
                 const QByteArray name = kind.toLatin1() + (dark ? "-Dark" : "-Light")
                         + (density == WinUI3::DensityMode::Compact ? "-Compact" : "-Standard");
                 QTest::newRow(name.constData()) << int(density) << dark << kind;
