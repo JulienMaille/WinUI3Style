@@ -12,6 +12,7 @@
 
 #include "../src/winui3frameproperties_p.h"
 #include "../src/winui3helpers_p.h"
+#include "../src/winui3paint_p.h"
 #include "../src/winui3style_properties_p.h"
 #include "../src/winui3tokens_p.h"
 
@@ -648,7 +649,29 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     const auto chevronRotation = [&] {
         return chevron->property("_winui_settings_card_chevron_rotation").toReal();
     };
-    QVERIFY(!labelPixmap(chevron).isNull());
+    const auto verifyChevron = [&] {
+        QCOMPARE(chevron->size(), QSize(20, 20));
+        QCOMPARE(WinUI3::Private::SettingsExpanderChevronGlyphSize, 16);
+        QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
+                 static_cast<int>(WinUI3::Icon::ChevronDown));
+        const QRect slot(chevron->mapTo(&card, QPoint()), chevron->size());
+        const QImage rendered = card.grab(slot).toImage();
+        QImage expected(rendered.size(), rendered.format());
+        expected.setDevicePixelRatio(rendered.devicePixelRatio());
+        expected.fill(rendered.pixelColor(0, 0));
+        const QImage empty = expected;
+        QStyleOption option;
+        option.initFrom(&card);
+        option.rect = chevron->rect();
+        {
+            QPainter painter(&expected);
+            card.style()->drawPrimitive(WinUI3::PaintPrivate::SettingsCardChevronPrimitive,
+                                        &option, &painter, chevron);
+        }
+        QVERIFY(expected != empty);
+        QCOMPARE(rendered, expected);
+    };
+    verifyChevron();
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
     QCOMPARE(chevronRotation(), 0.0);
@@ -688,12 +711,12 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
     palette.setColor(QPalette::WindowText, QColor(210, 40, 70));
     card.setPalette(palette);
     QCoreApplication::processEvents();
-    QVERIFY(!labelPixmap(chevron).isNull());
+    verifyChevron();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QEvent dprChange(QEvent::DevicePixelRatioChange);
     QCoreApplication::sendEvent(&card, &dprChange);
 #endif
-    QVERIFY(!labelPixmap(chevron).isNull());
+    verifyChevron();
     QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
              static_cast<int>(WinUI3::Icon::ChevronDown));
 
