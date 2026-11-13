@@ -97,29 +97,25 @@ ffmpeg -y -ss 9 -i renders/winui3style-widgets-live.mp4 -frames:v 1 -update 1 ch
 The popup diagnostics write their state to `%TEMP%\winui-combo-inspect.txt` and
 `%TEMP%\winui-region-result.txt`.
 
-## Open defect: ComboBox popup corner wedges
+## Popup corner repair (2026-11-12)
 
-The published movie shows gray wedges at the four corners of the open ComboBox
-flyout. The state of that investigation is recorded in `spec/coverage.md` under
-the reopened `QComboBox` popup corner fringe row. Summary of what is known:
+The full-rect Source clear removes stale backing-store pixels but did not fix
+all native corner arcs. The remaining defect was reproduced with the actual
+Gallery widgets: Qt DPR 4.21875 versus HWND DPI 192. Windows ignores
+`QT_SCALE_FACTOR`, so the painted r8 curve was larger than the native corner,
+exposing untinted Acrylic between them. Popup fill, stroke and menu-row refill
+now use r8 converted from native HWND DPI to Qt coordinates; offscreen and
+masked fallbacks retain Qt r8. `nativePopupPaintMatchesCornerDpi` is RED→GREEN
+in all 12 Light/Dark, Standard/Compact, ComboBox/menu/tool-button cases.
+The installed official Gallery 3.0.4.0 corner comparison completed in Light/Dark
+at 200% monitor scaling: repaired Qt ComboBox/menu/tool-button panels show no
+untinted corner wedges across hover, press and repeated opens. This newer,
+self-contained Windows App SDK 2.5 experimental reference does not replace the
+project's 2.4 pin. Opening motion differs (Qt moves the HWND; official WinUI
+reveals content within fixed bounds), and exact first-presented-frame and
+outer-shadow parity were not established. The earlier Verified claim remains
+withdrawn; the coverage row stays partial. See the supplementary comparison in
+`spec/winui-2.4/observations.md`. Movie work is paused.
 
-- Reproduced in the running Gallery (not a capture artifact): gray wedges on
-  all four corners at `QT_SCALE_FACTOR=2.109375`.
-- The live popup really is DWM-acrylic: `DWMWA_SYSTEMBACKDROP_TYPE` reads `3`
-  (transient window), `DWMWA_WINDOW_CORNER_PREFERENCE` reads `2` (round). The
-  Qt container is translucent, not auto-filled, and its child viewport does not
-  auto-fill either.
-- Tried and **rejected**: painting the opaque panel stroke square (removes the
-  wedges but loses the WinUI rounded silhouette), and clearing the whole
-  backing before the rounded repaint (a unit test passed, the live wedges
-  stayed). Both experiments were reverted.
-- A native `SetWindowRgn` applies successfully (`applied=1`, region type 3) but
-  the wedges remained, so the artifact is not the window region alone.
-- Turning the DWM backdrop off after the popup opens makes the underlying
-  widgets plainly visible through the Qt surface: the compositor material is
-  required, it cannot simply be dropped.
-
-Follow `spec/METHODOLOGY.md` §6: reproduce in the running Gallery, add a test
-that fails for the observed mechanism, then fix, then re-run the same live
-sequence. Compare against the pinned WinUI Gallery
-(`Microsoft.WinUI3ControlsGallery` 2.9.3.0) before claiming the row verified.
+Still apply `spec/METHODOLOGY.md` §6 when changing popup painting: reproduce in
+the running Gallery, add a mechanism test, fix, then re-run the live sequence.
