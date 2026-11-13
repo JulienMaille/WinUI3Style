@@ -1,57 +1,37 @@
-# WinUI3Style code review — 2026-11-07
+# WinUI3Style code review — resolution
 
-Remaining findings from the original read-only review. Findings #1, #2, #3, #4,
-#5, #6, #8, #9, and #11 have been fixed and removed. Original finding numbers
-are retained for cross-reference; gaps are intentional.
+The fixes for original findings #1–#11 are implemented. This is a code-review
+resolution, not a claim of complete live WinUI parity; `spec/coverage.md` records
+remaining evidence requirements.
 
-Current verification: Qt 6.12 Debug builds and CTests passed for the icons,
-buttons, animated stack, and SettingsCard targets; the package-config and
-covered-elements contracts passed. Native/compositor visual verification still
-requires an interactive desktop.
+## 10. Animation-midpoint checks
 
----
+`setAnimationTime` in `tests/winui3testhelpers.h` pauses active test animations,
+seeks their timeline, and resumes them. SettingsCard, stock SettingsExpander,
+ToggleSwitch, CheckBox, GroupBox and Slider midpoint checks no longer depend on
+fixed wall-clock sleeps. Endpoint checks still exercise live timer completion;
+SettingsCard reversal also checks continuity, duration and easing.
 
-## 7. Medium — icon paint hot path allocates QString keys and thrashes under animated tint
+## Integration checks
 
-- Evidence: `src/winui3icons.cpp:544` builds an 11-field QString key per lookup
-  (chained `.arg()` + `QString::number(dpr,'g',17)` + hex `colorKey`);
-  `:576` rebuilds `iconName()` on every `QIcon::name()` call; `:744` does
-  name parse + cache-key-to-hex + pixmapKey before the QHash lookup. Reached per
-  paint via `src/winui3paint_p.cpp:39` (`paintThemedIcon`). Any animated
-  foreground changes `colorKey` each frame → cache miss → full glyph
-  rasterization + `CompositionMode_SourceIn` fill + QCache eviction churn.
-- Measured (small-sample offscreen benchmark, Qt 6.12 Release): tree p50
-  `2.64 ms` with icons vs `1.51 ms` without; list `1.39 ms` vs `1.10 ms`;
-  rich surface `8.17 ms` vs `6.70 ms`. Tokens cached `~70 ns` vs uncached
-  `~330 ns`.
-- Fix: key the cache on a numeric POD struct (glyph, variant/cacheKey, sizes,
-  dpr, rgba64, mode, state) with `qHash`, eliminating key QStrings; memoize
-  `iconName()` (the engine's `m_icon` is immutable).
-- Status: fixed in `src/winui3icons.cpp`: pixmap and colored-icon caches now use
-  numeric value keys, and each icon engine builds its stable name once. The
-  existing cache tests plus a different-foreground cache-separation assertion
-  cover rendering and key dimensions. Qt 6.12 Debug build and icon/button CTests
-  passed; the original Release benchmark was not rerun.
+The style-painted SettingsCard chevron tests now inspect rendered glyph frames
+rather than obsolete QLabel pixmaps. Stock expansion animations retire on
+completion and stop on application or per-widget style replacement. Clear-button
+press semantics, open-menu density sizing, and Standard/Compact slider
+pointer-value mapping have regression coverage. Only the four visually reviewed
+slider baseline images changed.
 
-## 10. Medium — duplicated animation-midpoint test logic is load-flaky
+## Validation (2026-11-13)
 
-- Evidence: observed failures under load at `tests/tst_winui3menus.cpp:776` and
-  `tests/tst_winui3settingscard.cpp:191`; both passed in isolation. The robust
-  pattern already exists at `tests/tst_winui3interaction.cpp:757` (wait for the
-  first driver tick instead of a fixed wall-clock sleep), but fixed
-  `qWait(35/55)` midpoint checks remain in menus, settings card, and toggles
-  (`tests/tst_winui3toggles.cpp:188`, `:371`).
-- Fix: one shared midpoint helper in `tests/winui3testhelpers.h`, preferably
-  driven deterministically rather than by wall-clock sleeps.
-
----
-
-## Cleared suspicions (verified, not reported)
-
-RTL sliders (Qt encodes RTL in `upsideDown`; style honors it), Compact
-toggle-drag (track metrics identical in both densities), combo press/grab/
-release handling, menu popup animation reopen, FrameAnimationDriver
-re-entrancy/lifetime, dialog scrim cross-destruction, theme watcher wiring,
-palette cache invalidation, FramePropertyRegistry bounds/GUI-thread guards,
-appearance watcher lifetime/debounce, popup rearm retry bounds, backdrop erase
-recipes and scrim teardown, plugin ownership.
+- Qt 6.12 Release: all 70 non-native CTests pass, including the pixel-exact
+  two-run snapshot matrix; Debug motion suites pass ten consecutive runs each.
+- Qt 6.11: all nine affected unit suites and the pixel-exact snapshot matrix
+  pass. Qt 6.11 and 6.12 build/install/static-consumer contracts pass. Qt 5 is not
+  installed locally; its dependency-template contract passes, but compilation
+  remains a CI check.
+- The rebuilt Qt Gallery's native Light/Dark × Standard/Compact input sequence
+  passes at DPR 1 with animations enabled and identical source/Gallery DLL
+  hashes. This is local Qt evidence, not pinned official Gallery parity.
+- All six native CTests pass; individual foreground/compositor skips remain
+  environment limitations, not parity evidence.
+- Repository-wide clang-format 18.1.8 and source contracts pass.

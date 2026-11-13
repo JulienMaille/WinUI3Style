@@ -615,19 +615,10 @@ void invalidateDensityTree(QWidget *root)
         } else if (auto *menu = qobject_cast<QMenu *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(menu, &styleChange);
-            // Visible popup: rows follow the profile like the open combo
-            // popup above. QMenu caches its layout while shown, so force a
-            // resize to the new row profile.
-            if (menu->isVisible() && !menu->actions().isEmpty()) {
-                const int compact = qobject_cast<const Style *>(menu->style())
-                        ? densityMetricsFor(menu, qobject_cast<const Style *>(menu->style()))
-                                  .menuBarItemHeight
-                        : densityMetricsFor(menu).menuBarItemHeight;
-                const int row = compact == 24 ? 32 : 36;
-                const int width = menu->width();
-                menu->resize(width, menu->actions().size() * row);
-            }
             menu->updateGeometry();
+            // QMenu caches its shown layout; sizeHint includes separators and popup margins.
+            if (menu->isVisible() && !menu->actions().isEmpty())
+                menu->resize(menu->width(), menu->sizeHint().height());
         }
         if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
             view->doItemsLayout();
@@ -1903,10 +1894,8 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
                                  Private::SettingsExpanderChevronGlyphSize));
         glyphRect.moveCenter(QRectF(option->rect).center());
         PaintPrivate::paintRotatedIcon(
-                painter,
-                WinUI3::icon(static_cast<Icon>(glyphValue), foreground),
-                glyphRect, angle, foreground,
-                enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off);
+                painter, WinUI3::icon(static_cast<Icon>(glyphValue), foreground), glyphRect, angle,
+                foreground, enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off);
         return;
     }
     if (Private::drawMenuPrimitive(this, element, option, painter, widget))
@@ -2624,6 +2613,7 @@ void Style::unpolish(QWidget *widget)
     QProxyStyle::unpolish(widget);
     if (widget) {
         d->stopAnimations(widget);
+        d->interactionController->stopSettingsCardAnimation(widget);
         if (widget->property("_winui_backdrop").isValid())
             applyBackdrop(widget, Backdrop::None);
         if (hasRuntimePaletteOverride(widget)) {

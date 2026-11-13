@@ -100,6 +100,7 @@ private slots:
     void cleanup();
     void textBoxInteraction();
     void clearButtonStateContract();
+    void clearButtonLivePressGlyph();
     void clearButtonFocusAndGlyphContract();
     void textBoxStateMatrix();
     void indeterminateProgressDeterminism();
@@ -328,6 +329,56 @@ void WinUI3EditorsTest::clearButtonStateContract()
     const QImage pressedGlyph = glyphOnly(QStyle::State_Enabled | QStyle::State_Sunken);
     QCOMPARE(normalGlyph, hoverGlyph);
     QVERIFY(normalGlyph != pressedGlyph);
+}
+
+void WinUI3EditorsTest::clearButtonLivePressGlyph()
+{
+    QWidget host;
+    QVBoxLayout layout(&host);
+    QLineEdit edit(QStringLiteral("Clear me"));
+    edit.setClearButtonEnabled(true);
+    layout.addWidget(&edit);
+    host.resize(320, 80);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    edit.setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(!edit.findChildren<QAbstractButton *>().isEmpty());
+    QAbstractButton *clearButton = edit.findChildren<QAbstractButton *>().constFirst();
+    QTRY_VERIFY(clearButton->isVisible());
+    QTest::mouseMove(clearButton, clearButton->rect().center());
+    QTRY_COMPARE(frameReal(clearButton, "_winui_hover_progress"), 1.0);
+
+    const auto darkestGray = [](const QImage &image) {
+        int minimum = 255;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                minimum = qMin(minimum, qGray(image.pixel(x, y)));
+        return minimum;
+    };
+
+    const QImage normalLive = clearButton->grab().toImage();
+    const int normalInk = darkestGray(normalLive);
+    QTest::mousePress(clearButton, Qt::LeftButton, Qt::NoModifier, clearButton->rect().center());
+    QVERIFY(clearButton->isDown());
+    QCOMPARE(edit.text(), QStringLiteral("Clear me"));
+    QCoreApplication::processEvents();
+    const QImage pressedLive = clearButton->grab().toImage();
+    const int pressedInk = darkestGray(pressedLive);
+    QTest::mouseRelease(clearButton, Qt::LeftButton, Qt::NoModifier, clearButton->rect().center());
+
+    QVERIFY(!clearButton->isDown());
+    QCOMPARE(edit.text(), QString());
+    QTRY_COMPARE(frameReal(clearButton, "_winui_press_progress"), 0.0);
+    QVERIFY2(normalLive != pressedLive,
+             "live press left the helper glyph unchanged (State_Sunken missing)");
+    const WinUI3::Private::Tokens t = WinUI3::Private::tokens(clearButton->palette());
+    QVERIFY(!t.dark);
+    QCOMPARE(t.textSecondary.alpha(), 158);
+    QCOMPARE(t.textTertiary.alpha(), 114);
+    QVERIFY2(pressedInk > normalInk,
+             qPrintable(QStringLiteral("pressed ink %1 vs normal ink %2")
+                                .arg(pressedInk)
+                                .arg(normalInk)));
 }
 
 void WinUI3EditorsTest::clearButtonFocusAndGlyphContract()

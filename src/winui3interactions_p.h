@@ -82,9 +82,11 @@ class StyleInteractionController final
 {
 public:
     StyleInteractionController(Style *style, StyleInteractionCallbacks callbacks);
+    ~StyleInteractionController();
 
     bool eventFilter(QObject *watched, QEvent *event);
     void watchToolBox(QToolBox *box);
+    void stopSettingsCardAnimation(QWidget *card);
 
 private:
     void cancelComboPress(QComboBox *combo, bool releaseMouse);
@@ -118,8 +120,6 @@ private:
     // Stock SettingsExpander: click/keyboard collapse, with the animation
     // owned here so no compiled SettingsCard widget is required.
     void setSettingsCardExpanded(QWidget *card, bool expand, bool animate);
-    bool handleSettingsCardPress(QWidget *widget, QEvent *event);
-    bool handleSettingsCardRelease(QWidget *widget, QEvent *event);
 
     Style *m_style = nullptr;
     StyleInteractionCallbacks m_callbacks;

@@ -330,6 +330,26 @@ StyleInteractionController::StyleInteractionController(Style *style,
 {
 }
 
+StyleInteractionController::~StyleInteractionController()
+{
+    // Cards can outlive their style; retain parenting in case the event loop has stopped.
+    for (const QPointer<QVariantAnimation> &animation : m_settingsCardExpansions) {
+        if (animation) {
+            animation->stop();
+            animation->deleteLater();
+        }
+    }
+    m_settingsCardExpansions.clear();
+}
+
+void StyleInteractionController::stopSettingsCardAnimation(QWidget *card)
+{
+    if (const auto animation = m_settingsCardExpansions.take(card)) {
+        animation->stop();
+        animation->deleteLater();
+    }
+}
+
 void StyleInteractionController::cancelComboPress(QComboBox *combo, bool releaseMouse)
 {
     if (!m_comboPressStates.remove(combo))
@@ -429,10 +449,7 @@ void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool exp
     const QPointer<QWidget> guardedCard(card);
     const qreal current = progress(card, settingsCardExpansionProgressProperty);
     const int contentHeight = qMax(0, host->sizeHint().height());
-    if (const auto previous = m_settingsCardExpansions.take(card)) {
-        previous->stop();
-        previous->deleteLater();
-    }
+    stopSettingsCardAnimation(card);
     if (!animate || !Style::animationsAllowed() || contentHeight <= 0) {
         framePropertyRegistry().set(card, settingsCardExpansionProgressProperty,
                                     expand ? 1.0 : 0.0);
@@ -462,7 +479,12 @@ void StyleInteractionController::setSettingsCardExpanded(QWidget *card, bool exp
                          guardedHost->update();
                          guardedCard->update();
                      });
-    QObject::connect(animation, &QVariantAnimation::finished, card, [this, card] {
+    const std::weak_ptr<bool> alive = m_alive;
+    QObject::connect(animation, &QVariantAnimation::finished, card, [this, alive, card, animation] {
+        // Defer deletion while the sender is emitting finished.
+        animation->deleteLater();
+        if (alive.expired())
+            return;
         m_settingsCardExpansions.remove(card);
         if (!card->property(Style::SettingsCardExpandedProperty).toBool())
             return;
@@ -893,6 +915,11 @@ bool StyleInteractionController::handlePaint(QWidget *widget)
         option.toolButtonStyle = button->toolButtonStyle();
         option.arrowType = button->arrowType();
         option.features = QStyleOptionToolButton::None;
+        // initFrom omits QToolButton's pressed/checked flags.
+        if (button->isDown())
+            option.state |= QStyle::State_Sunken;
+        if (button->isChecked())
+            option.state |= QStyle::State_On;
         QPainter painter(button);
         const QVariant opacity = button->property("opacity");
         if (opacity.isValid())

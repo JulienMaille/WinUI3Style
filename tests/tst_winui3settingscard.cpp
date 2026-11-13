@@ -157,6 +157,8 @@ private slots:
     void settingsCardStockHeaderGeometry_data();
     void settingsCardStockHeaderGeometry();
     void settingsCardStockExpansionInteraction();
+    void settingsCardStockExpansionAnimationLifecycle_data();
+    void settingsCardStockExpansionAnimationLifecycle();
     void settingsCardStockTrailingCardStaysInert();
 };
 
@@ -751,6 +753,69 @@ void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
     QTRY_COMPARE(WinUI3::Private::progress(parts.card,
                                            WinUI3::Private::settingsCardExpansionProgressProperty),
                  1.0);
+}
+
+void WinUI3SettingsCardTest::settingsCardStockExpansionAnimationLifecycle_data()
+{
+    QTest::addColumn<bool>("applicationStyle");
+    QTest::newRow("application-style") << true;
+    QTest::newRow("widget-style") << false;
+}
+
+void WinUI3SettingsCardTest::settingsCardStockExpansionAnimationLifecycle()
+{
+    QFETCH(bool, applicationStyle);
+    WinUI3::Style replacement(WinUI3::ThemeMode::Light);
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    layout->setContentsMargins(20, 20, 20, 20);
+    const StockSettingsCard parts = makeStockSettingsCard();
+    layout->addWidget(parts.card);
+    host.resize(480, 320);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    const QPoint headerPoint(40, parts.header->height() / 2);
+
+    // Finished animations must not accumulate on a surviving card.
+    QTest::mouseClick(parts.card, Qt::LeftButton, Qt::NoModifier, headerPoint);
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), true);
+    auto *animation = parts.card->findChild<QVariantAnimation *>();
+    QVERIFY(animation);
+    QPointer<QVariantAnimation> guarded(animation);
+    animation->setCurrentTime(animation->duration());
+    QTRY_VERIFY_WITH_TIMEOUT(!guarded, 3000);
+    QVERIFY(parts.card->findChildren<QVariantAnimation *>().isEmpty());
+    QCOMPARE(parts.details->maximumHeight(), QWIDGETSIZE_MAX);
+
+    QTest::mouseClick(parts.card, Qt::LeftButton, Qt::NoModifier, headerPoint);
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), false);
+    auto *collapse = parts.card->findChild<QVariantAnimation *>();
+    QVERIFY(collapse);
+    QCOMPARE(collapse->state(), QAbstractAnimation::Running);
+    QPointer<QVariantAnimation> guardedCollapse(collapse);
+    if (applicationStyle)
+        qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+    else
+        parts.card->setStyle(&replacement);
+    drainDeferredDeletion();
+    QVERIFY2(!guardedCollapse, "style replacement left a tracked expansion alive");
+    QVERIFY(parts.card->findChildren<QVariantAnimation *>().isEmpty());
+    QCOMPARE(parts.details->maximumHeight(), 0);
+    QCOMPARE(WinUI3::Private::progress(parts.card,
+                                       WinUI3::Private::settingsCardExpansionProgressProperty),
+             0.0);
+    QTest::mouseClick(parts.card, Qt::LeftButton, Qt::NoModifier, headerPoint);
+    QCOMPARE(parts.card->property(WinUI3::Style::SettingsCardExpandedProperty).toBool(), true);
+    auto *replacementAnimation = parts.card->findChild<QVariantAnimation *>();
+    QVERIFY(replacementAnimation);
+    QCOMPARE(replacementAnimation->state(), QAbstractAnimation::Running);
+    replacementAnimation->setCurrentTime(replacementAnimation->duration());
+    drainDeferredDeletion();
+    QVERIFY(parts.card->findChildren<QVariantAnimation *>().isEmpty());
+    QCOMPARE(parts.details->maximumHeight(), QWIDGETSIZE_MAX);
+    QCOMPARE(WinUI3::Private::progress(parts.card,
+                                       WinUI3::Private::settingsCardExpansionProgressProperty),
+             1.0);
 }
 
 void WinUI3SettingsCardTest::settingsCardStockTrailingCardStaysInert()

@@ -111,6 +111,7 @@ private slots:
     void menuSubmenuChevronGeometry();
     void menuPaintTabParsing();
     void menuSeparatorGeometryContract();
+    void openMenuFollowsDensitySwitch();
     void menuMnemonicConsumesAmpersand();
     void compactMenuBarTextFits();
     void menuBarOnlyActiveActionIsHighlighted();
@@ -437,6 +438,40 @@ void WinUI3MenusTest::menuSeparatorGeometryContract()
     QCOMPARE(separatorImage.pixelColor(separatorImage.width() - 12, midY).alpha(), 0);
     const QColor farInk = separatorImage.pixelColor(separatorImage.width() - 13, midY);
     QVERIFY(farInk.alpha() > 0);
+}
+
+void WinUI3MenusTest::openMenuFollowsDensitySwitch()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QMenu menu;
+    menu.addAction(QStringLiteral("New project"));
+    menu.addAction(QStringLiteral("Open recent"));
+    menu.addSeparator();
+    menu.addAction(QStringLiteral("Save"));
+    menu.addAction(QStringLiteral("Exit"));
+    menu.popup(QPoint(80, 80));
+    QVERIFY(QTest::qWaitForWindowExposed(&menu));
+    QCoreApplication::processEvents();
+    // The freshly opened popup lays out to its size hint at Standard density.
+    QCOMPARE(menu.height(), menu.sizeHint().height());
+    const int standardHeight = menu.height();
+
+    style->setDensityMode(WinUI3::DensityMode::Compact);
+    QCoreApplication::processEvents();
+    // A separator must retain its 7 px slot when the shown menu relayouts.
+    const int compactHint = menu.sizeHint().height();
+    QVERIFY2(compactHint < standardHeight,
+             qPrintable(QStringLiteral("compact %1 vs standard %2")
+                                .arg(compactHint)
+                                .arg(standardHeight)));
+    QCOMPARE(menu.height(), compactHint);
+
+    style->setDensityMode(WinUI3::DensityMode::Standard);
+    QCoreApplication::processEvents();
+    QCOMPARE(menu.height(), menu.sizeHint().height());
+    QCOMPARE(menu.height(), standardHeight);
+    menu.hide();
 }
 
 void WinUI3MenusTest::menuMnemonicConsumesAmpersand()
