@@ -988,6 +988,8 @@ void WinUI3EditorsTest::editorElevationBorder()
     WinUI3::Style style(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
     style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     QSpinBox spin;
+    spin.setStyle(&style);
+    QCOMPARE(WinUI3::Style::densityMode(&spin), style.densityMode());
     spin.setProperty(WinUI3::Style::VerticalSpinButtonsProperty, editor == 2);
     const QPalette palette = style.standardPalette();
     const auto t = WinUI3::Private::tokens(palette);
@@ -999,6 +1001,11 @@ void WinUI3EditorsTest::editorElevationBorder()
     QStyleOptionSpinBox option;
     option.rect = rect;
     option.palette = palette;
+    // Exercise the normal Segoe-sized line height on every platform. Smaller
+    // Linux defaults otherwise hide a Standard/Compact fixture mismatch.
+    QFont sizingFont = spin.font();
+    sizingFont.setPixelSize(16);
+    option.fontMetrics = QFontMetrics(sizingFont);
     option.direction = rtl ? Qt::RightToLeft : Qt::LeftToRight;
     option.state = state == 2 ? QStyle::State_None : QStyle::State_Enabled;
     if (state == 1)
@@ -1007,7 +1014,8 @@ void WinUI3EditorsTest::editorElevationBorder()
         option.state |= QStyle::State_HasFocus;
     option.subControls = QStyle::SC_SpinBoxFrame;
     // No content-size or subcontrol change accompanies the brush correction.
-    QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &option, QSize(60, 10)).height(), height);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &option, QSize(60, 10), &spin).height(),
+             height);
     const QColor fill = state == 2 ? t.controlDisabled
             : state == 3           ? t.editorFocusedFill
             : state == 1           ? t.controlHover
