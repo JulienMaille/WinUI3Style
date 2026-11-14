@@ -530,11 +530,9 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             // Qt's QToolBoxButton bolds the selected page, so the bold is
             // dropped by painting the option font as-is.
             constexpr int headerContentInset = 16; // ExpanderHeaderPadding 16,0,0,0
-            constexpr int chevronButtonSize =
-                    SettingsExpanderChevronBoxSize; // ExpanderChevronButtonSize
+            constexpr int chevronButtonSize = 32; // ExpanderChevronButtonSize
             constexpr int chevronGlyphSize = 12; // ExpanderChevronGlyphSize
-            constexpr int chevronTrailingMargin = SettingsExpanderChevronMargin
-                    + SettingsCardBorderThickness; // ExpanderChevronMargin trailing 8
+            constexpr int chevronTrailingMargin = 8; // ExpanderChevronMargin trailing 8
             constexpr int chevronContentGap = 20; // ExpanderChevronMargin leading 20
             constexpr qreal chevronRadius = 4.0; // ControlCornerRadius
             // Expander CornerRadius is ControlCornerRadius (4). ExpandDown
