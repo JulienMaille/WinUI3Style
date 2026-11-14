@@ -4,6 +4,7 @@
 #include "winui3density_p.h"
 
 #include <QProcess>
+#include <QScopeGuard>
 #include <QStandardPaths>
 
 class WinUI3EditableComboTest final : public QObject, private WinUI3StandardTestFixture
@@ -142,16 +143,25 @@ void WinUI3EditableComboTest::editableComboArrowHover()
 
 void WinUI3EditableComboTest::editableComboEditorFocusActivatesOnRelease()
 {
+    if (QGuiApplication::platformName() != QStringLiteral("xcb"))
+        QSKIP("requires XCB for genuine platform mouse-button delivery");
+    const QString xdotool = QStandardPaths::findExecutable(QStringLiteral("xdotool"));
+    if (xdotool.isEmpty())
+        QSKIP("requires xdotool for genuine platform mouse-button delivery");
     QWidget host;
     host.resize(360, 120);
+    QLineEdit other(&host);
+    other.setGeometry(16, 72, 200, 32);
     QComboBox combo(&host);
     combo.setEditable(true);
     combo.addItem(QStringLiteral("2416"));
     combo.setGeometry(120, 16, 200, 32);
     host.show();
-    QTRY_VERIFY(host.isVisible());
-    if (!QTest::qWaitForWindowActive(&host))
-        QSKIP("requires an active platform window for real focus-proxy input");
+    host.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&host));
+    other.setFocus(Qt::OtherFocusReason);
+    QTRY_VERIFY(other.hasFocus());
+    QVERIFY(!combo.hasFocus());
     QVERIFY(combo.lineEdit());
 
     QStyleOptionComboBox option;
@@ -178,11 +188,6 @@ void WinUI3EditableComboTest::editableComboEditorFocusActivatesOnRelease()
         return image;
     };
 
-    if (QGuiApplication::platformName() != QStringLiteral("xcb"))
-        QSKIP("requires XCB for genuine platform mouse-button delivery");
-    const QString xdotool = QStandardPaths::findExecutable(QStringLiteral("xdotool"));
-    if (xdotool.isEmpty())
-        QSKIP("requires xdotool for genuine platform mouse-button delivery");
     QCOMPARE(QProcess::execute(xdotool,
                                { QStringLiteral("mousemove"), QStringLiteral("--window"),
                                  QString::number(host.winId()),
@@ -190,18 +195,19 @@ void WinUI3EditableComboTest::editableComboEditorFocusActivatesOnRelease()
                                  QString::number(windowEditorPoint.y()) }),
              0);
     QCOMPARE(QProcess::execute(xdotool, { QStringLiteral("mousedown"), QStringLiteral("1") }), 0);
-    if (!WinUI3::Private::framePropertyRegistry()
-                 .value(&combo, "_winui_editable_combo_editor_press_pending")
-                 .toBool()) {
+    const auto releaseMouse = qScopeGuard([&] {
         QProcess::execute(xdotool, { QStringLiteral("mouseup"), QStringLiteral("1") });
-        QSKIP("XTEST does not expose its held mouse button to QGuiApplication");
-    }
+    });
+    QTRY_VERIFY(QGuiApplication::mouseButtons().testFlag(Qt::LeftButton));
+    QVERIFY(WinUI3::Private::framePropertyRegistry()
+                    .value(&combo, "_winui_editable_combo_editor_press_pending")
+                    .toBool());
     const QImage held = render();
     QVERIFY2(colorDistance(held.pixelColor(underlinePoint), tokens.accentFill) > 48,
              "editor press must defer the focused underline until release");
 
     QCOMPARE(QProcess::execute(xdotool, { QStringLiteral("mouseup"), QStringLiteral("1") }), 0);
-    QCoreApplication::processEvents();
+    QTRY_VERIFY(!QGuiApplication::mouseButtons().testFlag(Qt::LeftButton));
     QCOMPARE(WinUI3::Private::framePropertyRegistry()
                      .value(&combo, "_winui_editable_combo_editor_press_pending")
                      .toBool(),
@@ -212,6 +218,11 @@ void WinUI3EditableComboTest::editableComboEditorFocusActivatesOnRelease()
 
 void WinUI3EditableComboTest::editableComboFocusedEditorPressKeepsFocusVisual()
 {
+    if (QGuiApplication::platformName() != QStringLiteral("xcb"))
+        QSKIP("requires XCB for genuine platform mouse-button delivery");
+    const QString xdotool = QStandardPaths::findExecutable(QStringLiteral("xdotool"));
+    if (xdotool.isEmpty())
+        QSKIP("requires xdotool for genuine platform mouse-button delivery");
     QWidget host;
     host.resize(360, 120);
     QComboBox combo(&host);
@@ -219,9 +230,8 @@ void WinUI3EditableComboTest::editableComboFocusedEditorPressKeepsFocusVisual()
     combo.addItem(QStringLiteral("2416"));
     combo.setGeometry(120, 16, 200, 32);
     host.show();
-    QTRY_VERIFY(host.isVisible());
-    if (!QTest::qWaitForWindowActive(&host))
-        QSKIP("requires an active platform window for real focus-proxy input");
+    host.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&host));
     QLineEdit *editor = combo.lineEdit();
     QVERIFY(editor);
     editor->setFocus(Qt::TabFocusReason);
@@ -250,11 +260,6 @@ void WinUI3EditableComboTest::editableComboFocusedEditorPressKeepsFocusVisual()
         return image;
     };
 
-    if (QGuiApplication::platformName() != QStringLiteral("xcb"))
-        QSKIP("requires XCB for genuine platform mouse-button delivery");
-    const QString xdotool = QStandardPaths::findExecutable(QStringLiteral("xdotool"));
-    if (xdotool.isEmpty())
-        QSKIP("requires xdotool for genuine platform mouse-button delivery");
     QCOMPARE(QProcess::execute(xdotool,
                                { QStringLiteral("mousemove"), QStringLiteral("--window"),
                                  QString::number(host.winId()),
@@ -262,6 +267,10 @@ void WinUI3EditableComboTest::editableComboFocusedEditorPressKeepsFocusVisual()
                                  QString::number(windowEditorPoint.y()) }),
              0);
     QCOMPARE(QProcess::execute(xdotool, { QStringLiteral("mousedown"), QStringLiteral("1") }), 0);
+    const auto releaseMouse = qScopeGuard([&] {
+        QProcess::execute(xdotool, { QStringLiteral("mouseup"), QStringLiteral("1") });
+    });
+    QTRY_VERIFY(QGuiApplication::mouseButtons().testFlag(Qt::LeftButton));
     QCOMPARE(WinUI3::Private::framePropertyRegistry()
                      .value(&combo, "_winui_editable_combo_editor_press_pending")
                      .toBool(),
@@ -269,6 +278,7 @@ void WinUI3EditableComboTest::editableComboFocusedEditorPressKeepsFocusVisual()
     const QImage held = render();
     QCOMPARE(colorDistance(held.pixelColor(underlinePoint), tokens.accentFill) < 48, true);
     QCOMPARE(QProcess::execute(xdotool, { QStringLiteral("mouseup"), QStringLiteral("1") }), 0);
+    QTRY_VERIFY(!QGuiApplication::mouseButtons().testFlag(Qt::LeftButton));
 
     WinUI3::Private::framePropertyRegistry().set(
             &combo, "_winui_editable_combo_editor_press_pending", true);
