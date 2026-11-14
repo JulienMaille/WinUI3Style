@@ -12,7 +12,6 @@
 #include "winui3testhelpers.h"
 
 #include "../src/lib/winui3surfaces_p.h"
-#include "../src/lib/winui3paint_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
 #include <QComboBox>
@@ -777,14 +776,17 @@ void WinUI3GalleryProbeTest::settingsIconAlignment()
     QFETCH(bool, rtl);
     GalleryWindow window;
     showSettings(window, dark, compact, rtl);
-    for (const auto &names : { qMakePair("notificationsCard", "notificationsCardIcon"),
-                               qMakePair("updatesCard", "updatesCardIcon"),
-                               qMakePair("advancedCard", "advancedIcon") }) {
+    // Qt 5.12 qMakePair does not decay string-literal arrays.
+    const QPair<const char *, const char *> cards[] = { { "notificationsCard",
+                                                          "notificationsCardIcon" },
+                                                        { "updatesCard", "updatesCardIcon" },
+                                                        { "advancedCard", "advancedIcon" } };
+    for (const auto &names : cards) {
         auto *card = window.findChild<QFrame *>(names.first);
         auto *icon = window.findChild<QLabel *>(names.second);
         const int x = icon->mapTo(card, QPoint()).x();
         QCOMPARE(icon->size(), QSize(20, 20));
-        // SettingsCardborder 1 + Padding.Left 16 + HeaderIconMargin.Left 2.
+        // SettingsCard border 1 + Padding.Left 16 + HeaderIconMargin.Left 2.
         QCOMPARE(rtl ? card->width() - x - icon->width() : x, 19);
         const QImage image = card->grab().toImage();
         const QRect bounds(icon->mapTo(card, QPoint()), icon->size());
@@ -879,10 +881,15 @@ void WinUI3GalleryProbeTest::settingsChevronForeground()
         QImage expected(box.size(), QImage::Format_ARGB32_Premultiplied);
         expected.fill(actual.pixelColor(box.left() - 2, box.center().y()));
         QPainter painter(&expected);
-        WinUI3::PaintPrivate::paintRotatedIcon(
-                &painter, WinUI3::icon(WinUI3::Icon::ChevronDown, ink),
-                QRectF(box.center().x() - 8 - box.left(), box.center().y() - 8 - box.top(), 16, 16),
-                0.0, ink, enabled ? QIcon::Normal : QIcon::Disabled);
+        // The collapsed glyph has no rotation. Use the exported icon API,
+        // not a private paint symbol that shared Windows builds do not export.
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        const QPixmap glyph =
+                WinUI3::iconPixmap(WinUI3::icon(WinUI3::Icon::ChevronDown, ink), QSize(16, 16), 1.0,
+                                   ink, enabled ? QIcon::Normal : QIcon::Disabled);
+        painter.drawPixmap(
+                QPointF(box.center().x() - 8 - box.left(), box.center().y() - 8 - box.top()),
+                glyph);
         painter.end();
         QCOMPARE(actual.copy(box), expected);
     }
