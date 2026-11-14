@@ -16,6 +16,7 @@
 #include <QComboBox>
 #include <QCompleter>
 #include <QDateEdit>
+#include <QEvent>
 #include <QFormLayout>
 #include <QRadioButton>
 #include <QHeaderView>
@@ -28,6 +29,8 @@
 #include <QMenuBar>
 #include <QPainter>
 #include <QPushButton>
+#include <QPointer>
+#include <QScopeGuard>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStandardItemModel>
@@ -52,6 +55,7 @@ private slots:
     void calendarPopupRemainsReadableInLightAndDark();
     void calendarPopupBorderStroke_data();
     void calendarPopupBorderStroke();
+    void styleReplacementQueuesCalendarPopupBorderDeletion();
     void calendarNavigationBarLaneSharesOpaqueSurface();
     void calendarKeepPathRebasesTextRolesAcrossThemeSwitch();
 };
@@ -316,7 +320,9 @@ void WinUI3CalendarSurfaceTest::calendarPopupBorderStroke()
 
         const WinUI3::Private::Tokens popupTokens = WinUI3::Private::tokens(popup->palette());
         const QColor surface = popup->palette().color(QPalette::Window);
-        QCOMPARE(popupTokens.stroke, WinUI3::Private::buildTokens(style.standardPalette()).stroke);
+        const QColor pinnedStroke =
+                mode == WinUI3::ThemeMode::Light ? QColor(0, 0, 0, 15) : QColor(255, 255, 255, 18);
+        QCOMPARE(popupTokens.stroke, pinnedStroke);
         const QImage actual = popup->grab().toImage().convertToFormat(QImage::Format_ARGB32);
         QVERIFY(actual.width() > 2 && actual.height() > 2);
         QImage expected(actual.size(), QImage::Format_ARGB32_Premultiplied);
@@ -332,12 +338,16 @@ void WinUI3CalendarSurfaceTest::calendarPopupBorderStroke()
         QCOMPARE(actual.pixelColor(actual.width() - 1, midY),
                  expected.pixelColor(expected.width() - 1, midY));
         QCOMPARE(actual.pixelColor(1, midY), expected.pixelColor(1, midY));
+        QPointer<QWidget> borderGuard(border);
         style.unpolish(popup);
         QCOMPARE(popup->findChildren<QWidget *>(
                               QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
                               Qt::FindDirectChildrenOnly)
                          .size(),
                  0);
+        QVERIFY(borderGuard);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(!borderGuard);
         calendar->hide();
         QCoreApplication::processEvents();
     }
@@ -352,6 +362,45 @@ void WinUI3CalendarSurfaceTest::calendarPopupBorderStroke()
                              Qt::FindDirectChildrenOnly)
                      .size(),
              0);
+}
+
+void WinUI3CalendarSurfaceTest::styleReplacementQueuesCalendarPopupBorderDeletion()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const auto restoreStyle =
+            qScopeGuard([] { qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light)); });
+    QWidget root;
+    root.setStyle(style);
+    QDateEdit date(&root);
+    date.setCalendarPopup(true);
+    root.show();
+    QCoreApplication::processEvents();
+    QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5, date.height() / 2));
+    QCoreApplication::processEvents();
+    QCalendarWidget *calendar = date.calendarWidget();
+    QVERIFY(calendar);
+    if (!calendar->isVisible()) {
+        calendar->show();
+        QCoreApplication::processEvents();
+    }
+    QWidget *popup = calendar->window();
+    QVERIFY(popup && popup->isVisible());
+    QWidget *border = popup->findChild<QWidget *>(
+            QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+            Qt::FindDirectChildrenOnly);
+    QVERIFY(border);
+    QPointer<QWidget> borderGuard(border);
+
+    qApp->setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    QCOMPARE(popup->findChildren<QWidget *>(
+                          QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+                          Qt::FindDirectChildrenOnly)
+                     .size(),
+             0);
+    QVERIFY(borderGuard);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!borderGuard);
 }
 
 void WinUI3CalendarSurfaceTest::calendarNavigationBarLaneSharesOpaqueSurface()

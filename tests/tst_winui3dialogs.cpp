@@ -23,8 +23,10 @@
 #include <QPoint>
 #include <QPointer>
 #include <QResizeEvent>
+#include <QScopeGuard>
 #include <QSize>
 #include <QStyle>
+#include <QStyleFactory>
 #include <QStyleOptionDockWidget>
 #include <QTest>
 #include <QVBoxLayout>
@@ -49,6 +51,7 @@ private slots:
     void wizardUsesModernStyleHint();
     void wizardOpenThemeSwitchLifecycle();
     void persistentDialogSurvivesThemeSwitch();
+    void applicationStyleReplacementQueuesDialogFooterDeletion();
     void contentDialogScrimLifecycle();
     void contentDialogScrimOwnershipCleared();
     void messageBoxSyncGeometryConverges();
@@ -410,6 +413,89 @@ void WinUI3DialogsTest::persistentDialogSurvivesThemeSwitch()
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_COMPARE(dialog.palette().color(QPalette::Window),
                  WinUI3::Private::popupSurfaceColor(style->standardPalette()));
+}
+
+void WinUI3DialogsTest::applicationStyleReplacementQueuesDialogFooterDeletion()
+{
+    // Keep the fixture's next test on WinUI: this binary does not restore a
+    // replacement Fusion style in cleanup(). Construct this guard before the
+    // widget scope, so its new WinUI style only arrives after those widgets
+    // have been destroyed.
+    const auto restoreStyle =
+            qScopeGuard([] { qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light)); });
+    {
+        QWizard wizard;
+        wizard.resize(520, 340);
+        wizard.addPage(new QWizardPage);
+
+        QDialog dialog;
+        WinUI3::Style::setContentDialog(&dialog);
+        auto *dialogLayout = new QVBoxLayout(&dialog);
+        dialogLayout->addWidget(new QLabel(QStringLiteral("Content dialog")));
+        dialogLayout->addWidget(new QDialogButtonBox(QDialogButtonBox::Ok));
+
+        QMessageBox messageBox(QMessageBox::Information, QStringLiteral("WinUI 3 Style"),
+                               QStringLiteral("Message box content."), QMessageBox::Ok);
+
+        wizard.show();
+        dialog.show();
+        messageBox.show();
+        QTRY_VERIFY(wizard.isVisible());
+        QTRY_VERIFY(dialog.isVisible());
+        QTRY_VERIFY(messageBox.isVisible());
+
+        QWidget *wizardFooter = wizard.findChild<QWidget *>(
+                QStringLiteral("_winui_wizard_footer_surface"), Qt::FindChildrenRecursively);
+        QWidget *dialogFooter = dialog.findChild<QWidget *>(
+                QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
+        QWidget *messageBoxFooter = messageBox.findChild<QWidget *>(
+                QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
+        QVERIFY(wizardFooter);
+        QVERIFY(dialogFooter);
+        QVERIFY(messageBoxFooter);
+        QPointer<QWidget> wizardFooterGuard(wizardFooter);
+        QPointer<QWidget> dialogFooterGuard(dialogFooter);
+        QPointer<QWidget> messageBoxFooterGuard(messageBoxFooter);
+
+        // This must exercise QApplication's allWidgets snapshot, rather than
+        // calling Style::unpolish() directly. The old footer surfaces remain
+        // alive for that snapshot but are no longer visible or findable.
+        qApp->setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+        QVERIFY(wizardFooterGuard);
+        QVERIFY(dialogFooterGuard);
+        QVERIFY(messageBoxFooterGuard);
+        QVERIFY(!wizardFooterGuard->isVisible());
+        QVERIFY(!dialogFooterGuard->isVisible());
+        QVERIFY(!messageBoxFooterGuard->isVisible());
+        QVERIFY(!wizard.findChild<QWidget *>(QStringLiteral("_winui_wizard_footer_surface"),
+                                             Qt::FindChildrenRecursively));
+        QVERIFY(!dialog.findChild<QWidget *>(QStringLiteral("_winui_content_dialog_footer_surface"),
+                                             Qt::FindDirectChildrenOnly));
+        QVERIFY(!messageBox.findChild<QWidget *>(
+                QStringLiteral("_winui_content_dialog_footer_surface"),
+                Qt::FindDirectChildrenOnly));
+
+        // Repolishing can create new named surfaces, but it must never reuse
+        // the old snapshot members that are waiting for deferred destruction.
+        qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+        QWidget *replacementWizardFooter = wizard.findChild<QWidget *>(
+                QStringLiteral("_winui_wizard_footer_surface"), Qt::FindChildrenRecursively);
+        QWidget *replacementDialogFooter = dialog.findChild<QWidget *>(
+                QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
+        QWidget *replacementMessageBoxFooter = messageBox.findChild<QWidget *>(
+                QStringLiteral("_winui_content_dialog_footer_surface"), Qt::FindDirectChildrenOnly);
+        QVERIFY(replacementWizardFooter);
+        QVERIFY(replacementDialogFooter);
+        QVERIFY(replacementMessageBoxFooter);
+        QVERIFY(replacementWizardFooter != wizardFooterGuard.data());
+        QVERIFY(replacementDialogFooter != dialogFooterGuard.data());
+        QVERIFY(replacementMessageBoxFooter != messageBoxFooterGuard.data());
+
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(!wizardFooterGuard);
+        QVERIFY(!dialogFooterGuard);
+        QVERIFY(!messageBoxFooterGuard);
+    }
 }
 
 void WinUI3DialogsTest::contentDialogScrimLifecycle()

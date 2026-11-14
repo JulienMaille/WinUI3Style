@@ -138,8 +138,15 @@ void removeCalendarPopupBorder(QWidget *widget)
 {
     if (!widget || !widget->inherits("QCalendarPopup"))
         return;
-    delete widget->findChild<QFrame *>(QLatin1String(calendarPopupBorderObjectName),
-                                       Qt::FindDirectChildrenOnly);
+    if (auto *border = widget->findChild<QFrame *>(QLatin1String(calendarPopupBorderObjectName),
+                                                   Qt::FindDirectChildrenOnly)) {
+        // QApplication::setStyle() snapshots widget pointers while unpolishing.
+        // Make this overlay inert and unfindable now, then let the event loop
+        // destroy it after every snapshot pass has completed.
+        border->hide();
+        border->setObjectName(QString());
+        border->deleteLater();
+    }
 }
 
 // Converge a refused popup to the honest opaque fallback: opaque surface

@@ -274,7 +274,14 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
 
 void deleteWizardFooterSurface(QWizard *wizard)
 {
-    delete wizardFooterSurface(wizard, false);
+    if (WizardFooterSurface *footer = wizardFooterSurface(wizard, false)) {
+        // QApplication::setStyle() snapshots widget pointers while unpolishing.
+        // Make this surface inert and unfindable now, then let the event loop
+        // destroy it after every snapshot pass has completed.
+        footer->hide();
+        footer->setObjectName(QString());
+        footer->deleteLater();
+    }
 }
 
 namespace {
@@ -450,7 +457,14 @@ void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
     if (!dialog)
         return;
     stopDialogAnimations(dialog);
-    delete contentDialogFooter(dialog, false);
+    if (ContentDialogFooterSurface *footer = contentDialogFooter(dialog, false)) {
+        // QApplication::setStyle() snapshots widget pointers while unpolishing.
+        // Make this surface inert and unfindable now, then let the event loop
+        // destroy it after every snapshot pass has completed.
+        footer->hide();
+        footer->setObjectName(QString());
+        footer->deleteLater();
+    }
     restoreRememberedPalette(dialog);
     if (dialog->property(originalAutoFillProperty).isValid())
         dialog->setAutoFillBackground(dialog->property(originalAutoFillProperty).toBool());
