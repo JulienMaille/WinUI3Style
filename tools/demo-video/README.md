@@ -69,7 +69,7 @@ ffmpeg -y -i "$env:TEMP\demo-light.mp4" -i "$env:TEMP\demo-dark.mp4" `
   -c:v libx264 -preset medium -crf 17 -pix_fmt yuv420p -r 30 -fps_mode cfr `
   -movflags +faststart docs/images/winui3style-widgets-live.mp4
 ffmpeg -y -i docs/images/winui3style-widgets-live.mp4 `
-  -vf "fps=12,scale=720:-1:flags=lanczos" -c:v libwebp_anim -lossless 1 `
+  -vf "fps=30,scale=720:-1:flags=lanczos" -c:v libwebp_anim -lossless 1 `
   -compression_level 6 -loop 0 -an docs/images/winui3style-widgets-live.webp
 ```
 
@@ -77,7 +77,7 @@ The lossless WebP keeps the accent colours exact; a palette GIF of the same
 clip shifts them visibly.
 
 `overlay-filter.txt` holds the caption timings. The scene cuts are at about
-5.1 s, 16.2 s and 23.0 s of video time (the scripted `after()` time plus about
+5.7 s, 17.2 s and 24.0 s of video time (the scripted `after()` time plus about
 1.2 s of capture start-up). Find the actual cuts after changing the schedule in
 `showcase-main.cpp`:
 
@@ -92,7 +92,8 @@ Always sample frames before replacing the published movie. Extract a frame in
 each scene and check: cursor present and legible, hover states visible, the
 ComboBox popup open, the slider value popup visible, real typing and the clear
 button in the line edit, the More menu chevron and its icons fully inside the
-frame, the date and time stepping, and the tab switch.
+frame, the date calendar popup and day selection, the tab switch, and the
+scroll bar drag.
 
 ```powershell
 ffmpeg -y -ss 9 -i docs/images/winui3style-widgets-live.mp4 -frames:v 1 -update 1 check.png
