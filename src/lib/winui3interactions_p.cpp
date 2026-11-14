@@ -100,7 +100,7 @@ void setEditableComboArrowHover(QComboBox *combo, const QPoint &position)
     option.rect = combo->rect();
     option.direction = combo->layoutDirection();
     const QRect arrow = combo->style()->subControlRect(QStyle::CC_ComboBox, &option,
-                                                        QStyle::SC_ComboBoxArrow, combo);
+                                                       QStyle::SC_ComboBoxArrow, combo);
     const bool hovered = combo->isEnabled() && arrow.contains(position);
     if (framePropertyRegistry().value(combo, editableComboArrowHoverProperty).toBool() == hovered)
         return;

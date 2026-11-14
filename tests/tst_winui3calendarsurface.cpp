@@ -287,8 +287,8 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         QWidget *popup = calendar->window();
         QVERIFY(popup);
         QVERIFY(popup->isVisible());
-        QWidget *border = popup->findChild<QWidget *>(QStringLiteral("_winui_calendar_popup_border"),
-                                                       Qt::FindDirectChildrenOnly);
+        QWidget *border = popup->findChild<QWidget *>(
+                QStringLiteral("_winui_calendar_popup_border"), Qt::FindDirectChildrenOnly);
         QVERIFY(border);
         QVERIFY(border->isVisible());
         QCOMPARE(border->geometry(), popup->rect());
@@ -309,8 +309,7 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         QCOMPARE(reopenedBorders.size(), 1);
         QCOMPARE(reopenedBorders.constFirst(), border);
 
-        const WinUI3::Private::Tokens popupTokens =
-                WinUI3::Private::tokens(popup->palette());
+        const WinUI3::Private::Tokens popupTokens = WinUI3::Private::tokens(popup->palette());
         const QColor surface = popup->palette().color(QPalette::Window);
         QCOMPARE(popupTokens.flyoutStroke,
                  WinUI3::Private::buildTokens(style.standardPalette()).flyoutStroke);
@@ -320,9 +319,9 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         expected.fill(surface);
         {
             QPainter painter(&expected);
-            WinUI3::PaintPrivate::controlSurface(
-                    &painter, QRectF(expected.rect()), surface, popupTokens.flyoutStroke,
-                    popupTokens.flyoutStroke, WinUI3::Private::OverlayRadius);
+            WinUI3::PaintPrivate::controlSurface(&painter, QRectF(expected.rect()), surface,
+                                                 popupTokens.flyoutStroke, popupTokens.flyoutStroke,
+                                                 WinUI3::Private::OverlayRadius);
         }
         const int midY = actual.height() / 2;
         QCOMPARE(actual.pixelColor(0, midY), expected.pixelColor(0, midY));

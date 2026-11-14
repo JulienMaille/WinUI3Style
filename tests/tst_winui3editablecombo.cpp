@@ -52,7 +52,8 @@ void WinUI3EditableComboTest::editableComboArrowHover()
         const auto &metrics = WinUI3::Private::densityMetrics(density);
         combo.resize(200, metrics.textBoxHeight);
         QCOMPARE(combo.height(), metrics.textBoxHeight);
-        for (const WinUI3::ThemeMode theme : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
+        for (const WinUI3::ThemeMode theme :
+             { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
             style->setThemeMode(theme);
             const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(combo.palette());
             for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
@@ -64,8 +65,8 @@ void WinUI3EditableComboTest::editableComboArrowHover()
                 option.editable = true;
                 option.state = QStyle::State_Enabled | QStyle::State_HasFocus;
                 option.subControls = QStyle::SC_ComboBoxFrame | QStyle::SC_ComboBoxArrow;
-                const QRect arrow = combo.style()->subControlRect(
-                        QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxArrow, &combo);
+                const QRect arrow = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                                  QStyle::SC_ComboBoxArrow, &combo);
                 QCOMPARE(arrow.height(), combo.height());
                 QCOMPARE(direction == Qt::LeftToRight ? arrow.right() : arrow.left(),
                          direction == Qt::LeftToRight ? combo.rect().right() : combo.rect().left());
@@ -147,7 +148,7 @@ void WinUI3EditableComboTest::editableComboEditorFocusActivatesOnRelease()
     option.state = QStyle::State_Enabled | QStyle::State_HasFocus;
     option.subControls = QStyle::SC_ComboBoxFrame | QStyle::SC_ComboBoxArrow;
     const QRect editor = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
-                                                        QStyle::SC_ComboBoxEditField, &combo);
+                                                       QStyle::SC_ComboBoxEditField, &combo);
     QCOMPARE(combo.style()->pixelMetric(QStyle::PM_ComboBoxFrameWidth, &option, &combo), 1);
     const QPoint editorPoint = editor.center();
     const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(combo.palette());
@@ -202,7 +203,7 @@ void WinUI3EditableComboTest::editableComboFocusedEditorPressKeepsFocusVisual()
     option.state = QStyle::State_Enabled | QStyle::State_HasFocus;
     option.subControls = QStyle::SC_ComboBoxFrame | QStyle::SC_ComboBoxArrow;
     const QRect editorRect = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
-                                                            QStyle::SC_ComboBoxEditField, &combo);
+                                                           QStyle::SC_ComboBoxEditField, &combo);
     QCOMPARE(combo.style()->pixelMetric(QStyle::PM_ComboBoxFrameWidth, &option, &combo), 1);
     const QPoint editorPoint = editorRect.center();
     const QPoint underlinePoint(combo.rect().center().x(), combo.rect().bottom() - 1);

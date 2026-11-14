@@ -48,8 +48,8 @@ void prepareCalendarPopupBorder(QWidget *popup)
     if (!popup || !popup->findChild<QCalendarWidget *>())
         return;
 
-    auto *border = popup->findChild<QFrame *>(calendarPopupBorderObjectName,
-                                               Qt::FindDirectChildrenOnly);
+    auto *border =
+            popup->findChild<QFrame *>(calendarPopupBorderObjectName, Qt::FindDirectChildrenOnly);
     if (!border) {
         border = new QFrame(popup);
         border->setObjectName(QLatin1StringView(calendarPopupBorderObjectName));
@@ -65,10 +65,8 @@ void prepareCalendarPopupBorder(QWidget *popup)
     // the stock QFrame transparent and let the existing popup PE_Frame paint
     // its shared flyout stroke above that child instead.
     QPalette borderPalette = popup->palette();
-    borderPalette.setColor(QPalette::Window,
-                           withAlpha(borderPalette.color(QPalette::Window), 0));
-    borderPalette.setColor(QPalette::Base,
-                           withAlpha(borderPalette.color(QPalette::Base), 0));
+    borderPalette.setColor(QPalette::Window, withAlpha(borderPalette.color(QPalette::Window), 0));
+    borderPalette.setColor(QPalette::Base, withAlpha(borderPalette.color(QPalette::Base), 0));
     border->setPalette(borderPalette);
     const QPointer<QWidget> guardedPopup(popup);
     const QPointer<QFrame> guardedBorder(border);

@@ -44,9 +44,10 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
                     && (combo->state & QStyle::State_HasFocus
                         || (widget && widget->isActiveWindow() && comboEditor
                             && comboEditor->hasFocus()))
-                    && !(widget && framePropertyRegistry()
-                                       .value(widget, editableComboEditorPressPendingProperty)
-                                       .toBool());
+                    && !(widget
+                         && framePropertyRegistry()
+                                    .value(widget, editableComboEditorPressPendingProperty)
+                                    .toBool());
             QColor fill = enabled ? t.control : t.controlDisabled;
             // An editable ComboBox behaves like a TextBox once it owns
             // keyboard focus: flat light surface, no hover tint.
@@ -67,8 +68,8 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
                                    .value(widget, editableComboArrowHoverProperty)
                                    .toBool();
                 if (arrowHovered) {
-                    const QRect arrowRect = style->subControlRect(
-                            QStyle::CC_ComboBox, combo, QStyle::SC_ComboBoxArrow, widget);
+                    const QRect arrowRect = style->subControlRect(QStyle::CC_ComboBox, combo,
+                                                                  QStyle::SC_ComboBoxArrow, widget);
                     roundedRect(painter, arrowRect.adjusted(1, 1, -1, -1),
                                 pressed ? t.subtlePressed : t.subtleHover, Qt::transparent,
                                 ControlRadius);

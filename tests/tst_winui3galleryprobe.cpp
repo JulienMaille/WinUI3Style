@@ -72,11 +72,12 @@ void WinUI3GalleryProbeTest::galleryPopupSeparatorColors_data()
     QTest::addColumn<QString>("kind");
     for (bool dark : { false, true }) {
         for (bool compact : { false, true }) {
-            for (const QString &kind : { QStringLiteral("menu"), QStringLiteral("contentDialogButton"),
-                                         QStringLiteral("messageDialogButton"),
-                                         QStringLiteral("wizardButton") }) {
+            for (const QString &kind :
+                 { QStringLiteral("menu"), QStringLiteral("contentDialogButton"),
+                   QStringLiteral("messageDialogButton"), QStringLiteral("wizardButton") }) {
                 const QByteArray row = (QString(dark ? "dark-" : "light-")
-                                        + (compact ? "compact-" : "standard-") + kind).toLatin1();
+                                        + (compact ? "compact-" : "standard-") + kind)
+                                               .toLatin1();
                 QTest::newRow(row.constData()) << dark << compact << kind;
             }
         }
@@ -144,7 +145,8 @@ void WinUI3GalleryProbeTest::galleryPopupSeparatorColors()
             const QString evidence = qEnvironmentVariable("WINUI3STYLE_EVIDENCE_DIR");
             if (!evidence.isEmpty())
                 QVERIFY(dialog->grab().save(evidence + QLatin1Char('/')
-                        + QString::fromLatin1(QTest::currentDataTag()) + QStringLiteral("-dialog.png")));
+                                            + QString::fromLatin1(QTest::currentDataTag())
+                                            + QStringLiteral("-dialog.png")));
         });
         button->click();
     }
@@ -152,13 +154,15 @@ void WinUI3GalleryProbeTest::galleryPopupSeparatorColors()
     QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
     expected.fill(fill);
     QPainter painter(&expected);
-    painter.fillRect(expected.rect(), kind == QStringLiteral("menu")
-                             ? t.menuSeparatorStroke : t.dialogSeparatorStroke);
+    painter.fillRect(expected.rect(),
+                     kind == QStringLiteral("menu") ? t.menuSeparatorStroke
+                                                    : t.dialogSeparatorStroke);
     painter.end();
     const QString evidence = qEnvironmentVariable("WINUI3STYLE_EVIDENCE_DIR");
     if (!evidence.isEmpty())
         QVERIFY(image.save(evidence + QLatin1Char('/')
-                + QString::fromLatin1(QTest::currentDataTag()) + QStringLiteral(".png")));
+                           + QString::fromLatin1(QTest::currentDataTag())
+                           + QStringLiteral(".png")));
     QCOMPARE(image.pixelColor(sample), expected.pixelColor(0, 0));
 }
 
@@ -198,8 +202,8 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
     option.maximum = slider->maximum();
     option.sliderPosition = slider->sliderPosition();
     option.sliderValue = slider->value();
-    const QRect handle = slider->style()->subControlRect(
-            QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
+    const QRect handle = slider->style()->subControlRect(QStyle::CC_Slider, &option,
+                                                         QStyle::SC_SliderHandle, slider);
     QTest::mouseMove(slider, handle.center());
     QTest::mousePress(slider, Qt::LeftButton, Qt::NoModifier, handle.center());
     QWidget *tip = nullptr;
