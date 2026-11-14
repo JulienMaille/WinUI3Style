@@ -315,12 +315,20 @@ inline const DensityMetrics &densityMetricsFor(const QWidget *widget)
     return densityMetrics(densityModeFor(widget));
 }
 
+// Null-widget queries must resolve through the receiver Style, not the
+// application Style, so a sizing branch decision and its metric values come
+// from the same density profile even when the receiver is not qApp->style().
+inline DensityMode densityModeFor(const QWidget *widget, const WinUI3::Style *fallbackStyle)
+{
+    if (widget)
+        return densityModeFor(widget);
+    return fallbackStyle ? fallbackStyle->densityMode() : densityModeFor(nullptr);
+}
+
 inline const DensityMetrics &densityMetricsFor(const QWidget *widget,
                                                const WinUI3::Style *fallbackStyle)
 {
-    if (widget)
-        return densityMetricsFor(widget);
-    return densityMetrics(fallbackStyle ? fallbackStyle->densityMode() : densityModeFor(nullptr));
+    return densityMetrics(densityModeFor(widget, fallbackStyle));
 }
 
 } // namespace WinUI3::Private

@@ -3,7 +3,14 @@
 #include <winui3style/winui3style.h>
 
 #include <QApplication>
+#include <QComboBox>
+#include <QFontMetrics>
+#include <QLineEdit>
 #include <QProxyStyle>
+#include <QSpinBox>
+#include <QStyleOptionComboBox>
+#include <QStyleOptionFrame>
+#include <QStyleOptionSpinBox>
 #include <QWidget>
 #include <QtTest>
 
@@ -20,6 +27,8 @@ private slots:
     void localDensityInheritsAndOverrides();
     void styleDensityIsUsedAsFallback();
     void nullWidgetUsesApplicationStyleDensity();
+    void nullWidgetSizingUsesReceiverStyleDensity_data();
+    void nullWidgetSizingUsesReceiverStyleDensity();
 };
 
 void WinUI3DensityTest::profilesExposeDocumentedSizing()
@@ -93,6 +102,62 @@ void WinUI3DensityTest::nullWidgetUsesApplicationStyleDensity()
 {
     qApp->setStyle(new WinUI3::Style(WinUI3::DensityMode::Compact));
     QCOMPARE(densityModeFor(nullptr), DensityMode::Compact);
+}
+
+void WinUI3DensityTest::nullWidgetSizingUsesReceiverStyleDensity_data()
+{
+    QTest::addColumn<bool>("compactReceiver");
+    QTest::addColumn<int>("fontPixelSize");
+    QTest::newRow("compact-receiver-16px") << true << 16;
+    QTest::newRow("compact-receiver-24px") << true << 24;
+    QTest::newRow("standard-receiver-16px") << false << 16;
+    QTest::newRow("standard-receiver-24px") << false << 24;
+}
+
+// A standalone receiver Style sizing with a null widget must resolve density
+// from the receiver, not leak the application Style's density. The bound
+// widget (widget->style() == receiver) is the pure-receiver reference; the
+// null-widget hint must agree with it for every density profile.
+void WinUI3DensityTest::nullWidgetSizingUsesReceiverStyleDensity()
+{
+    QFETCH(bool, compactReceiver);
+    QFETCH(int, fontPixelSize);
+
+    // Application style deliberately differs from the receiver.
+    qApp->setStyle(new WinUI3::Style(compactReceiver ? WinUI3::DensityMode::Standard
+                                                     : WinUI3::DensityMode::Compact));
+    WinUI3::Style receiver(compactReceiver ? WinUI3::DensityMode::Compact
+                                           : WinUI3::DensityMode::Standard);
+
+    QFont font = qApp->font();
+    font.setPixelSize(fontPixelSize);
+    const QFontMetrics fm(font);
+
+    QStyleOptionFrame lineOption;
+    lineOption.fontMetrics = fm;
+    QStyleOptionSpinBox spinOption;
+    spinOption.fontMetrics = fm;
+    QStyleOptionComboBox comboOption;
+    comboOption.fontMetrics = fm;
+
+    QSpinBox spin;
+    spin.setStyle(&receiver);
+    spin.setFont(font);
+    QLineEdit line;
+    line.setStyle(&receiver);
+    line.setFont(font);
+    QComboBox combo;
+    combo.setStyle(&receiver);
+    combo.setFont(font);
+
+    const QSize content(60, fm.height());
+    QCOMPARE(receiver.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, nullptr).height(),
+             receiver.sizeFromContents(QStyle::CT_SpinBox, &spinOption, content, &spin).height());
+    QCOMPARE(receiver.sizeFromContents(QStyle::CT_LineEdit, &lineOption, content, nullptr).height(),
+             receiver.sizeFromContents(QStyle::CT_LineEdit, &lineOption, content, &line).height());
+    QCOMPARE(
+            receiver.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, nullptr).height(),
+            receiver.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, &combo).height());
 }
 
 QTEST_MAIN(WinUI3DensityTest)
