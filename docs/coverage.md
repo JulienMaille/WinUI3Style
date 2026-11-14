@@ -32,9 +32,11 @@ rows; all 460 editor checks pass. Independent review confirmed the pinned
 source mapping, unchanged generic controls, and pixel-identical focused
 output against main. The applicable 67-test suite passed twice; the static
 package test still fails identically on main in unrelated SettingsCard code.
-Official Windows Gallery side-by-side and Windows approved snapshot review
-remain outstanding on this Linux host. See `validation/issue57/` for authentic
-before/after Gallery captures.
+Authentic Windows CI candidates passed review: all changed pixels stay on
+editor strokes, and the other 32 images remain byte-identical. The refresh
+changes 36 approved PNGs; current-head Windows CI remains pending. Official
+Windows Gallery side-by-side and native compositor validation remain
+outstanding. See `validation/issue57/` for captures and snapshot provenance.
 
 ## Issue #22 — icon-font fallback mapping (2026-10-29)
 

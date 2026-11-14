@@ -47,9 +47,21 @@ inline/stacked NumberBox, rest/hover/disabled/focus, LTR/RTL and
 The initial implementation failed the new border contract before the repair.
 
 These are Linux Qt Gallery captures, not official WinUI screenshots.
-The Windows official Gallery side-by-side comparison, Windows compositor,
-and approved Windows snapshot matrix remain unverified here.
-The coverage ledger remains partial.
+Authentic Windows CI artifacts now supply the reviewed snapshot refresh.
+See [Windows snapshot review](approval-review.md) for provenance and the
+complete pixel audit. Current-head Windows CI remains pending.
+The Windows official Gallery side-by-side comparison and native Windows
+compositor remain unverified. The coverage ledger remains partial.
 
 Not changed: ComboBox, tooltip, calendar-popup date editor, editor fill, padding, size,
 keyboard semantics, and step-button geometry.
+
+## Windows test fixture correction
+
+Windows CI exposed a mixed-density test fixture, not a layout change.
+The local Style was Compact, but null-widget sizing consulted the Standard
+application Style for one branch. With Segoe-sized font metrics, all 192
+Compact rows expected 24 pixels but received 27. The fixture now binds its
+widget to the local Style and passes that widget to sizing. A controlled
+16-pixel font reproduces the original failure on Linux. All 460 editor checks
+pass after the correction. Product sizing code remains unchanged.
