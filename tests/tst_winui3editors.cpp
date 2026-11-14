@@ -9,6 +9,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "../src/lib/winui3frameproperties_p.h"
+#include "../src/lib/winui3density_p.h"
 #include "../src/lib/winui3helpers_p.h"
 #include "../src/lib/winui3tableeditors_p.h"
 #include "../src/lib/winui3tokens_p.h"
@@ -104,6 +105,8 @@ private slots:
     void clearButtonDensityGeometry_data();
     void clearButtonDensityGeometry();
     void textBoxStateMatrix();
+    void editorElevationBorder_data();
+    void editorElevationBorder();
     void indeterminateProgressDeterminism();
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
@@ -946,6 +949,150 @@ void WinUI3EditorsTest::tableEditorTrackerLifetimeContract()
     QCoreApplication::processEvents(); // deliver the orphaned retry singleShot
     // doomedTable and table are destroyed at scope exit, covering the
     // table-destroyed path after the tracker's death.
+}
+
+void WinUI3EditorsTest::editorElevationBorder_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("editor");
+    QTest::addColumn<int>("state");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<qreal>("scale");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            for (int editor : { 0, 1, 2 }) // TextBox, inline NumberBox, stacked NumberBox
+                for (int state : { 0, 1, 2, 3 }) // rest, hover, disabled, focus
+                    for (bool rtl : { false, true })
+                        for (qreal scale : { 1.0, 1.25, 1.5, 2.0 }) {
+                            const QByteArray name = QStringLiteral("%1-%2-editor%3-state%4-%5-%6")
+                                                            .arg(dark)
+                                                            .arg(compact)
+                                                            .arg(editor)
+                                                            .arg(state)
+                                                            .arg(rtl)
+                                                            .arg(scale)
+                                                            .toLatin1();
+                            QTest::newRow(name.constData())
+                                    << dark << compact << editor << state << rtl << scale;
+                        }
+}
+
+void WinUI3EditorsTest::editorElevationBorder()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(int, editor);
+    QFETCH(int, state);
+    QFETCH(bool, rtl);
+    QFETCH(qreal, scale);
+    WinUI3::Style style(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QSpinBox spin;
+    spin.setStyle(&style);
+    QCOMPARE(WinUI3::Style::densityMode(&spin), style.densityMode());
+    spin.setProperty(WinUI3::Style::VerticalSpinButtonsProperty, editor == 2);
+    const QPalette palette = style.standardPalette();
+    const auto t = WinUI3::Private::tokens(palette);
+    // Pinned Common_themeresources_any.xaml, not generic ControlStrokeSecondary.
+    QCOMPARE(t.stroke, dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 15));
+    QCOMPARE(t.strokeStrong, dark ? QColor(255, 255, 255, 139) : QColor(0, 0, 0, 114));
+    const int height = compact ? 24 : 32;
+    const QRect rect(0, 0, 240, height);
+    QStyleOptionSpinBox option;
+    option.rect = rect;
+    option.palette = palette;
+    // Exercise the normal Segoe-sized line height on every platform. Smaller
+    // Linux defaults otherwise hide a Standard/Compact fixture mismatch.
+    QFont sizingFont = spin.font();
+    sizingFont.setPixelSize(16);
+    option.fontMetrics = QFontMetrics(sizingFont);
+    option.direction = rtl ? Qt::RightToLeft : Qt::LeftToRight;
+    option.state = state == 2 ? QStyle::State_None : QStyle::State_Enabled;
+    if (state == 1)
+        option.state |= QStyle::State_MouseOver;
+    if (state == 3)
+        option.state |= QStyle::State_HasFocus;
+    option.subControls = QStyle::SC_SpinBoxFrame;
+    // The raster canvas uses the pinned minimum height; size hints can grow
+    // for native fonts. Keep the existing font-aware sizing contract intact.
+    const auto &density = WinUI3::Private::densityMetrics(style.densityMode());
+    QCOMPARE(density.textBoxHeight, height);
+    for (int pixelSize : { 16, 24 }) {
+        sizingFont.setPixelSize(pixelSize);
+        QStyleOptionSpinBox sizeOption(option);
+        sizeOption.fontMetrics = QFontMetrics(sizingFont);
+        const int paddedHeight =
+                sizeOption.fontMetrics.height() + 2 * density.lineEditVerticalPadding;
+        const int expectedHeight = compact && paddedHeight <= density.textBoxHeight + 4
+                ? density.textBoxHeight
+                : qMax(density.textBoxHeight, paddedHeight);
+        QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &sizeOption, QSize(60, 10), &spin)
+                         .height(),
+                 expectedHeight);
+    }
+    const QColor fill = state == 2 ? t.controlDisabled
+            : state == 3           ? t.editorFocusedFill
+            : state == 1           ? t.controlHover
+                                   : t.control;
+    QImage image(QSize(qRound(rect.width() * scale), qRound(height * scale)),
+                 QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(scale);
+    image.fill(t.surface);
+    {
+        QPainter painter(&image);
+        if (editor == 0)
+            style.drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter);
+        else
+            style.drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
+    }
+    const auto composite = [&](const QColor &stroke) {
+        QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+        pixel.fill(t.surface);
+        QPainter painter(&pixel);
+        painter.fillRect(pixel.rect(), fill);
+        painter.fillRect(pixel.rect(), stroke);
+        painter.end();
+        return pixel.pixelColor(0, 0);
+    };
+    const int x = image.width() / 2;
+    if (state == 3) {
+        // An editable ComboBox retains the original focused surface path.
+        // Check the outer row too: strong rest ink must never leak below the
+        // existing rounded accent clip, particularly at 200% scale.
+        QStyleOptionComboBox focusedReference;
+        focusedReference.rect = rect;
+        focusedReference.palette = palette;
+        focusedReference.state = option.state;
+        focusedReference.direction = option.direction;
+        focusedReference.editable = true;
+        focusedReference.subControls = QStyle::SC_ComboBoxFrame;
+        QImage reference(image.size(), image.format());
+        reference.setDevicePixelRatio(scale);
+        reference.fill(t.surface);
+        {
+            QPainter painter(&reference);
+            style.drawComplexControl(QStyle::CC_ComboBox, &focusedReference, &painter);
+        }
+        for (int column = qCeil(8 * scale); column < image.width() - qCeil(8 * scale); ++column)
+            QCOMPARE(image.pixelColor(column, image.height() - 1),
+                     reference.pixelColor(column, reference.height() - 1));
+        QCOMPARE(image.pixelColor(x, 0), reference.pixelColor(x, 0));
+        QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 1.5) * scale)),
+                              composite(t.accentFill))
+                <= 2);
+        return;
+    }
+    const QColor bottomStroke = state == 2 ? t.stroke : t.strokeStrong;
+    QVERIFY2(colorDistance(image.pixelColor(x, image.height() - 1), composite(bottomStroke)) <= 2,
+             "Editor bottom border does not use the pinned state brush");
+    QVERIFY(colorDistance(image.pixelColor(x, 0), composite(t.stroke)) <= 2);
+    if (state < 2) {
+        // Only the border is strong: do not invent a 2 DIP resting underline.
+        QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 2) * scale)),
+                              composite(Qt::transparent))
+                <= 2);
+    }
 }
 
 QTEST_MAIN(WinUI3EditorsTest)
