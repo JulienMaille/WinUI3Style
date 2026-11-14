@@ -373,7 +373,7 @@ Qt runtime checks, not an official Windows Gallery side-by-side verification.
 The pinned `CalendarViewHeaderNavigationButtonForeground` and PointerOver resources
 map to `TextFillColorPrimaryBrush` in Light and Dark. Pressed maps to
 `TextFillColorSecondaryBrush`; Disabled maps to `TextFillColorDisabledBrush`.
-See [the pinned CalendarView header resources](https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CalendarView/CalendarView_themeresources.xaml).
+See [the pinned CalendarView header resources](https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CommonStyles/CalendarView_themeresources.xaml).
 
 Qt 6.8.3 `QCalToolButton::paintEvent` copies `HighlightedText` into `ButtonText`
 at rest. That legacy accent-header rule paints nearly white month/year text on
