@@ -84,6 +84,30 @@ bool comboPressOpensPopup(QComboBox *combo, const QPoint &position)
     return true;
 }
 
+QComboBox *editableComboForEditor(QWidget *widget)
+{
+    auto *editor = qobject_cast<QLineEdit *>(widget);
+    auto *combo = editor ? qobject_cast<QComboBox *>(editor->parentWidget()) : nullptr;
+    return combo && combo->isEditable() && combo->lineEdit() == editor ? combo : nullptr;
+}
+
+void setEditableComboArrowHover(QComboBox *combo, const QPoint &position)
+{
+    if (!combo || !combo->isEditable())
+        return;
+    QStyleOptionComboBox option;
+    option.initFrom(combo);
+    option.rect = combo->rect();
+    option.direction = combo->layoutDirection();
+    const QRect arrow = combo->style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                       QStyle::SC_ComboBoxArrow, combo);
+    const bool hovered = combo->isEnabled() && arrow.contains(position);
+    if (framePropertyRegistry().value(combo, editableComboArrowHoverProperty).toBool() == hovered)
+        return;
+    framePropertyRegistry().set(combo, editableComboArrowHoverProperty, hovered);
+    combo->update();
+}
+
 bool comboPopupItemView(const QWidget *widget)
 {
     const QWidget *candidate = widget;
@@ -395,6 +419,10 @@ bool StyleInteractionController::handleEnter(QWidget *widget)
 bool StyleInteractionController::handleLeave(QWidget *widget)
 {
     if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (combo->isEditable()) {
+            framePropertyRegistry().set(combo, editableComboArrowHoverProperty, false);
+            combo->update();
+        }
         // A stolen mouse grab (context menu, modal loop) loses the
         // release that would normally end the press, leaving underMouse
         // stuck: every later paint then falls back to a permanent hover.
@@ -617,6 +645,10 @@ bool StyleInteractionController::handleMousePress(QWidget *widget, QEvent *event
 
 bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
 {
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        setEditableComboArrowHover(combo, mousePositionPoint(mouse));
+    }
     if (auto *slider = qobject_cast<QSlider *>(widget)) {
         const auto *mouse = static_cast<QMouseEvent *>(event);
         if ((mouse->buttons() & Qt::LeftButton) && slider->isEnabled())
@@ -649,8 +681,28 @@ bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
     return false;
 }
 
+bool StyleInteractionController::handleHoverMove(QWidget *widget, QEvent *event)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        const auto *hover = static_cast<QHoverEvent *>(event);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        setEditableComboArrowHover(combo, hover->position().toPoint());
+#else
+        setEditableComboArrowHover(combo, hover->pos());
+#endif
+    }
+    return false;
+}
+
 bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *event)
 {
+    if (QComboBox *combo = editableComboForEditor(widget)) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() == Qt::LeftButton) {
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+            combo->update();
+        }
+    }
     if (settingsCardExpansionHost(widget)) {
         const auto *mouse = static_cast<QMouseEvent *>(event);
         if (mouse->button() == Qt::LeftButton
@@ -663,6 +715,11 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
         }
     }
     if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (combo->isEditable()
+            && static_cast<const QMouseEvent *>(event)->button() == Qt::LeftButton) {
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+            combo->update();
+        }
         auto pending = m_comboPressStates.find(combo);
         if (pending != m_comboPressStates.end()
             && static_cast<const QMouseEvent *>(event)->button() == Qt::LeftButton) {
@@ -730,6 +787,15 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
 bool StyleInteractionController::handleFocusIn(QWidget *widget, QEvent *event)
 {
     if (const auto *focus = static_cast<QFocusEvent *>(event)) {
+        if (auto *combo = qobject_cast<QComboBox *>(widget); combo && combo->isEditable()
+            && focus->reason() == Qt::MouseFocusReason
+            && QGuiApplication::mouseButtons().testFlag(Qt::LeftButton)) {
+            // Editable QComboBox owns focus through its proxy on XCB. Only a
+            // real left-button focus entry defers the editor visual; wheel
+            // focus and subsequent text-selection clicks keep it stable.
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, true);
+            combo->update();
+        }
         const bool keyboard = focus->reason() == Qt::TabFocusReason
                 || focus->reason() == Qt::BacktabFocusReason
                 || focus->reason() == Qt::ShortcutFocusReason || *m_callbacks.keyboardInput;
@@ -750,8 +816,17 @@ bool StyleInteractionController::handleFocusIn(QWidget *widget, QEvent *event)
 
 bool StyleInteractionController::handleFocusOut(QWidget *widget)
 {
-    if (auto *combo = qobject_cast<QComboBox *>(widget))
+    if (QComboBox *combo = editableComboForEditor(widget)) {
+        framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+        combo->update();
+    }
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (combo->isEditable()) {
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+            combo->update();
+        }
         cancelComboPress(combo, true);
+    }
     if (auto *slider = qobject_cast<QSlider *>(widget)) {
         m_callbacks.cancelSliderToolTip(slider);
         hideSliderValueToolTip(slider);
@@ -871,6 +946,12 @@ bool StyleInteractionController::handleEnabledChange(QWidget *widget)
     framePropertyRegistry().set(widget, focusProperty, enabled && widget->hasFocus() ? 1.0 : 0.0);
     framePropertyRegistry().set(widget, focusVisibleProperty,
                                 enabled && widget->hasFocus() && *m_callbacks.keyboardInput);
+    if (!enabled) {
+        if (QComboBox *combo = editableComboForEditor(widget)) {
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+            combo->update();
+        }
+    }
     if (auto *checkBox = qobject_cast<QCheckBox *>(widget)) {
         framePropertyRegistry().set(checkBox, checkProperty,
                                     checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
@@ -880,6 +961,10 @@ bool StyleInteractionController::handleEnabledChange(QWidget *widget)
         framePropertyRegistry().set(radio, checkProperty, radio->isChecked() ? 1.0 : 0.0);
     }
     if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (!enabled && combo->isEditable()) {
+            framePropertyRegistry().set(combo, editableComboArrowHoverProperty, false);
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+        }
         if (m_comboPressStates.remove(combo)) {
             combo->releaseMouse();
             m_callbacks.releaseComboChevron(combo);
@@ -1035,8 +1120,15 @@ bool StyleInteractionController::handleShow(QWidget *widget)
 
 bool StyleInteractionController::handleHide(QWidget *widget)
 {
-    if (auto *combo = qobject_cast<QComboBox *>(widget))
+    if (QComboBox *combo = editableComboForEditor(widget)) {
+        framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+        combo->update();
+    }
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+        if (combo->isEditable())
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
         cancelComboPress(combo, true);
+    }
     if (qobject_cast<QProgressBar *>(widget))
         m_callbacks.refreshProgressTimer();
     if (auto *scrollBar = qobject_cast<QScrollBar *>(widget))
@@ -1201,8 +1293,20 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         return handleMousePress(widget, event);
     case QEvent::MouseMove:
         return handleMouseMove(widget, event);
+    case QEvent::HoverMove:
+        return handleHoverMove(widget, event);
     case QEvent::MouseButtonRelease:
         return handleMouseRelease(widget, event);
+    case QEvent::UngrabMouse:
+        if (QComboBox *combo = editableComboForEditor(widget)) {
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+            combo->update();
+        }
+        if (auto *combo = qobject_cast<QComboBox *>(widget); combo && combo->isEditable()) {
+            framePropertyRegistry().set(combo, editableComboEditorPressPendingProperty, false);
+            combo->update();
+        }
+        return false;
     case QEvent::FocusIn:
         return handleFocusIn(widget, event);
     case QEvent::FocusOut:

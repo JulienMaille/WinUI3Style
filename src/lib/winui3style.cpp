@@ -645,7 +645,8 @@ void invalidateDensityTree(QWidget *root)
 // those deliberately partial elements are:
 //   * PE_Frame — owned for popup windows, item views and rich-text editors;
 //     a generic QFrame keeps the base frame;
-//   * CE_ShapedFrame — owned only for winuiSettingsCard widgets;
+//   * CE_ShapedFrame — owned for the CalendarView popup overlay and
+//     winuiSettingsCard widgets;
 //   * CE_CheckBoxLabel / CE_RadioButtonLabel — never painted, they only
 //     receive the shared button-family backdrop pre-erase;
 //   * the CE_* buttons dispatched through the renderer seams — a seam returns
@@ -2596,6 +2597,7 @@ void Style::unpolish(QWidget *widget)
     if (widget) {
         d->unregisterPaletteOwner(widget);
         widget->removeEventFilter(this);
+        Private::removeCalendarPopupBorder(widget);
         if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
             cancelLineEditHelperUpdate(lineEdit);
             cacheLineEditClearButton(lineEdit, nullptr);

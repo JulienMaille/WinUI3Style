@@ -7,6 +7,8 @@
 // out of winui3surfaces_p.cpp so the backdrop sync and the popup recipe no
 // longer share one translation unit.
 
+#include <winui3style/winui3global.h>
+
 #include <QStyle>
 
 class QString;
@@ -24,7 +26,10 @@ namespace Private {
 // application palette, then either claims the opaque deterministic fallback
 // or re-asserts the composited acrylic recipe. GUI-thread-only; may be called
 // repeatedly for the same popup (remember-once semantics).
-void preparePopupSurface(QWidget *widget);
+WINUI3STYLE_EXPORT void preparePopupSurface(QWidget *widget);
+// Deletes the style-owned CalendarView border overlay from an actual Qt
+// QCalendarPopup. Called by Style::unpolish() before base-style painting.
+void removeCalendarPopupBorder(QWidget *widget);
 // Enables a real alpha surface for QMenu on Wayland, where QWidget masks only
 // constrain input and opaque regions, not the rendered buffer. Call before
 // the popup's native surface is created.
