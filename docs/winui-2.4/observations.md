@@ -367,3 +367,22 @@ All source statements above refer to manifest commit
 and `CommonStyles/Common_themeresources_any.xaml`.
 New Gallery regression probes cover Light/Dark and Standard/Compact; these are
 Qt runtime checks, not an official Windows Gallery side-by-side verification.
+
+### Calendar month/year caption contrast follow-up (2026-11-14)
+
+The pinned `CalendarViewHeaderNavigationButtonForeground` and PointerOver resources
+map to `TextFillColorPrimaryBrush` in Light and Dark. Pressed maps to
+`TextFillColorSecondaryBrush`; Disabled maps to `TextFillColorDisabledBrush`.
+See [the pinned CalendarView header resources](https://github.com/microsoft/microsoft-ui-xaml/blob/9f89c2da5a5502c263d9268fee224697c47ecb6e/controls/dev/CalendarView/CalendarView_themeresources.xaml).
+
+Qt 6.8.3 `QCalToolButton::paintEvent` copies `HighlightedText` into `ButtonText`
+at rest. That legacy accent-header rule paints nearly white month/year text on
+our neutral Light calendar surface. The existing QStyle label painter now uses
+the pinned neutral text tokens only for the real calendar's month/year buttons.
+Ordinary explicit ButtonText overrides and previous/next buttons do not change.
+
+Authentic Gallery captures reproduce this defect before the fix. The regression
+fails all four Light Standard/Compact × inline/popup rows before the fix and
+passes all eight Light/Dark rows after it. Each row checks both captions in rest,
+hover, pressed, and disabled states, with exact token and rendered-ink checks.
+Native Windows compositor and official Gallery comparisons remain unverified.

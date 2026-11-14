@@ -36,10 +36,12 @@
 #include <QStandardItemModel>
 #include <QStyleFactory>
 #include <QStyleOptionViewItem>
+#include <QStyleOptionToolButton>
 #include <QTabWidget>
 #include <QTableView>
 #include <QTest>
 #include <QTimeEdit>
+#include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -58,6 +60,8 @@ private slots:
     void styleReplacementQueuesCalendarPopupBorderDeletion();
     void calendarNavigationBarLaneSharesOpaqueSurface();
     void calendarKeepPathRebasesTextRolesAcrossThemeSwitch();
+    void calendarCaptionUsesPinnedForeground_data();
+    void calendarCaptionUsesPinnedForeground();
 };
 
 void WinUI3CalendarSurfaceTest::init()
@@ -625,5 +629,107 @@ void WinUI3CalendarSurfaceTest::calendarKeepPathRebasesTextRolesAcrossThemeSwitc
     calendar->hide();
     QCoreApplication::processEvents();
 }
+void WinUI3CalendarSurfaceTest::calendarCaptionUsesPinnedForeground_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("popup");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            for (bool popup : { false, true }) {
+                const QByteArray name = QByteArray(dark ? "dark" : "light")
+                        + (compact ? "-compact" : "-standard") + (popup ? "-popup" : "-inline");
+                QTest::newRow(name.constData()) << dark << compact << popup;
+            }
+        }
+    }
+}
+
+void WinUI3CalendarSurfaceTest::calendarCaptionUsesPinnedForeground()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, popup);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QWidget host;
+    QVBoxLayout layout(&host);
+    QDateEdit date;
+    date.setCalendarPopup(true);
+    date.setDate(QDate(2026, 8, 15));
+    QCalendarWidget inlineCalendar;
+    layout.addWidget(&date);
+    layout.addWidget(&inlineCalendar);
+    host.show();
+    QCoreApplication::processEvents();
+    QCalendarWidget *calendar = popup ? date.calendarWidget() : &inlineCalendar;
+    if (popup) {
+        QTest::mouseClick(&date, Qt::LeftButton, {}, QPoint(date.width() - 5, date.height() / 2));
+        if (!calendar->isVisible())
+            calendar->show();
+    }
+    QCoreApplication::processEvents();
+    QVERIFY(calendar->isVisible());
+    const auto t = WinUI3::Private::tokens(calendar->palette());
+    QCOMPARE(t.textPrimary, dark ? QColor(255, 255, 255) : QColor(0, 0, 0, 228));
+    QCOMPARE(t.textSecondary, dark ? QColor(255, 255, 255, 197) : QColor(0, 0, 0, 158));
+    QCOMPARE(t.textDisabled, dark ? QColor(255, 255, 255, 93) : QColor(0, 0, 0, 92));
+    for (const char *name : { "qt_calendar_monthbutton", "qt_calendar_yearbutton" }) {
+        auto *button = calendar->findChild<QToolButton *>(QLatin1String(name));
+        QVERIFY(button);
+        // QCalToolButton's native paint copies HighlightedText into ButtonText
+        // at rest. These captions sit on a neutral surface, not an accent fill.
+        QTest::mouseMove(&host, QPoint(host.width() - 1, host.height() - 1));
+        button->grab();
+        for (int state = 0; state < 4; ++state) {
+            QStyleOptionToolButton option;
+            option.initFrom(button);
+            option.rect = button->rect();
+            option.text = button->text();
+            option.font = button->font();
+            option.fontMetrics = QFontMetrics(option.font);
+            option.toolButtonStyle = Qt::ToolButtonTextOnly;
+            option.state = QStyle::State_Active;
+            if (state != 3)
+                option.state |= QStyle::State_Enabled;
+            if (state == 1)
+                option.state |= QStyle::State_MouseOver;
+            if (state == 2)
+                option.state |= QStyle::State_Sunken;
+            const QColor ink = state == 3 ? t.textDisabled
+                    : state == 2          ? t.textSecondary
+                                          : t.textPrimary;
+            QCOMPARE(option.rect, button->rect());
+            const QColor background = calendar->window()->palette().color(QPalette::Window);
+            QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+            expected.fill(background);
+            {
+                QPainter painter(&expected);
+                painter.fillRect(expected.rect(), ink);
+            }
+            QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+            actual.fill(background);
+            {
+                QPainter painter(&actual);
+                style.drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, button);
+            }
+            int closest = 3 * 255;
+            for (int y = 0; y < actual.height(); ++y) {
+                for (int x = 0; x < actual.width(); ++x)
+                    closest =
+                            qMin(closest,
+                                 colorDistance(actual.pixelColor(x, y), expected.pixelColor(0, 0)));
+            }
+            QVERIFY2(closest <= 6,
+                     qPrintable(QStringLiteral("%1 state %2 caption ink distance %3")
+                                        .arg(QLatin1String(name))
+                                        .arg(state)
+                                        .arg(closest)));
+        }
+    }
+    calendar->hide();
+}
+
 QTEST_MAIN(WinUI3CalendarSurfaceTest)
 #include "tst_winui3calendarsurface.moc"
