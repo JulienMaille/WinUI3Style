@@ -1033,11 +1033,35 @@ void WinUI3EditorsTest::editorElevationBorder()
         return pixel.pixelColor(0, 0);
     };
     const int x = image.width() / 2;
-    const QColor bottomStroke = state == 2 ? t.stroke : state == 3 ? t.accentFill : t.strokeStrong;
-    // The existing focus underline clips its outer half-pixel to the rounded
-    // frame. Sample its fully covered inner row, not that antialiased edge.
-    const int bottomY = state == 3 ? qFloor((height - 1.5) * scale) : image.height() - 1;
-    QVERIFY2(colorDistance(image.pixelColor(x, bottomY), composite(bottomStroke)) <= 2,
+    if (state == 3) {
+        // An editable ComboBox retains the original focused surface path.
+        // Check the outer row too: strong rest ink must never leak below the
+        // existing rounded accent clip, particularly at 200% scale.
+        QStyleOptionComboBox focusedReference;
+        focusedReference.rect = rect;
+        focusedReference.palette = palette;
+        focusedReference.state = option.state;
+        focusedReference.direction = option.direction;
+        focusedReference.editable = true;
+        focusedReference.subControls = QStyle::SC_ComboBoxFrame;
+        QImage reference(image.size(), image.format());
+        reference.setDevicePixelRatio(scale);
+        reference.fill(t.surface);
+        {
+            QPainter painter(&reference);
+            style.drawComplexControl(QStyle::CC_ComboBox, &focusedReference, &painter);
+        }
+        for (int column = qCeil(8 * scale); column < image.width() - qCeil(8 * scale); ++column)
+            QCOMPARE(image.pixelColor(column, image.height() - 1),
+                     reference.pixelColor(column, reference.height() - 1));
+        QCOMPARE(image.pixelColor(x, 0), reference.pixelColor(x, 0));
+        QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 1.5) * scale)),
+                              composite(t.accentFill))
+                <= 2);
+        return;
+    }
+    const QColor bottomStroke = state == 2 ? t.stroke : t.strokeStrong;
+    QVERIFY2(colorDistance(image.pixelColor(x, image.height() - 1), composite(bottomStroke)) <= 2,
              "Editor bottom border does not use the pinned state brush");
     QVERIFY(colorDistance(image.pixelColor(x, 0), composite(t.stroke)) <= 2);
     if (state < 2) {

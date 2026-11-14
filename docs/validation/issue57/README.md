@@ -14,7 +14,12 @@ Normal and PointerOver select TextControlElevationBorderBrush. Its absolute
 2 DIP gradient reverses vertically. The final 1 DIP uses
 ControlStrongStrokeColorDefault (#72000000 Light, #8BFFFFFF Dark).
 The rest of the border uses ControlStrokeColorDefault. Disabled selects a
-uniform default stroke. The focused accent underline stays unchanged.
+uniform default stroke. Focused controls retain the entire original surface and accent paint path.
+Unfocused controls now use the pinned 1 DIP logical border, rather than a
+cosmetic 1 device pixel border. At 200%, each unfocused edge spans 2 physical
+pixels. This deliberate DPI correction follows the pinned template geometry.
+QTimeEdit and QDateTimeEdit without a calendar popup inherit the NumberBox
+frame. Calendar-popup date editors retain the unchanged ComboBox frame.
 No new color token or thicker resting underline is necessary.
 
 ## Authentic Gallery snapshots
@@ -46,5 +51,5 @@ The Windows official Gallery side-by-side comparison, Windows compositor,
 and approved Windows snapshot matrix remain unverified here.
 The coverage ledger remains partial.
 
-Not changed: ComboBox, tooltip, date picker, editor fill, padding, size,
+Not changed: ComboBox, tooltip, calendar-popup date editor, editor fill, padding, size,
 keyboard semantics, and step-button geometry.
