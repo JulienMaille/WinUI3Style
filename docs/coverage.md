@@ -25,10 +25,16 @@ this repair does not claim to correct the pre-existing focused brush or clip.
 `QTimeEdit` and `QDateTimeEdit` without a calendar popup inherit this NumberBox
 frame. Calendar-popup date editors use the unchanged ComboBox path.
 
-Status: partial — issue #57 reopens resting border evidence. Native local
-Gallery reproduction, a RED mechanism test, repaired state checks and exact
-pinned-source comparison are required. Official Windows Gallery side-by-side
-and Windows approved snapshot review remain outstanding on this Linux host.
+Status: partial — issue #57 resting border evidence reopened and repaired.
+Native local Gallery reproduction and repaired replay passed in Light/Dark
+and Standard/Compact. The new RED mechanism regression now passes all 384
+rows; all 460 editor checks pass. Independent review confirmed the pinned
+source mapping, unchanged generic controls, and pixel-identical focused
+output against main. The applicable 67-test suite passed twice; the static
+package test still fails identically on main in unrelated SettingsCard code.
+Official Windows Gallery side-by-side and Windows approved snapshot review
+remain outstanding on this Linux host. See `validation/issue57/` for authentic
+before/after Gallery captures.
 
 ## Issue #22 — icon-font fallback mapping (2026-10-29)
 
