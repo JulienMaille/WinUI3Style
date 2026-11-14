@@ -428,7 +428,7 @@ static bool drawLineEditPanelPrimitive(const Style *, const QStyleOption *option
     QColor fill = !enabled ? t.controlDisabled : focused ? t.editorFocusedFill : t.control;
     if (enabled && !focused)
         fill = mix(fill, t.controlHover, lineEditHover);
-    controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
+    editorSurface(painter, option->rect, fill, t.stroke, t.strokeStrong, ControlRadius, enabled);
     if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget)) {
         const auto *clearButton = lineEditClearButton(lineEdit);
         const qreal clearHover = progress(clearButton, hoverProperty, 0.0);

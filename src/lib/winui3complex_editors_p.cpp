@@ -84,7 +84,8 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             QColor fill = !enabled ? t.controlDisabled
                     : focused      ? t.editorFocusedFill
                                    : mix(t.control, t.controlHover, hover);
-            controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
+            editorSurface(painter, spin->rect, fill, t.stroke, t.strokeStrong, ControlRadius,
+                          enabled);
             if (verticalButtons) {
                 const QRect editField = style->subControlRect(QStyle::CC_SpinBox, spin,
                                                               QStyle::SC_SpinBoxEditField, widget);

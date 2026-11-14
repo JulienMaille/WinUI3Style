@@ -104,6 +104,8 @@ private slots:
     void clearButtonDensityGeometry_data();
     void clearButtonDensityGeometry();
     void textBoxStateMatrix();
+    void editorElevationBorder_data();
+    void editorElevationBorder();
     void indeterminateProgressDeterminism();
     void numberBoxSubcontrolContract();
     void verticalNumberBoxContract();
@@ -946,6 +948,104 @@ void WinUI3EditorsTest::tableEditorTrackerLifetimeContract()
     QCoreApplication::processEvents(); // deliver the orphaned retry singleShot
     // doomedTable and table are destroyed at scope exit, covering the
     // table-destroyed path after the tracker's death.
+}
+
+void WinUI3EditorsTest::editorElevationBorder_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("editor");
+    QTest::addColumn<int>("state");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<qreal>("scale");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            for (int editor : { 0, 1, 2 }) // TextBox, inline NumberBox, stacked NumberBox
+                for (int state : { 0, 1, 2, 3 }) // rest, hover, disabled, focus
+                    for (bool rtl : { false, true })
+                        for (qreal scale : { 1.0, 1.25, 1.5, 2.0 }) {
+                            const QByteArray name = QStringLiteral("%1-%2-editor%3-state%4-%5-%6")
+                                                            .arg(dark)
+                                                            .arg(compact)
+                                                            .arg(editor)
+                                                            .arg(state)
+                                                            .arg(rtl)
+                                                            .arg(scale)
+                                                            .toLatin1();
+                            QTest::newRow(name.constData())
+                                    << dark << compact << editor << state << rtl << scale;
+                        }
+}
+
+void WinUI3EditorsTest::editorElevationBorder()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(int, editor);
+    QFETCH(int, state);
+    QFETCH(bool, rtl);
+    QFETCH(qreal, scale);
+    WinUI3::Style style(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QSpinBox spin;
+    spin.setProperty(WinUI3::Style::VerticalSpinButtonsProperty, editor == 2);
+    const QPalette palette = style.standardPalette();
+    const auto t = WinUI3::Private::tokens(palette);
+    // Pinned Common_themeresources_any.xaml, not generic ControlStrokeSecondary.
+    QCOMPARE(t.stroke, dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 15));
+    QCOMPARE(t.strokeStrong, dark ? QColor(255, 255, 255, 139) : QColor(0, 0, 0, 114));
+    const int height = compact ? 24 : 32;
+    const QRect rect(0, 0, 240, height);
+    QStyleOptionSpinBox option;
+    option.rect = rect;
+    option.palette = palette;
+    option.direction = rtl ? Qt::RightToLeft : Qt::LeftToRight;
+    option.state = state == 2 ? QStyle::State_None : QStyle::State_Enabled;
+    if (state == 1)
+        option.state |= QStyle::State_MouseOver;
+    if (state == 3)
+        option.state |= QStyle::State_HasFocus;
+    option.subControls = QStyle::SC_SpinBoxFrame;
+    // No content-size or subcontrol change accompanies the brush correction.
+    QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &option, QSize(60, 10)).height(), height);
+    const QColor fill = state == 2 ? t.controlDisabled
+            : state == 3           ? t.editorFocusedFill
+            : state == 1           ? t.controlHover
+                                   : t.control;
+    QImage image(QSize(qRound(rect.width() * scale), qRound(height * scale)),
+                 QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(scale);
+    image.fill(t.surface);
+    {
+        QPainter painter(&image);
+        if (editor == 0)
+            style.drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter);
+        else
+            style.drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
+    }
+    const auto composite = [&](const QColor &stroke) {
+        QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+        pixel.fill(t.surface);
+        QPainter painter(&pixel);
+        painter.fillRect(pixel.rect(), fill);
+        painter.fillRect(pixel.rect(), stroke);
+        painter.end();
+        return pixel.pixelColor(0, 0);
+    };
+    const int x = image.width() / 2;
+    const QColor bottomStroke = state == 2 ? t.stroke : state == 3 ? t.accentFill : t.strokeStrong;
+    // The existing focus underline clips its outer half-pixel to the rounded
+    // frame. Sample its fully covered inner row, not that antialiased edge.
+    const int bottomY = state == 3 ? qFloor((height - 1.5) * scale) : image.height() - 1;
+    QVERIFY2(colorDistance(image.pixelColor(x, bottomY), composite(bottomStroke)) <= 2,
+             "Editor bottom border does not use the pinned state brush");
+    QVERIFY(colorDistance(image.pixelColor(x, 0), composite(t.stroke)) <= 2);
+    if (state < 2) {
+        // Only the border is strong: do not invent a 2 DIP resting underline.
+        QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 2) * scale)),
+                              composite(Qt::transparent))
+                <= 2);
+    }
 }
 
 QTEST_MAIN(WinUI3EditorsTest)

@@ -1,5 +1,30 @@
 # Control coverage ledger
 
+## Issue #57 — TextBox / NumberBox resting elevation border (2026-11-14)
+
+Mapping: `QLineEdit` is a direct TextBox mapping. `QSpinBox` / `QDoubleSpinBox`
+map to NumberBox's `InputBox` (`NumberBoxTextBoxStyle`, based on
+`DefaultTextBoxStyle`); stacked step buttons remain a Qt consistency extension.
+The owner paints the whole NumberBox frame; its child editor paints no frame.
+Existing step rectangles, z-order, hit testing and focus ownership stay unchanged.
+
+Pinned source: `microsoft-ui-xaml` commit
+`9f89c2da5a5502c263d9268fee224697c47ecb6e`,
+`controls/dev/CommonStyles/TextBox_themeresources_perf2026.xaml` and
+`Common_themeresources_any.xaml`, plus `controls/dev/NumberBox/NumberBox.xaml`.
+Normal and PointerOver use `TextControlElevationBorderBrush`: an absolute
+2 DIP gradient reflected vertically, strong at offset 0.5 and default at 1.0.
+The bottom 1 DIP therefore uses `ControlStrongStrokeColorDefault`
+(`#72000000` Light / `#8BFFFFFF` Dark), not the generic control secondary stroke.
+The remaining border uses `ControlStrokeColorDefault`; Disabled uses that
+uniform brush. The apparent thicker resting edge comes from contrast, not a
+new 2 DIP underline. Focus retains the existing 2 DIP accent underline.
+
+Status: partial — issue #57 reopens resting border evidence. Native local
+Gallery reproduction, a RED mechanism test, repaired state checks and exact
+pinned-source comparison are required. Official Windows Gallery side-by-side
+and Windows approved snapshot review remain outstanding on this Linux host.
+
 ## Issue #22 — icon-font fallback mapping (2026-10-29)
 
 Mapping: `WinUI3::Icon` is the style's shared Fluent icon vocabulary, rendered

@@ -2,6 +2,7 @@
 #include "winui3paint_p.h"
 
 #include "winui3qtcompat_p.h"
+#include "winui3tokens_p.h"
 
 #include <winui3style/winui3icons.h>
 
@@ -107,9 +108,8 @@ void paintDropdownChevron(QPainter *painter, const QIcon &source, const QRect &b
     paintThemedIcon(painter, source, chevronRect, Qt::AlignCenter, foreground, mode, state);
 }
 
-void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
-                    const QColor &strokeTop, const QColor &strokeBottom, qreal radius,
-                    qreal strokeWidth)
+static void borderedSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
+                            const QBrush &border, qreal radius, qreal strokeWidth, bool cosmetic)
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
@@ -118,17 +118,36 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
     painter->setPen(Qt::NoPen);
     painter->setBrush(fill);
     painter->drawRoundedRect(rect, radius, radius);
-    QLinearGradient border(rect.topLeft(), rect.bottomLeft());
-    border.setColorAt(0.0, strokeTop);
-    border.setColorAt(1.0, strokeBottom);
-    QPen borderPen(QBrush(border), strokeWidth);
-    borderPen.setCosmetic(true);
+    QPen borderPen(border, strokeWidth);
+    borderPen.setCosmetic(cosmetic);
     painter->setBrush(Qt::NoBrush);
     painter->setPen(borderPen);
     painter->drawRoundedRect(rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
                                            -strokeWidth / 2.0),
                              radius, radius);
     painter->restore();
+}
+
+void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
+                    const QColor &strokeTop, const QColor &strokeBottom, qreal radius,
+                    qreal strokeWidth)
+{
+    QLinearGradient border(rect.topLeft(), rect.bottomLeft());
+    border.setColorAt(0.0, strokeTop);
+    border.setColorAt(1.0, strokeBottom);
+    borderedSurface(painter, rect, fill, QBrush(border), radius, strokeWidth, true);
+}
+
+void editorSurface(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
+                   const QColor &strokeStrong, qreal radius, bool enabled)
+{
+    QLinearGradient border(rect.bottomLeft() - QPointF(0, Private::EditorElevationGradientHeight),
+                           rect.bottomLeft());
+    border.setColorAt(0.0, stroke);
+    border.setColorAt(Private::EditorElevationStrongStop, enabled ? strokeStrong : stroke);
+    border.setColorAt(1.0, enabled ? strokeStrong : stroke);
+    borderedSurface(painter, rect, fill, QBrush(border), radius, Private::EditorBorderThickness,
+                    false);
 }
 
 void drawEditorFocusUnderline(QPainter *painter, const QRectF &rect, const QColor &accent,
