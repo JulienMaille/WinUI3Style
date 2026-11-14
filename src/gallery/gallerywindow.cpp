@@ -128,12 +128,32 @@ GalleryWindow::~GalleryWindow()
 void GalleryWindow::changeEvent(QEvent *event)
 {
     QMainWindow::changeEvent(event);
-    if (event->type() == QEvent::PaletteChange)
+    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::LayoutDirectionChange)
         refreshCardIcons();
 }
 
 void GalleryWindow::refreshCardIcons()
 {
+    const bool rtl = layoutDirection() == Qt::RightToLeft;
+    // Designer owns the LTR composition. Qt layout margins are physical, so
+    // orient each asymmetric pair without copying its values into C++.
+    const auto orientMargins = [rtl](QLayout *layout, bool leadingIsLarger) {
+        const QMargins margins = layout->contentsMargins();
+        const int smaller = qMin(margins.left(), margins.right());
+        const int larger = qMax(margins.left(), margins.right());
+        const int leading = leadingIsLarger ? larger : smaller;
+        const int trailing = leadingIsLarger ? smaller : larger;
+        layout->setContentsMargins(rtl ? trailing : leading, margins.top(),
+                                   rtl ? leading : trailing, margins.bottom());
+    };
+    for (QLayout *layout : { static_cast<QLayout *>(ui->notificationsCardIconLayout),
+                             static_cast<QLayout *>(ui->updatesCardIconLayout),
+                             static_cast<QLayout *>(ui->advancedIconLayout),
+                             static_cast<QLayout *>(ui->advancedHeaderLayout),
+                             static_cast<QLayout *>(ui->advancedTextLayout) })
+        orientMargins(layout, false);
+    orientMargins(ui->advancedDetailsLayout, true);
+
     // SettingsCard header icon: SettingsCardHeaderIconMaxSize 20, drawn from
     // the style's themed standard icons. A QLabel stores a plain pixmap, so a
     // theme switch must re-render it or the old ink stays on the new surface.

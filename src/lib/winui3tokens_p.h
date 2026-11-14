@@ -22,6 +22,21 @@ constexpr int NormalDuration = 250;
 constexpr int SettingsExpanderExpandDuration = 333;
 constexpr int SettingsExpanderCollapseDuration = 167;
 constexpr int SettingsExpanderChevronGlyphSize = 16;
+constexpr int SettingsExpanderChevronBoxSize = 32;
+constexpr int SettingsExpanderChevronMargin = 8;
+// SettingsControls templates pinned in docs/coverage.md (issue #56).
+constexpr int SettingsCardPadding = 16;
+constexpr int SettingsCardBorderThickness = 1;
+constexpr int SettingsExpanderContentMinHeight = 52 - 2 + 1;
+constexpr int SettingsExpanderContentRowMinHeight = SettingsExpanderContentMinHeight - 7 - 9;
+constexpr int SettingsCardIconLeadingMargin = 2;
+constexpr int SettingsCardIconTrailingMargin = 20;
+inline QMargins settingsExpanderContentMargins(bool rtl)
+{
+    // ItemPadding 58,8,44,8 + content border 1,0,1,1 + item border 0,1,0,0
+    // + presenter Margin 0,-2,0,0. Header also includes its 1 px border.
+    return rtl ? QMargins(45, 7, 59, 9) : QMargins(59, 7, 45, 9);
+}
 constexpr qreal ControlRadius = 4.0;
 constexpr qreal OverlayRadius = 8.0;
 // WinUI `DefaultToolTipStyle` (ToolTip_themeresources.xaml): a 1 px border,
@@ -82,6 +97,7 @@ struct Tokens
     QColor subtleHover;
     QColor subtlePressed;
     QColor stroke;
+    QColor cardStroke;
     QColor strokeSecondary;
     QColor strokeStrong;
     QColor accentStroke;
@@ -229,6 +245,8 @@ inline Tokens buildTokens(const QPalette &palette)
     t.subtleHover = withAlpha(ink, t.dark ? 15 : 9);
     t.subtlePressed = withAlpha(ink, t.dark ? 10 : 6);
     t.stroke = palette.color(QPalette::Mid);
+    // ExpanderContentBorderBrush = CardStrokeColorDefault, not ControlStroke.
+    t.cardStroke = QColor(0, 0, 0, t.dark ? 25 : 15);
     t.strokeSecondary = palette.color(QPalette::Midlight);
     t.strokeStrong = withAlpha(ink, t.dark ? 139 : 114);
     t.accentStroke = QColor(255, 255, 255, 20);

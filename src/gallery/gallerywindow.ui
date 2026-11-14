@@ -120,10 +120,10 @@
         <property name="minimumSize"><size><width>148</width><height>68</height></size></property>
         <property name="winuiSettingsCard" stdset="0"><bool>true</bool></property>
         <layout class="QHBoxLayout" name="notificationsCardLayout">
-         <property name="leftMargin"><number>16</number></property>
-         <property name="topMargin"><number>16</number></property>
-         <property name="rightMargin"><number>16</number></property>
-         <property name="bottomMargin"><number>16</number></property>
+         <property name="leftMargin"><number>17</number></property>
+         <property name="topMargin"><number>17</number></property>
+         <property name="rightMargin"><number>17</number></property>
+         <property name="bottomMargin"><number>17</number></property>
          <property name="spacing"><number>0</number></property>
          <item><widget class="QWidget" name="notificationsCardIconBox">
           <property name="minimumSize"><size><width>42</width><height>20</height></size></property>
@@ -131,7 +131,7 @@
           <layout class="QHBoxLayout" name="notificationsCardIconLayout">
            <property name="leftMargin"><number>2</number></property>
            <property name="topMargin"><number>0</number></property>
-           <property name="rightMargin"><number>0</number></property>
+           <property name="rightMargin"><number>20</number></property>
            <property name="bottomMargin"><number>0</number></property>
            <property name="spacing"><number>0</number></property>
            <item><widget class="QLabel" name="notificationsCardIcon">
@@ -154,10 +154,10 @@
         <property name="minimumSize"><size><width>148</width><height>68</height></size></property>
         <property name="winuiSettingsCard" stdset="0"><bool>true</bool></property>
         <layout class="QHBoxLayout" name="updatesCardLayout">
-         <property name="leftMargin"><number>16</number></property>
-         <property name="topMargin"><number>16</number></property>
-         <property name="rightMargin"><number>16</number></property>
-         <property name="bottomMargin"><number>16</number></property>
+         <property name="leftMargin"><number>17</number></property>
+         <property name="topMargin"><number>17</number></property>
+         <property name="rightMargin"><number>17</number></property>
+         <property name="bottomMargin"><number>17</number></property>
          <property name="spacing"><number>0</number></property>
          <item><widget class="QWidget" name="updatesCardIconBox">
           <property name="minimumSize"><size><width>42</width><height>20</height></size></property>
@@ -165,7 +165,7 @@
           <layout class="QHBoxLayout" name="updatesCardIconLayout">
            <property name="leftMargin"><number>2</number></property>
            <property name="topMargin"><number>0</number></property>
-           <property name="rightMargin"><number>0</number></property>
+           <property name="rightMargin"><number>20</number></property>
            <property name="bottomMargin"><number>0</number></property>
            <property name="spacing"><number>0</number></property>
            <item><widget class="QLabel" name="updatesCardIcon">
@@ -195,11 +195,12 @@
          <property name="bottomMargin"><number>0</number></property>
          <property name="spacing"><number>0</number></property>
          <item><widget class="QWidget" name="advancedHeader">
+          <property name="minimumSize"><size><width>0</width><height>68</height></size></property>
           <layout class="QHBoxLayout" name="advancedHeaderLayout">
-           <property name="leftMargin"><number>16</number></property>
-           <property name="topMargin"><number>16</number></property>
-           <property name="rightMargin"><number>44</number></property>
-           <property name="bottomMargin"><number>16</number></property>
+           <property name="leftMargin"><number>17</number></property>
+           <property name="topMargin"><number>17</number></property>
+           <property name="rightMargin"><number>45</number></property>
+           <property name="bottomMargin"><number>17</number></property>
            <property name="spacing"><number>0</number></property>
            <item><widget class="QWidget" name="advancedIconBox">
             <property name="minimumSize"><size><width>42</width><height>20</height></size></property>
@@ -207,7 +208,7 @@
             <layout class="QHBoxLayout" name="advancedIconLayout">
              <property name="leftMargin"><number>2</number></property>
              <property name="topMargin"><number>0</number></property>
-             <property name="rightMargin"><number>0</number></property>
+             <property name="rightMargin"><number>20</number></property>
              <property name="bottomMargin"><number>0</number></property>
              <property name="spacing"><number>0</number></property>
              <item><widget class="QLabel" name="advancedIcon">
@@ -226,12 +227,12 @@
          </widget></item>
          <item><widget class="QWidget" name="advancedDetailsHost">
           <property name="winuiSettingsCardExpansion" stdset="0"><bool>true</bool></property>
-          <layout class="QVBoxLayout" name="advancedDetailsLayout">
-           <property name="leftMargin"><number>58</number></property>
-           <property name="topMargin"><number>8</number></property>
-           <property name="rightMargin"><number>44</number></property>
-           <property name="bottomMargin"><number>8</number></property>
-           <item><widget class="QLabel" name="advancedDetails"><property name="text"><string>Expanded settings content. This area shares the card surface with no frame or border.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+          <layout class="QGridLayout" name="advancedDetailsLayout" rowminimumheight="35">
+           <property name="leftMargin"><number>59</number></property>
+           <property name="topMargin"><number>7</number></property>
+           <property name="rightMargin"><number>45</number></property>
+           <property name="bottomMargin"><number>9</number></property>
+           <item row="0" column="0" alignment="Qt::AlignVCenter"><widget class="QLabel" name="advancedDetails"><property name="text"><string>Expanded settings content with the WinUI SettingsExpander separator and margins.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
           </layout>
          </widget></item>
         </layout>

@@ -53,20 +53,23 @@ SettingsCard::SettingsCard(QWidget *parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAttribute(Qt::WA_Hover);
 
-    m_rootLayout->setContentsMargins(16, 0, 16, 0);
+    setContentsMargins(0, 0, 0, 0);
+    m_rootLayout->setContentsMargins(0, 0, 0, 0);
     m_rootLayout->setSpacing(0);
-    // Expanded content shares the card surface: plain host, no fill,
-    // no frame/border of its own.
+    // The style paints the card and its expansion separator.
     m_expandableHost->setAutoFillBackground(false);
     m_headerHost->setObjectName(QStringLiteral("_winui_settings_card_headerHost"));
     m_expandableHost->setObjectName(QStringLiteral("_winui_settings_card_expandableHost"));
     m_headerHost->setMouseTracking(true);
     m_headerHost->installEventFilter(this);
     m_headerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_headerLayout->setContentsMargins(0, 12, 0, 12);
-    m_headerLayout->setHorizontalSpacing(12);
+    m_headerLayout->setContentsMargins(
+            Private::SettingsCardPadding + Private::SettingsCardBorderThickness, 12,
+            Private::SettingsCardPadding + Private::SettingsCardBorderThickness, 12);
+    m_headerLayout->setHorizontalSpacing(Private::SettingsCardIconTrailingMargin);
     m_headerLayout->setVerticalSpacing(2);
-    m_iconLabel->setFixedWidth(20);
+    m_iconLabel->setFixedWidth(20 + Private::SettingsCardIconLeadingMargin);
+    m_iconLabel->setContentsMargins(Private::SettingsCardIconLeadingMargin, 0, 0, 0);
     m_iconLabel->setAlignment(Qt::AlignCenter);
     m_titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_descriptionLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -74,7 +77,8 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_titleLabel->setObjectName(QStringLiteral("_winui_settings_card_title"));
     m_descriptionLabel->setObjectName(QStringLiteral("_winui_settings_card_description"));
     m_chevronLabel->setObjectName(QStringLiteral("_winui_settings_card_chevron"));
-    m_chevronLabel->setFixedSize(20, 20);
+    m_chevronLabel->setFixedSize(Private::SettingsExpanderChevronBoxSize,
+                                 Private::SettingsExpanderChevronBoxSize);
     m_chevronLabel->setAlignment(Qt::AlignCenter);
     m_chevronLabel->setVisible(false);
     // Decorative header children let the header host receive the gesture so
@@ -93,7 +97,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_headerLayout->addWidget(m_titleLabel, 0, 1);
     m_headerLayout->addWidget(m_descriptionLabel, 1, 1);
     m_headerLayout->addWidget(m_chevronLabel, 0, 2, 2, 1, Qt::AlignVCenter);
-    m_headerLayout->setColumnMinimumWidth(2, 20);
+    m_headerLayout->setColumnMinimumWidth(2, Private::SettingsExpanderChevronBoxSize);
     m_headerLayout->setColumnStretch(1, 1);
     m_headerHost->setLayout(m_headerLayout);
     m_rootLayout->addWidget(m_headerHost);
@@ -366,10 +370,11 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
     }
     m_expandableWidget = widget;
     if (widget) {
-        auto *layout = new QVBoxLayout(m_expandableHost);
+        auto *layout = new QGridLayout(m_expandableHost);
         const bool rtl = layoutDirection() == Qt::RightToLeft;
-        layout->setContentsMargins(rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
-        layout->addWidget(widget);
+        layout->setContentsMargins(Private::settingsExpanderContentMargins(rtl));
+        layout->setRowMinimumHeight(0, Private::SettingsExpanderContentRowMinHeight);
+        layout->addWidget(widget, 0, 0, Qt::AlignVCenter);
         widget->installEventFilter(this);
         const QPointer<QWidget> guarded = widget;
         m_expandableDestroyedConnection =
@@ -455,6 +460,13 @@ void SettingsCard::refreshHeaderGeometry()
     if (!m_headerHost || !m_headerLayout)
         return;
 
+    // Run for construction as well as direction changes: an inherited RTL
+    // direction is already present before this class receives changeEvent.
+    const bool rtl = layoutDirection() == Qt::RightToLeft;
+    m_iconLabel->setContentsMargins(rtl ? 0 : Private::SettingsCardIconLeadingMargin, 0,
+                                    rtl ? Private::SettingsCardIconLeadingMargin : 0, 0);
+    m_headerLayout->setColumnMinimumWidth(
+            2, m_expandableWidget ? Private::SettingsExpanderChevronBoxSize : 0);
     const QMargins headerMargins = m_headerLayout->contentsMargins();
     const int textLineHeight = qMax(m_titleLabel->fontMetrics().lineSpacing(),
                                     m_descriptionLabel->fontMetrics().lineSpacing());
@@ -526,7 +538,8 @@ int SettingsCard::expandableContentHeight()
 
     const int width = m_expandableWidget->width();
     if (!m_expandableHeightValid || m_expandableContentWidth != width) {
-        m_expandableContentHeight = qMax(0, m_expandableWidget->sizeHint().height() + 16);
+        m_expandableContentHeight = qMax(Private::SettingsExpanderContentMinHeight,
+                                         m_expandableHost->layout()->sizeHint().height());
         m_expandableContentWidth = width;
         m_expandableHeightValid = true;
     }
@@ -599,7 +612,8 @@ void SettingsCard::changeEvent(QEvent *event)
         refreshIconPixmap();
         if (event->type() == QEvent::LayoutDirectionChange && m_expandableHost->layout()) {
             const bool rtl = layoutDirection() == Qt::RightToLeft;
-            m_expandableHost->layout()->setContentsMargins(rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
+            m_expandableHost->layout()->setContentsMargins(
+                    Private::settingsExpanderContentMargins(rtl));
         }
     }
     QFrame::changeEvent(event);

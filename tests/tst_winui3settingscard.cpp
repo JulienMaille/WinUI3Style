@@ -148,6 +148,12 @@ private slots:
     void init();
     void cleanup();
     void settingsCardExpansion();
+    void settingsCardContentGeometry_data();
+    void settingsCardContentGeometry();
+    void settingsCardNestedExpansionSeparator_data();
+    void settingsCardNestedExpansionSeparator();
+    void settingsCardInheritedDirectionAndTrailingInset_data();
+    void settingsCardInheritedDirectionAndTrailingInset();
     void settingsCardDesignerPropertyBindings();
     void settingsCardTrailingWidgetsReceiveClicks();
     void settingsCardTrailingWidgetsHaveUniformHeight();
@@ -372,12 +378,12 @@ void WinUI3SettingsCardTest::settingsCardChevronAndStableHeader()
     card.setProperty("expansionProgress", 0.0);
     QCoreApplication::processEvents();
     QCOMPARE(chevronRotation(), 0.0);
-    QCOMPARE(chevron->geometry().size(), QSize(20, 20));
+    QCOMPARE(chevron->geometry().size(), QSize(32, 32));
     const QImage collapsedGlyph = card.grab().toImage().copy(chevronInCard);
     card.setProperty("expansionProgress", 0.5);
     QCoreApplication::processEvents();
     QCOMPARE(chevronRotation(), 90.0);
-    QCOMPARE(chevron->geometry().size(), QSize(20, 20));
+    QCOMPARE(chevron->geometry().size(), QSize(32, 32));
     const QImage midpointGlyph = card.grab().toImage().copy(chevronInCard);
     QVERIFY(collapsedGlyph != midpointGlyph);
     card.setProperty("expansionProgress", 0.0);
@@ -842,6 +848,144 @@ void WinUI3SettingsCardTest::settingsCardStockTrailingCardStaysInert()
     QTest::qWait(20);
     QCOMPARE(card->property(WinUI3::Style::SettingsCardExpandedProperty).isValid(), false);
     QCOMPARE(toggle->isChecked(), false);
+}
+
+void WinUI3SettingsCardTest::settingsCardContentGeometry_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            for (bool rtl : { false, true })
+                QTest::newRow(
+                        qPrintable(QStringLiteral("%1-%2-%3").arg(dark).arg(compact).arg(rtl)))
+                        << dark << compact << rtl;
+}
+void WinUI3SettingsCardTest::settingsCardContentGeometry()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    qobject_cast<WinUI3::Style *>(qApp->style())
+            ->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    WinUI3::SettingsCard card;
+    WinUI3::Style::setDensityMode(
+            &card, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    card.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    card.setTitle(QStringLiteral("Advanced"));
+    card.setIcon(WinUI3::icon(WinUI3::Icon::Settings));
+    auto *details = new QLabel(QStringLiteral("Details"));
+    card.setExpandableWidget(details);
+    card.resize(480, 200);
+    card.show();
+    card.setExpanded(true);
+    QTRY_COMPARE(card.property("expansionProgress").toReal(), 1.0);
+    auto *host = card.findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
+    QCOMPARE(host->x(), 0);
+    QCOMPARE(host->width(), card.width());
+    QCOMPARE(host->layout()->contentsMargins(),
+             rtl ? QMargins(45, 7, 59, 9) : QMargins(59, 7, 45, 9));
+    QCOMPARE(details->mapTo(&card, QPoint()).x(), rtl ? 45 : 59);
+    auto *title = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
+    const int contentLeading = details->mapTo(&card, QPoint()).x() + (rtl ? details->width() : 0);
+    const int titleLeading = title->mapTo(&card, QPoint()).x() + (rtl ? title->width() : 0);
+    QCOMPARE(contentLeading, titleLeading);
+    QCOMPARE(details->geometry().center().y(), (host->height() - 9 + 7 - 1) / 2);
+    QCOMPARE(host->sizeHint().height(), 51);
+    QVERIFY(host->height() >= 51);
+
+    const int seam = host->y() - 1;
+    const QImage image = card.grab().toImage();
+    const auto t = WinUI3::Private::tokens(card.palette());
+    QCOMPARE(t.cardStroke, QColor(0, 0, 0, dark ? 25 : 15));
+    QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+    expected.fill(image.pixelColor(card.width() / 2, seam - 1));
+    QPainter painter(&expected);
+    painter.fillRect(expected.rect(), t.cardStroke);
+    painter.end();
+    QCOMPARE(image.pixelColor(card.width() / 2, seam), expected.pixelColor(0, 0));
+}
+
+void WinUI3SettingsCardTest::settingsCardNestedExpansionSeparator_data()
+{
+    settingsCardContentGeometry_data();
+}
+void WinUI3SettingsCardTest::settingsCardNestedExpansionSeparator()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    qobject_cast<WinUI3::Style *>(qApp->style())
+            ->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QFrame outer;
+    WinUI3::Style::setSettingsCard(&outer);
+    WinUI3::Style::setDensityMode(
+            &outer, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    outer.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    outer.resize(480, 400);
+    auto *inner = new WinUI3::SettingsCard(&outer);
+    inner->setTitle(QStringLiteral("Nested"));
+    inner->setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    inner->setGeometry(80, 160, 300, 200);
+    outer.show();
+    inner->setExpanded(true);
+    QTRY_COMPARE(inner->property("expansionProgress").toReal(), 1.0);
+    auto *host = inner->findChild<QWidget *>(QStringLiteral("_winui_settings_card_expandableHost"));
+    const int wrongSeam = host->y() - 1;
+    QVERIFY(wrongSeam < inner->y());
+    const QImage image = outer.grab().toImage();
+    // A nested host has no right to add a separator to the outer card.
+    QCOMPARE(image.pixelColor(20, wrongSeam), image.pixelColor(20, wrongSeam - 1));
+}
+
+void WinUI3SettingsCardTest::settingsCardInheritedDirectionAndTrailingInset_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<bool>("expandable");
+    for (bool compact : { false, true })
+        for (bool rtl : { false, true })
+            for (bool expandable : { false, true })
+                QTest::newRow(qPrintable(
+                        QStringLiteral("%1-%2-%3").arg(compact).arg(rtl).arg(expandable)))
+                        << compact << rtl << expandable;
+}
+void WinUI3SettingsCardTest::settingsCardInheritedDirectionAndTrailingInset()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    QFETCH(bool, expandable);
+    QWidget parent;
+    parent.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    WinUI3::SettingsCard card(&parent);
+    WinUI3::Style::setDensityMode(
+            &card, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    card.setTitle(QStringLiteral("Setting"));
+    card.setIcon(WinUI3::icon(WinUI3::Icon::Settings));
+    auto *trailing = new QPushButton(QStringLiteral("Action"));
+    trailing->setFixedWidth(100);
+    card.setTrailingWidget(trailing);
+    if (expandable)
+        card.setExpandableWidget(new QLabel(QStringLiteral("Details")));
+    card.resize(600, 180);
+    parent.resize(600, 180);
+    parent.show();
+    QCoreApplication::processEvents();
+    const int x = trailing->mapTo(&card, QPoint()).x();
+    QCOMPARE(rtl ? x : card.width() - x - trailing->width(), 17);
+    auto *title = card.findChild<QLabel *>(QStringLiteral("_winui_settings_card_title"));
+    const int titleX = title->mapTo(&card, QPoint()).x();
+    QCOMPARE(rtl ? card.width() - titleX - title->width() : titleX, 59);
+    auto *header = card.findChild<QWidget *>(QStringLiteral("_winui_settings_card_headerHost"));
+    QCOMPARE(header->layout()->contentsMargins(), QMargins(17, 12, 17, 12));
+    auto *grid = qobject_cast<QGridLayout *>(header->layout());
+    QCOMPARE(grid->columnMinimumWidth(2), expandable ? 32 : 0);
+    // Changing direction after construction must obey the same contract.
+    card.setLayoutDirection(rtl ? Qt::LeftToRight : Qt::RightToLeft);
+    QCoreApplication::processEvents();
+    const int switchedX = trailing->mapTo(&card, QPoint()).x();
+    QCOMPARE(rtl ? card.width() - switchedX - trailing->width() : switchedX, 17);
 }
 
 QTEST_MAIN(WinUI3SettingsCardTest)
