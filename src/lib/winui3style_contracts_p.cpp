@@ -122,9 +122,9 @@ static QSize pushButtonSize(const QStyleOption *option, QSize size, const QWidge
 }
 
 static QSize comboBoxSize(const QStyleOption *option, QSize size, const QWidget *widget,
-                          const DensityMetrics &density)
+                          const DensityMetrics &density, DensityMode mode)
 {
-    if (densityModeFor(widget) == DensityMode::Compact) {
+    if (mode == DensityMode::Compact) {
         size.rwidth() += 2 * density.comboHorizontalPadding;
         const int targetHeight = density.comboBoxHeight;
         if (option
@@ -168,10 +168,10 @@ static QSize comboBoxSize(const QStyleOption *option, QSize size, const QWidget 
     return size;
 }
 
-static QSize lineEditSize(const QStyleOption *option, QSize size, const QWidget *widget,
-                          const DensityMetrics &density)
+static QSize lineEditSize(const QStyleOption *option, QSize size, const DensityMetrics &density,
+                          DensityMode mode)
 {
-    if (densityModeFor(widget) == DensityMode::Compact) {
+    if (mode == DensityMode::Compact) {
         size.rwidth() += 2 * density.lineEditHorizontalPadding;
         const int targetHeight = density.textBoxHeight;
         if (option
@@ -191,12 +191,12 @@ static QSize lineEditSize(const QStyleOption *option, QSize size, const QWidget 
 }
 
 static QSize spinBoxSize(const QStyleOption *option, QSize size, const QWidget *widget,
-                         const DensityMetrics &density)
+                         const DensityMetrics &density, DensityMode mode)
 {
     size += QSize(verticalSpinButtons(widget) ? density.verticalSpinButtonWidth + 12
                                               : 2 * density.spinButtonWidth + 12,
                   0);
-    if (densityModeFor(widget) == DensityMode::Compact) {
+    if (mode == DensityMode::Compact) {
         const int targetHeight = density.textBoxHeight;
         if (option && (option->fontMetrics.height() + 8 > targetHeight + 4))
             size.setHeight(option->fontMetrics.height() + 8);
@@ -212,11 +212,11 @@ static QSize spinBoxSize(const QStyleOption *option, QSize size, const QWidget *
 }
 
 static QSize toolButtonSize(const QStyleOption *option, QSize size, const QWidget *widget,
-                            const DensityMetrics &density)
+                            const DensityMetrics &density, DensityMode mode)
 {
     if (textBoxHelperButton(widget)) {
         // Qt positions these children explicitly; keep size hints within the editor height.
-        if (densityModeFor(widget) == DensityMode::Compact)
+        if (mode == DensityMode::Compact)
             return QSize(density.textBoxHeight, density.textBoxHeight);
         return QSize(30, density.toolButtonHeight);
     }
@@ -329,7 +329,7 @@ static QSize headerSectionSize(QSize size, const DensityMetrics &density)
 }
 
 static QSize checkBoxSize(const QStyleOption *option, QSize size, const QWidget *widget,
-                          const DensityMetrics &density)
+                          const DensityMetrics &density, DensityMode mode)
 {
     if (toggleSwitch(widget)) {
         const auto *check = qstyleoption_cast<const QStyleOptionButton *>(option);
@@ -347,7 +347,7 @@ static QSize checkBoxSize(const QStyleOption *option, QSize size, const QWidget 
     // Label is painted from x=32 with a 4px right margin; Qt passes only
     // the text size as contents, so the hint must cover indicator, gap,
     // and trailing margin to avoid clipping the last glyph.
-    if (densityModeFor(widget) == DensityMode::Compact) {
+    if (mode == DensityMode::Compact) {
         size += QSize(36, 4);
         size.setHeight(qMax(size.height(), 24));
     } else {
@@ -357,10 +357,10 @@ static QSize checkBoxSize(const QStyleOption *option, QSize size, const QWidget 
     return size;
 }
 
-static QSize radioButtonSize(QSize size, const QWidget *widget, const DensityMetrics &density)
+static QSize radioButtonSize(QSize size, const DensityMetrics &density, DensityMode mode)
 {
     Q_UNUSED(density);
-    if (densityModeFor(widget) == DensityMode::Compact) {
+    if (mode == DensityMode::Compact) {
         size += QSize(36, 4);
         size.setHeight(qMax(size.height(), 24));
     } else {
@@ -420,23 +420,24 @@ static QSize groupBoxSize(QSize size, const QSize &contentsSize)
 QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QStyleOption *option,
                        const QSize &contentsSize, const QWidget *widget)
 {
-    const DensityMetrics &density = densityMetricsFor(widget, style);
+    const DensityMode mode = densityModeFor(widget, style);
+    const DensityMetrics &density = densityMetrics(mode);
     QSize size = contentsSize;
     switch (type) {
     case QStyle::CT_PushButton:
         size = pushButtonSize(option, size, widget, density);
         break;
     case QStyle::CT_ComboBox:
-        size = comboBoxSize(option, size, widget, density);
+        size = comboBoxSize(option, size, widget, density, mode);
         break;
     case QStyle::CT_LineEdit:
-        size = lineEditSize(option, size, widget, density);
+        size = lineEditSize(option, size, density, mode);
         break;
     case QStyle::CT_SpinBox:
-        size = spinBoxSize(option, size, widget, density);
+        size = spinBoxSize(option, size, widget, density, mode);
         break;
     case QStyle::CT_ToolButton:
-        size = toolButtonSize(option, size, widget, density);
+        size = toolButtonSize(option, size, widget, density, mode);
         break;
     case QStyle::CT_MenuBarItem:
         size = menuBarItemSize(size, density, contentsSize);
@@ -454,10 +455,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = headerSectionSize(size, density);
         break;
     case QStyle::CT_CheckBox:
-        size = checkBoxSize(option, size, widget, density);
+        size = checkBoxSize(option, size, widget, density, mode);
         break;
     case QStyle::CT_RadioButton:
-        size = radioButtonSize(size, widget, density);
+        size = radioButtonSize(size, density, mode);
         break;
     case QStyle::CT_ProgressBar:
         size = progressBarSize(option, size, widget);
@@ -482,7 +483,8 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
 {
     if (!option)
         return {};
-    const DensityMetrics &density = densityMetricsFor(widget, style);
+    const DensityMode mode = densityModeFor(widget, style);
+    const DensityMetrics &density = densityMetrics(mode);
     if (element == QStyle::SE_PushButtonContents)
         return option->rect.adjusted(8, 4, -8, -4);
     if (element == QStyle::SE_ToolButtonLayoutItem)
@@ -520,7 +522,7 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         if (comboBoxEditor(widget))
             return option->rect;
         if (!spinBoxEditor(widget)) {
-            const bool compact = densityModeFor(widget) == DensityMode::Compact;
+            const bool compact = mode == DensityMode::Compact;
             const QRect logical = compact ? option->rect.adjusted(10, 2, -6, -2)
                                           : option->rect.adjusted(10, 5, -6, -6);
             return QStyle::visualRect(option->direction, option->rect, logical);

@@ -651,7 +651,7 @@ void WinUI3InteractionTest::settingsCardInteractiveFrames()
         return chevron->property("_winui_settings_card_chevron_rotation").toReal();
     };
     const auto verifyChevron = [&] {
-        QCOMPARE(chevron->size(), QSize(20, 20));
+        QCOMPARE(chevron->size(), QSize(32, 32));
         QCOMPARE(WinUI3::Private::SettingsExpanderChevronGlyphSize, 16);
         QCOMPARE(chevron->property("_winui_settings_card_chevron_glyph").toInt(),
                  static_cast<int>(WinUI3::Icon::ChevronDown));
