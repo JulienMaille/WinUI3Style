@@ -37,7 +37,10 @@ The mechanism tests drive the real Gallery composition in Light/Dark × Standard
 
 The first run against baseline failed all 32 Gallery cases and all four initial compiled geometry cases. The compiled matrix subsequently added Dark rows. Existing settings-card interaction tests cover expansion, reversal, keyboard input, trailing controls, style replacement and lifecycle behavior.
 
-An unmodified strict GCC baseline fails at the unused `foreground` local in `SettingsCard::refreshChevronState`. This PR does not include the PR60 cleanup. Until PR60 merges, the local build retains warnings-as-errors with the single documented `-Wno-error=unused-but-set-variable` exception.
+The strict GCC baseline originally failed at the unused `foreground` local in
+`SettingsCard::refreshChevronState`. PR60 has since merged that cleanup; this
+branch now merges main (`02e5f56`, PR60 and PR61) and builds warnings-as-errors
+without any exception.
 
 ## UI brief
 
@@ -46,3 +49,41 @@ Reuse the existing stock labels, layouts, card composition and style paint helpe
 Applicable states: collapsed/expanded, hover, pressed, keyboard focus and Space, disabled, RTL, long content, animation and reversal, runtime themes, and both densities. Loading, empty, error/retry, permissions, network success and destructive confirmation do not apply to this static settings demonstration.
 
 Not changed: unrelated card surface/corner styling, QToolBox, issue59 tooltips, PR60/61 behavior, and Windows animation preference.
+
+## CI repair and Windows baseline refresh (2026-11-14)
+
+The first Windows CI head failed clang-tidy and linux-gate on the pre-PR60
+unused `foreground` local, and all four msvc-gates on the gallery snapshot
+matrix (plus `settingsExpansionSeparator` on three of them). Merging main
+`02e5f56` removes the warning blocker and brings the PR61 border compositing
+repair; the only merge conflict was the additive probe-test slot list.
+
+The separator probe failure is a test sampling race, not a product defect.
+It reproduced locally on Windows Qt 6.11.1 Release, on varying rows per run
+(`0-0-0`, `1-1-0`, `1-1-1`; CI showed `0-0-1`). Instrumented geometry showed
+the page layout lagging the card's inner QVBoxLayout mid-animation: the card
+was momentarily shorter than header minimum plus the animated host band, so
+the header was squeezed below its 68 px minimum (e.g. card 87 = header 57 +
+host 30) while the probe read the seam at the first `height() > 0` tick.
+Layout requests settle before paint requests, so no squeezed frame is
+rendered. The probe now waits for full convergence
+(`maximumHeight() == QWIDGETSIZE_MAX` and `height() >= 51`), exactly like
+`settingsExpansionMargins`, before asserting the seam and hairline pixels.
+Four consecutive full probe runs pass. No product code changed.
+
+The snapshot matrix failed because the four Settings page captures still
+held the pre-repair raster. Refreshed baselines:
+`light-page-2.png`, `dark-page-2.png`, `light-density-compact-page-2.png`,
+`dark-density-compact-page-2.png`, copied from the merged-head offscreen
+Windows capture (local Qt 6.11.1 MSVC Release, Segoe UI, DPR 1, animations
+disabled, two identical runs). Audit: 68-file manifest unchanged, 64 captures
+byte-identical, only the four Settings pages differ, changed bounding boxes
+confined to the card stack (288,144)-(1151,357). Numeric spot checks: Light
+chevron darkest ink 162 -> 67 and Dark brightest ink 160 -> 238, the pinned
+secondary -> primary text change; icon leading inset 19 px and the
+`CardStrokeColorDefault` seam remain asserted by the mechanism probes.
+The refreshed matrix passes pixel-exact locally. Current-head Windows CI
+remains pending; the official Windows side-by-side comparison is still
+unverified and coverage remains partial.
+
+![Windows Settings refresh before and after](windows-settings-refresh-before-after.png)

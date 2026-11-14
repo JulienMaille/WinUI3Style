@@ -1032,7 +1032,11 @@ void WinUI3GalleryProbeTest::settingsExpansionSeparator()
     auto *card = window.findChild<QFrame *>("advancedCard");
     auto *host = window.findChild<QWidget *>("advancedDetailsHost");
     card->setProperty("winuiSettingsCardExpanded", true);
-    QTRY_VERIFY(host->height() > 0);
+    // Mid-animation the page layout can lag the card's inner layout and
+    // squeeze the header below its minimum; assert the seam only once the
+    // expansion has fully converged, like settingsExpansionMargins does.
+    QTRY_VERIFY(host->maximumHeight() == QWIDGETSIZE_MAX);
+    QTRY_VERIFY(host->height() >= 51);
     const int seam = host->y() - 1;
     QCOMPARE(seam, window.findChild<QWidget *>("advancedHeader")->height() - 1);
     const QImage image = card->grab().toImage();
