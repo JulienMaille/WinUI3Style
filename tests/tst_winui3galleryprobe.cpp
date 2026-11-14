@@ -19,6 +19,7 @@
 #include <QCommandLinkButton>
 #include <QCalendarWidget>
 #include <QDateEdit>
+#include <QDialog>
 #include <QFrame>
 #include <QGroupBox>
 #include <QLineEdit>
@@ -28,13 +29,18 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QScopeGuard>
+#include <QPainter>
 #include <QRubberBand>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QSlider>
+#include <QStyleOptionSlider>
 #include <QStyleFactory>
 #include <QTabWidget>
 #include <QTemporaryDir>
+#include <QTimer>
 
 class WinUI3GalleryProbeTest final : public QObject
 {
@@ -53,7 +59,182 @@ private slots:
     void galleryComparisonStyleAvailabilityAndRestore();
     void gallerySettingsExpanderAnimates();
     void galleryRubberBandReachable();
+    void gallerySliderTooltipSurface_data();
+    void gallerySliderTooltipSurface();
+    void galleryPopupSeparatorColors_data();
+    void galleryPopupSeparatorColors();
 };
+
+void WinUI3GalleryProbeTest::galleryPopupSeparatorColors_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<QString>("kind");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            for (const QString &kind : { QStringLiteral("menu"), QStringLiteral("contentDialogButton"),
+                                         QStringLiteral("messageDialogButton"),
+                                         QStringLiteral("wizardButton") }) {
+                const QByteArray row = (QString(dark ? "dark-" : "light-")
+                                        + (compact ? "compact-" : "standard-") + kind).toLatin1();
+                QTest::newRow(row.constData()) << dark << compact << kind;
+            }
+        }
+    }
+}
+
+void WinUI3GalleryProbeTest::galleryPopupSeparatorColors()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(QString, kind);
+    GalleryWindow gallery;
+    auto *theme = gallery.findChild<QComboBox *>(QStringLiteral("themeCombo"));
+    auto *density = gallery.findChild<QComboBox *>(QStringLiteral("densityCombo"));
+    QVERIFY(theme && density);
+    theme->setCurrentIndex(dark ? 2 : 1);
+    density->setCurrentIndex(compact ? 1 : 0);
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    const auto t = WinUI3::Private::tokens(gallery.palette());
+    QCOMPARE(t.dark, dark);
+    QCOMPARE(t.menuSeparatorStroke, dark ? QColor(255, 255, 255, 21) : QColor(0, 0, 0, 15));
+    QCOMPARE(t.dialogSeparatorStroke, dark ? QColor(0, 0, 0, 25) : QColor(0, 0, 0, 15));
+    QImage image;
+    QPoint sample;
+    QColor fill;
+    if (kind == QStringLiteral("menu")) {
+        QMenu *menu = gallery.menuBar()->actions().first()->menu();
+        QVERIFY(menu);
+        QAction *separator = nullptr;
+        for (QAction *action : menu->actions()) {
+            if (action->isSeparator()) {
+                separator = action;
+                break;
+            }
+        }
+        QVERIFY(separator);
+        menu->popup(gallery.mapToGlobal(QPoint(300, 100)));
+        QTRY_VERIFY(menu->isVisible());
+        sample = menu->actionGeometry(separator).center();
+        image = menu->grab().toImage();
+        fill = image.pixelColor(sample + QPoint(0, -2));
+        menu->hide();
+    } else {
+        auto *navigation = gallery.findChild<QListWidget *>(QStringLiteral("navigationList"));
+        QVERIFY(navigation);
+        navigation->setCurrentRow(3);
+        auto *button = gallery.findChild<QPushButton *>(kind);
+        QVERIFY(button);
+        QTimer::singleShot(0, &gallery, [&] {
+            auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            QVERIFY(dialog);
+            const auto closeDialog = qScopeGuard([dialog] { dialog->reject(); });
+            const QString footerName = kind == QStringLiteral("wizardButton")
+                    ? QStringLiteral("_winui_wizard_footer_surface")
+                    : QStringLiteral("_winui_content_dialog_footer_surface");
+            auto *footer = dialog->findChild<QWidget *>(footerName);
+            QVERIFY(footer);
+            QTRY_VERIFY(footer->isVisible() && footer->width() == dialog->width());
+            QCOMPARE(footer->x(), 0);
+            image = footer->grab().toImage();
+            sample = QPoint(image.width() / 2, 0);
+            fill = image.pixelColor(5, 2);
+            const QString evidence = qEnvironmentVariable("WINUI3STYLE_EVIDENCE_DIR");
+            if (!evidence.isEmpty())
+                QVERIFY(dialog->grab().save(evidence + QLatin1Char('/')
+                        + QString::fromLatin1(QTest::currentDataTag()) + QStringLiteral("-dialog.png")));
+        });
+        button->click();
+    }
+    QVERIFY(!image.isNull());
+    QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+    expected.fill(fill);
+    QPainter painter(&expected);
+    painter.fillRect(expected.rect(), kind == QStringLiteral("menu")
+                             ? t.menuSeparatorStroke : t.dialogSeparatorStroke);
+    painter.end();
+    const QString evidence = qEnvironmentVariable("WINUI3STYLE_EVIDENCE_DIR");
+    if (!evidence.isEmpty())
+        QVERIFY(image.save(evidence + QLatin1Char('/')
+                + QString::fromLatin1(QTest::currentDataTag()) + QStringLiteral(".png")));
+    QCOMPARE(image.pixelColor(sample), expected.pixelColor(0, 0));
+}
+
+void WinUI3GalleryProbeTest::gallerySliderTooltipSurface_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("light-standard") << false << false;
+    QTest::newRow("light-compact") << false << true;
+    QTest::newRow("dark-standard") << true << false;
+    QTest::newRow("dark-compact") << true << true;
+}
+
+void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
+{
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        QSKIP("Slider tool windows require a native platform; run with XCB or Windows.");
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    GalleryWindow gallery;
+    auto *theme = gallery.findChild<QComboBox *>(QStringLiteral("themeCombo"));
+    auto *density = gallery.findChild<QComboBox *>(QStringLiteral("densityCombo"));
+    auto *page = gallery.findChild<QScrollArea *>(QStringLiteral("controlsPage"));
+    auto *slider = gallery.findChild<QSlider *>(QStringLiteral("gallerySlider"));
+    QVERIFY(theme && density && page && slider);
+    theme->setCurrentIndex(dark ? 2 : 1);
+    density->setCurrentIndex(compact ? 1 : 0);
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    page->ensureWidgetVisible(slider);
+    QCoreApplication::processEvents();
+    QStyleOptionSlider option;
+    option.initFrom(slider);
+    option.orientation = slider->orientation();
+    option.minimum = slider->minimum();
+    option.maximum = slider->maximum();
+    option.sliderPosition = slider->sliderPosition();
+    option.sliderValue = slider->value();
+    const QRect handle = slider->style()->subControlRect(
+            QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider);
+    QTest::mouseMove(slider, handle.center());
+    QTest::mousePress(slider, Qt::LeftButton, Qt::NoModifier, handle.center());
+    QWidget *tip = nullptr;
+    QTRY_VERIFY((tip = slider->findChild<QWidget *>(QStringLiteral("_winui_slider_value_tip"))));
+    QTRY_VERIFY(tip->isVisible());
+    const auto t = WinUI3::Private::tokens(tip->palette());
+    QCOMPARE(t.dark, dark);
+    QCOMPARE(t.tooltipStroke, dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15));
+    QCOMPARE(t.tooltipFill, dark ? QColor(44, 44, 44) : QColor(249, 249, 249));
+    const QImage actual = tip->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+    QImage expected(actual.size(), QImage::Format_ARGB32_Premultiplied);
+    expected.setDevicePixelRatio(actual.devicePixelRatio());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    QStyleOption panel;
+    panel.initFrom(tip);
+    tip->style()->drawPrimitive(QStyle::PE_PanelTipLabel, &panel, &painter, tip);
+    painter.end();
+    // Inspect the top edge, away from text and the antialiased corners.
+    const QPoint edge(actual.width() / 2, 0);
+    const QString evidence = qEnvironmentVariable("WINUI3STYLE_EVIDENCE_DIR");
+    if (!evidence.isEmpty()) {
+        const QString stem = evidence + QStringLiteral("/slider-tooltip-")
+                + QString::fromLatin1(QTest::currentDataTag());
+        QVERIFY(actual.save(stem + QStringLiteral(".png")));
+        QVERIFY(gallery.grab().save(stem + QStringLiteral("-gallery.png")));
+    }
+    const QColor actualEdge = actual.pixelColor(edge);
+    const QColor expectedEdge = expected.pixelColor(edge);
+    QTest::mouseRelease(slider, Qt::LeftButton, Qt::NoModifier, handle.center());
+    QTRY_VERIFY(!tip->isVisible());
+    QCOMPARE(actualEdge, expectedEdge);
+    QCOMPARE(actual.pixelColor(actual.width() / 2, 1), t.tooltipFill);
+    QCOMPARE(actual.pixelColor(0, 0).alpha(), 0);
+}
 
 void WinUI3GalleryProbeTest::initTestCase()
 {

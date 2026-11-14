@@ -10,6 +10,7 @@ set(_winui3style_split_tests
     winui3style_menus_tests tst_winui3menus.cpp
     winui3style_editors_tests tst_winui3editors.cpp
     winui3style_combobox_tests tst_winui3combobox.cpp
+    winui3style_editablecombo_tests tst_winui3editablecombo.cpp
     winui3style_surfaces_tests tst_winui3surfaces.cpp
     winui3style_dialogs_tests tst_winui3dialogs.cpp
     winui3style_interaction_tests tst_winui3interaction.cpp
@@ -364,6 +365,7 @@ set(_winui3style_linked_test_targets
         winui3style_menus_tests
         winui3style_editors_tests
         winui3style_combobox_tests
+        winui3style_editablecombo_tests
         winui3style_surfaces_tests
         winui3style_dialogs_tests
         winui3style_interaction_tests
@@ -421,6 +423,7 @@ foreach(_split_target IN ITEMS
         winui3style_menus_tests
         winui3style_editors_tests
         winui3style_combobox_tests
+        winui3style_editablecombo_tests
         winui3style_surfaces_tests
         winui3style_dialogs_tests
         winui3style_interaction_tests
@@ -659,7 +662,9 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     if(WINUI3STYLE_BUILD_DEMO)
         add_test(NAME winui3style_galleryprobe_native
             COMMAND winui3style_galleryprobe_tests
-                galleryNavigationPaletteFollowsThemeAfterMicaDisable)
+                galleryNavigationPaletteFollowsThemeAfterMicaDisable
+                gallerySliderTooltipSurface
+                galleryPopupSeparatorColors)
     endif()
     set(_winui3style_native_environment
         "QT_QPA_PLATFORM=windows"

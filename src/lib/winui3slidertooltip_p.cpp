@@ -5,9 +5,7 @@
 #include "winui3slidertooltip_p.h"
 
 #include "winui3frameproperties_p.h"
-#include "winui3paint_p.h"
 #include "winui3style_properties_p.h"
-#include "winui3tokens_p.h"
 
 #include <winui3style/winui3style.h>
 
@@ -16,13 +14,12 @@
 #include <QPointer>
 #include <QScreen>
 #include <QSlider>
+#include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTimer>
 #include <QWidget>
 
 namespace WinUI3::Private {
-
-using namespace PaintPrivate;
 
 namespace {
 
@@ -60,12 +57,12 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override
     {
-        const Private::Tokens t = Private::tokens(palette());
-        QColor fill = palette().color(QPalette::ToolTipBase);
-        fill.setAlpha(242);
         QPainter painter(this);
-        roundedRect(&painter, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), fill,
-                    t.strokeSecondary, Private::ControlRadius);
+        QStyleOption panel;
+        panel.initFrom(this);
+        // Share the official ToolTip surface with ordinary widget tooltips.
+        // This helper owns tracking/text, not a second Fluent border recipe.
+        style()->drawPrimitive(QStyle::PE_PanelTipLabel, &panel, &painter, this);
         painter.setPen(palette().color(QPalette::ToolTipText));
         painter.drawText(rect().adjusted(8, 0, -8, 0), Qt::AlignCenter, m_text);
     }
