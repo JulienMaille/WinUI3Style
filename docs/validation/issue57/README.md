@@ -65,3 +65,13 @@ Compact rows expected 24 pixels but received 27. The fixture now binds its
 widget to the local Style and passes that widget to sizing. A controlled
 16-pixel font reproduces the original failure on Linux. All 460 editor checks
 pass after the correction. Product sizing code remains unchanged.
+
+Windows uses a 21-pixel line height for this 16-pixel font. The existing
+sizing contract therefore returns 33 pixels for Standard and 29 for Compact.
+The test now derives size expectations from the density padding and actual
+font metrics. It checks both 16- and 24-pixel fonts. The border raster still
+uses the pinned minimum-height canvas; product sizing remains unchanged.
+
+Current-head Windows Qt 6.8.3 Debug CI accepted the refreshed snapshot matrix
+but exposed this font-growth assertion. The font-aware test correction needs
+a new Windows result before the full gate can pass.

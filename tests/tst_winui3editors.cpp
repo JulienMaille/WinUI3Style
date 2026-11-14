@@ -9,6 +9,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "../src/lib/winui3frameproperties_p.h"
+#include "../src/lib/winui3density_p.h"
 #include "../src/lib/winui3helpers_p.h"
 #include "../src/lib/winui3tableeditors_p.h"
 #include "../src/lib/winui3tokens_p.h"
@@ -1013,9 +1014,23 @@ void WinUI3EditorsTest::editorElevationBorder()
     if (state == 3)
         option.state |= QStyle::State_HasFocus;
     option.subControls = QStyle::SC_SpinBoxFrame;
-    // No content-size or subcontrol change accompanies the brush correction.
-    QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &option, QSize(60, 10), &spin).height(),
-             height);
+    // The raster canvas uses the pinned minimum height; size hints can grow
+    // for native fonts. Keep the existing font-aware sizing contract intact.
+    const auto &density = WinUI3::Private::densityMetrics(style.densityMode());
+    QCOMPARE(density.textBoxHeight, height);
+    for (int pixelSize : { 16, 24 }) {
+        sizingFont.setPixelSize(pixelSize);
+        QStyleOptionSpinBox sizeOption(option);
+        sizeOption.fontMetrics = QFontMetrics(sizingFont);
+        const int paddedHeight =
+                sizeOption.fontMetrics.height() + 2 * density.lineEditVerticalPadding;
+        const int expectedHeight = compact && paddedHeight <= density.textBoxHeight + 4
+                ? density.textBoxHeight
+                : qMax(density.textBoxHeight, paddedHeight);
+        QCOMPARE(style.sizeFromContents(QStyle::CT_LineEdit, &sizeOption, QSize(60, 10), &spin)
+                         .height(),
+                 expectedHeight);
+    }
     const QColor fill = state == 2 ? t.controlDisabled
             : state == 3           ? t.editorFocusedFill
             : state == 1           ? t.controlHover
