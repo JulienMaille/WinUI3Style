@@ -209,11 +209,6 @@ QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAcce
     // palette never publishes an invalid Highlight/Link (see header contract).
     const bool useExplicit = explicitAccent && accent.isValid();
     const SystemAccentRamp systemRamp = useExplicit ? SystemAccentRamp{} : systemAccentRamp();
-    // WinUI AccentFillColorDefaultBrush is theme-specific: Light uses
-    // SystemAccentColorDark1, while Dark uses SystemAccentColorLight2.
-    const QColor accentFill = useExplicit ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
-                                                       : mix(accent, QColor(Qt::black), 0.18))
-                                          : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
     QPalette palette;
 
     if (darkTheme) {
@@ -275,6 +270,9 @@ QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAcce
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     // WinUI uses SystemAccentColor for selection, but Light2 in dark mode and
     // Dark1 in light mode for AccentFillColorDefault.
+    const QColor accentFill = useExplicit ? (darkTheme ? mix(accent, QColor(Qt::white), 0.32)
+                                                       : mix(accent, QColor(Qt::black), 0.18))
+                                          : (darkTheme ? systemRamp.light2 : systemRamp.dark1);
     palette.setColor(QPalette::Accent, accentFill);
 #endif
     return palette;

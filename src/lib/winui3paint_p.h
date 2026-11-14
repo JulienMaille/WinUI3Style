@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include <winui3style/winui3global.h>
+
 #include <QColor>
 #include <QIcon>
 #include <QPainterPath>
@@ -42,9 +44,14 @@ void paintRotatedIcon(QPainter *painter, const QIcon &source, const QRectF &rect
 
 QRectF visualRectF(Qt::LayoutDirection direction, const QRectF &bounds, const QRectF &logical);
 
-void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
-                    const QColor &strokeTop, const QColor &strokeBottom, qreal radius,
-                    qreal strokeWidth = 1.0);
+WINUI3STYLE_EXPORT void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
+                                       const QColor &strokeTop, const QColor &strokeBottom,
+                                       qreal radius, qreal strokeWidth = 1.0);
+
+// TextControlElevationBorderBrush: default stroke until the bottom 2 DIP,
+// strong stroke over the final DIP. Disabled uses the uniform default brush.
+void editorSurface(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
+                   const QColor &strokeStrong, qreal radius, bool enabled);
 
 // Draw the WinUI editor focus underline: a 2 px accent line along the bottom
 // edge, clipped to the control's rounded-corner path so the ends follow the

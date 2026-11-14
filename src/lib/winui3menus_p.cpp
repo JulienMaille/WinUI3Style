@@ -186,7 +186,7 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
         const QComboBox *combo = qobject_cast<const QComboBox *>(widget);
         const bool comboItem = combo != nullptr;
         if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
-            painter->setPen(t.stroke);
+            painter->setPen(t.menuSeparatorStroke);
             painter->drawLine(menu->rect.left() + 12, menu->rect.center().y(),
                               menu->rect.right() - 12, menu->rect.center().y());
             return true;

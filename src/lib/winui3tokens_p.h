@@ -38,6 +38,11 @@ inline QMargins settingsExpanderContentMargins(bool rtl)
     return rtl ? QMargins(45, 7, 59, 9) : QMargins(59, 7, 45, 9);
 }
 constexpr qreal ControlRadius = 4.0;
+// TextBox_themeresources_perf2026.xaml: reflected absolute 0,0 -> 0,2
+// elevation brush, strong stop at 0.5; TextControlBorderThemeThickness is 1.
+constexpr qreal EditorBorderThickness = 1.0;
+constexpr qreal EditorElevationGradientHeight = 2.0;
+constexpr qreal EditorElevationStrongStop = 0.5;
 constexpr qreal OverlayRadius = 8.0;
 // WinUI `DefaultToolTipStyle` (ToolTip_themeresources.xaml): a 1 px border,
 // the asymmetric `ToolTipBorderPadding` 9,6,9,8 and a 12 px content size.
@@ -127,6 +132,10 @@ struct Tokens
     QColor editorFocusedFill;
     // Flyout/popup hairline stroke and selected-tab surface.
     QColor flyoutStroke;
+    // MenuFlyout separators and ContentDialog command separators use distinct
+    // DividerStrokeColorDefaultBrush / CardStrokeColorDefaultBrush resources.
+    QColor menuSeparatorStroke;
+    QColor dialogSeparatorStroke;
     QColor selectedTabFill;
     // Slider thumb outer ring.
     QColor sliderThumbOuter;
@@ -301,6 +310,8 @@ inline Tokens buildTokens(const QPalette &palette)
     // flyout stroke the menus already use.
     t.tooltipFill = t.dark ? QColor(44, 44, 44) : QColor(249, 249, 249);
     t.tooltipStroke = t.flyoutStroke;
+    t.menuSeparatorStroke = t.dark ? QColor(255, 255, 255, 21) : QColor(0, 0, 0, 15);
+    t.dialogSeparatorStroke = t.dark ? QColor(0, 0, 0, 25) : QColor(0, 0, 0, 15);
     // ContentDialog command-footer base (LayerFill derivation input) and
     // smoke-layer scrim; fixed WinUI values, not palette derivations.
     t.dialogCommandFill = dialogCommandFillColor(t.dark);

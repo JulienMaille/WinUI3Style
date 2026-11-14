@@ -2,6 +2,7 @@
 #include "winui3complex_editors_p.h"
 
 #include "winui3helpers_p.h"
+#include "winui3frameproperties_p.h"
 #include "winui3paint_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
@@ -42,7 +43,11 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             const bool editableFocused = editable && enabled
                     && (combo->state & QStyle::State_HasFocus
                         || (widget && widget->isActiveWindow() && comboEditor
-                            && comboEditor->hasFocus()));
+                            && comboEditor->hasFocus()))
+                    && !(widget
+                         && framePropertyRegistry()
+                                    .value(widget, editableComboEditorPressPendingProperty)
+                                    .toBool());
             QColor fill = enabled ? t.control : t.controlDisabled;
             // An editable ComboBox behaves like a TextBox once it owns
             // keyboard focus: flat light surface, no hover tint.
@@ -58,6 +63,18 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
                 controlSurface(painter, combo->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
             if (combo->subControls & QStyle::SC_ComboBoxArrow) {
+                const bool arrowHovered = editable && enabled && widget
+                        && framePropertyRegistry()
+                                   .value(widget, editableComboArrowHoverProperty)
+                                   .toBool();
+                if (arrowHovered) {
+                    // Pinned DropDownOverlay: Width 30, Margin 4, trailing-aligned.
+                    const QRect logical(combo->rect.right() - 4 - 30 + 1, combo->rect.top() + 4, 30,
+                                        combo->rect.height() - 8);
+                    roundedRect(painter, QStyle::visualRect(combo->direction, combo->rect, logical),
+                                pressed ? t.subtlePressed : t.subtleHover, Qt::transparent,
+                                ControlRadius);
+                }
                 const qreal chevron = progress(widget, comboChevronProperty, 0.0);
                 painter->save();
                 painter->translate(0.0, 1.875 * chevron);
@@ -84,7 +101,12 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             QColor fill = !enabled ? t.controlDisabled
                     : focused      ? t.editorFocusedFill
                                    : mix(t.control, t.controlHover, hover);
-            controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
+            if (focused)
+                controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary,
+                               ControlRadius);
+            else
+                editorSurface(painter, spin->rect, fill, t.stroke, t.strokeStrong, ControlRadius,
+                              enabled);
             if (verticalButtons) {
                 const QRect editField = style->subControlRect(QStyle::CC_SpinBox, spin,
                                                               QStyle::SC_SpinBoxEditField, widget);
