@@ -24,25 +24,13 @@ constexpr int SettingsExpanderCollapseDuration = 167;
 constexpr int SettingsExpanderChevronGlyphSize = 16;
 constexpr int SettingsExpanderChevronBoxSize = 32;
 constexpr int SettingsExpanderChevronMargin = 8;
-constexpr int SettingsCardContentSpacing = 24;
 // SettingsControls templates pinned in docs/coverage.md (issue #56).
 constexpr int SettingsCardPadding = 16;
 constexpr int SettingsCardBorderThickness = 1;
-constexpr int SettingsCardMinHeight = 68;
 constexpr int SettingsExpanderContentMinHeight = 52 - 2 + 1;
 constexpr int SettingsExpanderContentRowMinHeight = SettingsExpanderContentMinHeight - 7 - 9;
 constexpr int SettingsCardIconLeadingMargin = 2;
 constexpr int SettingsCardIconTrailingMargin = 20;
-inline QMargins settingsCardIconMargins(bool rtl)
-{
-    return rtl ? QMargins(SettingsCardIconTrailingMargin, 0, SettingsCardIconLeadingMargin, 0)
-               : QMargins(SettingsCardIconLeadingMargin, 0, SettingsCardIconTrailingMargin, 0);
-}
-inline QMargins settingsExpanderHeaderMargins(bool rtl)
-{
-    // HeaderPadding 16,16,4,16 + the 32 px chevron box + 8 px margin.
-    return rtl ? QMargins(45, 17, 17, 17) : QMargins(17, 17, 45, 17);
-}
 inline QMargins settingsExpanderContentMargins(bool rtl)
 {
     // ItemPadding 58,8,44,8 + content border 1,0,1,1 + item border 0,1,0,0

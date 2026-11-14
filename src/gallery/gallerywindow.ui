@@ -195,6 +195,7 @@
          <property name="bottomMargin"><number>0</number></property>
          <property name="spacing"><number>0</number></property>
          <item><widget class="QWidget" name="advancedHeader">
+          <property name="minimumSize"><size><width>0</width><height>68</height></size></property>
           <layout class="QHBoxLayout" name="advancedHeaderLayout">
            <property name="leftMargin"><number>17</number></property>
            <property name="topMargin"><number>17</number></property>
@@ -226,7 +227,7 @@
          </widget></item>
          <item><widget class="QWidget" name="advancedDetailsHost">
           <property name="winuiSettingsCardExpansion" stdset="0"><bool>true</bool></property>
-          <layout class="QGridLayout" name="advancedDetailsLayout">
+          <layout class="QGridLayout" name="advancedDetailsLayout" rowminimumheight="35">
            <property name="leftMargin"><number>59</number></property>
            <property name="topMargin"><number>7</number></property>
            <property name="rightMargin"><number>45</number></property>

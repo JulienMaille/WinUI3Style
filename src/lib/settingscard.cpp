@@ -65,7 +65,7 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_headerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_headerLayout->setContentsMargins(
             Private::SettingsCardPadding + Private::SettingsCardBorderThickness, 12,
-            Private::SettingsExpanderChevronMargin + Private::SettingsCardBorderThickness, 12);
+            Private::SettingsCardPadding + Private::SettingsCardBorderThickness, 12);
     m_headerLayout->setHorizontalSpacing(Private::SettingsCardIconTrailingMargin);
     m_headerLayout->setVerticalSpacing(2);
     m_iconLabel->setFixedWidth(20 + Private::SettingsCardIconLeadingMargin);
@@ -460,6 +460,13 @@ void SettingsCard::refreshHeaderGeometry()
     if (!m_headerHost || !m_headerLayout)
         return;
 
+    // Run for construction as well as direction changes: an inherited RTL
+    // direction is already present before this class receives changeEvent.
+    const bool rtl = layoutDirection() == Qt::RightToLeft;
+    m_iconLabel->setContentsMargins(rtl ? 0 : Private::SettingsCardIconLeadingMargin, 0,
+                                    rtl ? Private::SettingsCardIconLeadingMargin : 0, 0);
+    m_headerLayout->setColumnMinimumWidth(
+            2, m_expandableWidget ? Private::SettingsExpanderChevronBoxSize : 0);
     const QMargins headerMargins = m_headerLayout->contentsMargins();
     const int textLineHeight = qMax(m_titleLabel->fontMetrics().lineSpacing(),
                                     m_descriptionLabel->fontMetrics().lineSpacing());
@@ -603,16 +610,6 @@ void SettingsCard::changeEvent(QEvent *event)
             || event->type() == QEvent::LayoutDirectionChange;
     if (refreshHeader) {
         refreshIconPixmap();
-        if (event->type() == QEvent::LayoutDirectionChange) {
-            const bool rtl = layoutDirection() == Qt::RightToLeft;
-            const int leading = Private::SettingsCardPadding + Private::SettingsCardBorderThickness;
-            const int trailing =
-                    Private::SettingsExpanderChevronMargin + Private::SettingsCardBorderThickness;
-            m_headerLayout->setContentsMargins(rtl ? trailing : leading, 12,
-                                               rtl ? leading : trailing, 12);
-            m_iconLabel->setContentsMargins(rtl ? 0 : Private::SettingsCardIconLeadingMargin, 0,
-                                            rtl ? Private::SettingsCardIconLeadingMargin : 0, 0);
-        }
         if (event->type() == QEvent::LayoutDirectionChange && m_expandableHost->layout()) {
             const bool rtl = layoutDirection() == Qt::RightToLeft;
             m_expandableHost->layout()->setContentsMargins(

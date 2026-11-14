@@ -1,5 +1,4 @@
 #include "gallerywindow.h"
-#include "../lib/winui3tokens_p.h"
 #include "ui_gallerywindow.h"
 
 #include <memory>
@@ -136,27 +135,24 @@ void GalleryWindow::changeEvent(QEvent *event)
 void GalleryWindow::refreshCardIcons()
 {
     const bool rtl = layoutDirection() == Qt::RightToLeft;
-    // A fixed 42 px lane includes 2 + 20 + 20; never center the 20 px
-    // QLabel in its unused trailing space. Layout margins are physical in Qt.
+    // Designer owns the LTR composition. Qt layout margins are physical, so
+    // orient each asymmetric pair without copying its values into C++.
+    const auto orientMargins = [rtl](QLayout *layout, bool leadingIsLarger) {
+        const QMargins margins = layout->contentsMargins();
+        const int smaller = qMin(margins.left(), margins.right());
+        const int larger = qMax(margins.left(), margins.right());
+        const int leading = leadingIsLarger ? larger : smaller;
+        const int trailing = leadingIsLarger ? smaller : larger;
+        layout->setContentsMargins(rtl ? trailing : leading, margins.top(),
+                                   rtl ? leading : trailing, margins.bottom());
+    };
     for (QLayout *layout : { static_cast<QLayout *>(ui->notificationsCardIconLayout),
                              static_cast<QLayout *>(ui->updatesCardIconLayout),
-                             static_cast<QLayout *>(ui->advancedIconLayout) })
-        layout->setContentsMargins(WinUI3::Private::settingsCardIconMargins(rtl));
-    const int inset =
-            WinUI3::Private::SettingsCardPadding + WinUI3::Private::SettingsCardBorderThickness;
-    for (QLayout *layout : { static_cast<QLayout *>(ui->notificationsCardLayout),
-                             static_cast<QLayout *>(ui->updatesCardLayout) })
-        layout->setContentsMargins(inset, inset, inset, inset);
-    ui->advancedTextLayout->setContentsMargins(
-            rtl ? WinUI3::Private::SettingsCardContentSpacing : 0, 0,
-            rtl ? 0 : WinUI3::Private::SettingsCardContentSpacing, 0);
-    ui->advancedHeader->setMinimumHeight(WinUI3::Private::SettingsCardMinHeight);
-    ui->advancedDetailsLayout->setRowMinimumHeight(
-            0, WinUI3::Private::SettingsExpanderContentRowMinHeight);
-    ui->advancedHeaderLayout->setContentsMargins(
-            WinUI3::Private::settingsExpanderHeaderMargins(rtl));
-    ui->advancedDetailsLayout->setContentsMargins(
-            WinUI3::Private::settingsExpanderContentMargins(rtl));
+                             static_cast<QLayout *>(ui->advancedIconLayout),
+                             static_cast<QLayout *>(ui->advancedHeaderLayout),
+                             static_cast<QLayout *>(ui->advancedTextLayout) })
+        orientMargins(layout, false);
+    orientMargins(ui->advancedDetailsLayout, true);
 
     // SettingsCard header icon: SettingsCardHeaderIconMaxSize 20, drawn from
     // the style's themed standard icons. A QLabel stores a plain pixmap, so a
