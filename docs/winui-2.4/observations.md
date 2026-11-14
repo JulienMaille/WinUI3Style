@@ -56,6 +56,15 @@ Release runs from y=31.5 through y=21 and back to y=24 over about 300 ms, an
 approximately 0.75 px upward rebound. Popup `Opened`/`Closed` states animate
 the presenter separately and do not rotate this glyph.
 
+The editable ComboBox arrow hover/pressed surface is the template's
+`DropDownOverlay` border: Width 30, Margin 4,4,4,4, trailing-aligned,
+CornerRadius 4 (`ComboBoxDropDownButtonBackgroundCornerRadius`), filled with
+SubtleFillColorSecondary on hover and SubtleFillColorTertiary on press. It is
+not the full-height arrow column: a 32 px control shows a 30×24 px rounded
+rectangle inset 4 px from the top, bottom and trailing edges. A 2026-11-14
+live defect painted the flush full-height strip instead; the fix is guarded
+by `editableComboArrowHoverSurfaceMatchesDropDownOverlay`.
+
 Live mouse validation on 2026-08-22 confirmed that the selected ComboBox row
 retains the vertical accent pill while another row is hovered. Mouse-open plus
 Escape dismissal does not create a reveal focus ring on the closed official

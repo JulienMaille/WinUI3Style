@@ -68,9 +68,10 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
                                    .value(widget, editableComboArrowHoverProperty)
                                    .toBool();
                 if (arrowHovered) {
-                    const QRect arrowRect = style->subControlRect(QStyle::CC_ComboBox, combo,
-                                                                  QStyle::SC_ComboBoxArrow, widget);
-                    roundedRect(painter, arrowRect.adjusted(1, 1, -1, -1),
+                    // Pinned DropDownOverlay: Width 30, Margin 4, trailing-aligned.
+                    const QRect logical(combo->rect.right() - 4 - 30 + 1, combo->rect.top() + 4, 30,
+                                        combo->rect.height() - 8);
+                    roundedRect(painter, QStyle::visualRect(combo->direction, combo->rect, logical),
                                 pressed ? t.subtlePressed : t.subtleHover, Qt::transparent,
                                 ControlRadius);
                 }

@@ -16,6 +16,7 @@ private slots:
     void init();
     void cleanup();
     void editableComboArrowHover();
+    void editableComboArrowHoverSurfaceMatchesDropDownOverlay();
     void editableComboEditorFocusActivatesOnRelease();
     void editableComboFocusedEditorPressKeepsFocusVisual();
     void mouseFocusForNonEditableControlsDoesNotAccessEditableCombo();
@@ -137,6 +138,89 @@ void WinUI3EditableComboTest::editableComboArrowHover()
             QTest::mouseRelease(&combo, Qt::LeftButton, Qt::NoModifier, popupArrow.center());
             QTRY_VERIFY(combo.view()->isVisible());
             combo.hidePopup();
+        }
+    }
+}
+
+void WinUI3EditableComboTest::editableComboArrowHoverSurfaceMatchesDropDownOverlay()
+{
+    QWidget host;
+    host.resize(360, 120);
+    QComboBox combo(&host);
+    combo.setEditable(true);
+    combo.setMouseTracking(true);
+    combo.addItem(QStringLiteral("2416"));
+    combo.setGeometry(120, 16, 200, 32);
+    host.show();
+    QTRY_VERIFY(host.isVisible());
+
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    for (const WinUI3::DensityMode density :
+         { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        WinUI3::Style::setDensityMode(&combo, density);
+        const auto &metrics = WinUI3::Private::densityMetrics(density);
+        combo.resize(200, metrics.textBoxHeight);
+        style->setThemeMode(WinUI3::ThemeMode::Light);
+        const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(combo.palette());
+        for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft }) {
+            combo.setLayoutDirection(direction);
+            QStyleOptionComboBox option;
+            option.initFrom(&combo);
+            option.rect = combo.rect();
+            option.direction = direction;
+            option.editable = true;
+            option.state = QStyle::State_Enabled | QStyle::State_HasFocus;
+            option.subControls = QStyle::SC_ComboBoxFrame | QStyle::SC_ComboBoxArrow;
+            const QRect arrow = combo.style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                              QStyle::SC_ComboBoxArrow, &combo);
+            const QPoint hoverPoint(arrow.left() + 5, arrow.center().y());
+            const auto render = [&] {
+                QImage image(combo.size(), QImage::Format_ARGB32_Premultiplied);
+                image.fill(combo.palette().color(QPalette::Window));
+                QPainter painter(&image);
+                combo.style()->drawComplexControl(QStyle::CC_ComboBox, &option, &painter, &combo);
+                return image;
+            };
+            WinUI3::Private::framePropertyRegistry().set(
+                    &combo, "_winui_editable_combo_arrow_hover", false);
+            const QImage rest = render();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 3, 0)
+            QHoverEvent hover(QEvent::HoverMove, QPointF(hoverPoint), QPointF(hoverPoint),
+                              QPointF(hoverPoint));
+#else
+            QHoverEvent hover(QEvent::HoverMove, QPointF(hoverPoint), QPointF(hoverPoint));
+#endif
+            QCoreApplication::sendEvent(&combo, &hover);
+            QCoreApplication::processEvents();
+            QVERIFY(WinUI3::Private::framePropertyRegistry()
+                            .value(&combo, "_winui_editable_combo_arrow_hover")
+                            .toBool());
+            const QImage hovered = render();
+
+            // Pinned DropDownOverlay: Width 30, Margin 4,4,4,4, trailing-aligned.
+            const QRect logicalOverlay(combo.rect().right() - 4 - 30 + 1, combo.rect().top() + 4,
+                                       30, combo.rect().height() - 8);
+            const QRect expected = QStyle::visualRect(direction, combo.rect(), logicalOverlay);
+            QRect bounds;
+            for (int y = 0; y < hovered.height(); ++y)
+                for (int x = 0; x < hovered.width(); ++x)
+                    if (hovered.pixel(x, y) != rest.pixel(x, y))
+                        bounds = bounds.united(QRect(x, y, 1, 1));
+            QCOMPARE(bounds, expected);
+
+            const QColor restColor = rest.pixelColor(expected.center());
+            QColor expectedHover = tokens.subtleHover;
+            {
+                QImage mix(1, 1, QImage::Format_ARGB32_Premultiplied);
+                mix.fill(restColor);
+                QPainter painter(&mix);
+                painter.fillRect(mix.rect(), expectedHover);
+                painter.end();
+                expectedHover = mix.pixelColor(0, 0);
+            }
+            QCOMPARE(colorDistance(hovered.pixelColor(expected.center()), expectedHover) < 16,
+                     true);
         }
     }
 }
