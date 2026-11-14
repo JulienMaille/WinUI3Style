@@ -209,6 +209,19 @@ its rounded border; a Wayland-only alpha surface must paint the rounded shape
 with transparent exterior. First-open height still requires live-compositor
 first/second-open geometry evidence and is not claimed fixed.
 
+Border compositing repair (2026-11-14, live dark-mode report): every
+`controlSurface`/`editorSurface` resting, hover, disabled and focused frame
+previously blended its translucent stroke over the control fill; XAML `Border`
+insets the background inside the border ring so the stroke composites over the
+parent surface. The fill is now inset by the stroke extent (1 DIP editor
+brush, 1 device pixel cosmetic brush). Pinned stroke tokens are unchanged.
+`editorElevationBorder` asserts stroke-over-surface rings and
+`buttonBorderCompositesOverParentSurface` the same button contract; the
+50-PNG Windows snapshot refresh is thin-band audited (all deltas <=2 px border
+rings) in `docs/validation/issue57/approval-review.md`. Rows below keep their
+status; the deterministic matrix is refreshed, official live comparison
+remains outstanding for every affected surface.
+
 Status meanings are defined in `METHODOLOGY.md`. `Verified` requires live mouse,
 keyboard, theme, and motion evidence. Automated tests alone can raise a row only
 to `source-audited`; missing evidence remains explicit in the last column.

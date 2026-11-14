@@ -113,17 +113,22 @@ static void borderedSurface(QPainter *painter, const QRectF &rect, const QColor 
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
-    // Same inside-stroke contract as roundedRect: fill to the edge, gradient
-    // border fully inside so the outer pixel keeps the parent fill.
+    // XAML Border insets the background inside the border ring, so the
+    // translucent stroke composites over the parent surface, not the fill.
+    const qreal strokeLogical =
+            cosmetic ? strokeWidth / painter->device()->devicePixelRatioF() : strokeWidth;
     painter->setPen(Qt::NoPen);
     painter->setBrush(fill);
-    painter->drawRoundedRect(rect, radius, radius);
+    const qreal fillRadius = qMax(0.0, radius - strokeLogical);
+    painter->drawRoundedRect(
+            rect.adjusted(strokeLogical, strokeLogical, -strokeLogical, -strokeLogical), fillRadius,
+            fillRadius);
     QPen borderPen(border, strokeWidth);
     borderPen.setCosmetic(cosmetic);
     painter->setBrush(Qt::NoBrush);
     painter->setPen(borderPen);
-    painter->drawRoundedRect(rect.adjusted(strokeWidth / 2.0, strokeWidth / 2.0, -strokeWidth / 2.0,
-                                           -strokeWidth / 2.0),
+    painter->drawRoundedRect(rect.adjusted(strokeLogical / 2.0, strokeLogical / 2.0,
+                                           -strokeLogical / 2.0, -strokeLogical / 2.0),
                              radius, radius);
     painter->restore();
 }

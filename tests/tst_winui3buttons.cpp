@@ -116,7 +116,7 @@ private slots:
     void autoRaiseToolButtonUsesFlatVisual_data();
     void autoRaiseToolButtonUsesFlatVisual();
     void subtleButtonRestRevealsParentSurface();
-    void buttonBorderStaysInsideOuterPixel();
+    void buttonBorderCompositesOverParentSurface();
     void buttonTextAntialiasesGrayscale();
     void standardControlHeightsAre32px();
     void buttonControlOwnershipByElement();
@@ -967,14 +967,15 @@ void WinUI3ButtonsTest::subtleButtonRestRevealsParentSurface()
     QCOMPARE(WinUI3::Private::tokens(subtle.palette()).layer, QColor::fromRgb(255, 255, 255, 128));
 }
 
-void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
+void WinUI3ButtonsTest::buttonBorderCompositesOverParentSurface()
 {
-    // WinUI ButtonBorder sits inside the control bounds: the outermost pixel
-    // row/column keeps the parent fill, never a half-blended stroke fringe.
-    // The centered 1px QPen straddles the rect edge, so its outer half paints
-    // outside the button as a soft halo (the fuzzy zoomed edge in the live
-    // report). Paint a standard button over a flat canvas and require the
-    // outer ring to keep the canvas tone.
+    // XAML Border occupies the outer 1 px ring with the stroke composited
+    // over the parent surface; the fill is inset inside the ring. The
+    // original defect was a centered QPen straddling the rect edge, painting
+    // a half-blended stroke halo outside the button (fuzzy zoomed edge in
+    // the live report). Paint a standard button over a flat canvas and
+    // require the ring to carry the stroke token, the internal rows the
+    // fill token, and the rounded corners to keep the canvas tone.
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
     QWidget window;
@@ -996,25 +997,18 @@ void WinUI3ButtonsTest::buttonBorderStaysInsideOuterPixel()
     QCOMPARE(image.pixelColor(image.width() - 1, 0), canvas);
     QCOMPARE(image.pixelColor(0, image.height() - 1), canvas);
     QCOMPARE(image.pixelColor(image.width() - 1, image.height() - 1), canvas);
-    // Mid-edge (not corner): the rounded fill covers it, the inside stroke
-    // sits one pixel below. The outer pixel keeps fill or canvas but never
-    // the stroke tone (the centered-pen halo painted stroke there).
-    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 2), canvas) > 8);
-    // Token assertion on the same state: the outer pixel must never carry
-    // the stroke tone. The centered-pen halo painted stroke color at (w/2, 0);
-    // the inside stroke keeps fill or canvas there. colorDistance to the live
-    // stroke token is the mechanism assertion, not the screenshot.
-    const QColor stroke = WinUI3::Private::tokens(button.palette()).stroke;
-    QVERIFY(stroke != canvas);
-    // Mechanism: the inside stroke leaves the outer pixel at the fill tone
-    // (== inner rows). The centered pen halo dragged it toward the stroke
-    // (#686868 pre-fix vs #bdbdbd fill); post-fix outer == inner fill.
-    // colorDistance sums RGBA: fill AA leaves 33 here post-fix, the
-    // centered stroke halo left 111 pre-fix. Threshold 48 splits measured
-    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 0),
-                          image.pixelColor(image.width() / 2, 2))
-            < 48);
-    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 1), canvas) > 8);
+    const auto t = WinUI3::Private::tokens(button.palette());
+    const auto composite = [&](const QColor &ink) {
+        QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+        pixel.fill(canvas);
+        QPainter painter(&pixel);
+        painter.fillRect(pixel.rect(), ink);
+        painter.end();
+        return pixel.pixelColor(0, 0);
+    };
+    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 0), composite(t.stroke)) <= 2);
+    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 1), composite(t.control)) <= 2);
+    QVERIFY(colorDistance(image.pixelColor(image.width() / 2, 2), composite(t.control)) <= 2);
 }
 
 void WinUI3ButtonsTest::buttonTextAntialiasesGrayscale()

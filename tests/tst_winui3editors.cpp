@@ -1046,7 +1046,17 @@ void WinUI3EditorsTest::editorElevationBorder()
         else
             style.drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
     }
+    // XAML Border insets the background inside the border ring: the
+    // translucent stroke composites over the parent surface, never the fill.
     const auto composite = [&](const QColor &stroke) {
+        QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+        pixel.fill(t.surface);
+        QPainter painter(&pixel);
+        painter.fillRect(pixel.rect(), stroke);
+        painter.end();
+        return pixel.pixelColor(0, 0);
+    };
+    const auto compositeOverFill = [&](const QColor &stroke) {
         QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
         pixel.fill(t.surface);
         QPainter painter(&pixel);
@@ -1079,7 +1089,7 @@ void WinUI3EditorsTest::editorElevationBorder()
                      reference.pixelColor(column, reference.height() - 1));
         QCOMPARE(image.pixelColor(x, 0), reference.pixelColor(x, 0));
         QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 1.5) * scale)),
-                              composite(t.accentFill))
+                              compositeOverFill(t.accentFill))
                 <= 2);
         return;
     }
@@ -1090,7 +1100,7 @@ void WinUI3EditorsTest::editorElevationBorder()
     if (state < 2) {
         // Only the border is strong: do not invent a 2 DIP resting underline.
         QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 2) * scale)),
-                              composite(Qt::transparent))
+                              compositeOverFill(Qt::transparent))
                 <= 2);
     }
 }

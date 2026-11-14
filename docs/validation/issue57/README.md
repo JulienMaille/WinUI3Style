@@ -75,3 +75,19 @@ uses the pinned minimum-height canvas; product sizing remains unchanged.
 Current-head Windows Qt 6.8.3 Debug CI accepted the refreshed snapshot matrix
 but exposed this font-growth assertion. The font-aware test correction needs
 a new Windows result before the full gate can pass.
+
+## Border compositing follow-up (2026-11-14)
+
+A live dark-mode report showed every input widget's resting border compositing
+over the control fill instead of the parent surface: XAML `Border` insets the
+background inside the border ring, while `borderedSurface` filled to the edge
+and stroked inside. The pinned stroke tokens were correct; only the composite
+order deviated (Dark ~14 gray levels, Light ~2-3, which is why earlier reviews
+missed it). The fill is now inset by the stroke extent for every
+`controlSurface`/`editorSurface` caller, including the focused path and popup
+frames. The editor contract test asserts stroke-over-surface rings (288 rows
+RED before the fix) and the button outer-pixel contract was corrected to the
+same semantics. The 50-PNG Windows baseline refresh is thin-band audited in
+[approval-review.md](approval-review.md); see
+issue57-border-compositing-before-after.png. Focused captures are no longer
+byte-identical to main. Official Windows side-by-side remains outstanding.
