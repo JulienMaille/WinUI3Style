@@ -41,18 +41,16 @@
 namespace WinUI3::Private {
 namespace {
 
-constexpr auto calendarPopupBorderObjectName = "_winui_calendar_popup_border";
-
 void prepareCalendarPopupBorder(QWidget *popup)
 {
-    if (!popup || !popup->findChild<QCalendarWidget *>())
+    if (!popup || !popup->inherits("QCalendarPopup"))
         return;
 
-    auto *border =
-            popup->findChild<QFrame *>(calendarPopupBorderObjectName, Qt::FindDirectChildrenOnly);
+    auto *border = popup->findChild<QFrame *>(QLatin1String(calendarPopupBorderObjectName),
+                                              Qt::FindDirectChildrenOnly);
     if (!border) {
         border = new QFrame(popup);
-        border->setObjectName(QLatin1StringView(calendarPopupBorderObjectName));
+        border->setObjectName(QLatin1String(calendarPopupBorderObjectName));
         border->setFrameShape(QFrame::StyledPanel);
         border->setLineWidth(1);
         border->setAutoFillBackground(false);
@@ -61,9 +59,9 @@ void prepareCalendarPopupBorder(QWidget *popup)
     }
 
     // QCalendarPopup's calendar child covers the complete client area, so a
-    // popup background cannot expose the CalendarView flyout boundary. Keep
-    // the stock QFrame transparent and let the existing popup PE_Frame paint
-    // its shared flyout stroke above that child instead.
+    // popup background cannot expose the CalendarView boundary. Keep the
+    // stock QFrame transparent and let CE_ShapedFrame paint the pinned
+    // CalendarView stroke above that child instead.
     QPalette borderPalette = popup->palette();
     borderPalette.setColor(QPalette::Window, withAlpha(borderPalette.color(QPalette::Window), 0));
     borderPalette.setColor(QPalette::Base, withAlpha(borderPalette.color(QPalette::Base), 0));
@@ -135,6 +133,14 @@ PopupBackdropReadback popupBackdropReadback(QWidget *popup)
 }
 
 } // namespace
+
+void removeCalendarPopupBorder(QWidget *widget)
+{
+    if (!widget || !widget->inherits("QCalendarPopup"))
+        return;
+    delete widget->findChild<QFrame *>(QLatin1String(calendarPopupBorderObjectName),
+                                       Qt::FindDirectChildrenOnly);
+}
 
 // Converge a refused popup to the honest opaque fallback: opaque surface
 // roles, full opaque paint recipe, Painted state. A refused DWM grant must

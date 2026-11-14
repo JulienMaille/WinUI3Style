@@ -6,6 +6,8 @@
 #include "../src/lib/winui3backdrop_p.h"
 #include "../src/lib/winui3density_p.h"
 #include "../src/lib/winui3paint_p.h"
+#include "../src/lib/winui3popupsurface_p.h"
+#include "../src/lib/winui3style_properties_p.h"
 #include "../src/lib/winui3tokens_p.h"
 #include "winui3testhelpers.h"
 
@@ -48,8 +50,8 @@ private slots:
     void init();
     void cleanup();
     void calendarPopupRemainsReadableInLightAndDark();
-    void calendarPopupFlyoutStroke_data();
-    void calendarPopupFlyoutStroke();
+    void calendarPopupBorderStroke_data();
+    void calendarPopupBorderStroke();
     void calendarNavigationBarLaneSharesOpaqueSurface();
     void calendarKeepPathRebasesTextRolesAcrossThemeSwitch();
 };
@@ -253,14 +255,14 @@ void WinUI3CalendarSurfaceTest::calendarPopupRemainsReadableInLightAndDark()
     }
 }
 
-void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke_data()
+void WinUI3CalendarSurfaceTest::calendarPopupBorderStroke_data()
 {
     QTest::addColumn<bool>("compact");
     QTest::newRow("standard") << false;
     QTest::newRow("compact") << true;
 }
 
-void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
+void WinUI3CalendarSurfaceTest::calendarPopupBorderStroke()
 {
     QFETCH(bool, compact);
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
@@ -288,12 +290,14 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         QVERIFY(popup);
         QVERIFY(popup->isVisible());
         QWidget *border = popup->findChild<QWidget *>(
-                QStringLiteral("_winui_calendar_popup_border"), Qt::FindDirectChildrenOnly);
+                QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+                Qt::FindDirectChildrenOnly);
         QVERIFY(border);
         QVERIFY(border->isVisible());
         QCOMPARE(border->geometry(), popup->rect());
-        QCOMPARE(popup->findChildren<QWidget *>(QStringLiteral("_winui_calendar_popup_border"),
-                                                Qt::FindDirectChildrenOnly)
+        QCOMPARE(popup->findChildren<QWidget *>(
+                              QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+                              Qt::FindDirectChildrenOnly)
                          .size(),
                  1);
 
@@ -305,14 +309,14 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         QTRY_VERIFY(popup->isVisible());
         QTRY_COMPARE(border->geometry(), popup->rect());
         const QList<QWidget *> reopenedBorders = popup->findChildren<QWidget *>(
-                QStringLiteral("_winui_calendar_popup_border"), Qt::FindDirectChildrenOnly);
+                QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+                Qt::FindDirectChildrenOnly);
         QCOMPARE(reopenedBorders.size(), 1);
         QCOMPARE(reopenedBorders.constFirst(), border);
 
         const WinUI3::Private::Tokens popupTokens = WinUI3::Private::tokens(popup->palette());
         const QColor surface = popup->palette().color(QPalette::Window);
-        QCOMPARE(popupTokens.flyoutStroke,
-                 WinUI3::Private::buildTokens(style.standardPalette()).flyoutStroke);
+        QCOMPARE(popupTokens.stroke, WinUI3::Private::buildTokens(style.standardPalette()).stroke);
         const QImage actual = popup->grab().toImage().convertToFormat(QImage::Format_ARGB32);
         QVERIFY(actual.width() > 2 && actual.height() > 2);
         QImage expected(actual.size(), QImage::Format_ARGB32_Premultiplied);
@@ -320,7 +324,7 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         {
             QPainter painter(&expected);
             WinUI3::PaintPrivate::controlSurface(&painter, QRectF(expected.rect()), surface,
-                                                 popupTokens.flyoutStroke, popupTokens.flyoutStroke,
+                                                 popupTokens.stroke, popupTokens.stroke,
                                                  WinUI3::Private::OverlayRadius);
         }
         const int midY = actual.height() / 2;
@@ -328,9 +332,26 @@ void WinUI3CalendarSurfaceTest::calendarPopupFlyoutStroke()
         QCOMPARE(actual.pixelColor(actual.width() - 1, midY),
                  expected.pixelColor(expected.width() - 1, midY));
         QCOMPARE(actual.pixelColor(1, midY), expected.pixelColor(1, midY));
+        style.unpolish(popup);
+        QCOMPARE(popup->findChildren<QWidget *>(
+                              QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+                              Qt::FindDirectChildrenOnly)
+                         .size(),
+                 0);
         calendar->hide();
         QCoreApplication::processEvents();
     }
+
+    QWidget unrelatedPopup;
+    unrelatedPopup.setWindowFlags(Qt::Popup);
+    new QCalendarWidget(&unrelatedPopup);
+    WinUI3::Private::preparePopupSurface(&unrelatedPopup);
+    QCOMPARE(unrelatedPopup
+                     .findChildren<QWidget *>(
+                             QLatin1String(WinUI3::Private::calendarPopupBorderObjectName),
+                             Qt::FindDirectChildrenOnly)
+                     .size(),
+             0);
 }
 
 void WinUI3CalendarSurfaceTest::calendarNavigationBarLaneSharesOpaqueSurface()

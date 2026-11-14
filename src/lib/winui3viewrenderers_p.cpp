@@ -405,13 +405,13 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
     const Tokens t = tokens(option->palette);
 
     if (element == QStyle::CE_ShapedFrame && widget
-        && widget->objectName() == QLatin1StringView("_winui_calendar_popup_border")) {
+        && widget->objectName() == QLatin1String(calendarPopupBorderObjectName)) {
         // QCalendarPopup's calendar child covers its full client rect. The
         // transparent, input-pass-through stock frame is therefore the only
-        // style-owned layer above that child; paint just the shared flyout
-        // boundary and retain the calendar's already-rendered surface.
-        controlSurface(painter, option->rect, Qt::transparent, t.flyoutStroke, t.flyoutStroke,
-                       OverlayRadius);
+        // style-owned layer above that child. CalendarView's pinned
+        // BorderBrush is ControlStrokeColorDefaultBrush;
+        // retain the calendar's already-rendered surface beneath that boundary.
+        controlSurface(painter, option->rect, Qt::transparent, t.stroke, t.stroke, OverlayRadius);
         return true;
     }
 

@@ -338,7 +338,9 @@ reproduction. The user chose to keep that original report blocked.
 
 A broader user-requested audit found these distinct pinned brush mappings:
 
-- Slider's template uses a standard `ToolTip`. Its value popup therefore shares
+- Slider's `SetDefaultThumbToolTip` implementation in `dxaml/xcp/dxaml/lib/Slider_Partial.cpp`
+  creates a standard `ToolTip` (`ctl::make<ToolTip>`); this is not declared in
+  `Slider_themeresources.xaml`. Its value popup therefore shares
   `PE_PanelTipLabel` with button tooltips, rather than using the stronger editor
   `strokeSecondary` and an independent translucent fill recipe. Alpha-backed
   value-tip windows preserve their transparent exterior corners.
@@ -349,8 +351,10 @@ A broader user-requested audit found these distinct pinned brush mappings:
   footer extensions share this semantic token; do not replace it with a white
   control stroke or a flyout outer border.
 - CalendarDatePicker's outer presenter has zero border; its contained CalendarView
-  owns one `CalendarViewBorderBrush` → `SurfaceStrokeColorFlyoutBrush` boundary.
-  Qt's popup composition must provide one equivalent boundary, not zero or two.
+  owns one `CalendarViewBorderBrush` → `ControlStrokeColorDefaultBrush` boundary
+  (Light black alpha 15, Dark white alpha 18). Qt's popup composition must
+  provide one equivalent boundary, not zero or two. The presenter retains the
+  popup's 8 px clip while CalendarView itself uses its pinned 4 px radius.
 
 Menu outer borders, ComboBox dropdown borders, and AutoSuggest popup borders
 already use the correct flyout token. Leave those mappings unchanged.

@@ -129,9 +129,14 @@ void WinUI3GalleryProbeTest::galleryPopupSeparatorColors()
         auto *button = gallery.findChild<QPushButton *>(kind);
         QVERIFY(button);
         QTimer::singleShot(0, &gallery, [&] {
+            const auto closeDialog = qScopeGuard([&gallery] {
+                for (QDialog *ownedDialog : gallery.findChildren<QDialog *>()) {
+                    if (ownedDialog->isVisible())
+                        ownedDialog->reject();
+                }
+            });
             auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
             QVERIFY(dialog);
-            const auto closeDialog = qScopeGuard([dialog] { dialog->reject(); });
             const QString footerName = kind == QStringLiteral("wizardButton")
                     ? QStringLiteral("_winui_wizard_footer_surface")
                     : QStringLiteral("_winui_content_dialog_footer_surface");

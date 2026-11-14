@@ -25,6 +25,9 @@ namespace Private {
 // or re-asserts the composited acrylic recipe. GUI-thread-only; may be called
 // repeatedly for the same popup (remember-once semantics).
 void preparePopupSurface(QWidget *widget);
+// Deletes the style-owned CalendarView border overlay from an actual Qt
+// QCalendarPopup. Called by Style::unpolish() before base-style painting.
+void removeCalendarPopupBorder(QWidget *widget);
 // Enables a real alpha surface for QMenu on Wayland, where QWidget masks only
 // constrain input and opaque regions, not the rendered buffer. Call before
 // the popup's native surface is created.

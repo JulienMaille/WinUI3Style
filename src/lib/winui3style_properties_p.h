@@ -49,5 +49,6 @@ inline constexpr auto originalNoSystemBackgroundProperty = "_winui_original_no_s
 inline constexpr auto originalListSpacingProperty = "_winui_original_list_spacing";
 inline constexpr auto ownedPaletteProperty = "_winui_theme_owned_palette";
 inline constexpr auto completerOwnerProperty = "_winui_completer_owner";
+inline constexpr auto calendarPopupBorderObjectName = "_winui_calendar_popup_border";
 
 } // namespace WinUI3::Private
