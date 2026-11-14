@@ -12,6 +12,7 @@
 #include "winui3testhelpers.h"
 
 #include "../src/lib/winui3surfaces_p.h"
+#include "../src/lib/winui3paint_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
 #include <QComboBox>
@@ -53,6 +54,14 @@ private slots:
     void galleryComparisonStyleAvailabilityAndRestore();
     void gallerySettingsExpanderAnimates();
     void galleryRubberBandReachable();
+    void settingsIconAlignment_data();
+    void settingsIconAlignment();
+    void settingsExpansionMargins_data();
+    void settingsExpansionMargins();
+    void settingsExpansionSeparator_data();
+    void settingsExpansionSeparator();
+    void settingsChevronForeground_data();
+    void settingsChevronForeground();
 };
 
 void WinUI3GalleryProbeTest::initTestCase()
@@ -728,6 +737,147 @@ void WinUI3GalleryProbeTest::galleryRubberBandReachable()
     QCOMPARE(painted.right(), expected.right());
     QVERIFY(qAbs(painted.top() - expected.top()) <= 1);
     QVERIFY(qAbs(painted.bottom() - expected.bottom()) <= 1);
+}
+
+// Issue #56: exercise the actual Designer composition, not a reconstructed card.
+namespace {
+void settingsVisualRows()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            for (bool rtl : { false, true })
+                QTest::newRow(
+                        qPrintable(QStringLiteral("%1-%2-%3").arg(dark).arg(compact).arg(rtl)))
+                        << dark << compact << rtl;
+}
+void showSettings(GalleryWindow &window, bool dark, bool compact, bool rtl)
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    style->setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    window.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    window.resize(1180, 780);
+    window.show();
+    window.findChild<QStackedWidget *>()->setCurrentWidget(
+            window.findChild<QWidget *>("settingsPage"));
+    QCoreApplication::processEvents();
+}
+} // namespace
+void WinUI3GalleryProbeTest::settingsIconAlignment_data()
+{
+    settingsVisualRows();
+}
+void WinUI3GalleryProbeTest::settingsIconAlignment()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    GalleryWindow window;
+    showSettings(window, dark, compact, rtl);
+    for (const auto &names : { qMakePair("notificationsCard", "notificationsCardIcon"),
+                               qMakePair("updatesCard", "updatesCardIcon"),
+                               qMakePair("advancedCard", "advancedIcon") }) {
+        auto *card = window.findChild<QFrame *>(names.first);
+        auto *icon = window.findChild<QLabel *>(names.second);
+        const int x = icon->mapTo(card, QPoint()).x();
+        QCOMPARE(icon->size(), QSize(20, 20));
+        // SettingsCardPadding.Left 16 + HeaderIconMargin.Left 2.
+        QCOMPARE(rtl ? card->width() - x - icon->width() : x, 18);
+        const QImage image = card->grab().toImage();
+        const QRect bounds(icon->mapTo(card, QPoint()), icon->size());
+        const QColor surface = image.pixelColor(bounds.left() - 1, bounds.center().y());
+        int pixels = 0;
+        for (int y = bounds.top(); y <= bounds.bottom(); ++y)
+            for (int x = bounds.left(); x <= bounds.right(); ++x)
+                pixels += colorDistance(image.pixelColor(x, y), surface) > 8;
+        QVERIFY(pixels > 6);
+    }
+}
+void WinUI3GalleryProbeTest::settingsExpansionMargins_data()
+{
+    settingsVisualRows();
+}
+void WinUI3GalleryProbeTest::settingsExpansionMargins()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    GalleryWindow window;
+    showSettings(window, dark, compact, rtl);
+    auto *card = window.findChild<QFrame *>("advancedCard");
+    auto *host = window.findChild<QWidget *>("advancedDetailsHost");
+    card->setProperty("winuiSettingsCardExpanded", true);
+    QTRY_VERIFY(host->height() > 0);
+    // Item padding + content border + the template's -2 presenter overlap.
+    QCOMPARE(host->layout()->contentsMargins(),
+             rtl ? QMargins(45, 6, 59, 9) : QMargins(59, 6, 45, 9));
+    auto *label = window.findChild<QLabel *>("advancedDetails");
+    QCOMPARE(label->mapTo(host, QPoint()).y(), 6);
+    QCOMPARE(label->mapTo(host, QPoint()).x(), rtl ? 45 : 59);
+}
+void WinUI3GalleryProbeTest::settingsExpansionSeparator_data()
+{
+    settingsVisualRows();
+}
+void WinUI3GalleryProbeTest::settingsExpansionSeparator()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    GalleryWindow window;
+    showSettings(window, dark, compact, rtl);
+    auto *card = window.findChild<QFrame *>("advancedCard");
+    auto *host = window.findChild<QWidget *>("advancedDetailsHost");
+    card->setProperty("winuiSettingsCardExpanded", true);
+    QTRY_VERIFY(host->height() > 0);
+    const int seam = host->y() - 1;
+    QCOMPARE(seam, window.findChild<QWidget *>("advancedHeader")->height() - 1);
+    const QImage image = card->grab().toImage();
+    const int x = card->width() / 2;
+    QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+    expected.fill(image.pixelColor(x, seam - 2));
+    QPainter painter(&expected);
+    painter.fillRect(expected.rect(), QColor(0, 0, 0, dark ? 25 : 15));
+    painter.end();
+    QCOMPARE(image.pixelColor(x, seam), expected.pixelColor(0, 0));
+    // The hairline is exactly one row and does not cover content.
+    QCOMPARE(image.pixelColor(x, seam - 1), image.pixelColor(x, seam - 2));
+}
+void WinUI3GalleryProbeTest::settingsChevronForeground_data()
+{
+    settingsVisualRows();
+}
+void WinUI3GalleryProbeTest::settingsChevronForeground()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    GalleryWindow window;
+    showSettings(window, dark, compact, rtl);
+    auto *card = window.findChild<QFrame *>("advancedCard");
+    auto *header = window.findChild<QWidget *>("advancedHeader");
+    for (bool enabled : { true, false }) {
+        card->setEnabled(enabled);
+        QCoreApplication::processEvents();
+        const auto t = WinUI3::Private::tokens(card->palette());
+        const QColor ink = enabled ? t.textPrimary : t.textDisabled;
+        QCOMPARE(ink.alpha(), enabled ? (dark ? 255 : 228) : (dark ? 93 : 92));
+        const QRect logical(card->width() - 8 - 32, (header->height() - 32) / 2, 32, 32);
+        const QRect box = QStyle::visualRect(card->layoutDirection(), header->rect(), logical);
+        const QImage actual = card->grab().toImage();
+        QImage expected(box.size(), QImage::Format_ARGB32_Premultiplied);
+        expected.fill(actual.pixelColor(box.left() - 2, box.center().y()));
+        QPainter painter(&expected);
+        WinUI3::PaintPrivate::paintRotatedIcon(
+                &painter, WinUI3::icon(WinUI3::Icon::ChevronDown, ink),
+                QRectF(box.center().x() - 8 - box.left(), box.center().y() - 8 - box.top(), 16, 16),
+                0.0, ink, enabled ? QIcon::Normal : QIcon::Disabled);
+        painter.end();
+        QCOMPARE(actual.copy(box), expected);
+    }
 }
 
 QTEST_MAIN(WinUI3GalleryProbeTest)

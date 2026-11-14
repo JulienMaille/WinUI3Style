@@ -1,4 +1,5 @@
 #include "gallerywindow.h"
+#include "../lib/winui3tokens_p.h"
 #include "ui_gallerywindow.h"
 
 #include <memory>
@@ -128,12 +129,24 @@ GalleryWindow::~GalleryWindow()
 void GalleryWindow::changeEvent(QEvent *event)
 {
     QMainWindow::changeEvent(event);
-    if (event->type() == QEvent::PaletteChange)
+    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::LayoutDirectionChange)
         refreshCardIcons();
 }
 
 void GalleryWindow::refreshCardIcons()
 {
+    const bool rtl = layoutDirection() == Qt::RightToLeft;
+    // A fixed 42 px lane includes 2 + 20 + 20; never center the 20 px
+    // QLabel in its unused trailing space. Layout margins are physical in Qt.
+    for (QLayout *layout : { static_cast<QLayout *>(ui->notificationsCardIconLayout),
+                             static_cast<QLayout *>(ui->updatesCardIconLayout),
+                             static_cast<QLayout *>(ui->advancedIconLayout) })
+        layout->setContentsMargins(WinUI3::Private::settingsCardIconMargins(rtl));
+    ui->advancedHeaderLayout->setContentsMargins(
+            WinUI3::Private::settingsExpanderHeaderMargins(rtl));
+    ui->advancedDetailsLayout->setContentsMargins(
+            WinUI3::Private::settingsExpanderContentMargins(rtl));
+
     // SettingsCard header icon: SettingsCardHeaderIconMaxSize 20, drawn from
     // the style's themed standard icons. A QLabel stores a plain pixmap, so a
     // theme switch must re-render it or the old ink stays on the new surface.

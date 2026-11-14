@@ -231,7 +231,7 @@
            <property name="topMargin"><number>8</number></property>
            <property name="rightMargin"><number>44</number></property>
            <property name="bottomMargin"><number>8</number></property>
-           <item><widget class="QLabel" name="advancedDetails"><property name="text"><string>Expanded settings content. This area shares the card surface with no frame or border.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+           <item><widget class="QLabel" name="advancedDetails"><property name="text"><string>Expanded settings content with the WinUI SettingsExpander separator and margins.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
           </layout>
          </widget></item>
         </layout>

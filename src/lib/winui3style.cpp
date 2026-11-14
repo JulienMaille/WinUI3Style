@@ -1888,7 +1888,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         const qreal angle = widget->property("_winui_settings_card_chevron_rotation").toReal();
         const bool enabled = widget->isEnabled();
         const Private::Tokens t = Private::tokens(widget->palette());
-        const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
+        const QColor foreground = enabled ? t.textPrimary : t.textDisabled;
         QRectF glyphRect(option->rect);
         glyphRect.setSize(QSizeF(Private::SettingsExpanderChevronGlyphSize,
                                  Private::SettingsExpanderChevronGlyphSize));

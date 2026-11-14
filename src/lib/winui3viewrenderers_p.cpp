@@ -426,6 +426,15 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
         if (paintsDirectlyOnBackdrop(widget))
             fill.setAlpha(qMin(fill.alpha(), VeiledCardAlpha));
         controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
+        // The header's bottom border remains visible above the expanded
+        // content. Both stock and compiled compositions delegate it here.
+        const QWidget *content = expansion ? expansion
+                                           : widget->findChild<QWidget *>(QStringLiteral(
+                                                     "_winui_settings_card_expandableHost"));
+        if (content && content->isVisible() && content->height() > 0 && content->y() > 0)
+            painter->fillRect(
+                    QRect(option->rect.left() + 1, content->y() - 1, option->rect.width() - 2, 1),
+                    t.cardStroke);
         if (keyboardFocusVisible(widget)) {
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
@@ -457,7 +466,7 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                                                         logicalChevron.intersected(header));
             const qreal angle = 180.0 * progress(widget, settingsCardExpansionProgressProperty);
             const bool enabled = option->state & QStyle::State_Enabled;
-            const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
+            const QColor foreground = enabled ? t.textPrimary : t.textDisabled;
             PaintPrivate::paintRotatedIcon(
                     painter, WinUI3::icon(WinUI3::Icon::ChevronDown, foreground),
                     QRectF(chevronBox.center().x() - SettingsExpanderChevronGlyphSize / 2,

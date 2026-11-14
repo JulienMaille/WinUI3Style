@@ -53,17 +53,18 @@ SettingsCard::SettingsCard(QWidget *parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAttribute(Qt::WA_Hover);
 
-    m_rootLayout->setContentsMargins(16, 0, 16, 0);
+    setContentsMargins(0, 0, 0, 0);
+    m_rootLayout->setContentsMargins(0, 0, 0, 0);
     m_rootLayout->setSpacing(0);
-    // Expanded content shares the card surface: plain host, no fill,
-    // no frame/border of its own.
+    // The style paints the card and its expansion separator.
     m_expandableHost->setAutoFillBackground(false);
     m_headerHost->setObjectName(QStringLiteral("_winui_settings_card_headerHost"));
     m_expandableHost->setObjectName(QStringLiteral("_winui_settings_card_expandableHost"));
     m_headerHost->setMouseTracking(true);
     m_headerHost->installEventFilter(this);
     m_headerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_headerLayout->setContentsMargins(0, 12, 0, 12);
+    m_headerLayout->setContentsMargins(Private::SettingsCardPadding, 12,
+                                       Private::SettingsCardPadding, 12);
     m_headerLayout->setHorizontalSpacing(12);
     m_headerLayout->setVerticalSpacing(2);
     m_iconLabel->setFixedWidth(20);
@@ -368,7 +369,7 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
     if (widget) {
         auto *layout = new QVBoxLayout(m_expandableHost);
         const bool rtl = layoutDirection() == Qt::RightToLeft;
-        layout->setContentsMargins(rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
+        layout->setContentsMargins(Private::settingsExpanderContentMargins(rtl));
         layout->addWidget(widget);
         widget->installEventFilter(this);
         const QPointer<QWidget> guarded = widget;
@@ -599,7 +600,8 @@ void SettingsCard::changeEvent(QEvent *event)
         refreshIconPixmap();
         if (event->type() == QEvent::LayoutDirectionChange && m_expandableHost->layout()) {
             const bool rtl = layoutDirection() == Qt::RightToLeft;
-            m_expandableHost->layout()->setContentsMargins(rtl ? 0 : 32, 0, rtl ? 32 : 0, 16);
+            m_expandableHost->layout()->setContentsMargins(
+                    Private::settingsExpanderContentMargins(rtl));
         }
     }
     QFrame::changeEvent(event);
