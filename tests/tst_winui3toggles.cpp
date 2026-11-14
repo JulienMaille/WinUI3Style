@@ -98,6 +98,8 @@ private slots:
     void toggleConvenienceWidget();
     void toggleInteraction();
     void togglePressedThumbGeometry();
+    void togglePressedThumbPillShape_data();
+    void togglePressedThumbPillShape();
     void toggleDragInteraction();
     void toggleRtlGeometryAndInteraction();
     void checkboxAcceptAnimation();
@@ -238,6 +240,81 @@ void WinUI3TogglesTest::togglePressedThumbGeometry()
     QVERIFY(whiteInk.height() <= 14);
     QVERIFY2(track.right() - whiteInk.right() >= 3.0,
              "pressed on-thumb must retain WinUI's trailing inset");
+}
+
+void WinUI3TogglesTest::togglePressedThumbPillShape_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("standard") << false;
+    QTest::newRow("compact") << true;
+}
+
+void WinUI3TogglesTest::togglePressedThumbPillShape()
+{
+    QFETCH(bool, compact);
+    QCheckBox toggle;
+    WinUI3::Style::setToggleSwitch(&toggle);
+    if (compact)
+        toggle.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
+    toggle.resize(80, 32);
+    toggle.setChecked(true);
+    setFrame(&toggle, "_winui_toggle_position", 1.0);
+    setFrame(&toggle, "_winui_hover_progress", 1.0);
+    setFrame(&toggle, "_winui_press_progress", 1.0);
+
+    QStyleOptionButton option;
+    option.initFrom(&toggle);
+    option.rect = toggle.rect();
+    option.state = QStyle::State_Enabled | QStyle::State_On | QStyle::State_MouseOver
+            | QStyle::State_Sunken;
+    QImage image(toggle.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    {
+        QPainter painter(&image);
+        toggle.style()->drawControl(QStyle::CE_CheckBox, &option, &painter, &toggle);
+    }
+
+    // The pinned template paints SwitchKnobOn/SwitchKnobOff as a Border /
+    // Rectangle with a fixed CornerRadius / RadiusX of 7, animated to 17x14
+    // while pressed. A 17x14 rounded rect with radius 7 is a stadium (pill);
+    // an ellipse inscribed in the same box is pointier and leaves the top and
+    // bottom corner pixels as track. The bounding box alone cannot tell them
+    // apart, so probe the corners the pill covers and the ellipse does not.
+    const QRect track(option.rect.left(), option.rect.center().y() - 10, 40, 20);
+    const QRect knob(track.left() + 20, track.top() + 3, 17, 14);
+    QCOMPARE(track.width(), 40);
+    QCOMPARE(track.height(), 20);
+    QCOMPARE(knob.width(), 17);
+    QCOMPARE(knob.height(), 14);
+    QCOMPARE(track.right() - knob.right(), 3);
+
+    QRect whiteInk;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() > 200 && pixel.red() > 240 && pixel.green() > 240
+                && pixel.blue() > 240)
+                whiteInk |= QRect(x, y, 1, 1);
+        }
+    }
+    QCOMPARE(whiteInk, knob);
+
+    const QColor knobInk(Qt::white);
+    const QColor trackFill = image.pixelColor(track.left() + 5, track.center().y());
+    const QList<QPoint> corners = {
+        QPoint(knob.left() + 4, knob.top()),
+        QPoint(knob.right() - 4, knob.top()),
+        QPoint(knob.left() + 4, knob.bottom()),
+        QPoint(knob.right() - 4, knob.bottom()),
+    };
+    for (const QPoint &corner : corners) {
+        const QColor pixel = image.pixelColor(corner);
+        QVERIFY2(colorDistance(pixel, knobInk) < colorDistance(pixel, trackFill),
+                 qPrintable(QStringLiteral("pressed knob corner %1,%2 is track, not pill ink: %3")
+                                    .arg(corner.x())
+                                    .arg(corner.y())
+                                    .arg(pixel.name())));
+    }
 }
 
 void WinUI3TogglesTest::toggleDragInteraction()
