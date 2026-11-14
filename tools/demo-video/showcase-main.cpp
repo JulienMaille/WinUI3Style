@@ -1,11 +1,14 @@
 #include <QApplication>
 #include <QButtonGroup>
+#include <QCalendarWidget>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCursor>
 #include <QDateEdit>
 #include <QDir>
 #include <QGridLayout>
+#include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -30,8 +33,10 @@
 #include <QPixmap>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTableView>
+#include <QTableWidget>
+#include <QTreeWidget>
 #include <QAbstractItemView>
-#include <QTimeEdit>
 #include <QToolButton>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -43,11 +48,13 @@ struct Panel {
     QWidget *root{};
     QStackedWidget *pages{};
     QCheckBox *check{};
+    QRadioButton *radioA{};
     QRadioButton *radioB{};
     QCheckBox *wifi{};
     QCheckBox *bluetooth{};
     QComboBox *combo{};
     QSpinBox *spin{};
+    QSpinBox *spinH{};
     QLineEdit *edit{};
     QSlider *slider{};
     QPushButton *standard{};
@@ -55,7 +62,6 @@ struct Panel {
     QPushButton *destructive{};
     QPushButton *more{};
     QDateEdit *date{};
-    QTimeEdit *time{};
     QTabWidget *tabs{};
     QScrollBar *scroll{};
 };
@@ -114,35 +120,38 @@ Panel makePanel(QWidget *parent, bool dark)
     auto *selectionLayout = new QVBoxLayout(selection);
     selectionLayout->setContentsMargins(0, 0, 0, 0);
     selectionLayout->setSpacing(12);
-    p.check = new QCheckBox(QStringLiteral("Check box"));
-    auto *radioA = new QRadioButton(QStringLiteral("Option A"));
-    p.radioB = new QRadioButton(QStringLiteral("Option B"));
+    p.check = new QCheckBox(QStringLiteral("Pixel perfect"));
+    p.radioA = new QRadioButton(QStringLiteral("Controls and"));
+    p.radioB = new QRadioButton(QStringLiteral("Animations"));
     auto *group = new QButtonGroup(one);
-    group->addButton(radioA); group->addButton(p.radioB); radioA->setChecked(true);
-    p.wifi = new QCheckBox(QStringLiteral("Wi-Fi"));
+    group->addButton(p.radioA); group->addButton(p.radioB); p.radioB->setChecked(true);
+    p.wifi = new QCheckBox(QStringLiteral("0% stylesheet"));
     p.wifi->setProperty("winuiToggleSwitch", true);
-    p.wifi->setProperty("winuiOnText", QStringLiteral("On"));
-    p.wifi->setProperty("winuiOffText", QStringLiteral("Off"));
-    p.bluetooth = new QCheckBox(QStringLiteral("Bluetooth"));
+    p.bluetooth = new QCheckBox(QStringLiteral("Optional Mica"));
     p.bluetooth->setProperty("winuiToggleSwitch", true);
-    p.bluetooth->setProperty("winuiOnText", QStringLiteral("On"));
-    p.bluetooth->setProperty("winuiOffText", QStringLiteral("Off"));
     p.bluetooth->setChecked(true);
-    selectionLayout->addWidget(p.check); selectionLayout->addWidget(radioA);
-    selectionLayout->addWidget(p.radioB); selectionLayout->addWidget(p.wifi);
-    selectionLayout->addWidget(p.bluetooth);
+    selectionLayout->addWidget(p.check); selectionLayout->addWidget(p.radioA);
+    selectionLayout->addWidget(p.radioB); selectionLayout->addWidget(p.bluetooth);
+    selectionLayout->addWidget(p.wifi);
     add(one, selection, Qt::AlignHCenter);
     finish(p.pages, one);
 
     QWidget *two = page(p.pages);
-    p.spin = new QSpinBox; p.spin->setRange(0, 100); p.spin->setValue(38);
+    p.spin = new QSpinBox; p.spin->setRange(0, 100); p.spin->setValue(0);
+    p.spin->setProperty("winuiVerticalSpinButtons", true);
+    p.spinH = new QSpinBox; p.spinH->setRange(0, 100); p.spinH->setValue(0);
+    auto *spinRow = new QWidget(two);
+    auto *spinLayout = new QHBoxLayout(spinRow);
+    spinLayout->setContentsMargins(0, 0, 0, 0);
+    spinLayout->setSpacing(12);
+    spinLayout->addWidget(p.spin, 1); spinLayout->addWidget(p.spinH, 1);
     p.combo = new QComboBox;
-    p.combo->addItems({QStringLiteral("First item"), QStringLiteral("Second item"), QStringLiteral("Third item")});
+    p.combo->addItems({QStringLiteral("No code change"), QStringLiteral("No recompilation"), QStringLiteral("Drop-in QStyle")});
     p.slider = new QSlider(Qt::Horizontal); p.slider->setRange(0, 100); p.slider->setValue(40);
     p.edit = new QLineEdit;
     p.edit->setPlaceholderText(QStringLiteral("Type something"));
     p.edit->setClearButtonEnabled(true);
-    add(two, p.spin); add(two, p.combo); add(two, p.slider); add(two, p.edit);
+    add(two, spinRow); add(two, p.combo); add(two, p.slider); add(two, p.edit);
     finish(p.pages, two);
 
     QWidget *three = page(p.pages);
@@ -174,12 +183,54 @@ Panel makePanel(QWidget *parent, bool dark)
     QWidget *four = page(p.pages);
     static_cast<QVBoxLayout *>(four->layout())->setSpacing(12);
     p.date = new QDateEdit(QDate(2026, 11, 10)); p.date->setDisplayFormat(QStringLiteral("dd/MM/yy"));
-    p.time = new QTimeEdit(QTime(9, 30));
-    p.tabs = new QTabWidget; p.tabs->setFixedHeight(66);
-    p.tabs->addTab(new QLabel(QStringLiteral("Overview")), QStringLiteral("Home"));
-    p.tabs->addTab(new QLabel(QStringLiteral("Recent files")), QStringLiteral("Recent"));
+    p.date->setCalendarPopup(true);
+    // Size the flyout before it shows so opening never reflows mid-capture.
+    auto *calView = p.date->calendarWidget()->findChild<QTableView *>(QStringLiteral("qt_calendar_calendarview"));
+    calView->horizontalHeader()->setMinimumSectionSize(0);
+    calView->verticalHeader()->setMinimumSectionSize(0);
+    calView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    calView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    for (int col = 0; col < calView->model()->columnCount(); ++col)
+        calView->horizontalHeader()->resizeSection(col, 40);
+    for (int row = 0; row < calView->model()->rowCount(); ++row)
+        calView->verticalHeader()->resizeSection(row, row == 0 ? 32 : 38);
+    calView->setFixedWidth(280);
+    // QCalendarWidget caches its construction-time sizeHint; size it explicitly
+    // so the popup opens at the real grid height instead of clipping it.
+    // Row 0 of the model is the weekday name row, not a day week.
+    const int gridHeight = 32 + (calView->model()->rowCount() - 1) * 38;
+    calView->setFixedHeight(gridHeight);
+    p.date->calendarWidget()->setFixedSize(280, 32 + gridHeight);
+    // Qt spreads month/year across the bar and lets it stretch; WinUI keeps a
+    // compact 32px header with the month and year centered as one title.
+    auto *bar = p.date->calendarWidget()->findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
+    auto *barLayout = qobject_cast<QHBoxLayout *>(bar->layout());
+    for (const QString name : {QStringLiteral("qt_calendar_monthbutton"), QStringLiteral("qt_calendar_yearbutton")})
+        bar->findChild<QWidget *>(name)->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    barLayout->setStretch(1, 1);
+    barLayout->setStretch(5, 1);
+    barLayout->insertSpacing(3, 8);
+    p.tabs = new QTabWidget; p.tabs->setFixedHeight(156);
+    // Stock QTabBar is TabFocus-only; WinUI TabView takes focus on click.
+    p.tabs->tabBar()->setFocusPolicy(Qt::ClickFocus);
+    auto *tree = new QTreeWidget;
+    tree->setHeaderHidden(true);
+    auto *docs = new QTreeWidgetItem(tree, {QStringLiteral("Documents")});
+    new QTreeWidgetItem(docs, {QStringLiteral("Resume.pdf")});
+    new QTreeWidgetItem(docs, {QStringLiteral("Notes.txt")});
+    new QTreeWidgetItem(tree, {QStringLiteral("Pictures")});
+    tree->expandItem(docs);
+    auto *table = new QTableWidget(2, 3);
+    table->setHorizontalHeaderLabels({QStringLiteral("Name"), QStringLiteral("Size"), QStringLiteral("Modified")});
+    table->verticalHeader()->hide();
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    const auto cell = [](const QString &s) { return new QTableWidgetItem(s); };
+    table->setItem(0, 0, cell(QStringLiteral("main.cpp"))); table->setItem(0, 1, cell(QStringLiteral("12 KB"))); table->setItem(0, 2, cell(QStringLiteral("10/11")));
+    table->setItem(1, 0, cell(QStringLiteral("tokens.h"))); table->setItem(1, 1, cell(QStringLiteral("4 KB"))); table->setItem(1, 2, cell(QStringLiteral("09/11")));
+    p.tabs->addTab(tree, QStringLiteral("Tree view"));
+    p.tabs->addTab(table, QStringLiteral("Table view"));
     p.scroll = new QScrollBar(Qt::Horizontal); p.scroll->setRange(0, 100); p.scroll->setPageStep(15); p.scroll->setValue(20);
-    add(four, p.date); add(four, p.time); add(four, p.tabs); add(four, p.scroll);
+    add(four, p.date); add(four, p.tabs); add(four, p.scroll);
     finish(p.pages, four);
     return p;
 }
@@ -297,7 +348,7 @@ void chooseComboWithHover(QComboBox *combo, QWidget *window)
                 << " window=" << w->palette().color(QPalette::Window).name(QColor::HexArgb) << " base=" << w->palette().color(QPalette::Base).name(QColor::HexArgb) << '\n';
         }
     }
-    const QModelIndex index = combo->model()->index(1, combo->modelColumn(), combo->rootModelIndex());
+    const QModelIndex index = combo->model()->index(2, combo->modelColumn(), combo->rootModelIndex());
     const QPoint target = view->viewport()->mapToGlobal(view->visualRect(index).center());
     Q_UNUSED(window);
     moveCursor(combo, target, [combo] {
@@ -395,16 +446,20 @@ int main(int argc, char *argv[])
     // Coarse timers may drift 5% (over a second at this length) and reorder scenes.
     auto after = [](int ms, QObject *ctx, auto fn) { QTimer::singleShot(2000 + ms, Qt::PreciseTimer, ctx, fn); };
     after(500, p.check, [&p, &window] { click(p.check, &window); });
-    after(1200, p.radioB, [&p, &window] { click(p.radioB, &window); });
-    after(2200, p.wifi, [&p, &window] { click(p.wifi, &window); });
-    after(3000, p.bluetooth, [&p, &window] { click(p.bluetooth, &window); });
-    after(3900, p.pages, [&p] { p.pages->setCurrentIndex(1); });
+    after(1000, p.check, [&p, &window] { click(p.check, &window); });
+    after(1500, p.check, [&p, &window] { click(p.check, &window); });
+    after(2100, p.radioA, [&p, &window] { click(p.radioA, &window); });
+    after(2700, p.radioB, [&p, &window] { click(p.radioB, &window); });
+    after(3300, p.wifi, [&p, &window] { click(p.wifi, &window); });
+    after(3800, p.bluetooth, [&p, &window] { click(p.bluetooth, &window); });
+    after(4500, p.pages, [&p] { p.pages->setCurrentIndex(1); });
     // Scene 2 follows the visual order: SpinBox, ComboBox, Slider, LineEdit.
-    after(4500, p.spin, [&p, &window] { clickSpinArrow(p.spin, &window, QStyle::SC_SpinBoxUp); });
-    after(5200, p.spin, [&p, &window] { clickSpinArrow(p.spin, &window, QStyle::SC_SpinBoxDown); });
-    after(5900, p.combo, [&p, &window] { openComboWithHover(p.combo, &window); });
-    after(7400, p.combo, [&p, &window] { chooseComboWithHover(p.combo, &window); });
-    after(8500, p.slider, [&p, &window] {
+    after(5100, p.spin, [&p, &window] { clickSpinArrow(p.spin, &window, QStyle::SC_SpinBoxUp); });
+    after(5700, p.spin, [&p, &window] { clickSpinArrow(p.spin, &window, QStyle::SC_SpinBoxDown); });
+    after(6300, p.spinH, [&p, &window] { clickSpinArrow(p.spinH, &window, QStyle::SC_SpinBoxUp); });
+    after(6900, p.combo, [&p, &window] { openComboWithHover(p.combo, &window); });
+    after(8400, p.combo, [&p, &window] { chooseComboWithHover(p.combo, &window); });
+    after(9500, p.slider, [&p, &window] {
         QStyleOptionSlider option;
         option.initFrom(p.slider);
         option.orientation = p.slider->orientation();
@@ -430,30 +485,76 @@ int main(int argc, char *argv[])
         }
         });
     });
-    after(10100, p.edit, [&p, &window] { click(p.edit, &window); });
-    after(10600, p.edit, [&p] { typeText(p.edit, QStringLiteral("WinUI in Qt")); });
-    after(12300, p.edit, [&p, &window] {
+    after(11100, p.edit, [&p, &window] { click(p.edit, &window); });
+    after(11600, p.edit, [&p] { typeText(p.edit, QStringLiteral("Same Qt code")); });
+    after(13300, p.edit, [&p, &window] {
         if (QWidget *clear = clearButton(p.edit))
             click(clear, &window);
     });
-    after(13200, p.edit, [&p] { typeText(p.edit, QStringLiteral("Fluent widgets")); });
-    after(15000, p.pages, [&p] { p.pages->setCurrentIndex(2); });
-    after(15600, p.standard, [&p, &window] { click(p.standard, &window); });
-    after(16500, p.accent, [&p, &window] { click(p.accent, &window); });
-    after(17400, p.destructive, [&p, &window] { click(p.destructive, &window); });
-    after(18400, p.more, [&p, &window] { click(p.more, &window); });
-    after(19500, p.more, [&p] {
+    after(14200, p.edit, [&p] { typeText(p.edit, QStringLiteral("-style winui3")); });
+    after(16000, p.pages, [&p] { p.pages->setCurrentIndex(2); });
+    after(16600, p.standard, [&p, &window] { click(p.standard, &window); });
+    after(17500, p.accent, [&p, &window] { click(p.accent, &window); });
+    after(18400, p.destructive, [&p, &window] { click(p.destructive, &window); });
+    after(19400, p.more, [&p, &window] { click(p.more, &window); });
+    after(20500, p.more, [&p] {
         QMenu *menu = p.more->menu();
         moveCursor(menu, menu->mapToGlobal(menu->actionGeometry(menu->actions().at(1)).center()), {});
     });
-    after(20200, p.more, [&p] { clickMenuItem(p.more->menu(), 2); });
-    after(21800, p.pages, [&p] { p.pages->setCurrentIndex(3); });
-    after(22400, p.date, [&p, &window] { clickSpinArrow(p.date, &window, QStyle::SC_SpinBoxUp); });
-    after(23400, p.time, [&p, &window] { clickSpinArrow(p.time, &window, QStyle::SC_SpinBoxDown); });
-    after(24500, p.tabs->tabBar(), [&p, &window] { click(p.tabs->tabBar(), &window, p.tabs->tabBar()->tabRect(1).center()); });
-    after(25400, p.scroll, [&p, &window] { click(p.scroll, &window, QPoint(p.scroll->width() * 3 / 4, p.scroll->height() / 2)); });
-    // Exercise the documented application property on the real window, not a
-    // fabricated material overlay in the video compositor.
-    after(26800, &window, [&window] { window.setProperty("winuiBackdrop", QStringLiteral("mica")); });
+    after(21200, p.more, [&p] { clickMenuItem(p.more->menu(), 2); });
+    after(22800, p.pages, [&p] { p.pages->setCurrentIndex(3); });
+    after(23400, p.date, [&p, &window] {
+        QStyleOptionComboBox option;
+        option.initFrom(p.date);
+        option.editable = true;
+        option.frame = p.date->hasFrame();
+        const QRect arrow = p.date->style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                            QStyle::SC_ComboBoxArrow, p.date);
+        click(p.date, &window, arrow.center());
+    });
+    after(24600, p.date, [&p, &window] {
+        auto *view = p.date->calendarWidget()->findChild<QAbstractItemView *>(QStringLiteral("qt_calendar_calendarview"));
+        // Day 5 stays inside the capture frame even when the flyout crops.
+        QModelIndex day;
+        for (int row = 0; row < view->model()->rowCount() && !day.isValid(); ++row)
+            for (int col = 0; col < view->model()->columnCount(); ++col)
+                if (view->model()->index(row, col).data().toInt() == 5) {
+                    day = view->model()->index(row, col);
+                    break;
+                }
+        if (day.isValid())
+            click(view->viewport(), &window, view->visualRect(day).center());
+    });
+    after(25100, p.date, [&p] {
+        if (p.date->calendarWidget()->isVisible())
+            key(VK_ESCAPE);
+    });
+    after(25400, p.tabs->tabBar(), [&p, &window] { click(p.tabs->tabBar(), &window, p.tabs->tabBar()->tabRect(1).center()); });
+    after(26300, p.scroll, [&p, &window] {
+        QStyleOptionSlider option;
+        option.initFrom(p.scroll);
+        option.orientation = p.scroll->orientation();
+        option.minimum = p.scroll->minimum(); option.maximum = p.scroll->maximum();
+        option.sliderPosition = p.scroll->sliderPosition(); option.sliderValue = p.scroll->value();
+        option.pageStep = p.scroll->pageStep();
+        const QPoint handle = p.scroll->style()->subControlRect(QStyle::CC_Slider, &option,
+                              QStyle::SC_SliderHandle, p.scroll).center();
+        const int from = handle.x();
+        const int y = handle.y();
+        const int to = p.scroll->width() * 3 / 4;
+        moveCursor(p.scroll, p.scroll->mapToGlobal(QPoint(from, y)), [scroll = p.scroll, y, from, to] {
+        INPUT down{}; down.type = INPUT_MOUSE; down.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        SendInput(1, &down, sizeof(INPUT));
+        for (int step = 1; step <= 12; ++step) {
+            QTimer::singleShot(step * 16, Qt::PreciseTimer, scroll, [scroll, y, from, to, step] {
+                QCursor::setPos(scroll->mapToGlobal(QPoint(from + (to - from) * step / 12, y)));
+                if (step == 12) {
+                    INPUT up{}; up.type = INPUT_MOUSE; up.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                    SendInput(1, &up, sizeof(INPUT));
+                }
+            });
+        }
+        });
+    });
     return app.exec();
 }

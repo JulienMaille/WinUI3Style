@@ -29,6 +29,7 @@ public static class ShowCapture3 {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint processId);
     [DllImport("user32.dll", SetLastError=true)] public static extern bool AttachThreadInput(uint from, uint to, bool attach);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint state);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
@@ -69,12 +70,19 @@ $attached = $false
 if ($fgThread -ne 0 -and $targetThread -ne 0 -and $fgThread -ne $targetThread) {
     $attached = [ShowCapture3]::AttachThreadInput($fgThread, $targetThread, $true)
 }
-[ShowCapture3]::BringWindowToTop($h) | Out-Null
-[ShowCapture3]::SetForegroundWindow($h) | Out-Null
-[ShowCapture3]::SetForegroundWindow($h) | Out-Null
+# Synthetic ALT grants foreground rights when a UWP frame host holds focus (AttachThreadInput fails there).
+$acquired = $false
+for ($try = 0; $try -lt 6 -and -not $acquired; $try++) {
+    [ShowCapture3]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+    [ShowCapture3]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+    [ShowCapture3]::BringWindowToTop($h) | Out-Null
+    [ShowCapture3]::SetForegroundWindow($h) | Out-Null
+    [ShowCapture3]::SetForegroundWindow($h) | Out-Null
+    Start-Sleep -Milliseconds 400
+    $acquired = [ShowCapture3]::GetForegroundWindow() -eq $h
+}
 if ($attached) { [ShowCapture3]::AttachThreadInput($fgThread, $targetThread, $false) | Out-Null }
-Start-Sleep -Milliseconds 400
-if ([ShowCapture3]::GetForegroundWindow() -ne $h) { throw 'Showcase window did not take foreground; refusing to record.' }
+if (-not $acquired) { throw 'Showcase window did not take foreground; refusing to record.' }
 
 for ($pass = 0; $pass -lt 3; $pass++) {
     $pt = New-Object ShowCapture3+POINT
