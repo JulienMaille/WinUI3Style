@@ -22,8 +22,15 @@ constexpr int NormalDuration = 250;
 constexpr int SettingsExpanderExpandDuration = 333;
 constexpr int SettingsExpanderCollapseDuration = 167;
 constexpr int SettingsExpanderChevronGlyphSize = 16;
+constexpr int SettingsExpanderChevronBoxSize = 32;
+constexpr int SettingsExpanderChevronMargin = 8;
+constexpr int SettingsCardContentSpacing = 24;
 // SettingsControls templates pinned in docs/coverage.md (issue #56).
 constexpr int SettingsCardPadding = 16;
+constexpr int SettingsCardBorderThickness = 1;
+constexpr int SettingsCardMinHeight = 68;
+constexpr int SettingsExpanderContentMinHeight = 52 - 2 + 1;
+constexpr int SettingsExpanderContentRowMinHeight = SettingsExpanderContentMinHeight - 7 - 9;
 constexpr int SettingsCardIconLeadingMargin = 2;
 constexpr int SettingsCardIconTrailingMargin = 20;
 inline QMargins settingsCardIconMargins(bool rtl)
@@ -34,12 +41,13 @@ inline QMargins settingsCardIconMargins(bool rtl)
 inline QMargins settingsExpanderHeaderMargins(bool rtl)
 {
     // HeaderPadding 16,16,4,16 + the 32 px chevron box + 8 px margin.
-    return rtl ? QMargins(44, 16, 16, 16) : QMargins(16, 16, 44, 16);
+    return rtl ? QMargins(45, 17, 17, 17) : QMargins(17, 17, 45, 17);
 }
 inline QMargins settingsExpanderContentMargins(bool rtl)
 {
-    // ItemPadding 58,8,44,8 + border 1,0,1,1 + presenter Margin 0,-2,0,0.
-    return rtl ? QMargins(45, 6, 59, 9) : QMargins(59, 6, 45, 9);
+    // ItemPadding 58,8,44,8 + content border 1,0,1,1 + item border 0,1,0,0
+    // + presenter Margin 0,-2,0,0. Header also includes its 1 px border.
+    return rtl ? QMargins(45, 7, 59, 9) : QMargins(59, 7, 45, 9);
 }
 constexpr qreal ControlRadius = 4.0;
 constexpr qreal OverlayRadius = 8.0;

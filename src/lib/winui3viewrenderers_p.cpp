@@ -428,9 +428,11 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
         controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
         // The header's bottom border remains visible above the expanded
         // content. Both stock and compiled compositions delegate it here.
-        const QWidget *content = expansion ? expansion
-                                           : widget->findChild<QWidget *>(QStringLiteral(
-                                                     "_winui_settings_card_expandableHost"));
+        const QWidget *content = expansion
+                ? expansion
+                : widget->findChild<QWidget *>(
+                          QStringLiteral("_winui_settings_card_expandableHost"),
+                          Qt::FindDirectChildrenOnly);
         if (content && content->isVisible() && content->height() > 0 && content->y() > 0)
             painter->fillRect(
                     QRect(option->rect.left() + 1, content->y() - 1, option->rect.width() - 2, 1),
@@ -452,8 +454,9 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             // corners are top-only (ExpandDown), which the card stroke above
             // already keeps for the frame; the chevron stays centered on the
             // header, not on the whole expanded card.
-            constexpr int chevronButtonSize = 32;
-            constexpr int chevronTrailingMargin = 8;
+            constexpr int chevronButtonSize = SettingsExpanderChevronBoxSize;
+            constexpr int chevronTrailingMargin =
+                    SettingsExpanderChevronMargin + SettingsCardBorderThickness;
             const int headerHeight =
                     qBound(0, settingsCardHeaderHeight(widget), option->rect.height());
             const QRect header(option->rect.left(), option->rect.top(), option->rect.width(),
@@ -527,9 +530,11 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             // Qt's QToolBoxButton bolds the selected page, so the bold is
             // dropped by painting the option font as-is.
             constexpr int headerContentInset = 16; // ExpanderHeaderPadding 16,0,0,0
-            constexpr int chevronButtonSize = 32; // ExpanderChevronButtonSize
+            constexpr int chevronButtonSize =
+                    SettingsExpanderChevronBoxSize; // ExpanderChevronButtonSize
             constexpr int chevronGlyphSize = 12; // ExpanderChevronGlyphSize
-            constexpr int chevronTrailingMargin = 8; // ExpanderChevronMargin trailing 8
+            constexpr int chevronTrailingMargin = SettingsExpanderChevronMargin
+                    + SettingsCardBorderThickness; // ExpanderChevronMargin trailing 8
             constexpr int chevronContentGap = 20; // ExpanderChevronMargin leading 20
             constexpr qreal chevronRadius = 4.0; // ControlCornerRadius
             // Expander CornerRadius is ControlCornerRadius (4). ExpandDown

@@ -784,8 +784,8 @@ void WinUI3GalleryProbeTest::settingsIconAlignment()
         auto *icon = window.findChild<QLabel *>(names.second);
         const int x = icon->mapTo(card, QPoint()).x();
         QCOMPARE(icon->size(), QSize(20, 20));
-        // SettingsCardPadding.Left 16 + HeaderIconMargin.Left 2.
-        QCOMPARE(rtl ? card->width() - x - icon->width() : x, 18);
+        // SettingsCardborder 1 + Padding.Left 16 + HeaderIconMargin.Left 2.
+        QCOMPARE(rtl ? card->width() - x - icon->width() : x, 19);
         const QImage image = card->grab().toImage();
         const QRect bounds(icon->mapTo(card, QPoint()), icon->size());
         const QColor surface = image.pixelColor(bounds.left() - 1, bounds.center().y());
@@ -810,13 +810,21 @@ void WinUI3GalleryProbeTest::settingsExpansionMargins()
     auto *card = window.findChild<QFrame *>("advancedCard");
     auto *host = window.findChild<QWidget *>("advancedDetailsHost");
     card->setProperty("winuiSettingsCardExpanded", true);
-    QTRY_VERIFY(host->height() > 0);
+    QTRY_VERIFY(host->maximumHeight() == QWIDGETSIZE_MAX);
+    QTRY_VERIFY(host->height() >= 51);
     // Item padding + content border + the template's -2 presenter overlap.
     QCOMPARE(host->layout()->contentsMargins(),
-             rtl ? QMargins(45, 6, 59, 9) : QMargins(59, 6, 45, 9));
+             rtl ? QMargins(45, 7, 59, 9) : QMargins(59, 7, 45, 9));
     auto *label = window.findChild<QLabel *>("advancedDetails");
-    QCOMPARE(label->mapTo(host, QPoint()).y(), 6);
+    QCOMPARE(label->geometry().center().y(), (host->height() - 9 + 7 - 1) / 2);
     QCOMPARE(label->mapTo(host, QPoint()).x(), rtl ? 45 : 59);
+    auto *title = window.findChild<QLabel *>("advancedTitle");
+    const int contentLeading = label->mapTo(card, QPoint()).x() + (rtl ? label->width() : 0);
+    const int titleLeading = title->mapTo(card, QPoint()).x() + (rtl ? title->width() : 0);
+    QCOMPARE(contentLeading, titleLeading);
+    QCOMPARE(host->minimumSizeHint().height(), 51);
+    QVERIFY(host->height() >= 51);
+    QVERIFY(window.findChild<QWidget *>("advancedHeader")->height() >= 68);
 }
 void WinUI3GalleryProbeTest::settingsExpansionSeparator_data()
 {
@@ -865,7 +873,7 @@ void WinUI3GalleryProbeTest::settingsChevronForeground()
         const auto t = WinUI3::Private::tokens(card->palette());
         const QColor ink = enabled ? t.textPrimary : t.textDisabled;
         QCOMPARE(ink.alpha(), enabled ? (dark ? 255 : 228) : (dark ? 93 : 92));
-        const QRect logical(card->width() - 8 - 32, (header->height() - 32) / 2, 32, 32);
+        const QRect logical(card->width() - 9 - 32, (header->height() - 32) / 2, 32, 32);
         const QRect box = QStyle::visualRect(card->layoutDirection(), header->rect(), logical);
         const QImage actual = card->grab().toImage();
         QImage expected(box.size(), QImage::Format_ARGB32_Premultiplied);

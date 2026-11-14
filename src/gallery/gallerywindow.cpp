@@ -142,6 +142,17 @@ void GalleryWindow::refreshCardIcons()
                              static_cast<QLayout *>(ui->updatesCardIconLayout),
                              static_cast<QLayout *>(ui->advancedIconLayout) })
         layout->setContentsMargins(WinUI3::Private::settingsCardIconMargins(rtl));
+    const int inset =
+            WinUI3::Private::SettingsCardPadding + WinUI3::Private::SettingsCardBorderThickness;
+    for (QLayout *layout : { static_cast<QLayout *>(ui->notificationsCardLayout),
+                             static_cast<QLayout *>(ui->updatesCardLayout) })
+        layout->setContentsMargins(inset, inset, inset, inset);
+    ui->advancedTextLayout->setContentsMargins(
+            rtl ? WinUI3::Private::SettingsCardContentSpacing : 0, 0,
+            rtl ? 0 : WinUI3::Private::SettingsCardContentSpacing, 0);
+    ui->advancedHeader->setMinimumHeight(WinUI3::Private::SettingsCardMinHeight);
+    ui->advancedDetailsLayout->setRowMinimumHeight(
+            0, WinUI3::Private::SettingsExpanderContentRowMinHeight);
     ui->advancedHeaderLayout->setContentsMargins(
             WinUI3::Private::settingsExpanderHeaderMargins(rtl));
     ui->advancedDetailsLayout->setContentsMargins(
