@@ -291,9 +291,6 @@ void SettingsCard::refreshChevronState()
             : layoutDirection() == Qt::RightToLeft ? Icon::ChevronLeft
                                                    : Icon::ChevronRight;
     const qreal angle = m_expandableWidget ? m_expansionProgress * 180.0 : 0.0;
-    const Private::Tokens t = Private::tokens(palette());
-    const bool enabled = isEnabled();
-    const QColor foreground = enabled ? t.textSecondary : t.textDisabled;
     // Keep state on the stock QLabel child; the style's private primitive
     // consumes it and applies the continuous rotation directly to the active
     // painter, so this animation path allocates no rotated QPixmap.

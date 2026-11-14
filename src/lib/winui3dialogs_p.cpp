@@ -266,14 +266,22 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
         // palette carries in Window (#2C2C2C Dark). Using the chrome tone made
         // the footer indistinguishable from the raised dialog body.
         const Tokens commandTokens = tokens(commandPalette);
-        footer->setColors(dialogCommandFillColor(commandTokens.dark), commandTokens.stroke);
+        footer->setColors(dialogCommandFillColor(commandTokens.dark),
+                          commandTokens.dialogSeparatorStroke);
         footer->queueGeometrySync();
     }
 }
 
 void deleteWizardFooterSurface(QWizard *wizard)
 {
-    delete wizardFooterSurface(wizard, false);
+    if (WizardFooterSurface *footer = wizardFooterSurface(wizard, false)) {
+        // QApplication::setStyle() snapshots widget pointers while unpolishing.
+        // Make this surface inert and unfindable now, then let the event loop
+        // destroy it after every snapshot pass has completed.
+        footer->hide();
+        footer->setObjectName(QString());
+        footer->deleteLater();
+    }
 }
 
 namespace {
@@ -449,7 +457,14 @@ void restoreContentDialogState(QDialog *dialog, bool clearSavedState)
     if (!dialog)
         return;
     stopDialogAnimations(dialog);
-    delete contentDialogFooter(dialog, false);
+    if (ContentDialogFooterSurface *footer = contentDialogFooter(dialog, false)) {
+        // QApplication::setStyle() snapshots widget pointers while unpolishing.
+        // Make this surface inert and unfindable now, then let the event loop
+        // destroy it after every snapshot pass has completed.
+        footer->hide();
+        footer->setObjectName(QString());
+        footer->deleteLater();
+    }
     restoreRememberedPalette(dialog);
     if (dialog->property(originalAutoFillProperty).isValid())
         dialog->setAutoFillBackground(dialog->property(originalAutoFillProperty).toBool());
@@ -510,7 +525,7 @@ void prepareContentDialogState(QDialog *dialog, bool dark)
     dialog->setMinimumSize(320, 184);
     dialog->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
     ContentDialogFooterSurface *footer = contentDialogFooter(dialog, true);
-    footer->setColors(commandFill, tokens(palette).stroke);
+    footer->setColors(commandFill, tokens(palette).dialogSeparatorStroke);
     footer->queueGeometrySync();
 }
 

@@ -111,6 +111,10 @@ struct Tokens
     QColor editorFocusedFill;
     // Flyout/popup hairline stroke and selected-tab surface.
     QColor flyoutStroke;
+    // MenuFlyout separators and ContentDialog command separators use distinct
+    // DividerStrokeColorDefaultBrush / CardStrokeColorDefaultBrush resources.
+    QColor menuSeparatorStroke;
+    QColor dialogSeparatorStroke;
     QColor selectedTabFill;
     // Slider thumb outer ring.
     QColor sliderThumbOuter;
@@ -283,6 +287,8 @@ inline Tokens buildTokens(const QPalette &palette)
     // flyout stroke the menus already use.
     t.tooltipFill = t.dark ? QColor(44, 44, 44) : QColor(249, 249, 249);
     t.tooltipStroke = t.flyoutStroke;
+    t.menuSeparatorStroke = t.dark ? QColor(255, 255, 255, 21) : QColor(0, 0, 0, 15);
+    t.dialogSeparatorStroke = t.dark ? QColor(0, 0, 0, 25) : QColor(0, 0, 0, 15);
     // ContentDialog command-footer base (LayerFill derivation input) and
     // smoke-layer scrim; fixed WinUI values, not palette derivations.
     t.dialogCommandFill = dialogCommandFillColor(t.dark);

@@ -307,7 +307,11 @@ bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,
         // default radius instead of the small one, the wedge outside the card's
         // curve is still the card's own fill rather than the window tone.
         const QColor fill = t.tooltipFill;
-        painter->fillRect(option->rect, fill);
+        // Alpha-backed slider value tips have no native corner clipping.
+        // Keep their exterior transparent; opaque QTipLabel windows still
+        // require the full fill to avoid a darker native-background rim.
+        if (!widget || !widget->testAttribute(Qt::WA_TranslucentBackground))
+            painter->fillRect(option->rect, fill);
         roundedRect(painter, QRectF(option->rect), fill, t.tooltipStroke, ControlRadius);
         return true;
     }
@@ -399,6 +403,17 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
         return false;
     using namespace WinUI3::Private;
     const Tokens t = tokens(option->palette);
+
+    if (element == QStyle::CE_ShapedFrame && widget
+        && widget->objectName() == QLatin1String(calendarPopupBorderObjectName)) {
+        // QCalendarPopup's calendar child covers its full client rect. The
+        // transparent, input-pass-through stock frame is therefore the only
+        // style-owned layer above that child. CalendarView's pinned
+        // BorderBrush is ControlStrokeColorDefaultBrush;
+        // retain the calendar's already-rendered surface beneath that boundary.
+        controlSurface(painter, option->rect, Qt::transparent, t.stroke, t.stroke, OverlayRadius);
+        return true;
+    }
 
     if (element == QStyle::CE_ShapedFrame && widget
         && widget->property(WinUI3::Style::SettingsCardProperty).toBool()) {

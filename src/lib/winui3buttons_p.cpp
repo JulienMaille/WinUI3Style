@@ -620,6 +620,17 @@ static QColor buttonRoleTextColor(const QPalette &palette, const Tokens &tokens,
     return pressedInk;
 }
 
+static bool calendarHeaderNavigationButton(const QWidget *widget)
+{
+    if (!widget
+        || (widget->objectName() != QStringLiteral("qt_calendar_monthbutton")
+            && widget->objectName() != QStringLiteral("qt_calendar_yearbutton")))
+        return false;
+    const QWidget *bar = widget->parentWidget();
+    return bar && bar->objectName() == QStringLiteral("qt_calendar_navigationbar")
+            && bar->parentWidget() && bar->parentWidget()->inherits("QCalendarWidget");
+}
+
 static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option,
                                        QPainter *painter, const QWidget *widget)
 {
@@ -691,13 +702,20 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
                 widget ? qobject_cast<const QLineEdit *>(widget->parentWidget()) : nullptr;
         const bool clearHelper = helperEditor && lineEditClearButton(helperEditor) == widget;
         const bool pressed = tool->state & QStyle::State_Sunken;
-        const QColor textColor = textHelper ? (!enabled          ? t.textDisabled
-                                                       : pressed ? t.textTertiary
-                                                                 : t.textSecondary)
-                : accent                    ? (!enabled          ? t.textDisabled
-                                                       : pressed ? t.textOnAccentSecondary
-                                                                 : t.textOnAccentPrimary)
-                         : buttonRoleTextColor(tool->palette, t, enabled, pressed);
+        // QCalToolButton rewrites ButtonText from HighlightedText at rest.
+        // CalendarViewHeaderNavigationButton is neutral, never accent text:
+        // primary at rest/hover, secondary pressed, disabled when disabled.
+        const QColor textColor = calendarHeaderNavigationButton(widget)
+                ? (!enabled          ? t.textDisabled
+                           : pressed ? t.textSecondary
+                                     : t.textPrimary)
+                : textHelper ? (!enabled          ? t.textDisabled
+                                        : pressed ? t.textTertiary
+                                                  : t.textSecondary)
+                : accent     ? (!enabled          ? t.textDisabled
+                                        : pressed ? t.textOnAccentSecondary
+                                                  : t.textOnAccentPrimary)
+                             : buttonRoleTextColor(tool->palette, t, enabled, pressed);
         const QRectF buttonRect(
                 style->subControlRect(QStyle::CC_ToolButton, tool, QStyle::SC_ToolButton, widget));
         // Qt's private button stays 22x18 when the editor's density changes.
