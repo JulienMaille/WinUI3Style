@@ -577,12 +577,10 @@ static bool drawToggleSwitchControl(const Style *, const QStyleOption *option, Q
         roundedRect(painter, track, trackFill, trackStroke, 10.0);
 
         const QRectF knobRect = toggleKnobRect(track, position, hover, press, check->direction);
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(knob);
-        painter->drawEllipse(knobRect);
-        painter->restore();
+        // SwitchKnobOn/Off keep a fixed CornerRadius of 7 while the template
+        // animates 12x12 -> 14x14 -> 17x14, so the pressed knob is a stadium
+        // (pill), not an ellipse inscribed in the same box.
+        roundedRect(painter, knobRect, knob, Qt::transparent, 7.0);
 
         const QVariant stateText = widget
                 ? widget->property(checked ? Style::ToggleSwitchOnTextProperty

@@ -17,7 +17,7 @@ Reference environment captured from the installed Microsoft Store package on
 | CheckBox | 20 px box / 12 px glyph | required | required | no focus visual | reveal focus | 167 ms animated accept glyph |
 | RadioButton | 20 px outer / 12 px dot | 14 px dot, 250 ms | 10 px dot, 250 ms | no focus visual | reveal focus | discrete checked-state switch |
 | MenuFlyout item | 36 px Qt row | required | required | n/a | required | Acrylic presenter; icon, label, shortcut and submenu columns |
-| ToggleSwitch | 40×20 / 12 knob | 14×14 knob, 83 ms | 17×14 knob, 83 ms | no reveal stroke | reveal stroke | 83 ms knob travel |
+| ToggleSwitch | 40×20 / 12 knob | 14×14 knob, 83 ms | 17×14 radius-7 pill knob, 83 ms | no reveal stroke | reveal stroke | 83 ms knob travel |
 | Navigation item | transparent | subtle secondary | subtle tertiary | no reveal stroke | reveal stroke | 250 ms content transition |
 | Slider | 4 px track / ~10 px inner thumb | 14 px inner thumb, 250 ms | ~8.5 px inner thumb, 250 ms | no focus visual | root focus stroke | n/a |
 | ScrollBar | 8 px trailing thumb | 12 px thumb + track/buttons, 167 ms | 87.5% arrow scale | n/a | n/a | 400 ms expand / delayed contract |
@@ -176,6 +176,10 @@ message glyphs (Info E946, Warning E7BA, Error E783, Help E897).
 ToggleSwitch was inspected with pointer positioning, click, and a real track
 drag. The live control agreed with the resource template: 40×20 track, 12 px
 rest knob, 14 px hover knob, and immediate checked-state commit at drag release.
+The knob is a Border/Rectangle with a fixed `CornerRadius`/`RadiusX` of 7, so the
+pressed 17×14 knob is a stadium (pill), not an ellipse inscribed in the same box
+(issue #64, repaired 2026-11-15; `togglePressedThumbPillShape` probes the corner
+pixels the pill covers and an ellipse leaves as track, Standard/Compact).
 The public Qt mapping is a native `QCheckBox` with `winuiToggleSwitch=true`.
 The style's private event controller owns dragging and the 83 ms position
 animation. `WinUI3::ToggleSwitch` is an optional public `QCheckBox` convenience
