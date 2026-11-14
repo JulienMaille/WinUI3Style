@@ -23,6 +23,11 @@ constexpr int SettingsExpanderExpandDuration = 333;
 constexpr int SettingsExpanderCollapseDuration = 167;
 constexpr int SettingsExpanderChevronGlyphSize = 16;
 constexpr qreal ControlRadius = 4.0;
+// TextBox_themeresources_perf2026.xaml: reflected absolute 0,0 -> 0,2
+// elevation brush, strong stop at 0.5; TextControlBorderThemeThickness is 1.
+constexpr qreal EditorBorderThickness = 1.0;
+constexpr qreal EditorElevationGradientHeight = 2.0;
+constexpr qreal EditorElevationStrongStop = 0.5;
 constexpr qreal OverlayRadius = 8.0;
 // WinUI `DefaultToolTipStyle` (ToolTip_themeresources.xaml): a 1 px border,
 // the asymmetric `ToolTipBorderPadding` 9,6,9,8 and a 12 px content size.
