@@ -18,6 +18,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCompleter>
+#include <QFrame>
 #include <QGuiApplication>
 #include <QImage>
 #include <QLayout>
@@ -25,6 +26,7 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QRegion>
 #include <QTimer>
 #include <QWidget>
@@ -38,6 +40,54 @@
 
 namespace WinUI3::Private {
 namespace {
+
+void prepareCalendarPopupBorder(QWidget *popup)
+{
+    if (!popup || !popup->inherits("QCalendarPopup"))
+        return;
+
+    auto *border = popup->findChild<QFrame *>(QLatin1String(calendarPopupBorderObjectName),
+                                              Qt::FindDirectChildrenOnly);
+    if (!border) {
+        border = new QFrame(popup);
+        border->setObjectName(QLatin1String(calendarPopupBorderObjectName));
+        border->setFrameShape(QFrame::StyledPanel);
+        border->setLineWidth(1);
+        border->setAutoFillBackground(false);
+        border->setAttribute(Qt::WA_TransparentForMouseEvents);
+        border->show();
+    }
+
+    // QCalendarPopup's calendar child covers the complete client area, so a
+    // popup background cannot expose the CalendarView boundary. Keep the
+    // stock QFrame transparent and let CE_ShapedFrame paint the pinned
+    // CalendarView stroke above that child instead.
+    QPalette borderPalette = popup->palette();
+    borderPalette.setColor(QPalette::Window, withAlpha(borderPalette.color(QPalette::Window), 0));
+    borderPalette.setColor(QPalette::Base, withAlpha(borderPalette.color(QPalette::Base), 0));
+    border->setPalette(borderPalette);
+    const QPointer<QWidget> guardedPopup(popup);
+    const QPointer<QFrame> guardedBorder(border);
+    const auto updateGeometry = [guardedPopup, guardedBorder] {
+        if (!guardedPopup || !guardedBorder)
+            return;
+        guardedBorder->setGeometry(guardedPopup->rect());
+        guardedBorder->raise();
+        guardedBorder->update();
+    };
+    updateGeometry();
+    if (QWindow *window = popup->windowHandle()) {
+        // A hidden QCalendarPopup reuses this frame across Show events. Its
+        // current QWindow can also be replaced by native recreation, so keep
+        // only this border's two resize callbacks for the active window.
+        // The overlay owns no other QWindow signal connections.
+        QObject::disconnect(window, nullptr, border, nullptr);
+        QObject::connect(window, &QWindow::widthChanged, border,
+                         [updateGeometry](int) { updateGeometry(); });
+        QObject::connect(window, &QWindow::heightChanged, border,
+                         [updateGeometry](int) { updateGeometry(); });
+    }
+}
 
 // DWM readback gate for the popup re-arm loop (reopened-menu refusal):
 // DWM can ACK Set(DWMWA_SYSTEMBACKDROP_TYPE=38) during Show dispatch
@@ -83,6 +133,21 @@ PopupBackdropReadback popupBackdropReadback(QWidget *popup)
 }
 
 } // namespace
+
+void removeCalendarPopupBorder(QWidget *widget)
+{
+    if (!widget || !widget->inherits("QCalendarPopup"))
+        return;
+    if (auto *border = widget->findChild<QFrame *>(QLatin1String(calendarPopupBorderObjectName),
+                                                   Qt::FindDirectChildrenOnly)) {
+        // QApplication::setStyle() snapshots widget pointers while unpolishing.
+        // Make this overlay inert and unfindable now, then let the event loop
+        // destroy it after every snapshot pass has completed.
+        border->hide();
+        border->setObjectName(QString());
+        border->deleteLater();
+    }
+}
 
 // Converge a refused popup to the honest opaque fallback: opaque surface
 // roles, full opaque paint recipe, Painted state. A refused DWM grant must
@@ -422,6 +487,7 @@ void preparePopupSurface(QWidget *widget)
             }
         }
     }
+    prepareCalendarPopupBorder(popup);
     const bool comboPopup = qobject_cast<QComboBox *>(popup->parentWidget());
     if (comboPopup) {
         // The inset is installed by polish before Qt computes the height.

@@ -8,6 +8,7 @@
 #include "winui3testhelpers.h"
 
 #include "../src/lib/winui3tokens_p.h"
+#include "../src/lib/winui3paint_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
@@ -189,6 +190,19 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
             const QImage frame = popup->grab().toImage().convertToFormat(QImage::Format_ARGB32);
             QVERIFY(!frame.isNull());
             const qreal dpr = frame.devicePixelRatio();
+            const auto borderTokens = WinUI3::Private::tokens(popup->palette());
+            QCOMPARE(borderTokens.stroke,
+                     mode == WinUI3::ThemeMode::Dark ? QColor(255, 255, 255, 18)
+                                                     : QColor(0, 0, 0, 15));
+            QImage borderedSurface(frame.size(), QImage::Format_ARGB32_Premultiplied);
+            borderedSurface.setDevicePixelRatio(dpr);
+            borderedSurface.fill(expected);
+            {
+                QPainter painter(&borderedSurface);
+                WinUI3::PaintPrivate::controlSurface(&painter, popup->rect(), Qt::transparent,
+                                                     borderTokens.stroke, borderTokens.stroke,
+                                                     WinUI3::Private::OverlayRadius);
+            }
             const auto pixel = [&](const QPoint &p) {
                 return frame.pixelColor(qFloor((p.x() + 0.5) * dpr), qFloor((p.y() + 0.5) * dpr));
             };
@@ -248,9 +262,16 @@ void WinUI3CalendarHeaderTest::calendarHeaderMatchesPopupTintAcrossThemeSwitch()
                         }
                     }
                     QVERIFY2(found, "No glyph-free adjacent header sample");
-                    const QColor backdrop = pixel(navigation->mapTo(popup, adjacent));
+                    const QPoint popupAdjacent = navigation->mapTo(popup, adjacent);
+                    const QColor backdrop = pixel(popupAdjacent);
+                    // The first row now owns CalendarView's required outer
+                    // stroke. Keep every interior fill assertion unchanged.
+                    const QColor expectedBackdrop = popupAdjacent.y() == popup->rect().top()
+                            ? borderedSurface.pixelColor(qFloor((popupAdjacent.x() + 0.5) * dpr),
+                                                         qFloor((popupAdjacent.y() + 0.5) * dpr))
+                            : expected;
                     QCOMPARE(navigation->palette().color(QPalette::Window), expected);
-                    QVERIFY2(colorDistance(backdrop, expected) <= 3,
+                    QVERIFY2(colorDistance(backdrop, expectedBackdrop) <= 3,
                              "Header must match the body recipe, not merely equally transparent "
                              "buttons");
                     for (int dx = -1; dx <= 1; ++dx) {

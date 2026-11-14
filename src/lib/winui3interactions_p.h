@@ -97,6 +97,7 @@ private:
     bool handleLeave(QWidget *widget);
     bool handleMousePress(QWidget *widget, QEvent *event);
     bool handleMouseMove(QWidget *widget, QEvent *event);
+    bool handleHoverMove(QWidget *widget, QEvent *event);
     bool handleMouseRelease(QWidget *widget, QEvent *event);
     // R2 focus/key group: same pure-motion extraction for focus, read-only
     // affordance, line-edit helper lifecycle and key handling.
