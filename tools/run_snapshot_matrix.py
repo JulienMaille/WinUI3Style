@@ -43,6 +43,17 @@ def compare_images(left: Path, right: Path, name: str) -> None:
             raise AssertionError(
                 f"{name}: dimension mismatch {left_rgba.size} != {right_rgba.size}"
             )
+        # Fully transparent pixels may carry arbitrary RGB values depending on
+        # the PNG encoder or Qt version. Those values carry no visual
+        # information, so clear them before comparing to avoid false positives.
+        left_data = bytearray(left_rgba.tobytes())
+        right_data = bytearray(right_rgba.tobytes())
+        for i in range(0, len(left_data), 4):
+            if left_data[i + 3] == 0 and right_data[i + 3] == 0:
+                left_data[i] = left_data[i + 1] = left_data[i + 2] = 0
+                right_data[i] = right_data[i + 1] = right_data[i + 2] = 0
+        left_rgba = Image.frombytes("RGBA", left_rgba.size, bytes(left_data))
+        right_rgba = Image.frombytes("RGBA", right_rgba.size, bytes(right_data))
         delta = ImageChops.difference(left_rgba, right_rgba)
         # Include RGB and alpha changes in the same bounds.
         bbox = delta.getbbox(alpha_only=False)
