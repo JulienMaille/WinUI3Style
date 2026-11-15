@@ -20,7 +20,9 @@
 #include <QLocale>
 #include <QMessageBox>
 #include <QMenu>
+#include <QMetaEnum>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QScreen>
 #include <QScopeGuard>
 #include <QStyle>
@@ -88,6 +90,7 @@ GalleryWindow::GalleryWindow(QWidget *parent, bool captureMode)
     ui->setupUi(this);
     configureGallery();
     populateCollections();
+    populateIconSheet();
     configurePaletteLab(captureMode);
     // Opt-in live diagnostic: exercises popup open/close/reopen with real
     // windows QPA so DWM grant behavior on a reused HWND can be observed.
@@ -128,8 +131,24 @@ GalleryWindow::~GalleryWindow()
 void GalleryWindow::changeEvent(QEvent *event)
 {
     QMainWindow::changeEvent(event);
-    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::LayoutDirectionChange)
+    // A style swap changes which standard pixmaps the style answers with its
+    // own glyphs, so the Icons page is rebuilt, not just re-rendered. Compare
+    // the style instance: a child widget of the visible page sends StyleChange
+    // for its own first polish while the application style has not moved.
+    // Rebuilding inline would delete children while QApplication is still
+    // broadcasting that style change, so the rebuild waits for the event loop.
+    if (event->type() == QEvent::StyleChange && ui->iconsPage && style() != m_iconSheetStyle
+        && !m_iconSheetRebuildPending) {
+        m_iconSheetRebuildPending = true;
+        QTimer::singleShot(0, this, [this] {
+            m_iconSheetRebuildPending = false;
+            populateIconSheet();
+        });
+    }
+    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::LayoutDirectionChange) {
         refreshCardIcons();
+        refreshIconSheet();
+    }
 }
 
 void GalleryWindow::refreshCardIcons()
@@ -184,7 +203,7 @@ void GalleryWindow::configureGallery()
     ui->dockHost->setWindowFlags(Qt::Widget);
     ui->dockHost->show();
     for (QLabel *heading : { ui->controlsHeading, ui->collectionsHeading, ui->settingsHeading,
-                             ui->dialogsHeading, ui->paletteHeading })
+                             ui->dialogsHeading, ui->paletteHeading, ui->iconsHeading })
         setHeadingFont(heading);
     ui->themeCombo->setMinimumWidth(ui->themeCombo->sizeHint().width());
     ui->densityCombo->setMinimumWidth(ui->densityCombo->sizeHint().width());
@@ -281,11 +300,24 @@ void GalleryWindow::configureGallery()
     connect(ui->floatDockButton, &QPushButton::clicked, ui->embeddedInspector,
             [this] { ui->embeddedInspector->setFloating(!ui->embeddedInspector->isFloating()); });
     const QList<QStyle::StandardPixmap> navigationIcons = {
-        QStyle::SP_DesktopIcon, QStyle::SP_DirIcon, QStyle::SP_FileDialogContentsView,
-        QStyle::SP_MessageBoxInformation, QStyle::SP_FileDialogDetailedView
+        QStyle::SP_DesktopIcon,
+        QStyle::SP_DirIcon,
+        QStyle::SP_FileDialogContentsView,
+        QStyle::SP_MessageBoxInformation,
+        QStyle::SP_FileDialogDetailedView,
+        QStyle::SP_ToolBarHorizontalExtensionButton
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
+    QPixmap iconsGlyph(32, 32);
+    iconsGlyph.fill(Qt::transparent);
+    QPainter iconsGlyphPainter(&iconsGlyph);
+    QFont iconsGlyphFont(QStringLiteral("Segoe Fluent Icons"));
+    iconsGlyphFont.setPixelSize(20);
+    iconsGlyphPainter.setFont(iconsGlyphFont);
+    iconsGlyphPainter.setPen(palette().color(QPalette::Text));
+    iconsGlyphPainter.drawText(iconsGlyph.rect(), Qt::AlignCenter, QStringLiteral("\uEAD5"));
+    ui->navigationList->item(5)->setIcon(QIcon(iconsGlyph));
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &GalleryWindow::setTheme);
     connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -433,8 +465,120 @@ void GalleryWindow::populateCollections()
     ui->tableViewTab->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
 }
 
+void GalleryWindow::populateIconSheet()
+{
+    const auto clearGrid = [](QGridLayout *grid) {
+        while (QLayoutItem *item = grid->takeAt(0)) {
+            delete item->widget();
+            delete item;
+        }
+    };
+    clearGrid(ui->fluentIconsGrid);
+    clearGrid(ui->baseIconsGrid);
+    clearGrid(ui->missingIconsGrid);
+    m_iconPreviews.clear();
+
+    // QStyle tags the icons it answers itself with a reserved engine name; an
+    // icon the style does not map keeps an empty name and comes from the base
+    // style, which has no artwork for some ancestor-dependent pixmaps. Reading
+    // the tag keeps this page a plain Qt client: the gallery never links the
+    // style library.
+    const QString fluentPrefix = QStringLiteral("winui3-fluent-icon:");
+    const QMetaEnum standardPixmaps = QMetaEnum::fromType<QStyle::StandardPixmap>();
+    const int columns = 6;
+    const int captionWidth = 132;
+    int fluentCount = 0;
+    int baseCount = 0;
+    int missingCount = 0;
+    for (int index = 0; index < standardPixmaps.keyCount(); ++index) {
+        const auto standard = static_cast<QStyle::StandardPixmap>(standardPixmaps.value(index));
+        const QString name = QString::fromLatin1(standardPixmaps.key(index));
+        const QIcon glyph = style()->standardIcon(standard, nullptr, this);
+        const bool fluent = glyph.name().startsWith(fluentPrefix);
+        const bool missing = glyph.pixmap(QSize(24, 24), devicePixelRatioF()).isNull();
+        QGridLayout *grid = ui->baseIconsGrid;
+        if (fluent)
+            grid = ui->fluentIconsGrid;
+        else if (missing)
+            grid = ui->missingIconsGrid;
+        const int position = fluent ? fluentCount++ : (missing ? missingCount++ : baseCount++);
+
+        auto *cell = new QWidget;
+        auto *cellLayout = new QVBoxLayout(cell);
+        cellLayout->setContentsMargins(4, 4, 4, 4);
+        cellLayout->setSpacing(4);
+        auto *preview = new QLabel(cell);
+        preview->setAlignment(Qt::AlignCenter);
+        preview->setFixedHeight(28);
+        // Property, not pixmap state: a pixmap the base style cannot provide
+        // leaves the cell showing a placeholder, and the probe still counts it.
+        preview->setProperty("standardPixmapValue", standardPixmaps.value(index));
+        preview->setToolTip(fluent ? tr("Answered by the style with %1").arg(glyph.name())
+                                    : missing ? tr("No glyph: neither the style nor its base "
+                                                   "style provides this pixmap.")
+                                              : tr("Not mapped by the style; drawn by the base "
+                                                   "style."));
+        if (missing)
+            preview->setText(QStringLiteral("\u2205"));
+        cellLayout->addWidget(preview);
+        auto *caption = new QLabel(name, cell);
+        caption->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        caption->setWordWrap(true);
+        caption->setFixedWidth(captionWidth);
+        QFont captionFont = caption->font();
+        captionFont.setPixelSize(11);
+        caption->setFont(captionFont);
+        cellLayout->addWidget(caption);
+        grid->addWidget(cell, position / columns, position % columns);
+        m_iconPreviews.append({ preview, standardPixmaps.value(index) });
+    }
+    for (int column = 0; column < columns; ++column) {
+        ui->fluentIconsGrid->setColumnStretch(column, 1);
+        ui->baseIconsGrid->setColumnStretch(column, 1);
+        ui->missingIconsGrid->setColumnStretch(column, 1);
+    }
+
+    ui->fluentIconsGroup->setTitle(tr("Fluent glyphs (%1)").arg(fluentCount));
+    ui->baseIconsGroup->setTitle(tr("Base style fallback (%1)").arg(baseCount));
+    ui->missingIconsGroup->setTitle(tr("No glyph (%1)").arg(missingCount));
+    ui->iconsNote->setText(
+            tr("%1 of the %2 QStyle::StandardPixmap values are answered with one of the "
+               "style's own Fluent glyphs, %3 come from the base style, and %4 have no glyph at "
+               "all. Captions show the QStyle enumerator.")
+                    .arg(fluentCount)
+                    .arg(fluentCount + baseCount + missingCount)
+                    .arg(baseCount)
+                    .arg(missingCount));
+    m_iconSheetStyle = style();
+    refreshIconSheet();
+}
+
+void GalleryWindow::refreshIconSheet()
+{
+    for (const IconPreview &preview : m_iconPreviews) {
+        if (!preview.label)
+            continue;
+        const QPixmap pixmap =
+                style()->standardIcon(static_cast<QStyle::StandardPixmap>(preview.standardPixmap),
+                                      nullptr, this)
+                        .pixmap(QSize(24, 24), devicePixelRatioF());
+        if (pixmap.isNull()) {
+            // Neither the style nor its base style has artwork for this
+            // ancestor-dependent pixmap: an empty cell would read as a broken
+            // label, so the sheet shows an explicit no-glyph mark instead.
+            preview.label->setPixmap(QPixmap());
+            preview.label->setText(QStringLiteral("\u2205"));
+            continue;
+        }
+        preview.label->setPixmap(pixmap);
+    }
+}
+
 void GalleryWindow::configurePaletteLab(bool captureMode)
 {
+    // Keep the palette content anchored at the top when the page is taller than
+    // its controls, matching the other vertically stacked gallery pages.
+    ui->paletteLayout->addStretch(1);
     struct RoleRow
     {
         QPalette::ColorRole role;

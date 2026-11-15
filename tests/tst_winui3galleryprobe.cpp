@@ -22,11 +22,13 @@
 #include <QDialog>
 #include <QFrame>
 #include <QGroupBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QLocale>
 #include <QMenuBar>
 #include <QMenu>
+#include <QMetaEnum>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QScopeGuard>
@@ -59,6 +61,7 @@ private slots:
     void galleryComparisonStyleAvailabilityAndRestore();
     void gallerySettingsExpanderAnimates();
     void galleryRubberBandReachable();
+    void galleryIconsPageListsEveryStandardPixmap();
     void settingsIconAlignment_data();
     void settingsIconAlignment();
     void settingsExpansionMargins_data();
@@ -926,6 +929,127 @@ void WinUI3GalleryProbeTest::galleryRubberBandReachable()
     QCOMPARE(painted.right(), expected.right());
     QVERIFY(qAbs(painted.top() - expected.top()) <= 1);
     QVERIFY(qAbs(painted.bottom() - expected.bottom()) <= 1);
+}
+
+void WinUI3GalleryProbeTest::galleryIconsPageListsEveryStandardPixmap()
+{
+    // Issue #69: the Icons page is the review surface for "every SP_* has a
+    // modern glyph". The mechanism under test is coverage plus the two
+    // refresh paths, not the artwork: every QStyle::StandardPixmap enumerator
+    // gets exactly one preview cell, the cells that the style does not answer
+    // itself land in the fallback group, palette changes re-render the
+    // pixmaps, and a style swap rebuilds the sheet instead of stacking a
+    // second copy on top of the old one.
+    const QMetaEnum standards = QMetaEnum::fromType<QStyle::StandardPixmap>();
+    QVERIFY(standards.isValid());
+    const int standardCount = standards.keyCount();
+    QVERIFY(standardCount > 0);
+
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *navigation = window.findChild<QListWidget *>(QStringLiteral("navigationList"));
+    auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("pages"));
+    auto *iconsPage = window.findChild<QScrollArea *>(QStringLiteral("iconsPage"));
+    auto *fluentGroup = window.findChild<QGroupBox *>(QStringLiteral("fluentIconsGroup"));
+    auto *baseGroup = window.findChild<QGroupBox *>(QStringLiteral("baseIconsGroup"));
+    auto *missingGroup = window.findChild<QGroupBox *>(QStringLiteral("missingIconsGroup"));
+    auto *note = window.findChild<QLabel *>(QStringLiteral("iconsNote"));
+    QVERIFY(navigation && pages && iconsPage && fluentGroup && baseGroup && missingGroup && note);
+
+    // The navigation row is the only way in, and the Designer connection maps
+    // row -> page index, so the page must exist at that row.
+    int iconsRow = -1;
+    for (int row = 0; row < navigation->count(); ++row) {
+        if (navigation->item(row)->text() == QStringLiteral("Icons"))
+            iconsRow = row;
+    }
+    QVERIFY(iconsRow >= 0);
+    QCOMPARE(navigation->count(), pages->count());
+    navigation->setCurrentRow(iconsRow);
+    QCOMPARE(pages->currentWidget(), iconsPage);
+    QCOMPARE(pages->currentIndex(), iconsRow);
+
+    const auto previews = [](QGroupBox *group) {
+        QList<QLabel *> result;
+        for (QLabel *label : group->findChildren<QLabel *>()) {
+            if (label->property("standardPixmapValue").isValid())
+                result.append(label);
+        }
+        return result;
+    };
+    const qreal dpr = window.devicePixelRatioF();
+    const QSize expectedSize(qRound(24 * dpr), qRound(24 * dpr));
+    const auto checkPreviews = [&](const QList<QLabel *> &labels) {
+        for (QLabel *label : labels) {
+            if (label->pixmap().isNull()) {
+                // Ancestor-dependent SP_* with neither a Fluent glyph nor a base
+                // icon must say so instead of rendering an empty cell.
+                if (label->text().isEmpty())
+                    return false;
+            } else if (label->pixmap().size() != expectedSize) {
+                return false;
+            }
+        }
+        return true;
+    };
+    const QList<QLabel *> fluent = previews(fluentGroup);
+    const QList<QLabel *> fallback = previews(baseGroup);
+    const QList<QLabel *> missing = previews(missingGroup);
+    QCOMPARE(fluent.size() + fallback.size() + missing.size(), standardCount);
+    QVERIFY(checkPreviews(fluent));
+    QVERIFY(checkPreviews(fallback));
+    QVERIFY(checkPreviews(missing));
+    // The group a cell lands in must match what the style actually returned:
+    // a Fluent glyph is never empty, and a "no glyph" cell never carries art.
+    for (QLabel *label : fluent)
+        QVERIFY(!label->pixmap().isNull());
+    for (QLabel *label : missing) {
+        QVERIFY(label->pixmap().isNull());
+        QVERIFY(!label->text().isEmpty());
+    }
+    // The WinUI 3 style answers a non-empty share of the enumerators with its
+    // own glyphs; a sheet that claims everything is a fallback is broken.
+    QVERIFY(!fluent.isEmpty());
+    QVERIFY(fluentGroup->title().contains(QStringLiteral("%1").arg(fluent.size())));
+    QVERIFY(baseGroup->title().contains(QStringLiteral("%1").arg(fallback.size())));
+    QVERIFY(missingGroup->title().contains(QStringLiteral("%1").arg(missing.size())));
+    QVERIFY(note->text().contains(QStringLiteral("%1").arg(standardCount)));
+
+    // A palette change must re-render the rasters: QLabel stores the pixmap the
+    // style drew in the old theme's ink, so nothing recolours by itself.
+    const QImage lightInk = fluent.first()->pixmap().toImage();
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    qApp->processEvents();
+    const QList<QLabel *> darkPreviews = previews(fluentGroup);
+    QCOMPARE(darkPreviews.size(), fluent.size());
+    QVERIFY(checkPreviews(darkPreviews));
+    QVERIFY(darkPreviews.first()->pixmap().toImage() != lightInk);
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    qApp->processEvents();
+
+    // Switching comparison style changes the answer for every enumerator, so
+    // the sheet is rebuilt from the live style, never appended to.
+    auto *windows11Action = window.findChild<QAction *>(QStringLiteral("windows11StyleAction"));
+    QVERIFY(windows11Action);
+    if (windows11Action->isEnabled()) {
+        windows11Action->trigger();
+        qApp->processEvents();
+        QCOMPARE(previews(fluentGroup).size() + previews(baseGroup).size()
+                         + previews(missingGroup).size(),
+                 standardCount);
+        auto *winuiAction = window.findChild<QAction *>(QStringLiteral("winui3StyleAction"));
+        QVERIFY(winuiAction);
+        winuiAction->trigger();
+        qApp->processEvents();
+        QCOMPARE(previews(fluentGroup).size(), fluent.size());
+        QCOMPARE(previews(fluentGroup).size() + previews(baseGroup).size()
+                         + previews(missingGroup).size(),
+                 standardCount);
+    }
 }
 
 // Issue #56: exercise the actual Designer composition, not a reconstructed card.

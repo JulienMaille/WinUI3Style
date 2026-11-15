@@ -1,5 +1,31 @@
 # Control coverage ledger
 
+## Issue #69 — standard pixmap icon audit surface (2026-11-15)
+
+Mapping: `QStyle::standardIcon` is the style's public answer for Qt's
+`QStyle::StandardPixmap` vocabulary. A covered enumerator must resolve to one of
+`WinUI3::Icon`'s Fluent glyphs; the base style stays only as the documented
+fallback for pixmaps that have no Fluent counterpart yet (the same policy as the
+issue #22 icon-font fallback row). The Gallery "Icons" page renders the whole
+enumeration at 24 px through the active style and sorts each cell by what the
+style actually answered: "Fluent glyphs" when the returned `QIcon` carries the
+reserved `winui3-fluent-icon:` engine name, "Base style fallback" when it does
+not, and "No glyph" when neither the style nor its base style has artwork for
+that ancestor-dependent pixmap. The page reads the engine tag through plain Qt
+API, so the demo remains a plain Qt client; a style swap rebuilds the sheet and
+a palette change re-renders the rasters (a `QLabel` stores a raster, not an
+engine). Captions show the enumerator name, and `tst_winui3galleryprobe`'s
+`galleryIconsPageListsEveryStandardPixmap` pins one cell per enumerator plus the
+group/artwork agreement, the palette refresh and the style-swap rebuild.
+
+Status: partial — the audit surface exists so the remaining gaps are reviewable
+in the live Gallery; no new glyph mapping is claimed here. Qt 6.12 defines 85
+`QStyle::StandardPixmap` values. The WinUI 3 style answers 33 of them with its
+own Fluent glyphs; the other 52 still come from the base style, and 17 of those
+have no artwork at all, so that group is the work list for this issue.
+Closing it requires pinning a Fluent source glyph for each remaining enumerator
+and running the live-input sequence on the resulting sheet.
+
 ## Issue #57 — TextBox / NumberBox resting elevation border (2026-11-14)
 
 Mapping: `QLineEdit` is a direct TextBox mapping. `QSpinBox` / `QDoubleSpinBox`

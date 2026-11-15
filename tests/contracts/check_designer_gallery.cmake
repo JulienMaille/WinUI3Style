@@ -120,6 +120,20 @@ foreach(_required_dock
     endif()
 endforeach()
 
+# Issue #69: the standard-pixmap sheet is the live review surface for the
+# icon audit, so the demo must keep exposing it (both groups included).
+foreach(_required_icon_sheet
+        "<widget class=\"QScrollArea\" name=\"iconsPage\">"
+        "name=\"fluentIconsGrid\""
+        "name=\"baseIconsGrid\""
+        "<string>Icons</string>")
+    string(FIND "${_gallery_ui}" "${_required_icon_sheet}" _found)
+    if(_found EQUAL -1)
+        message(FATAL_ERROR
+            "Designer gallery is missing the standard-pixmap icon sheet: ${_required_icon_sheet}")
+    endif()
+endforeach()
+
 file(READ "${_demo_dir}/CMakeLists.txt" _demo_cmake)
 string(FIND "${_demo_cmake}" "WinUI3::Widgets" _linked)
 if(NOT _linked EQUAL -1)
