@@ -3,6 +3,7 @@
 // every domain binary under the 60 KB ratchet. Test-function names
 // are kept identical, like the earlier domain splits.
 #include <winui3style/winui3style.h>
+#include <winui3style/winui3icons.h>
 
 #include "../src/lib/winui3tokens_p.h"
 
@@ -46,6 +47,7 @@ private slots:
 
     void contentDialogContract();
     void messageBoxContentDialogContract();
+    void dialogStandardButtonIconsUseDistinctFluentGlyphs();
     void messageBoxRichTextLabelsDoNotOverlap();
     void wizardSurfaceContract();
     void wizardUsesModernStyleHint();
@@ -148,6 +150,17 @@ void WinUI3DialogsTest::messageBoxContentDialogContract()
     QVERIFY(label);
     QCOMPARE(label->focusPolicy(), Qt::NoFocus);
     QVERIFY(dialog.button(QMessageBox::Ok)->hasFocus());
+}
+
+void WinUI3DialogsTest::dialogStandardButtonIconsUseDistinctFluentGlyphs()
+{
+    QStyle *style = QApplication::style();
+    QCOMPARE(style->standardIcon(QStyle::SP_DialogSaveButton).cacheKey(),
+             WinUI3::icon(WinUI3::Icon::Save).cacheKey());
+    QCOMPARE(style->standardIcon(QStyle::SP_DialogYesButton).cacheKey(),
+             WinUI3::icon(WinUI3::Icon::Accept).cacheKey());
+    QCOMPARE(style->standardIcon(QStyle::SP_DialogOkButton).cacheKey(),
+             WinUI3::icon(WinUI3::Icon::ReturnKey).cacheKey());
 }
 
 void WinUI3DialogsTest::messageBoxRichTextLabelsDoNotOverlap()

@@ -62,6 +62,7 @@ private slots:
     void iconFallbackResolution();
     void simpleMarksUseVectorFallback();
     void complexSymbolsUseUnicodeFallback();
+    void saveIconUsesVectorFallbackWithoutSegoe();
 };
 
 void WinUI3IconsTest::cachedFontSurvivesInvalidate()
@@ -213,6 +214,51 @@ void WinUI3IconsTest::complexSymbolsUseUnicodeFallback()
     QVERIFY(!settingsBounds.isEmpty());
     QCOMPARE(folderBounds.intersected(folder.rect()), folderBounds);
     QCOMPARE(settingsBounds.intersected(settings.rect()), settingsBounds);
+}
+
+void WinUI3IconsTest::saveIconUsesVectorFallbackWithoutSegoe()
+{
+    // Issue #54: without the Segoe icon font (Linux), Icon::Save fell back to
+    // the U+1F4BE emoji. Emoji rasters are filled silhouettes, so the button
+    // recolor pass (CompositionMode_SourceIn in iconPixmap) turned the Yes
+    // button's icon into a solid blob. The no-font fallback must be the
+    // pinned stroke outline, exercised here through the same recolor path
+    // the button paint uses.
+    struct RestoreFontDetection
+    {
+        ~RestoreFontDetection() { WinUI3::Private::setIconFontAvailabilityOverrideForTest(-1); }
+    } restore;
+    WinUI3::Private::setIconFontAvailabilityOverrideForTest(0);
+    QVERIFY(!WinUI3::Private::segoeIconFontAvailable());
+
+    const QPixmap pixmap = WinUI3::iconPixmap(WinUI3::icon(WinUI3::Icon::Save), QSize(24, 24),
+                                              1.0, QColor(Qt::white));
+    QCOMPARE(pixmap.size(), QSize(24, 24));
+    const QImage image = pixmap.toImage();
+    const QRect bounds = alphaBounds(pixmap);
+    QVERIFY(!bounds.isEmpty());
+    QCOMPARE(bounds.width(), bounds.height());
+
+    // Hollow gap between shutter and label: a filled emoji silhouette is
+    // opaque here.
+    QCOMPARE(qAlpha(image.pixel(12, 10)), 0);
+    QCOMPARE(qAlpha(image.pixel(12, 11)), 0);
+    // Pinned outline edges: outer top/bottom, shutter floor, label ceiling.
+    QVERIFY(qAlpha(image.pixel(12, 3)) > 0);
+    QVERIFY(qAlpha(image.pixel(12, 8)) > 0);
+    QVERIFY(qAlpha(image.pixel(12, 13)) > 0);
+    QVERIFY(qAlpha(image.pixel(12, 21)) > 0);
+    QVERIFY(qAlpha(image.pixel(8, 13)) > 0);
+    QVERIFY(qAlpha(image.pixel(16, 13)) > 0);
+
+    // Stroke artwork, not a filled glyph: ink stays well below the bounds
+    // area (the emoji silhouette fills nearly all of it).
+    int ink = 0;
+    for (int y = bounds.top(); y <= bounds.bottom(); ++y)
+        for (int x = bounds.left(); x <= bounds.right(); ++x)
+            if (qAlpha(image.pixel(x, y)))
+                ++ink;
+    QVERIFY(ink * 4 < bounds.width() * bounds.height() * 3);
 }
 
 QTEST_MAIN(WinUI3IconsTest)

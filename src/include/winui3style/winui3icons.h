@@ -43,7 +43,10 @@ enum class Icon {
     // Pinned DataGrid column-header sort glyphs (SortIconAscending E74A /
     // SortIconDescending E74B in the WinUI DataGrid template).
     SortAscending,
-    SortDescending
+    SortDescending,
+    // Dialog standard-button glyphs; appended to preserve existing indices.
+    Accept,
+    ReturnKey
 };
 
 WINUI3STYLE_EXPORT QIcon icon(Icon glyph);

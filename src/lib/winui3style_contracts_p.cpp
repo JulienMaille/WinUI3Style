@@ -789,8 +789,11 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_LineEditClearButton:
         return WinUI3::icon(Icon::Clear);
     case QStyle::SP_DialogSaveButton:
-    case QStyle::SP_DialogYesButton:
         return WinUI3::icon(Icon::Save);
+    case QStyle::SP_DialogYesButton:
+        return WinUI3::icon(Icon::Accept);
+    case QStyle::SP_DialogOkButton:
+        return WinUI3::icon(Icon::ReturnKey);
     case QStyle::SP_DirIcon:
     case QStyle::SP_DirOpenIcon:
         return WinUI3::icon(Icon::Folder);

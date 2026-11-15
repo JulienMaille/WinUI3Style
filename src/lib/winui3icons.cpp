@@ -191,6 +191,12 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::SortDescending:
             ucs4 = 0xE74B;
             break;
+        case Icon::Accept:
+            ucs4 = 0xE8FB;
+            break;
+        case Icon::ReturnKey:
+            ucs4 = 0xE751;
+            break;
         }
         return QString::fromUcs4(&ucs4, 1);
     }
@@ -288,6 +294,12 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::SortDescending:
         ucs4 = 0x2193;
         break; // ↓
+    case Icon::Accept:
+        ucs4 = 0x2713;
+        break; // ✓
+    case Icon::ReturnKey:
+        ucs4 = 0x21B5;
+        break; // ↵
     }
     return QString::fromUcs4(&ucs4, 1);
 }
@@ -305,6 +317,7 @@ bool hasVectorFallback(Icon icon)
     case Icon::Clear:
     case Icon::Close:
     case Icon::Restore:
+    case Icon::Save:
     case Icon::SortAscending:
     case Icon::SortDescending:
         return true;
@@ -369,6 +382,26 @@ QPainterPath vectorFallbackPath(Icon icon)
         // of the filled faces the base Windows style uses.
         path.addRect(QRectF(8.0, 3.5, 12.5, 12.5));
         path.addRect(QRectF(3.5, 8.0, 12.5, 12.5));
+        break;
+    case Icon::Save:
+        // E74E floppy: chamfered top-right corner, shutter hanging from the
+        // top edge, label rising from the bottom edge. The U+1F4BE emoji
+        // fallback rasterizes as a filled silhouette, which the button
+        // recolor pass turns into a solid blob (issue #54).
+        path.moveTo(16, 3);
+        path.lineTo(3, 3);
+        path.lineTo(3, 21);
+        path.lineTo(21, 21);
+        path.lineTo(21, 8);
+        path.closeSubpath();
+        path.moveTo(7, 3);
+        path.lineTo(7, 8.5);
+        path.lineTo(15.5, 8.5);
+        path.lineTo(15.5, 3);
+        path.moveTo(5.5, 21);
+        path.lineTo(5.5, 13);
+        path.lineTo(18.5, 13);
+        path.lineTo(18.5, 21);
         break;
     case Icon::SortAscending:
     case Icon::SortDescending: {

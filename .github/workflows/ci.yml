@@ -125,13 +125,6 @@ jobs:
     # glyphs) and Linux font substitution would fail it for reasons that are
     # not regressions; its oracle, winui3style_image_comparison_contract, is
     # portable and does run here.
-    #
-    # This job publishes no gallery captures. The offscreen capture ran on every
-    # push and uploaded its PNGs uncompressed on every outcome, but no gate or
-    # tool read them, so the artifact only accumulated per-run noise. The
-    # no-Segoe rendering is still reproducible on demand:
-    #   build-linux/src/gallery/winui3style_gallery --capture-dir <dir>
-    # with QT_QPA_PLATFORM=offscreen and a fontdir (docs/visual-reference.md).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -144,10 +137,7 @@ jobs:
           arch: linux_gcc_64
           cache: true
           cache-key-prefix: 'qt-6.8.3-linux-gcc64-v1'
-      - name: Install Python, Pillow, and an offscreen UI font
-        # The font stays after the capture step was dropped: the offscreen test
-        # run renders text through it (no Segoe UI here), so removing it would
-        # change size hints rather than fail honestly.
+      - name: Install Python, Pillow, and a fallback UI font
         run: |
           sudo apt-get update
           sudo apt-get install -y fonts-dejavu-core
@@ -223,6 +213,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
       - name: Install Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
