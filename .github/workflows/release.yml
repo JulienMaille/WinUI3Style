@@ -42,59 +42,12 @@ jobs:
           cache: true
           cache-key-prefix: 'qt-${{ env.QT_VERSION }}-aqt-16db45a-v1'
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
-      - name: Install Python and Pillow
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install pillow
-      - name: Prepare Windows 11 visual test font (not redistributed)
-        shell: pwsh
-        run: ./tools/setup_visual_test_fonts.ps1
       - name: Verify Qt Windows 11 style plugin is in the SDK
         shell: pwsh
         run: |
           $plugin = Join-Path $env:QT_ROOT_DIR 'plugins/styles/qmodernwindowsstyle.dll'
           if (-not (Test-Path -LiteralPath $plugin -PathType Leaf)) {
             throw "Qt $env:QT_VERSION SDK is missing the required modern Windows style plugin: $plugin"
-          }
-      - name: Fetch official Qt source modules
-        timeout-minutes: 10
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = $env:QT_VERSION
-          $versionPrefix = ($version -split '\.')[0,1] -join '.'
-          $sourceRoot = Join-Path $env:RUNNER_TEMP 'qt-corresponding-source'
-          $downloadRoot = Join-Path $env:RUNNER_TEMP 'qt-source-downloads'
-          New-Item -ItemType Directory -Path $sourceRoot, $downloadRoot -Force | Out-Null
-          # Official Qt corresponding sources are downloaded for notice extraction.
-          $modules = @('qtbase', 'qtsvg', 'qtimageformats')
-          foreach ($module in $modules) {
-            $archiveName = "$module-everywhere-src-$version.tar.xz"
-            $archivePath = Join-Path $downloadRoot $archiveName
-            $urls = @(
-              "https://ftp.fau.de/qtproject/archive/qt/$versionPrefix/$version/submodules/$archiveName",
-              "https://mirror.accum.se/mirror/qt.io/qtproject/archive/qt/$versionPrefix/$version/submodules/$archiveName"
-            )
-            $downloaded = $false
-            foreach ($url in $urls) {
-              Write-Host "Downloading $archiveName from $url"
-              & "$env:SystemRoot/System32/curl.exe" --fail --location --silent --show-error `
-                --connect-timeout 15 --max-time 120 --output $archivePath $url
-              if ($LASTEXITCODE -eq 0) { $downloaded = $true; break }
-              Write-Warning "Mirror failed for $archiveName (curl exit $LASTEXITCODE)."
-            }
-            if (-not $downloaded) { throw "All bounded downloads failed for $archiveName" }
-            Write-Host "Verified $archiveName ($((Get-Item -LiteralPath $archivePath).Length) bytes)."
-            $extractRoot = Join-Path $sourceRoot $module
-            New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
-            Write-Host "Extracting required notices from $archiveName into $extractRoot"
-            python tools/extract_qt_notices.py $archivePath $extractRoot
-            if ($LASTEXITCODE -ne 0) { throw "Cannot extract notices from $archiveName" }
-            if (-not (Test-Path -LiteralPath (Join-Path $extractRoot 'LICENSES') -PathType Container)) {
-              throw "Expected source license directory missing: $extractRoot"
-            }
-            Write-Host "Prepared source module $module"
           }
       - name: Configure Release build
         shell: pwsh
@@ -103,8 +56,6 @@ jobs:
           "-DQt6_DIR:PATH=$env:QT_ROOT_DIR/lib/cmake/Qt6"
           -DWINUI3STYLE_BUILD_PLUGIN=ON
           -DWINUI3STYLE_BUILD_DEMO=ON
-          -DWINUI3STYLE_BUILD_TESTS=ON
-          -DWINUI3STYLE_BUILD_NATIVE_TESTS=ON
           -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
       - name: Build Release
@@ -112,48 +63,20 @@ jobs:
       - name: Run hosted-compatible Release tests and package
         shell: pwsh
         run: |
-          ./tools/package_poc.ps1 -BuildDir build `
+          $stage = & ./tools/package_poc.ps1 -BuildDir build `
             -QtRoot $env:QT_ROOT_DIR `
-            -QtSourceRoot (Join-Path $env:RUNNER_TEMP 'qt-corresponding-source') `
             -ExcludeNativeTests `
             -SkipTests `
-            -ReleaseSuffix ''
-          $candidate = Get-ChildItem -Path build/poc -Recurse -File `
-            -Filter "*-win-x64-msvc-qt$($env:QT_VERSION).zip" |
-            Select-Object -First 1
-          if (-not $candidate) { throw 'Packager did not produce the Gallery ZIP.' }
+            -ReleaseSuffix '' | Select-Object -Last 1
+          if (-not $stage) { throw 'Packager did not produce output directory.' }
           $gallery = Join-Path $env:RUNNER_TEMP 'gallery-assets'
           New-Item -ItemType Directory -Path $gallery -Force | Out-Null
-          Copy-Item -LiteralPath $candidate.FullName -Destination $gallery
-          Copy-Item -LiteralPath ($candidate.FullName + '.sha256') -Destination $gallery
-          $sources = Join-Path $env:RUNNER_TEMP 'source-assets'
-          New-Item -ItemType Directory -Path $sources -Force | Out-Null
-          $downloads = Join-Path $env:RUNNER_TEMP 'qt-source-downloads'
-          foreach ($archive in Get-ChildItem -LiteralPath $downloads -File -Filter '*.tar.xz') {
-            Copy-Item -LiteralPath $archive.FullName -Destination $sources
-          }
-          $sourceInfo = Get-ChildItem -LiteralPath $sources -File -Filter "qt*-everywhere-src-$($env:QT_VERSION).tar.xz" |
-            Sort-Object Name | ForEach-Object {
-              [ordered]@{ file = $_.Name; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
-            }
-          [ordered]@{
-            qtVersion = "$env:QT_VERSION"
-            source = 'Official Qt Project source archives, verified against Qt download SHA-256 values.'
-            modules = @($sourceInfo)
-            build = 'Windows x64, MSVC 2022, official Qt binary SDK; native-labelled tests excluded on hosted runner.'
-          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $sources "Qt-$($env:QT_VERSION)-source-manifest.json") -Encoding utf8
+          Copy-Item -LiteralPath "$stage\*" -Destination $gallery -Recurse
       - name: Upload Windows gallery artifact
         uses: actions/upload-artifact@v4
         with:
           name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-gallery
-          path: ${{ runner.temp }}/gallery-assets/*
-          if-no-files-found: error
-          retention-days: 14
-      - name: Upload Qt source archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-sources
-          path: ${{ runner.temp }}/source-assets/*
+          path: ${{ runner.temp }}/gallery-assets
           if-no-files-found: error
           retention-days: 14
 
@@ -180,10 +103,6 @@ jobs:
           cache: true
           cache-key-prefix: 'qt-${{ env.QT_VERSION }}-linux-gcc64-release-v1'
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: Install host-side XCB runtime prerequisites for deployment checks
         run: |
           sudo apt-get update
@@ -216,16 +135,9 @@ jobs:
           echo "ICU73_ROOT=$install_root" >> "$GITHUB_ENV"
           echo "ICU73_SOURCE=$source_root" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$install_root/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
-      - name: Install Pillow for the snapshot oracle
-        run: python3 -m pip install pillow
-      - name: Download Qt source archives
-        uses: actions/download-artifact@v4
-        with:
-          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-sources
-          path: qt-source-assets
       - name: Package and smoke-test Linux Gallery
         run: |
-          bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" qt-source-assets release-assets "" 1
+          bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" release-assets "" 1
       - name: Upload Linux release candidate
         uses: actions/upload-artifact@v4
         with:

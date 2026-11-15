@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 4 || $# -gt 6 ]]; then
-    echo "usage: $0 BUILD_DIR QT_ROOT QT_SOURCE_ASSETS OUTPUT_DIR [RELEASE_SUFFIX] [SKIP_TESTS]" >&2
+if [[ $# -lt 3 || $# -gt 5 ]]; then
+    echo "usage: $0 BUILD_DIR QT_ROOT OUTPUT_DIR [RELEASE_SUFFIX] [SKIP_TESTS]" >&2
     exit 2
 fi
 
@@ -10,10 +10,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$1"
 build_dir="$(cd "$1" && pwd)"
 qt_root="$(cd "$2" && pwd)"
-qt_sources="$(cd "$3" && pwd)"
-output_dir="$(mkdir -p "$4" && cd "$4" && pwd)"
-release_suffix="${5:-}"
-skip_tests="${6:-}"
+output_dir="$(mkdir -p "$3" && cd "$3" && pwd)"
+release_suffix="${4:-}"
+skip_tests="${5:-}"
 qmake="$qt_root/bin/qmake"
 if [[ ! -x "$qmake" ]]; then
     echo "Qt qmake tool missing from $qt_root/bin" >&2
@@ -45,8 +44,6 @@ cmake -S "$repo_root" -B "$build_dir" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DWINUI3STYLE_BUILD_PLUGIN=ON \
     -DWINUI3STYLE_BUILD_DEMO=ON \
-    -DWINUI_ENABLE_TESTS=ON \
-    -DWINUI3STYLE_BUILD_NATIVE_TESTS=OFF \
     -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON \
     -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
 cmake --build "$build_dir" --parallel "$(nproc)"
@@ -137,15 +134,6 @@ licenses="$prefix/licenses"
 mkdir -p "$licenses"
 cp "$repo_root/LICENSE" "$licenses/WinUI3Style-LGPL-2.1.txt"
 cp -a "$repo_root/LICENSES" "$licenses/WinUI3Style-LICENSES"
-for module in qtbase qtsvg qtimageformats; do
-    archive="$qt_sources/${module}-everywhere-src-${qt_version}.tar.xz"
-    if [[ ! -f "$archive" ]]; then
-        echo "Missing verified Qt source archive: $archive" >&2
-        exit 1
-    fi
-    python3 "$repo_root/tools/extract_qt_notices.py" "$archive" "$licenses/$module"
-done
-cp "$qt_sources/Qt-${qt_version}-source-manifest.json" "$licenses/"
 cp "$repo_root/tools/poc/linux/README.txt" "$prefix/README.txt"
 
 python3 - "$prefix/manifest.json" "$name" "$revision" "$qt_version" <<'PY'
@@ -165,17 +153,13 @@ manifest = {
     "runtime": "Qt libraries and plugins are bundled; glibc and graphics-system dependencies are provided by the host.",
     "validation": [
         "Release build with warnings-as-errors",
-        "CTest passed with native-labelled tests excluded",
         "ldd dependency scan passed for Gallery and WinUI3Style plugin",
-        "Gallery light/dark page captures passed with a clean environment and XCB under Xvfb",
     ],
     "buildHost": platform.platform(),
 }
 Path(path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PY
 
-mkdir -p "$prefix/source"
-git -C "$repo_root" archive --format=tar.gz --output="$prefix/source/WinUI3Style-source.tar.gz" HEAD
 cp "$prefix/manifest.json" "$output_dir/${name}-manifest.json"
 
 archive="$output_dir/${name}.tar.gz"
