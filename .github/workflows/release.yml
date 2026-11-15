@@ -3,9 +3,13 @@ name: release
 on:
   push:
     tags:
-      - 'v0.1.0-experimental.1'
+      - 'v*'
   workflow_dispatch:
     inputs:
+      qt_version:
+        description: 'Qt SDK version to build and package (pinned source hashes must exist for it)'
+        type: string
+        default: '6.12.0'
       publish:
         description: 'Attach the Linux Gallery to the existing prerelease'
         type: boolean
@@ -14,6 +18,9 @@ on:
 permissions:
   contents: read
 
+env:
+  QT_VERSION: ${{ inputs.qt_version || '6.12.0' }}
+
 jobs:
   package:
     runs-on: windows-2022
@@ -21,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/v0.1.0-experimental.1
+          ref: ${{ github.ref }}
           fetch-depth: 0
       - name: Check out versioned release tooling separately from the immutable tag
         uses: actions/checkout@v4
@@ -30,16 +37,16 @@ jobs:
           path: build/release-tools
           persist-credentials: false
       - uses: ilammy/msvc-dev-cmd@v1
-      - name: Install Qt 6.11.1 (same SDK build as CI)
+      - name: Install Qt ${{ env.QT_VERSION }} (same SDK build as CI)
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
-          version: '6.11.1'
+          version: '${{ env.QT_VERSION }}'
           host: windows
           target: desktop
           arch: win64_msvc2022_64
           archives: 'qtbase qtsvg qtimageformats'
           cache: true
-          cache-key-prefix: 'qt-6.11.1-aqt-16db45a-v1'
+          cache-key-prefix: 'qt-${{ env.QT_VERSION }}-aqt-16db45a-v1'
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
       - name: Install Python and Pillow
         uses: actions/setup-python@v5
@@ -56,30 +63,39 @@ jobs:
         run: |
           $plugin = Join-Path $env:QT_ROOT_DIR 'plugins/styles/qmodernwindowsstyle.dll'
           if (-not (Test-Path -LiteralPath $plugin -PathType Leaf)) {
-            throw "Qt 6.11.1 SDK is missing the required modern Windows style plugin: $plugin"
+            throw "Qt $env:QT_VERSION SDK is missing the required modern Windows style plugin: $plugin"
           }
       - name: Fetch and verify matching official Qt source modules
         timeout-minutes: 10
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '6.11.1'
+          $version = $env:QT_VERSION
+          $versionPrefix = ($version -split '\.')[0,1] -join '.'
           $sourceRoot = Join-Path $env:RUNNER_TEMP 'qt-corresponding-source'
           $downloadRoot = Join-Path $env:RUNNER_TEMP 'qt-source-downloads'
           New-Item -ItemType Directory -Path $sourceRoot, $downloadRoot -Force | Out-Null
-          $modules = @(
-            @{ Name = 'qtbase'; Hash = 'd9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac' },
-            @{ Name = 'qtsvg'; Hash = '7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94' },
-            @{ Name = 'qtimageformats'; Hash = 'b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413' }
-          )
+          # Source SHA-256 hashes are pinned per Qt version (supply-chain gate).
+          # Add entries here when cutting a release against a newer Qt.
+          $moduleHashes = @{
+            '6.11.1' = @(
+              @{ Name = 'qtbase'; Hash = 'd9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac' },
+              @{ Name = 'qtsvg'; Hash = '7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94' },
+              @{ Name = 'qtimageformats'; Hash = 'b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413' }
+            )
+          }
+          $modules = $moduleHashes[$version]
+          if (-not $modules) {
+            throw "No pinned Qt source SHA-256 hashes for Qt $version. Pin them before releasing."
+          }
           foreach ($module in $modules) {
             $archiveName = "$($module.Name)-everywhere-src-$version.tar.xz"
             $archivePath = Join-Path $downloadRoot $archiveName
             # Mirrors listed by download.qt.io; retain the original SHA-256
             # gate, and bound each transfer so a dead mirror cannot hang CI.
             $urls = @(
-              "https://ftp.fau.de/qtproject/archive/qt/6.11/6.11.1/submodules/$archiveName",
-              "https://mirror.accum.se/mirror/qt.io/qtproject/archive/qt/6.11/6.11.1/submodules/$archiveName"
+              "https://ftp.fau.de/qtproject/archive/qt/$versionPrefix/$version/submodules/$archiveName",
+              "https://mirror.accum.se/mirror/qt.io/qtproject/archive/qt/$versionPrefix/$version/submodules/$archiveName"
             )
             $downloaded = $false
             foreach ($url in $urls) {
@@ -125,9 +141,9 @@ jobs:
             -QtRoot $env:QT_ROOT_DIR `
             -QtSourceRoot (Join-Path $env:RUNNER_TEMP 'qt-corresponding-source') `
             -ExcludeNativeTests `
-            -ReleaseSuffix experimental.1
+            -ReleaseSuffix ''
           $candidate = Get-ChildItem -Path build/poc -Recurse -File `
-            -Filter '*-win-x64-msvc-qt6.11.1-experimental.1.zip' |
+            -Filter "*-win-x64-msvc-qt$($env:QT_VERSION).zip" |
             Select-Object -First 1
           if (-not $candidate) { throw 'Packager did not produce the Gallery ZIP.' }
           $assets = Join-Path $env:RUNNER_TEMP 'release-assets'
@@ -138,16 +154,16 @@ jobs:
           foreach ($archive in Get-ChildItem -LiteralPath $downloads -File -Filter '*.tar.xz') {
             Copy-Item -LiteralPath $archive.FullName -Destination $assets
           }
-          $sourceInfo = Get-ChildItem -LiteralPath $assets -File -Filter 'qt*-everywhere-src-6.11.1.tar.xz' |
+          $sourceInfo = Get-ChildItem -LiteralPath $assets -File -Filter "qt*-everywhere-src-$($env:QT_VERSION).tar.xz" |
             Sort-Object Name | ForEach-Object {
               [ordered]@{ file = $_.Name; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
             }
           [ordered]@{
-            qtVersion = '6.11.1'
+            qtVersion = "$env:QT_VERSION"
             source = 'Official Qt Project source archives, verified against Qt download SHA-256 values.'
             modules = @($sourceInfo)
             build = 'Windows x64, MSVC 2022, official Qt binary SDK; native-labelled tests excluded on hosted runner.'
-          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $assets 'Qt-6.11.1-source-manifest.json') -Encoding utf8
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $assets "Qt-$($env:QT_VERSION)-source-manifest.json") -Encoding utf8
           $sumLines = @(Get-ChildItem -LiteralPath $assets -File | ForEach-Object {
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
@@ -156,7 +172,7 @@ jobs:
       - name: Upload release candidate artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WinUI3Style-v0.1.0-experimental.1-win-x64-qt6.11.1
+          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}
           path: ${{ runner.temp }}/release-assets/*
           if-no-files-found: error
           retention-days: 14
@@ -173,16 +189,16 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Install Qt 6.11.1 for Linux x86_64
+      - name: Install Qt ${{ env.QT_VERSION }} for Linux x86_64
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
-          version: '6.11.1'
+          version: '${{ env.QT_VERSION }}'
           host: linux
           target: desktop
           arch: linux_gcc_64
           archives: 'qtbase qtsvg qtimageformats'
           cache: true
-          cache-key-prefix: 'qt-6.11.1-linux-gcc64-release-v1'
+          cache-key-prefix: 'qt-${{ env.QT_VERSION }}-linux-gcc64-release-v1'
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -196,6 +212,8 @@ jobs:
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
             libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
             patchelf xvfb xauth
+      # ICU 73.2 matches the runtime the official Qt 6.11.1 Linux SDK links
+      # against. When QT_VERSION changes, re-verify which ICU the Qt build needs.
       - name: Build ICU 73.2 required by the official Qt Linux SDK
         shell: bash
         run: |
@@ -225,7 +243,7 @@ jobs:
       - name: Download verified Qt corresponding-source inputs
         uses: actions/download-artifact@v4
         with:
-          name: WinUI3Style-v0.1.0-experimental.1-win-x64-qt6.11.1
+          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}
           path: qt-source-assets
       - name: Package and smoke-test Linux Gallery
         run: |
@@ -233,11 +251,11 @@ jobs:
       - name: Upload Linux release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: WinUI3Style-v0.1.0-experimental.1-linux-x64-gcc-qt6.11.1
+          name: WinUI3Style-${{ github.ref_name }}-linux-x64-gcc-qt${{ env.QT_VERSION }}
           path: |
-            release-assets/WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1.tar.gz
-            release-assets/WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1.tar.gz.sha256
-            release-assets/WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1-manifest.json
+            release-assets/WinUI3Style-*-linux-x64-gcc-qt${{ env.QT_VERSION }}.tar.gz
+            release-assets/WinUI3Style-*-linux-x64-gcc-qt${{ env.QT_VERSION }}.tar.gz.sha256
+            release-assets/WinUI3Style-*-linux-x64-gcc-qt${{ env.QT_VERSION }}-manifest.json
           if-no-files-found: error
           retention-days: 14
 
@@ -251,7 +269,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/v0.1.0-experimental.1
+          ref: ${{ github.ref }}
           fetch-depth: 0
       - name: Check out release notes for the selected workflow revision
         if: github.event_name == 'workflow_dispatch'
@@ -263,14 +281,14 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          pattern: WinUI3Style-v0.1.0-experimental.1-*
+          pattern: WinUI3Style-${{ github.ref_name }}-*
           merge-multiple: true
           path: release-assets
       - name: Publish new release or append Linux assets to existing prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: v0.1.0-experimental.1
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath release-assets -File)
           $linuxAssets = @($assets | Where-Object Name -Like '*linux-x64-gcc*')
@@ -287,7 +305,10 @@ jobs:
             throw 'Linux archive checksum does not match its detached checksum file.'
           }
           $manifestData = Get-Content -LiteralPath $linuxManifest.FullName -Raw | ConvertFrom-Json
-          if ($manifestData.name -ne 'WinUI3Style-0.1.0-linux-x64-gcc-qt6.11.1-experimental.1') {
+          $releaseVersion = (Select-String -LiteralPath 'CMakeLists.txt' -Pattern 'project\(WinUI3Style VERSION ([0-9.]+)' | Select-Object -First 1).Matches[0].Groups[1].Value
+          if (-not $releaseVersion) { throw 'Cannot identify project version from CMakeLists.txt.' }
+          $expectedLinuxName = "WinUI3Style-${releaseVersion}-linux-x64-gcc-qt$($env:QT_VERSION)"
+          if ($manifestData.name -ne $expectedLinuxName) {
             throw 'Linux release manifest identifies an unexpected package.'
           }
           if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {

@@ -115,8 +115,8 @@ jobs:
       - name: Build (tidy runs as errors)
         run: cmake --build build-tidy -j"$(nproc)"
 
-  linux-gate:
-    name: linux-gate (Qt 6.8.3, Release)
+  linux-gcc:
+    name: linux-gcc (Qt 6.8.3, Release)
     # Compilation and unit-test gate for non-Windows hosts (issue #21). The
     # tree is portable Qt: the backdrop, appearance-watcher, and native capture
     # paths are compiled out by Q_OS_WIN. Native tests are excluded because
@@ -191,7 +191,7 @@ jobs:
             -DWINUI3STYLE_BUILD_DEMO=OFF
           test ! -d build-legacy/tests
 
-  msvc-gate:
+  windows-msvc:
     # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
     # CMake's "Visual Studio 17 2022" generator can no longer find VS there.
     runs-on: windows-2022
@@ -313,8 +313,8 @@ jobs:
             ./*-*.log
           if-no-files-found: warn
 
-  qt512-mingw:
-    name: qt512-mingw (Qt 5.12.12, Release)
+  windows-mingw:
+    name: windows-mingw (Qt 5.12.12, Release)
     # Qt 5.12 MinGW must at least build. No snapshot/DPI gate here;
     # offscreen fidelity and Pillow matrix belong to the MSVC job above.
     # Toolchain match: install-qt-action defaults to the runner's own

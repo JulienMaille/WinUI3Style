@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory = $true)][string]$QtRoot,
     [Parameter(Mandatory = $true)][string]$QtSourceRoot,
     [switch]$ExcludeNativeTests,
-    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9.-]*$')][string]$ReleaseSuffix = 'experimental'
+    [ValidatePattern('^([A-Za-z0-9][A-Za-z0-9.-]*)?$')][string]$ReleaseSuffix = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,7 +62,10 @@ $ctestArgs = Get-PackageCTestArguments -BuildPath $buildPath `
 & $ctest @ctestArgs
 if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; no distribution archive created.' }
 
-$name = "WinUI3Style-$version-win-x64-msvc-qt$qtVersion-$ReleaseSuffix"
+$name = "WinUI3Style-$version-win-x64-msvc-qt$qtVersion"
+if (-not [string]::IsNullOrEmpty($ReleaseSuffix)) {
+    $name = "$name-$ReleaseSuffix"
+}
 $output = Join-Path $buildPath ('poc/' + [guid]::NewGuid().ToString())
 $stage = Join-Path $output $name
 New-Item -ItemType Directory -Path (Join-Path $stage 'styles') -Force | Out-Null

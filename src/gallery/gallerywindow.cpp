@@ -476,8 +476,8 @@ namespace {
 // galleryprobe contract asserts.
 constexpr int kIconPreviewPixelSize = 24;
 
-QPixmap standardIconPixmap(QStyle *style, QStyle::StandardPixmap standard,
-                           const QWidget *widget, qreal devicePixelRatio)
+QPixmap standardIconPixmap(QStyle *style, QStyle::StandardPixmap standard, const QWidget *widget,
+                           qreal devicePixelRatio)
 {
     const QIcon glyph = style->standardIcon(standard, nullptr, widget);
     if (glyph.isNull())
@@ -491,8 +491,8 @@ QPixmap standardIconPixmap(QStyle *style, QStyle::StandardPixmap standard,
         return {};
     pixmap.setDevicePixelRatio(devicePixelRatio);
 #else
-    QPixmap pixmap = glyph.pixmap(QSize(kIconPreviewPixelSize, kIconPreviewPixelSize),
-                                  devicePixelRatio);
+    QPixmap pixmap =
+            glyph.pixmap(QSize(kIconPreviewPixelSize, kIconPreviewPixelSize), devicePixelRatio);
     if (pixmap.isNull())
         return {};
 #endif
@@ -543,9 +543,8 @@ void GalleryWindow::populateIconSheet()
         const QString name = QString::fromLatin1(standardPixmaps.key(index));
         const QIcon glyph = style()->standardIcon(standard, nullptr, this);
         const bool fluent = glyph.name().startsWith(fluentPrefix);
-        const bool missing = standardIconPixmap(style(), standard, this,
-                                                devicePixelRatioF())
-                                     .isNull();
+        const bool missing =
+                standardIconPixmap(style(), standard, this, devicePixelRatioF()).isNull();
         QGridLayout *grid = ui->baseIconsGrid;
         if (fluent)
             grid = ui->fluentIconsGrid;
@@ -608,10 +607,9 @@ void GalleryWindow::refreshIconSheet()
     for (const IconPreview &preview : m_iconPreviews) {
         if (!preview.label)
             continue;
-        const QPixmap pixmap =
-                standardIconPixmap(style(),
-                                   static_cast<QStyle::StandardPixmap>(preview.standardPixmap),
-                                   this, devicePixelRatioF());
+        const QPixmap pixmap = standardIconPixmap(
+                style(), static_cast<QStyle::StandardPixmap>(preview.standardPixmap), this,
+                devicePixelRatioF());
         if (pixmap.isNull()) {
             // Neither the style nor its base style has artwork for this
             // ancestor-dependent pixmap: an empty cell would read as a broken

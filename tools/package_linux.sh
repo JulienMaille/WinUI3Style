@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 4 ]]; then
-    echo "usage: $0 BUILD_DIR QT_ROOT QT_SOURCE_ASSETS OUTPUT_DIR" >&2
+if [[ $# -lt 4 || $# -gt 5 ]]; then
+    echo "usage: $0 BUILD_DIR QT_ROOT QT_SOURCE_ASSETS OUTPUT_DIR [RELEASE_SUFFIX]" >&2
     exit 2
 fi
 
@@ -12,6 +12,7 @@ build_dir="$(cd "$1" && pwd)"
 qt_root="$(cd "$2" && pwd)"
 qt_sources="$(cd "$3" && pwd)"
 output_dir="$(mkdir -p "$4" && cd "$4" && pwd)"
+release_suffix="${5:-}"
 qmake="$qt_root/bin/qmake"
 if [[ ! -x "$qmake" ]]; then
     echo "Qt qmake tool missing from $qt_root/bin" >&2
@@ -30,7 +31,10 @@ if [[ -z "$qt_version" || -z "$version" ]]; then
     exit 1
 fi
 revision="$(git -C "$repo_root" rev-parse HEAD)"
-name="WinUI3Style-${version}-linux-x64-gcc-qt${qt_version}-experimental.1"
+name="WinUI3Style-${version}-linux-x64-gcc-qt${qt_version}"
+if [[ -n "$release_suffix" ]]; then
+    name="${name}-${release_suffix}"
+fi
 prefix="$output_dir/stage/$name"
 
 cmake -S "$repo_root" -B "$build_dir" \
