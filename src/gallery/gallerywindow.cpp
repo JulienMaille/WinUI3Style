@@ -465,6 +465,54 @@ void GalleryWindow::populateCollections()
     ui->tableViewTab->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
 }
 
+namespace {
+// The Icons page shows one cell per QStyle::StandardPixmap at 24 logical
+// pixels. QIcon::pixmap(size, devicePixelRatio) hands back whatever raster
+// the icon engine offers at that logical size: Qt 6.12 scales base-style
+// icons up to the request, while Qt 6.8 returns the engine's own native
+// raster instead, and Qt 5.12 has no devicePixelRatio overload at all.
+// Re-rasterizing into an explicitly sized grid keeps every preview cell on
+// the same pixel contract across those behaviours, which is what the
+// galleryprobe contract asserts.
+constexpr int kIconPreviewPixelSize = 24;
+
+QPixmap standardIconPixmap(QStyle *style, QStyle::StandardPixmap standard,
+                           const QWidget *widget, qreal devicePixelRatio)
+{
+    const QIcon glyph = style->standardIcon(standard, nullptr, widget);
+    if (glyph.isNull())
+        return {};
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    // Qt 5 has no QIcon::pixmap(QSize, qreal) overload on the oldest supported
+    // release (5.12): request the logical size and attach the ratio here; the
+    // normalization below keeps the preview grid identical to Qt 6's.
+    QPixmap pixmap = glyph.pixmap(QSize(kIconPreviewPixelSize, kIconPreviewPixelSize));
+    if (pixmap.isNull())
+        return {};
+    pixmap.setDevicePixelRatio(devicePixelRatio);
+#else
+    QPixmap pixmap = glyph.pixmap(QSize(kIconPreviewPixelSize, kIconPreviewPixelSize),
+                                  devicePixelRatio);
+    if (pixmap.isNull())
+        return {};
+#endif
+    const int deviceSide = qRound(kIconPreviewPixelSize * devicePixelRatio);
+    const QSize targetSize(deviceSide, deviceSide);
+    if (pixmap.size() == targetSize && pixmap.devicePixelRatioF() == devicePixelRatio)
+        return pixmap;
+    // Re-rasterize the engine's native pixels onto the preview grid: the
+    // device pixels are scaled into the box and the ratio rides along, so
+    // pixmap().size() equals 24 * devicePixelRatio for every engine answer.
+    QPixmap result(targetSize);
+    result.setDevicePixelRatio(devicePixelRatio);
+    result.fill(Qt::transparent);
+    QPainter painter(&result);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawPixmap(result.rect(), pixmap, QRectF(pixmap.rect()));
+    return result;
+}
+} // namespace
+
 void GalleryWindow::populateIconSheet()
 {
     const auto clearGrid = [](QGridLayout *grid) {
@@ -495,7 +543,9 @@ void GalleryWindow::populateIconSheet()
         const QString name = QString::fromLatin1(standardPixmaps.key(index));
         const QIcon glyph = style()->standardIcon(standard, nullptr, this);
         const bool fluent = glyph.name().startsWith(fluentPrefix);
-        const bool missing = glyph.pixmap(QSize(24, 24), devicePixelRatioF()).isNull();
+        const bool missing = standardIconPixmap(style(), standard, this,
+                                                devicePixelRatioF())
+                                     .isNull();
         QGridLayout *grid = ui->baseIconsGrid;
         if (fluent)
             grid = ui->fluentIconsGrid;
@@ -559,9 +609,9 @@ void GalleryWindow::refreshIconSheet()
         if (!preview.label)
             continue;
         const QPixmap pixmap =
-                style()->standardIcon(static_cast<QStyle::StandardPixmap>(preview.standardPixmap),
-                                      nullptr, this)
-                        .pixmap(QSize(24, 24), devicePixelRatioF());
+                standardIconPixmap(style(),
+                                   static_cast<QStyle::StandardPixmap>(preview.standardPixmap),
+                                   this, devicePixelRatioF());
         if (pixmap.isNull()) {
             // Neither the style nor its base style has artwork for this
             // ancestor-dependent pixmap: an empty cell would read as a broken
@@ -570,6 +620,9 @@ void GalleryWindow::refreshIconSheet()
             preview.label->setText(QStringLiteral("\u2205"));
             continue;
         }
+        // Clear any stale placeholder before attaching the raster so a cell
+        // that gained artwork does not keep the no-glyph mark around.
+        preview.label->setText(QString());
         preview.label->setPixmap(pixmap);
     }
 }

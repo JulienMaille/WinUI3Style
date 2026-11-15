@@ -291,6 +291,25 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryprobe_tests winui3styleplugin)
 endif()
 
+# Standard-pixmap Icons page coverage: split out of tst_winui3galleryprobe.cpp
+# so the probe binary stays under the 60 KB source ratchet (check_source_contracts
+# (d)), since the Icons page test pulls in the whole GalleryWindow machinery.
+add_executable(winui3style_galleryicons_tests
+    tst_winui3galleryicons.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
+set_target_properties(winui3style_galleryicons_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_include_directories(winui3style_galleryicons_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_link_libraries(winui3style_galleryicons_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_galleryicons_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -487,6 +506,13 @@ add_test(NAME winui3style_galleryprobe_unit
              -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryprobe_unit.txt,txt
              -o -,txt)
 set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 180)
+add_test(NAME winui3style_galleryicons_unit
+         COMMAND ${CMAKE_COMMAND} -E env
+             --unset=WINUI3STYLE_DISABLE_ANIMATIONS
+             $<TARGET_FILE:winui3style_galleryicons_tests>
+             -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryicons_unit.txt,txt
+             -o -,txt)
+set_tests_properties(winui3style_galleryicons_unit PROPERTIES TIMEOUT 180)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
