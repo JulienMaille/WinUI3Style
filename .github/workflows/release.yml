@@ -122,15 +122,17 @@ jobs:
             -Filter "*-win-x64-msvc-qt$($env:QT_VERSION).zip" |
             Select-Object -First 1
           if (-not $candidate) { throw 'Packager did not produce the Gallery ZIP.' }
-          $assets = Join-Path $env:RUNNER_TEMP 'release-assets'
-          New-Item -ItemType Directory -Path $assets -Force | Out-Null
-          Copy-Item -LiteralPath $candidate.FullName -Destination $assets
-          Copy-Item -LiteralPath ($candidate.FullName + '.sha256') -Destination $assets
+          $gallery = Join-Path $env:RUNNER_TEMP 'gallery-assets'
+          New-Item -ItemType Directory -Path $gallery -Force | Out-Null
+          Copy-Item -LiteralPath $candidate.FullName -Destination $gallery
+          Copy-Item -LiteralPath ($candidate.FullName + '.sha256') -Destination $gallery
+          $sources = Join-Path $env:RUNNER_TEMP 'source-assets'
+          New-Item -ItemType Directory -Path $sources -Force | Out-Null
           $downloads = Join-Path $env:RUNNER_TEMP 'qt-source-downloads'
           foreach ($archive in Get-ChildItem -LiteralPath $downloads -File -Filter '*.tar.xz') {
-            Copy-Item -LiteralPath $archive.FullName -Destination $assets
+            Copy-Item -LiteralPath $archive.FullName -Destination $sources
           }
-          $sourceInfo = Get-ChildItem -LiteralPath $assets -File -Filter "qt*-everywhere-src-$($env:QT_VERSION).tar.xz" |
+          $sourceInfo = Get-ChildItem -LiteralPath $sources -File -Filter "qt*-everywhere-src-$($env:QT_VERSION).tar.xz" |
             Sort-Object Name | ForEach-Object {
               [ordered]@{ file = $_.Name; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
             }
@@ -139,17 +141,19 @@ jobs:
             source = 'Official Qt Project source archives, verified against Qt download SHA-256 values.'
             modules = @($sourceInfo)
             build = 'Windows x64, MSVC 2022, official Qt binary SDK; native-labelled tests excluded on hosted runner.'
-          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $assets "Qt-$($env:QT_VERSION)-source-manifest.json") -Encoding utf8
-          $sumLines = @(Get-ChildItem -LiteralPath $assets -File | ForEach-Object {
-            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $($_.Name)"
-          })
-          Set-Content -LiteralPath (Join-Path $assets 'SHA256SUMS.txt') -Value $sumLines -Encoding ascii
-      - name: Upload release candidate artifact
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $sources "Qt-$($env:QT_VERSION)-source-manifest.json") -Encoding utf8
+      - name: Upload Windows gallery artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}
-          path: ${{ runner.temp }}/release-assets/*
+          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-gallery
+          path: ${{ runner.temp }}/gallery-assets/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Qt source archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-sources
+          path: ${{ runner.temp }}/source-assets/*
           if-no-files-found: error
           retention-days: 14
 
@@ -214,10 +218,10 @@ jobs:
           echo "LD_LIBRARY_PATH=$install_root/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
       - name: Install Pillow for the snapshot oracle
         run: python3 -m pip install pillow
-      - name: Download verified Qt corresponding-source inputs
+      - name: Download Qt source archives
         uses: actions/download-artifact@v4
         with:
-          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}
+          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-sources
           path: qt-source-assets
       - name: Package and smoke-test Linux Gallery
         run: |
@@ -277,33 +281,41 @@ jobs:
           if ($manifestData.name -ne $expectedLinuxName) {
             throw 'Linux release manifest identifies an unexpected package.'
           }
+
+          # Build SHA256SUMS.txt over every release asset
+          $sumLines = @()
+          foreach ($asset in $assets) {
+            $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $sumLines += "$hash  $($asset.Name)"
+          }
+          $sumFile = Join-Path 'release-assets' 'SHA256SUMS.txt'
+          Set-Content -LiteralPath $sumFile -Value $sumLines -Encoding ascii
+
           if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
             $downloadDir = Join-Path $env:RUNNER_TEMP 'existing-release'
             New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
             gh release download $env:RELEASE_TAG --pattern SHA256SUMS.txt --dir $downloadDir
             if ($LASTEXITCODE -ne 0) { throw 'Could not download the existing release checksums.' }
-            $sumLines = @(Get-Content -LiteralPath (Join-Path $downloadDir 'SHA256SUMS.txt'))
-            $sumFile = Join-Path 'release-assets' 'SHA256SUMS.txt'
-          } else {
-            $sumLines = @(Get-Content -LiteralPath (Join-Path 'release-assets' 'SHA256SUMS.txt'))
-            $sumFile = Join-Path 'release-assets' 'SHA256SUMS.txt'
-          }
-          foreach ($asset in $linuxAssets) {
-            $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            $assetSuffix = "  $([regex]::Escape($asset.Name))$"
-            $sumLines = @($sumLines | Where-Object { $_ -notmatch $assetSuffix })
-            $sumLines += "$hash  $($asset.Name)"
-          }
-          Set-Content -LiteralPath $sumFile -Value $sumLines -Encoding ascii
-          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $existingSumLines = @(Get-Content -LiteralPath (Join-Path $downloadDir 'SHA256SUMS.txt'))
+            $linuxNames = @($linuxAssets | ForEach-Object { $_.Name })
+            $filteredExisting = @($existingSumLines | Where-Object {
+              $entryName = ($_.Trim() -split '\s+')[-1]
+              $entryName -notin $linuxNames
+            })
+            $sumLines = @($filteredExisting)
+            foreach ($asset in $linuxAssets) {
+              $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $sumLines += "$hash  $($asset.Name)"
+            }
+            Set-Content -LiteralPath $sumFile -Value $sumLines -Encoding ascii
             $upload = @($linuxAssets | ForEach-Object FullName) + @($sumFile)
             gh release upload $env:RELEASE_TAG @upload --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Could not attach Linux assets to the existing prerelease.' }
             gh release edit $env:RELEASE_TAG --notes-file RELEASE_NOTES.md
             if ($LASTEXITCODE -ne 0) { throw 'Could not update the existing prerelease notes.' }
           } else {
-            if ($assets.Count -lt 8) { throw 'Release assets are incomplete.' }
-            $allPaths = @($assets | ForEach-Object FullName)
+            if ($assets.Count -lt 5) { throw 'Release assets are incomplete.' }
+            $allPaths = @($assets | ForEach-Object FullName) + @($sumFile)
             gh release create $env:RELEASE_TAG @allPaths `
               --title $env:RELEASE_TAG `
               --notes-file RELEASE_NOTES.md `
