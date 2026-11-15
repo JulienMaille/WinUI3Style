@@ -5,6 +5,10 @@
 // and a style comparison switch rebuilds the sheet instead of appending a
 // second copy. Driven on the REAL GalleryWindow (gallerywindow.cpp/.h/.ui)
 // through offscreen QPA.
+//
+// Qt 5.12's QLabel::pixmap() returns const QPixmap *, Qt 6's returns
+// const QPixmap &; this helper hides the difference so the rest of the test
+// is version agnostic.
 #include "../src/gallery/gallerywindow.h"
 
 #include <QAction>
@@ -19,6 +23,17 @@
 #include <QStyle>
 #include <QtTest>
 #include <winui3style/winui3style.h>
+
+namespace {
+const QPixmap labelPixmap(const QLabel *label)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return label->pixmap(); // const QPixmap &, cheap implicitly-shared copy
+#else
+    return *label->pixmap(); // const QPixmap *, deref then copy
+#endif
+}
+} // namespace
 
 class WinUI3GalleryIconsTest final : public QObject
 {
@@ -84,12 +99,12 @@ void WinUI3GalleryIconsTest::galleryIconsPageListsEveryStandardPixmap()
     const QSize expectedSize(qRound(24 * dpr), qRound(24 * dpr));
     const auto checkPreviews = [&](const QList<QLabel *> &labels) {
         for (QLabel *label : labels) {
-            if (label->pixmap().isNull()) {
+            if (labelPixmap(label).isNull()) {
                 // Ancestor-dependent SP_* with neither a Fluent glyph nor a base
                 // icon must say so instead of rendering an empty cell.
                 if (label->text().isEmpty())
                     return false;
-            } else if (label->pixmap().size() != expectedSize) {
+            } else if (labelPixmap(label).size() != expectedSize) {
                 return false;
             }
         }
@@ -105,9 +120,9 @@ void WinUI3GalleryIconsTest::galleryIconsPageListsEveryStandardPixmap()
     // The group a cell lands in must match what the style actually returned:
     // a Fluent glyph is never empty, and a "no glyph" cell never carries art.
     for (QLabel *label : fluent)
-        QVERIFY(!label->pixmap().isNull());
+        QVERIFY(!labelPixmap(label).isNull());
     for (QLabel *label : missing) {
-        QVERIFY(label->pixmap().isNull());
+        QVERIFY(labelPixmap(label).isNull());
         QVERIFY(!label->text().isEmpty());
     }
     // The WinUI 3 style answers a non-empty share of the enumerators with its
@@ -120,7 +135,7 @@ void WinUI3GalleryIconsTest::galleryIconsPageListsEveryStandardPixmap()
 
     // A palette change must re-render the rasters: QLabel stores the pixmap the
     // style drew in the old theme's ink, so nothing recolours by itself.
-    const QImage lightInk = fluent.first()->pixmap().toImage();
+    const QImage lightInk = labelPixmap(fluent.first()).toImage();
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
     style->setThemeMode(WinUI3::ThemeMode::Dark);
@@ -128,7 +143,7 @@ void WinUI3GalleryIconsTest::galleryIconsPageListsEveryStandardPixmap()
     const QList<QLabel *> darkPreviews = previews(fluentGroup);
     QCOMPARE(darkPreviews.size(), fluent.size());
     QVERIFY(checkPreviews(darkPreviews));
-    QVERIFY(darkPreviews.first()->pixmap().toImage() != lightInk);
+    QVERIFY(labelPixmap(darkPreviews.first()).toImage() != lightInk);
     style->setThemeMode(WinUI3::ThemeMode::Light);
     qApp->processEvents();
 
