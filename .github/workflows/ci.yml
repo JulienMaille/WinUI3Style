@@ -197,11 +197,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 6.8.3 = oldest supported Qt; 6.11.1 = version this tree develops
+        # 6.8.3 = oldest supported Qt; 6.12.0 = version this tree develops
         # against. Exact versions: stock aqt 3.3.x has no checksum entry for
-        # newer Qt 6.11 Windows archives, so the pinned action + dev snapshot
+        # newer Qt 6.11+ Windows archives, so the pinned action + dev snapshot
         # below is required (not "any v4").
-        qt: ["6.8.3", "6.11.1"]
+        qt: ["6.8.3", "6.12.0"]
         # Exercise both multi-config outputs. This verifies the plugin, demo,
         # tests, CTest environment, and deterministic snapshot oracle in each
         # configuration rather than allowing Debug deployment to drift.
@@ -224,7 +224,7 @@ jobs:
           arch: ${{ env.QT_ARCH }}
           cache: true
           cache-key-prefix: 'qt-${{ env.QT_VERSION }}-aqt-16db45a-v1'
-          # aqtinstall 3.3.x has no checksum entry for the Qt 6.11.1 Windows
+          # aqtinstall 3.3.x has no checksum entry for the Qt 6.11+ Windows
           # archives yet; use the tested checksum-enabled development snapshot.
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
       - name: Install Python + Pillow

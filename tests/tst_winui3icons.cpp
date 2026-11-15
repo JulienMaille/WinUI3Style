@@ -231,8 +231,8 @@ void WinUI3IconsTest::saveIconUsesVectorFallbackWithoutSegoe()
     WinUI3::Private::setIconFontAvailabilityOverrideForTest(0);
     QVERIFY(!WinUI3::Private::segoeIconFontAvailable());
 
-    const QPixmap pixmap = WinUI3::iconPixmap(WinUI3::icon(WinUI3::Icon::Save), QSize(24, 24),
-                                              1.0, QColor(Qt::white));
+    const QPixmap pixmap = WinUI3::iconPixmap(WinUI3::icon(WinUI3::Icon::Save), QSize(24, 24), 1.0,
+                                              QColor(Qt::white));
     QCOMPARE(pixmap.size(), QSize(24, 24));
     const QImage image = pixmap.toImage();
     const QRect bounds = alphaBounds(pixmap);
