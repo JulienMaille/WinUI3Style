@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       qt_version:
-        description: 'Qt SDK version to build and package (pinned source hashes must exist for it)'
+        description: 'Qt SDK version to build and package'
         type: string
         default: '6.12.0'
       publish:
