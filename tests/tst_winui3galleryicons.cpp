@@ -157,9 +157,9 @@ void WinUI3GalleryIconsTest::galleryIconsPageListsEveryStandardPixmap()
         QCOMPARE(previews(fluentGroup).size() + previews(baseGroup).size()
                          + previews(missingGroup).size(),
                  standardCount);
-        auto *winuiAction = window.findChild<QAction *>(QStringLiteral("winui3StyleAction"));
-        QVERIFY(winuiAction);
-        winuiAction->trigger();
+        // QStyleFactory cannot create "winui3" (the plugin is loaded via
+        // QPluginLoader, not the factory), so switch back directly.
+        qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
         qApp->processEvents();
         QCOMPARE(previews(fluentGroup).size(), fluent.size());
         QCOMPARE(previews(fluentGroup).size() + previews(baseGroup).size()
