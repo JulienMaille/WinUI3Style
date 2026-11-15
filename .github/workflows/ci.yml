@@ -116,7 +116,7 @@ jobs:
         run: cmake --build build-tidy -j"$(nproc)"
 
   linux-gate:
-    name: linux-gate (Qt 6.8.3)
+    name: linux-gate (Qt 6.8.3, Release)
     # Compilation and unit-test gate for non-Windows hosts (issue #21). The
     # tree is portable Qt: the backdrop, appearance-watcher, and native capture
     # paths are compiled out by Q_OS_WIN. Native tests are excluded because
@@ -314,6 +314,7 @@ jobs:
           if-no-files-found: warn
 
   qt512-mingw:
+    name: qt512-mingw (Qt 5.12.12, Release)
     # Qt 5.12 MinGW must at least build. No snapshot/DPI gate here;
     # offscreen fidelity and Pillow matrix belong to the MSVC job above.
     # Toolchain match: install-qt-action defaults to the runner's own
