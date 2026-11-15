@@ -40,7 +40,7 @@ jobs:
     # (METHODOLOGY §6).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Verify Qt distribution notice extraction
@@ -75,7 +75,7 @@ jobs:
   format-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: clang-format whole tree
         run: |
           pip install "clang-format==18.1.8"
@@ -89,7 +89,7 @@ jobs:
     # are excluded from tidy by design (QtTest idioms).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install clang-tidy
         run: |
           sudo apt-get update
@@ -127,7 +127,7 @@ jobs:
     # portable and does run here.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Qt 6.8.3
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
@@ -227,7 +227,7 @@ jobs:
       QT_ARCH: win64_msvc2022_64
       BUILD_CONFIGURATION: ${{ matrix.configuration }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -242,7 +242,7 @@ jobs:
           # archives yet; use the tested checksum-enabled development snapshot.
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
       - name: Install Python + Pillow
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pillow
@@ -335,7 +335,7 @@ jobs:
     # on PATH so CMake picks it (verified: GNU 7.3.0, "MinGW Makefiles").
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Qt 5.12 (MinGW 7.3 32-bit)
         uses: jurplel/install-qt-action@v4
         with:
@@ -344,7 +344,7 @@ jobs:
           tools: tools_mingw,qt.tools.win32_mingw730
           cache: true
       - name: Install Python + Pillow
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pillow
