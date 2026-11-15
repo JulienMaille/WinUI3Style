@@ -426,6 +426,16 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
             && Private::isTransparentizedForBackdrop(widget))
             palette.setColor(QPalette::Window, withAlpha(palette.color(QPalette::Window), 0));
         Private::setBackdropPalette(widget, palette);
+        // Keep the implicit-owner snapshot in step with the style's own rebase.
+        // Qt's theme propagation (or this write) otherwise leaves the live
+        // palette != snapshot, so the NEXT toggle's hasRuntimePaletteOverride
+        // mistakes the style's previous rebase for an application override and
+        // permanently disowns the widget (issue #63: header stuck after
+        // dark -> light -> dark).
+        if (widget->property(ownedPaletteProperty).toBool()
+            && widget->property(implicitPaletteSnapshotProperty).isValid())
+            widget->setProperty(implicitPaletteSnapshotProperty,
+                                QVariant::fromValue(widget->palette()));
         if (auto *dialog = qobject_cast<QDialog *>(widget))
             prepareContentDialogState(dialog, darkTheme);
     }

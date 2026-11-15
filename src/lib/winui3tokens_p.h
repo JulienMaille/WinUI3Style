@@ -137,6 +137,10 @@ struct Tokens
     QColor menuSeparatorStroke;
     QColor dialogSeparatorStroke;
     QColor selectedTabFill;
+    // DataGrid-like header band. Dark rests a touch above the alternate row;
+    // light must sit a touch BELOW it so the header reads as a distinct band
+    // in both themes (issue #63 follow-up: light header was brighter than rows).
+    QColor tableHeaderFill;
     // Slider thumb outer ring.
     QColor sliderThumbOuter;
     // Tooltip surface.
@@ -302,6 +306,10 @@ inline Tokens buildTokens(const QPalette &palette)
     t.editorFocusedFill = t.dark ? QColor(30, 30, 30, 179) : QColor(255, 255, 255);
     t.flyoutStroke = t.dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15);
     t.selectedTabFill = t.dark ? QColor(44, 44, 44) : QColor(251, 251, 251);
+    // Dark keeps the Base layer (a touch above the alternate row). Light blends
+    // the alternate row a few steps toward the ink so the resolved header band
+    // lands just below the alternate row instead of above the odd rows.
+    t.tableHeaderFill = t.dark ? t.layer : mix(palette.color(QPalette::AlternateBase), ink, 0.05);
     t.sliderThumbOuter = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
     // WinUI `DefaultToolTipStyle` paints `AcrylicInAppFillColorDefaultBrush`
     // with `BackgroundSizing=InnerBorderEdge`, so the pinned surface is the

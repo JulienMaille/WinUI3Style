@@ -162,7 +162,11 @@ Cell text uses the pinned `DataGridTextColumn` margins (12 px on both sides,
 `DATAGRIDTEXTCOLUMN_leftMargin`/`_rightMargin` on the generated `TextBlock`),
 the same 12 px as the header's leading padding, so a cell and its header title
 start on one edge. Native model/delegate editing, keyboard selection, column
-resizing and accessibility remain owned by Qt.
+resizing and accessibility remain owned by Qt. The header band is tinted to
+contrast the alternate (even) rows in both themes rather than sitting flush with
+the odd rows: dark uses the `layer` token (a touch brighter than the even row)
+and light mixes 5% `WindowText` into `AlternateBase` (a touch darker), exposed as
+`tableHeaderFill` so the same value veils correctly over a Mica backdrop.
 
 RichEditBox shares the common text-control background, border and focused
 underline tokens with TextBox. Normal, pointer-over and focused surface changes

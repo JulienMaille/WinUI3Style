@@ -807,9 +807,9 @@ void WinUI3MicaBackdropTest::headerRestVeilsOverComposited()
             style->drawControl(QStyle::CE_HeaderSection, &option, &painter,
                                table.horizontalHeader());
         }
-        const QColor expected =
-                WinUI3::Private::veiledCard(WinUI3::Private::tokens(option.palette).layer, true);
-        QCOMPARE(frame.pixelColor(70, 16), expected);
+        const QColor expected = WinUI3::Private::veiledCard(
+                WinUI3::Private::tokens(option.palette).tableHeaderFill, true);
+        QCOMPARE(frame.pixelColor(70, 16).rgba(), expected.rgba());
     }
     style->setProperty("densityMode", 0);
 }
