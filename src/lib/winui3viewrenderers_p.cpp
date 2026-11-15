@@ -1516,7 +1516,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
         eraseForBackdrop(painter, widget, option->rect);
         // Rest veils over a live material; hover/pressed are already
         // translucent subtle fills and stay as-is.
-        QColor fill = veiledCard(t.layer, paintsDirectlyOnBackdrop(widget));
+        QColor fill = veiledCard(t.tableHeaderFill, paintsDirectlyOnBackdrop(widget));
         if (option->state & QStyle::State_Sunken)
             fill = t.subtlePressed;
         else if (option->state & QStyle::State_MouseOver)

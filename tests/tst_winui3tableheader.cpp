@@ -70,6 +70,10 @@ private slots:
     void tableHeaderContract();
     void tableHeaderLabelKeepsLeadingEdgeWithSortColumn();
     void tableSortIndicatorGeometryContract();
+    void tableHeaderPaletteFollowsThemeRoundTrip_data();
+    void tableHeaderPaletteFollowsThemeRoundTrip();
+    void tableHeaderBandContrastsAlternateRows_data();
+    void tableHeaderBandContrastsAlternateRows();
 };
 
 void WinUI3TableHeaderTest::initTestCase()
@@ -253,6 +257,115 @@ void WinUI3TableHeaderTest::tableSortIndicatorGeometryContract()
                 > opaqueCountInRows(ascending, ascendingMiddle + 1, ascendingInk.bottom()));
         QVERIFY(ascending != descending);
     }
+}
+
+void WinUI3TableHeaderTest::tableHeaderPaletteFollowsThemeRoundTrip_data()
+{
+    QTest::addColumn<QString>("density");
+    QTest::newRow("standard") << QStringLiteral("standard");
+    QTest::newRow("compact") << QStringLiteral("compact");
+}
+
+void WinUI3TableHeaderTest::tableHeaderPaletteFollowsThemeRoundTrip()
+{
+    QFETCH(QString, density);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    // Offscreen palettes carry surface alpha; the theme contract is about the
+    // RGB the header resolves, so compare with alpha normalized away.
+    const auto rgb = [](const QColor &c) {
+        QColor n = c;
+        n.setAlpha(255);
+        return n;
+    };
+    QTableWidget table(4, 3);
+    table.setProperty("winuiDensity", density);
+    table.setHorizontalHeaderLabels(
+            { QStringLiteral("Control"), QStringLiteral("State"), QStringLiteral("Coverage") });
+    table.resize(560, 220);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+    const auto headerBase = [&table, &rgb] {
+        return rgb(table.horizontalHeader()->palette().color(QPalette::Base));
+    };
+    const auto viewBase = [&table, &rgb] { return rgb(table.palette().color(QPalette::Base)); };
+
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    qApp->processEvents();
+    const QColor darkBase = viewBase();
+    QCOMPARE(headerBase(), darkBase);
+
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    qApp->processEvents();
+    const QColor lightBase = viewBase();
+    QVERIFY(lightBase != darkBase);
+    QCOMPARE(headerBase(), lightBase);
+
+    // Issue #63: after dark -> light -> dark the header kept the Light palette
+    // (stale implicit-owner snapshot disowned it) while the view rebased fine.
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    qApp->processEvents();
+    QCOMPARE(headerBase(), darkBase);
+    QCOMPARE(headerBase(), viewBase());
+
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    qApp->processEvents();
+}
+
+void WinUI3TableHeaderTest::tableHeaderBandContrastsAlternateRows_data()
+{
+    QTest::addColumn<QString>("density");
+    QTest::newRow("standard") << QStringLiteral("standard");
+    QTest::newRow("compact") << QStringLiteral("compact");
+}
+
+void WinUI3TableHeaderTest::tableHeaderBandContrastsAlternateRows()
+{
+    QFETCH(QString, density);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QTableWidget table(6, 3);
+    table.setProperty("winuiDensity", density);
+    table.setAlternatingRowColors(true);
+    table.horizontalHeader()->setSortIndicatorShown(false);
+    table.setHorizontalHeaderLabels(
+            { QStringLiteral("Control"), QStringLiteral("State"), QStringLiteral("Coverage") });
+    for (int r = 0; r < 6; ++r)
+        for (int c = 0; c < 3; ++c)
+            table.setItem(r, c, new QTableWidgetItem(QStringLiteral("r%1").arg(r)));
+    table.resize(560, 260);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+
+    for (WinUI3::ThemeMode mode : { WinUI3::ThemeMode::Dark, WinUI3::ThemeMode::Light }) {
+        style->setThemeMode(mode);
+        qApp->processEvents();
+        const QImage img = table.grab().toImage();
+        const int left = table.verticalHeader()->width() + 1;
+        const int top = table.horizontalHeader()->height() + 1;
+        const int headerX = left + table.horizontalHeader()->sectionViewportPosition(0)
+                + table.horizontalHeader()->sectionSize(0) - 6;
+        const QColor header = img.pixelColor(headerX, top / 2);
+        const QRect r0 = table.visualRect(table.model()->index(0, 1));
+        const QRect r1 = table.visualRect(table.model()->index(1, 1));
+        const QColor odd = img.pixelColor(left + r0.right() - 8, top + r0.center().y());
+        const QColor even = img.pixelColor(left + r1.right() - 8, top + r1.center().y());
+        const WinUI3::Private::Tokens t = WinUI3::Private::tokens(table.palette());
+        if (mode == WinUI3::ThemeMode::Dark) {
+            // Dark band rests on the Base layer, a touch above the alternate row.
+            QCOMPARE(t.tableHeaderFill, t.layer);
+            QVERIFY(header.red() > even.red());
+        } else {
+            // Light band sits a touch BELOW the alternate row (issue #63 follow-up).
+            QCOMPARE(t.tableHeaderFill,
+                     WinUI3::Private::mix(table.palette().color(QPalette::AlternateBase),
+                                          table.palette().color(QPalette::WindowText), 0.05));
+            QVERIFY(header.red() < even.red());
+        }
+        QVERIFY(qAbs(header.red() - even.red()) <= 8);
+    }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    qApp->processEvents();
 }
 
 QTEST_MAIN(WinUI3TableHeaderTest)
