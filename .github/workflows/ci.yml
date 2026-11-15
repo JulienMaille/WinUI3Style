@@ -116,6 +116,7 @@ jobs:
         run: cmake --build build-tidy -j"$(nproc)"
 
   linux-gate:
+    name: linux-gate (Qt 6.8.3)
     # Compilation and unit-test gate for non-Windows hosts (issue #21). The
     # tree is portable Qt: the backdrop, appearance-watcher, and native capture
     # paths are compiled out by Q_OS_WIN. Native tests are excluded because
