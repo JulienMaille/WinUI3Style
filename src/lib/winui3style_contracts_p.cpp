@@ -660,6 +660,22 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
                 content.setLeft(qMin(content.right() + 1, content.left() + offset));
             result = result.intersected(content);
         }
+        if (element == QStyle::SE_ItemViewItemText
+            && qobject_cast<const QTreeView *>(itemView(widget))
+            && (source->features & QStyleOptionViewItem::HasDecoration) && !source->icon.isNull()) {
+            // WinUI's TreeView item template puts a 10 px spacer between the
+            // 20 px icon and the label (TreeViewTemplateSelectorSample:
+            // TextBlock Margin="0,0,10,0"). QCommonStyle's default leaves only
+            // ~6 px, which crowds the icon (issue #55). Anchor the text to the
+            // decoration's trailing edge plus that spacer.
+            const QRect decoration =
+                    style->subElementRect(QStyle::SE_ItemViewItemDecoration, option, widget);
+            constexpr int treeIconTextGap = 10;
+            if (source->direction == Qt::RightToLeft)
+                result.setRight(qMin(result.right(), decoration.left() - 1 - treeIconTextGap));
+            else
+                result.setLeft(qMax(result.left(), decoration.right() + 1 + treeIconTextGap));
+        }
     }
     const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
             && !calendarPopupItemView(widget);

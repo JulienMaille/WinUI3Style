@@ -1057,7 +1057,10 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         const Icon glyph = open                        ? Icon::ChevronDown
                 : option->direction == Qt::RightToLeft ? Icon::ChevronLeft
                                                        : Icon::ChevronRight;
-        const int extent = 12;
+        // TreeViewItem.xaml renders the disclosure glyph at GlyphSize=8 inside a
+        // 12x12 box with Padding=2; a full 12 px glyph reads too large and dark
+        // next to the WinUI reference (issue #55).
+        const int extent = 8;
         // Keep the disclosure glyph in the branch slot, but leave a small
         // clear separation from the selection pill painted at the viewport's
         // leading edge.  The shift mirrors for RTL and does not alter the

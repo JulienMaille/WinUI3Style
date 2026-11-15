@@ -144,6 +144,11 @@ and pressed use the tertiary subtle fill. TreeView is denser: the presenter
 uses a `4,2` margin, a 28 px minimum height, a 20 px content region and
 `0,3,0,5` padding. Its disclosure affordance is a Fluent chevron and it does
 not paint Qt's legacy branch lines. These template states are discrete.
+The chevron TextBlock is a 12×12 box with `Padding=2` whose glyph renders at
+`GlyphSize=8` (not a full 12 px), and the item template leaves a 10 px spacer
+between the 20 px icon and the label (`TreeViewTemplateSelectorSample`
+TextBlock `Margin="0,0,10,0"`); issue #55 corrected both the expander extent
+and the icon-to-label gap to match.
 
 Qt has no core widget equivalent to WinUI's community DataGrid. `QTableView`
 is therefore a consistency extension, not a claimed direct mapping. It reuses
