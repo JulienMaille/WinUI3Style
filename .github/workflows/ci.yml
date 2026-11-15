@@ -228,7 +228,7 @@ jobs:
       BUILD_CONFIGURATION: ${{ matrix.configuration }}
     steps:
       - uses: actions/checkout@v7
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: TheMrMilchmann/setup-msvc-dev@v4
       - name: Install Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
