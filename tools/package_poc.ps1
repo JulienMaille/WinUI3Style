@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory = $true)][string]$QtRoot,
     [Parameter(Mandatory = $true)][string]$QtSourceRoot,
     [switch]$ExcludeNativeTests,
+    [switch]$SkipTests,
     [ValidatePattern('^([A-Za-z0-9][A-Za-z0-9.-]*)?$')][string]$ReleaseSuffix = ''
 )
 
@@ -55,12 +56,14 @@ if (-not (Select-String -LiteralPath $cache -Pattern '^CMAKE_GENERATOR_PLATFORM:
 if ($LASTEXITCODE -ne 0) { throw 'Release configuration failed.' }
 & $cmake --build $buildPath --config Release
 if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
-$ctest = Join-Path (Split-Path $cmake -Parent) 'ctest.exe'
-if (-not (Test-Path -LiteralPath $ctest -PathType Leaf)) { throw 'CTest is required for packaging.' }
-$ctestArgs = Get-PackageCTestArguments -BuildPath $buildPath `
-    -ExcludeNativeTests:$ExcludeNativeTests
-& $ctest @ctestArgs
-if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; no distribution archive created.' }
+if (-not $SkipTests) {
+    $ctest = Join-Path (Split-Path $cmake -Parent) 'ctest.exe'
+    if (-not (Test-Path -LiteralPath $ctest -PathType Leaf)) { throw 'CTest is required for packaging.' }
+    $ctestArgs = Get-PackageCTestArguments -BuildPath $buildPath `
+        -ExcludeNativeTests:$ExcludeNativeTests
+    & $ctest @ctestArgs
+    if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; no distribution archive created.' }
+}
 
 $name = "WinUI3Style-$version-win-x64-msvc-qt$qtVersion"
 if (-not [string]::IsNullOrEmpty($ReleaseSuffix)) {

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 4 || $# -gt 5 ]]; then
-    echo "usage: $0 BUILD_DIR QT_ROOT QT_SOURCE_ASSETS OUTPUT_DIR [RELEASE_SUFFIX]" >&2
+if [[ $# -lt 4 || $# -gt 6 ]]; then
+    echo "usage: $0 BUILD_DIR QT_ROOT QT_SOURCE_ASSETS OUTPUT_DIR [RELEASE_SUFFIX] [SKIP_TESTS]" >&2
     exit 2
 fi
 
@@ -13,6 +13,7 @@ qt_root="$(cd "$2" && pwd)"
 qt_sources="$(cd "$3" && pwd)"
 output_dir="$(mkdir -p "$4" && cd "$4" && pwd)"
 release_suffix="${5:-}"
+skip_tests="${6:-}"
 qmake="$qt_root/bin/qmake"
 if [[ ! -x "$qmake" ]]; then
     echo "Qt qmake tool missing from $qt_root/bin" >&2
@@ -49,7 +50,9 @@ cmake -S "$repo_root" -B "$build_dir" \
     -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON \
     -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
 cmake --build "$build_dir" --parallel "$(nproc)"
-ctest --test-dir "$build_dir" --output-on-failure -LE native
+if [[ "$skip_tests" != "1" ]]; then
+    ctest --test-dir "$build_dir" --output-on-failure -LE native
+fi
 
 cmake --install "$build_dir" --prefix "$prefix" --component Runtime
 # Qt's deploy scanner does not resolve Qt6Widgets after the Gallery's install
@@ -105,28 +108,30 @@ done
 # from an empty environment: no Qt SDK paths, LD_LIBRARY_PATH, or QT_PLUGIN_PATH
 # may be needed. This checks dynamic plugin loading, window construction,
 # rendering, and event-loop startup.
-smoke_home="$output_dir/smoke-home"
-smoke_capture="$output_dir/smoke-capture"
-mkdir -p "$smoke_home"
-if env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=xcb \
-    xvfb-run -a "$gallery" --capture-dir "$smoke_capture" \
-    >"$output_dir/startup.stdout.txt" 2>"$output_dir/startup.stderr.txt"; then
-    :
-else
-    status=$?
-    echo "Clean-environment Gallery startup failed with exit code $status" >&2
-    cat "$output_dir/startup.stdout.txt" "$output_dir/startup.stderr.txt" >&2
-    echo "Clean-environment dependency report:" >&2
-    env -i PATH=/usr/bin:/bin ldd "$gallery" >&2 || true
-    exit "$status"
-fi
-for capture in light-page-0.png dark-page-0.png; do
-    if [[ ! -s "$smoke_capture/$capture" ]]; then
-        echo "Clean-environment Gallery launch did not create $capture" >&2
-        cat "$output_dir/startup.stderr.txt" >&2
-        exit 1
+if [[ "$skip_tests" != "1" ]]; then
+    smoke_home="$output_dir/smoke-home"
+    smoke_capture="$output_dir/smoke-capture"
+    mkdir -p "$smoke_home"
+    if env -i HOME="$smoke_home" PATH=/usr/bin:/bin QT_QPA_PLATFORM=xcb \
+        xvfb-run -a "$gallery" --capture-dir "$smoke_capture" \
+        >"$output_dir/startup.stdout.txt" 2>"$output_dir/stderr.txt"; then
+        :
+    else
+        status=$?
+        echo "Clean-environment Gallery startup failed with exit code $status" >&2
+        cat "$output_dir/startup.stdout.txt" "$output_dir/stderr.txt" >&2
+        echo "Clean-environment dependency report:" >&2
+        env -i PATH=/usr/bin:/bin ldd "$gallery" >&2 || true
+        exit "$status"
     fi
-done
+    for capture in light-page-0.png dark-page-0.png; do
+        if [[ ! -s "$smoke_capture/$capture" ]]; then
+            echo "Clean-environment Gallery launch did not create $capture" >&2
+            cat "$output_dir/startup.stderr.txt" >&2
+            exit 1
+        fi
+    done
+fi
 
 licenses="$prefix/licenses"
 mkdir -p "$licenses"

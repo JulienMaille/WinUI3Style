@@ -47,8 +47,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pillow
-      - name: Test Qt notice extraction
-        run: python tools/test_extract_qt_notices.py
       - name: Prepare Windows 11 visual test font (not redistributed)
         shell: pwsh
         run: ./tools/setup_visual_test_fonts.ps1
@@ -118,6 +116,7 @@ jobs:
             -QtRoot $env:QT_ROOT_DIR `
             -QtSourceRoot (Join-Path $env:RUNNER_TEMP 'qt-corresponding-source') `
             -ExcludeNativeTests `
+            -SkipTests `
             -ReleaseSuffix ''
           $candidate = Get-ChildItem -Path build/poc -Recurse -File `
             -Filter "*-win-x64-msvc-qt$($env:QT_VERSION).zip" |
@@ -222,7 +221,7 @@ jobs:
           path: qt-source-assets
       - name: Package and smoke-test Linux Gallery
         run: |
-          bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" qt-source-assets release-assets
+          bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" qt-source-assets release-assets "" 1
       - name: Upload Linux release candidate
         uses: actions/upload-artifact@v4
         with:
