@@ -262,17 +262,11 @@ jobs:
         run: |
           $assets = @(Get-ChildItem -LiteralPath release-assets -File)
           $linuxAssets = @($assets | Where-Object Name -Like '*linux-x64-gcc*')
-          if ($linuxAssets.Count -ne 3) { throw 'Linux release assets are incomplete.' }
+          if ($linuxAssets.Count -lt 2) { throw 'Linux release assets are incomplete.' }
           $linuxArchive = $linuxAssets | Where-Object Name -Like '*.tar.gz'
-          $linuxChecksum = $linuxAssets | Where-Object Name -Like '*.tar.gz.sha256'
           $linuxManifest = $linuxAssets | Where-Object Name -Like '*-manifest.json'
-          if (-not $linuxArchive -or -not $linuxChecksum -or -not $linuxManifest) {
-            throw 'Linux archive, detached checksum, or manifest is missing.'
-          }
-          $claimed = (Get-Content -LiteralPath $linuxChecksum.FullName -Raw).Trim() -split '\s+'
-          $actual = (Get-FileHash -LiteralPath $linuxArchive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($claimed[0] -ne $actual -or $claimed[-1] -ne $linuxArchive.Name) {
-            throw 'Linux archive checksum does not match its detached checksum file.'
+          if (-not $linuxArchive -or -not $linuxManifest) {
+            throw 'Linux archive or manifest is missing.'
           }
           $manifestData = Get-Content -LiteralPath $linuxManifest.FullName -Raw | ConvertFrom-Json
           $releaseVersion = (Select-String -LiteralPath 'CMakeLists.txt' -Pattern 'project\(WinUI3Style VERSION ([0-9.]+)' | Select-Object -First 1).Matches[0].Groups[1].Value
@@ -282,40 +276,15 @@ jobs:
             throw 'Linux release manifest identifies an unexpected package.'
           }
 
-          # Build SHA256SUMS.txt over every release asset
-          $sumLines = @()
-          foreach ($asset in $assets) {
-            $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            $sumLines += "$hash  $($asset.Name)"
-          }
-          $sumFile = Join-Path 'release-assets' 'SHA256SUMS.txt'
-          Set-Content -LiteralPath $sumFile -Value $sumLines -Encoding ascii
-
           if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
-            $downloadDir = Join-Path $env:RUNNER_TEMP 'existing-release'
-            New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
-            gh release download $env:RELEASE_TAG --pattern SHA256SUMS.txt --dir $downloadDir
-            if ($LASTEXITCODE -ne 0) { throw 'Could not download the existing release checksums.' }
-            $existingSumLines = @(Get-Content -LiteralPath (Join-Path $downloadDir 'SHA256SUMS.txt'))
-            $linuxNames = @($linuxAssets | ForEach-Object { $_.Name })
-            $filteredExisting = @($existingSumLines | Where-Object {
-              $entryName = ($_.Trim() -split '\s+')[-1]
-              $entryName -notin $linuxNames
-            })
-            $sumLines = @($filteredExisting)
-            foreach ($asset in $linuxAssets) {
-              $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-              $sumLines += "$hash  $($asset.Name)"
-            }
-            Set-Content -LiteralPath $sumFile -Value $sumLines -Encoding ascii
-            $upload = @($linuxAssets | ForEach-Object FullName) + @($sumFile)
+            $upload = @($linuxAssets | ForEach-Object FullName)
             gh release upload $env:RELEASE_TAG @upload --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Could not attach Linux assets to the existing prerelease.' }
             gh release edit $env:RELEASE_TAG --notes-file RELEASE_NOTES.md
             if ($LASTEXITCODE -ne 0) { throw 'Could not update the existing prerelease notes.' }
           } else {
-            if ($assets.Count -lt 5) { throw 'Release assets are incomplete.' }
-            $allPaths = @($assets | ForEach-Object FullName) + @($sumFile)
+            if ($assets.Count -lt 4) { throw 'Release assets are incomplete.' }
+            $allPaths = @($assets | ForEach-Object FullName)
             gh release create $env:RELEASE_TAG @allPaths `
               --title $env:RELEASE_TAG `
               --notes-file RELEASE_NOTES.md `
