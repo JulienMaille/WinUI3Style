@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 3 || $# -gt 5 ]]; then
-    echo "usage: $0 BUILD_DIR QT_ROOT OUTPUT_DIR [RELEASE_SUFFIX] [SKIP_TESTS]" >&2
+    echo "usage: $0 BUILD_DIR QT_ROOT OUTPUT_DIR [RELEASE_SUFFIX] [--skip-tests]" >&2
     exit 2
 fi
 
@@ -11,8 +11,16 @@ mkdir -p "$1"
 build_dir="$(cd "$1" && pwd)"
 qt_root="$(cd "$2" && pwd)"
 output_dir="$(mkdir -p "$3" && cd "$3" && pwd)"
-release_suffix="${4:-}"
-skip_tests="${5:-}"
+release_suffix=""
+skip_tests=""
+shift 3
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --skip-tests) skip_tests="1" ;;
+        *) release_suffix="$1" ;;
+    esac
+    shift
+done
 qmake="$qt_root/bin/qmake"
 if [[ ! -x "$qmake" ]]; then
     echo "Qt qmake tool missing from $qt_root/bin" >&2
@@ -165,8 +173,4 @@ cp "$prefix/manifest.json" "$output_dir/${name}-manifest.json"
 archive="$output_dir/${name}.tar.gz"
 tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner \
     -C "$output_dir/stage" -cf - "$name" | gzip -n >"$archive"
-(
-    cd "$output_dir"
-    sha256sum "${name}.tar.gz" >"${name}.tar.gz.sha256"
-)
 printf 'Packaged %s\n' "$archive"
