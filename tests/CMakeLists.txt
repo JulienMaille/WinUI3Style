@@ -508,6 +508,7 @@ add_test(NAME winui3style_galleryprobe_unit
 set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 180)
 add_test(NAME winui3style_galleryicons_unit
          COMMAND ${CMAKE_COMMAND} -E env
+             QT_QPA_PLATFORM=offscreen
              --unset=WINUI3STYLE_DISABLE_ANIMATIONS
              $<TARGET_FILE:winui3style_galleryicons_tests>
              -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryicons_unit.txt,txt
