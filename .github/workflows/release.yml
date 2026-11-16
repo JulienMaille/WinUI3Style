@@ -117,9 +117,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WinUI3Style-${{ github.ref_name }}-linux-x64-gcc-qt${{ env.QT_VERSION }}
-          path: |
-            release-assets/WinUI3Style-*-linux-x64-gcc-qt${{ env.QT_VERSION }}.tar.gz
-            release-assets/WinUI3Style-*-linux-x64-gcc-qt${{ env.QT_VERSION }}-manifest.json
+          path: release-assets/WinUI3Style-*-linux-x64-gcc-qt${{ env.QT_VERSION }}.tar.gz
           if-no-files-found: error
           retention-days: 14
 

@@ -167,8 +167,6 @@ manifest = {
 Path(path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PY
 
-cp "$prefix/manifest.json" "$output_dir/${name}-manifest.json"
-
 archive="$output_dir/${name}.tar.gz"
 tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner \
     -C "$output_dir/stage" -cf - "$name" | gzip -n >"$archive"
