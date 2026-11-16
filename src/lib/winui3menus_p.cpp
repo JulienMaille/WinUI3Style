@@ -112,7 +112,7 @@ bool drawMenuPrimitive(const Style *, QStyle::PrimitiveElement element, const QS
         // button panel Fix B): rebuild the card tone after the erase instead
         // of the recipe-2 transparent return the shell chrome keeps.
         if (eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                           cardRefillTone(option->palette, true))) {
+                                           cardRefillToneFor(widget, true))) {
             return true;
         }
         painter->fillRect(option->rect, option->palette.brush(QPalette::Window));
@@ -393,7 +393,7 @@ bool drawMenuControl(const Style *style, QStyle::ControlElement element, const Q
         // fallback. In-card samples rebuild the card tone instead (same
         // guard as the button panel Fix B).
         if (eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                           cardRefillTone(option->palette, true))) {
+                                           cardRefillToneFor(widget, true))) {
             return true;
         }
         if (widget && widget->property(Style::SurfaceProperty).isValid())
@@ -411,7 +411,7 @@ bool drawMenuControl(const Style *style, QStyle::ControlElement element, const Q
             // when the erase gate did not run. In-card samples rebuild the
             // card tone first (same guard as the button panel Fix B).
             const bool onBackdrop = eraseForBackdropWithCardRefill(
-                    painter, widget, item->rect, cardRefillTone(option->palette, true));
+                    painter, widget, item->rect, cardRefillToneFor(widget, true));
             if (!onBackdrop && widget && widget->property(Style::SurfaceProperty).isValid())
                 painter->fillRect(item->rect, widget->palette().color(QPalette::Window));
             // QMenuBar owns the animation properties, while this option is

@@ -52,6 +52,7 @@ private slots:
     void wizardSurfaceContract();
     void wizardUsesModernStyleHint();
     void wizardOpenThemeSwitchLifecycle();
+    void wizardHeaderUsesUniformSurface();
     void persistentDialogSurvivesThemeSwitch();
     void applicationStyleReplacementQueuesDialogFooterDeletion();
     void contentDialogScrimLifecycle();
@@ -394,6 +395,59 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
                                                     footer->mapTo(&wizard, QPoint(0, 2)).y()),
                  darkCommand);
 #endif
+}
+
+void WinUI3DialogsTest::wizardHeaderUsesUniformSurface()
+{
+    // Issue #73: QWizard's ModernStyle header paints its QWizardHeader, title
+    // label and placeholder widgets with the QPalette::Base role and
+    // autoFillBackground(). WinUI's dark Base is #3A3A3A@76, so those stacked
+    // translucent fills showed up as "weird lighter rectangles" inside the
+    // header of an otherwise #2C2C2C page. The wizard surface must be one
+    // uniform fill: every Base-role autofill in the wizard subtree resolves to
+    // the opaque content surface color. Dark/light; every pixel assertion is
+    // paired with a palette/geometry assertion on the same state.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    for (const bool dark : { false, true }) {
+        style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+        QWizard wizard;
+        wizard.resize(520, 340);
+        auto *page = new QWizardPage;
+        page->setTitle(QStringLiteral("Welcome"));
+        page->setSubTitle(QStringLiteral("A standard Qt wizard page."));
+        wizard.addPage(page);
+        wizard.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&wizard));
+        QCOMPARE(wizard.wizardStyle(), QWizard::ModernStyle);
+        // The style refreshes wizard palettes on the queued post-Show pass.
+        QTest::qWait(50);
+        const QColor content = page->palette().color(QPalette::Window);
+        QCOMPARE(content.alpha(), 255);
+        QList<QWidget *> headerChrome;
+        for (QWidget *child : wizard.findChildren<QWidget *>()) {
+            if (child->backgroundRole() == QPalette::Base && child->autoFillBackground())
+                headerChrome.append(child);
+        }
+        QVERIFY(!headerChrome.isEmpty());
+        for (QWidget *child : headerChrome) {
+            // Mechanism: no stacked Base lift over the content surface.
+            QCOMPARE(child->palette().color(QPalette::Base), content);
+        }
+        QWidget *header = headerChrome.first();
+        QVERIFY(!header->geometry().isEmpty());
+        const QImage image = wizard.grab().toImage();
+        const QPoint headerProbe = header->mapTo(&wizard, QPoint(header->width() - 8,
+                                                                 header->height() / 2));
+        const QPoint bodyProbe = page->mapTo(&wizard, QPoint(2, page->height() / 2));
+        QVERIFY(wizard.rect().contains(headerProbe));
+        QVERIFY(wizard.rect().contains(bodyProbe));
+        // Pixel evidence: the header band reads the exact same uniform surface
+        // as the page body (RED pre-fix: a lighter #303030 / #FEFEFE band).
+        QCOMPARE(image.pixelColor(headerProbe), content);
+        QCOMPARE(image.pixelColor(bodyProbe), content);
+    }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 
 void WinUI3DialogsTest::persistentDialogSurvivesThemeSwitch()

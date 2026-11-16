@@ -9,6 +9,7 @@
 #include "winui3backdrop_p.h"
 #include "winui3frameproperties_p.h"
 #include "winui3style_properties_p.h"
+#include "winui3tokens_p.h"
 
 #include <winui3style/winui3style.h>
 
@@ -261,6 +262,25 @@ inline bool insideOpaqueCard(const QWidget *widget)
 {
     return anyAncestorToWindow(
             widget, [](const QWidget *ancestor) { return isCardSurface(ancestor); }, true);
+}
+
+// Tone a child must Source-rebuild after erasing its rect over an opaque card.
+// The two card families paint different roles: a group card uses the Base
+// veil (cardRefillTone), while a SettingsCard uses the control fill
+// (QPalette::Button, see CE_ShapedFrame). Refilling a SettingsCard with Base
+// leaves a darker patch in the control's rounded corners (issue #72), so pick
+// the nearest card's own role. Falls back to Base when there is no card.
+inline QColor cardRefillToneFor(const QWidget *widget, bool onBackdrop)
+{
+    if (!widget)
+        return QColor();
+    for (const QWidget *card = widget->parentWidget(); card; card = card->parentWidget()) {
+        if (card->property(WinUI3::Style::SettingsCardProperty).toBool())
+            return veiledCard(card->palette().color(QPalette::Active, QPalette::Button), onBackdrop);
+        if (qobject_cast<const QGroupBox *>(card))
+            return cardRefillTone(card->palette(), onBackdrop);
+    }
+    return cardRefillTone(widget->palette(), onBackdrop);
 }
 
 // True for the viewport of a scroll area inside an opaque card

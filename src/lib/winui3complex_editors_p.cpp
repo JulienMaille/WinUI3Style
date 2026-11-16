@@ -28,8 +28,17 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             // Rebuild the frame from transparent over a live material (see
             // eraseForBackdrop); otherwise hover/press fills accumulate. No
             // radius clip: the fill below repaints the full frame every pass.
-            eraseForBackdrop(painter, widget, combo->rect);
-            if (!paintsDirectlyOnBackdrop(widget) && widget && widget->parentWidget()
+            // A card carries no SurfaceProperty, so the shared gate cannot see
+            // it: the bare erase punched the card's veiled fill to alpha 0 and
+            // left the rounded corners showing bare material (issue #72). Use
+            // the card-aware recipe so an in-card combo rebuilds the exact
+            // tone its card painted (Base veil or SettingsCard control fill).
+            // Outside a card the erase stays
+            // bare; with no backdrop the parent-surface refill below keeps its
+            // previous contract.
+            const bool erased = eraseForBackdropWithCardRefill(
+                    painter, widget, combo->rect, cardRefillToneFor(widget, true));
+            if (!erased && widget && widget->parentWidget()
                 && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,
                                   widget->parentWidget()->palette().color(QPalette::Window));
@@ -92,7 +101,10 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
     }
     if (control == QStyle::CC_SpinBox) {
         if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
-            eraseForBackdrop(painter, widget, spin->rect);
+            // Same card-aware erase as CC_ComboBox: a spin box inside an opaque
+            // card must not Source-clear its veil to bare material.
+            eraseForBackdropWithCardRefill(painter, widget, spin->rect,
+                                           cardRefillToneFor(widget, true));
             const bool enabled = spin->state & QStyle::State_Enabled;
             const bool focused = spin->state & QStyle::State_HasFocus;
             const bool verticalButtons = verticalSpinButtons(widget);
