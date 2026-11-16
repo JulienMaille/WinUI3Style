@@ -260,7 +260,7 @@ void GalleryWindow::configureGallery()
     const QStringList expanderPages = { tr("Expander one"), tr("Expander two"),
                                         tr("Expander three") };
     for (const QString &title : expanderPages) {
-        auto *body = new QLabel(tr("ExpandDown body — Qt owns this page surface."), this);
+        auto *body = new QLabel(tr("ExpandDown body (Qt owns this page surface)"), this);
         body->setContentsMargins(16, 8, 16, 8);
         ui->expandToolBox->addItem(body, title);
     }
@@ -290,7 +290,7 @@ void GalleryWindow::configureGallery()
     splitMenu->addAction(tr("Run normally"));
     splitMenu->addAction(tr("Run with options"));
     ui->splitToolButton->setMenu(splitMenu);
-    ui->statusBar->showMessage(tr("Ready — QSizeGrip is enabled"));
+    ui->statusBar->showMessage(tr("Ready (QSizeGrip enabled)"));
     // Real hover targets for the WinUI ToolTip surface: the coverage evidence
     // needs a live tooltip in the product demo, not only a synthetic probe.
     ui->themeCombo->setToolTip(tr("Choose the light, dark or system theme."));
@@ -363,16 +363,16 @@ void GalleryWindow::configureGallery()
         wizard.setWindowTitle(tr("Application setup"));
         auto *welcome = new QWizardPage;
         welcome->setTitle(tr("Welcome"));
-        welcome->setSubTitle(tr("This standard QWizard is rendered entirely by the style."));
+        welcome->setSubTitle(tr("Standard QWizard rendered by the style."));
         auto *welcomeLayout = new QVBoxLayout(welcome);
         welcomeLayout->addWidget(new QLabel(
-                tr("The content and command areas use distinct WinUI surfaces."), welcome));
+                tr("Content and command areas use separate surfaces."), welcome));
         wizard.addPage(welcome);
         auto *finish = new QWizardPage;
         finish->setTitle(tr("Ready to continue"));
-        finish->setSubTitle(tr("Review the navigation buttons and resize grip."));
+        finish->setSubTitle(tr("Navigation buttons and resize grip."));
         auto *finishLayout = new QVBoxLayout(finish);
-        finishLayout->addWidget(new QLabel(tr("The setup is ready."), finish));
+        finishLayout->addWidget(new QLabel(tr("Setup complete."), finish));
         wizard.addPage(finish);
         wizard.exec();
     });
@@ -418,7 +418,7 @@ void GalleryWindow::populateCollections()
     new QListWidgetItem(file, tr("Readme.txt"), ui->compactListView);
     auto *compactRoot = new QTreeWidgetItem(ui->compactTreeView, { tr("Example album") });
     compactRoot->setIcon(0, folder);
-    for (const QString &text : { tr("01 — First track"), tr("02 — Second track") })
+    for (const QString &text : { tr("01: First track"), tr("02: Second track") })
         new QTreeWidgetItem(compactRoot, { text });
     compactRoot->setExpanded(true);
     for (const QString &text : { tr("Disabled document"), tr("Disabled folder") })
@@ -427,12 +427,12 @@ void GalleryWindow::populateCollections()
     new QTreeWidgetItem(rtlRoot, { tr("First child") });
     new QTreeWidgetItem(rtlRoot, { tr("Second child") });
     rtlRoot->setExpanded(true);
-    auto *root = new QTreeWidgetItem(ui->treeViewTab, { tr("Example album — Selected tracks") });
+    auto *root = new QTreeWidgetItem(ui->treeViewTab, { tr("Example album: Selected tracks") });
     root->setIcon(0, folder);
     root->setFlags(root->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
     root->setCheckState(0, Qt::PartiallyChecked);
-    const QStringList tracks{ tr("01 — First track"), tr("02 — Second track"),
-                              tr("03 — Third track"), tr("04 — Fourth track") };
+    const QStringList tracks{ tr("01: First track"), tr("02: Second track"),
+                              tr("03: Third track"), tr("04: Fourth track") };
     for (int index = 0; index < tracks.size(); ++index) {
         auto *track = new QTreeWidgetItem(root, { tracks.at(index) });
         track->setFlags(track->flags() | Qt::ItemIsUserCheckable);
@@ -946,7 +946,7 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         contentDialog.close();
 
         QMessageBox messageBox(QMessageBox::Information, tr("WinUI 3 Style"),
-                               tr("This is a native Qt message box rendered by the style."),
+                               tr("Native Qt message box rendered by the style."),
                                QMessageBox::Ok, this);
         messageBox.show();
         qApp->processEvents();
@@ -958,10 +958,10 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         wizardSnap.setWindowTitle(tr("Application setup"));
         auto *wizardWelcome = new QWizardPage;
         wizardWelcome->setTitle(tr("Welcome"));
-        wizardWelcome->setSubTitle(tr("This standard QWizard is rendered entirely by the style."));
+        wizardWelcome->setSubTitle(tr("Standard QWizard rendered by the style."));
         auto *wizardWelcomeLayout = new QVBoxLayout(wizardWelcome);
         wizardWelcomeLayout->addWidget(new QLabel(
-                tr("The content and command areas use distinct WinUI surfaces."), wizardWelcome));
+                tr("Content and command areas use separate surfaces."), wizardWelcome));
         wizardSnap.addPage(wizardWelcome);
         wizardSnap.resize(520, 340);
         wizardSnap.show();
