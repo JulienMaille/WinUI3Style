@@ -1,6 +1,0 @@
-native hint: hint=0 yes=winui3-fluent-icon:20 no= save=winui3-fluent-icon:20 yesIsSave=1
-  button &Yes iconNull=1 name=
-  button &No iconNull=1 name=
-KDE hint   : hint=1 yes=winui3-fluent-icon:20 no= save=winui3-fluent-icon:20 yesIsSave=1
-  button &Yes iconNull=0 name=winui3-fluent-icon:20
-  button &No iconNull=0 name=

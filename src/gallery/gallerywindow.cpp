@@ -309,11 +309,13 @@ void GalleryWindow::configureGallery()
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
-    QPixmap iconsGlyph(32, 32);
+    // Match the navigation list's existing small-icon footprint; a larger
+    // custom pixmap widens the icon column and shifts the row label.
+    QPixmap iconsGlyph(16, 16);
     iconsGlyph.fill(Qt::transparent);
     QPainter iconsGlyphPainter(&iconsGlyph);
     QFont iconsGlyphFont(QStringLiteral("Segoe Fluent Icons"));
-    iconsGlyphFont.setPixelSize(20);
+    iconsGlyphFont.setPixelSize(12);
     iconsGlyphPainter.setFont(iconsGlyphFont);
     iconsGlyphPainter.setPen(palette().color(QPalette::Text));
     iconsGlyphPainter.drawText(iconsGlyph.rect(), Qt::AlignCenter, QStringLiteral("\uEAD5"));

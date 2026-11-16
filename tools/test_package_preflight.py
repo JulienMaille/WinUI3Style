@@ -29,7 +29,6 @@ class PackageSourceGuardTests(unittest.TestCase):
         (self.repo / ".gitignore").write_text("ignored-output/\n")
         self.build = root / "build"
         self.qt = root / "Qt"
-        self.sources = root / "Qt sources"
         for base, relative in (
             (self.build, "CMakeCache.txt"),
             (self.build, "src/gallery/Release/winui3style_gallery.exe"),
@@ -37,7 +36,6 @@ class PackageSourceGuardTests(unittest.TestCase):
             (self.build, "plugins/styles/qwinui3style.dll"),
             (self.qt, "bin/windeployqt.exe"),
             (self.qt, "plugins/styles/qmodernwindowsstyle.dll"),
-            (self.sources, "qtbase/LICENSES/LGPL-3.0-only.txt"),
         ):
             path = base / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +59,6 @@ class PackageSourceGuardTests(unittest.TestCase):
                 POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                 "-File", str(self.repo / "tools" / PACKAGE_SCRIPT.name),
                 "-BuildDir", str(self.build), "-QtRoot", str(self.qt),
-                "-QtSourceRoot", str(self.sources),
             ], capture_output=True, text=True, errors="replace", timeout=30,
         )
         self.assertNotEqual(result.returncode, 0)
@@ -74,7 +71,7 @@ class PackageSourceGuardTests(unittest.TestCase):
             f"(Get-PackageCTestArguments -BuildPath 'fixture'{switch}) -join '|'"
         )
         result = subprocess.run(
-            [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", command],
+            [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command],
             check=True, capture_output=True, text=True, errors="replace", timeout=30,
         )
         return result.stdout.strip().split("|")

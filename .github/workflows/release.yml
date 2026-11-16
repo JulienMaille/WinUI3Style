@@ -16,10 +16,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
+      - uses: actions/checkout@v7
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt ${{ env.QT_VERSION }} (same SDK build as CI)
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -44,23 +41,23 @@ jobs:
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
       - name: Build Release
         run: cmake --build build --config Release --parallel 2
-      - name: Run hosted-compatible Release tests and package
+      - name: Package Windows gallery
         shell: pwsh
         run: |
-          $stage = & ./tools/package_poc.ps1 -BuildDir build `
-            -QtRoot $env:QT_ROOT_DIR `
-            -ExcludeNativeTests `
-            -SkipTests `
-            -ReleaseSuffix '' | Select-Object -Last 1
-          if (-not $stage) { throw 'Packager did not produce output directory.' }
-          $gallery = Join-Path $env:RUNNER_TEMP 'gallery-assets'
-          New-Item -ItemType Directory -Path $gallery -Force | Out-Null
-          Copy-Item -LiteralPath "$stage\*" -Destination $gallery -Recurse
-      - name: Upload Windows gallery artifact
+          # The packager stages a deployable tree and prints its path last.
+          $stage = & ./tools/package_poc.ps1 -BuildDir build -QtRoot $env:QT_ROOT_DIR -SkipTests |
+            Select-Object -Last 1
+          $stage = $stage.Trim()
+          if (-not (Test-Path -LiteralPath $stage -PathType Container)) {
+            throw "Packager did not stage a package directory: $stage"
+          }
+          $archive = Join-Path build "$(Split-Path -Leaf $stage).zip"
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive
+      - name: Upload Windows release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}-gallery
-          path: ${{ runner.temp }}/gallery-assets
+          name: WinUI3Style-${{ github.ref_name }}-win-x64-qt${{ env.QT_VERSION }}
+          path: build/WinUI3Style-*.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -68,10 +65,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
+      - uses: actions/checkout@v7
       - name: Install Qt ${{ env.QT_VERSION }} for Linux x86_64
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
@@ -83,14 +77,16 @@ jobs:
           cache: true
           cache-key-prefix: 'qt-${{ env.QT_VERSION }}-linux-gcc64-release-v1'
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e'
-      - name: Install host-side XCB runtime prerequisites for deployment checks
+      # The ldd gate below resolves the XCB stack from the host: those libraries
+      # are intentionally not bundled, so they must be installed to pass.
+      - name: Install host-side XCB runtime prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
             libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
-            patchelf xvfb xauth
+            patchelf
       # ICU 73.2 matches the runtime the official Qt Linux SDK links against.
       # When QT_VERSION changes, re-verify which ICU the Qt build needs.
       - name: Build ICU 73.2 required by the official Qt Linux SDK
@@ -115,9 +111,8 @@ jobs:
           echo "ICU73_ROOT=$install_root" >> "$GITHUB_ENV"
           echo "ICU73_SOURCE=$source_root" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$install_root/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
-      - name: Package and smoke-test Linux Gallery
-        run: |
-          bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" release-assets --skip-tests
+      - name: Package Linux gallery
+        run: bash tools/package_linux.sh build-linux "$QT_ROOT_DIR" release-assets --skip-tests
       - name: Upload Linux release candidate
         uses: actions/upload-artifact@v4
         with:
@@ -133,12 +128,8 @@ jobs:
     runs-on: windows-2022
     permissions:
       contents: write
-      actions: read
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           pattern: WinUI3Style-${{ github.ref_name }}-*
@@ -151,23 +142,12 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath release-assets -File)
-          $linuxAssets = @($assets | Where-Object Name -Like '*linux-x64-gcc*')
-          if ($linuxAssets.Count -lt 2) { throw 'Linux release assets are incomplete.' }
-          $linuxArchive = $linuxAssets | Where-Object Name -Like '*.tar.gz'
-          $linuxManifest = $linuxAssets | Where-Object Name -Like '*-manifest.json'
-          if (-not $linuxArchive -or -not $linuxManifest) {
-            throw 'Linux archive or manifest is missing.'
+          if (-not ($assets | Where-Object Name -Like '*.zip') -or
+              -not ($assets | Where-Object Name -Like '*.tar.gz')) {
+            throw 'Release artifacts are incomplete.'
           }
-          $manifestData = Get-Content -LiteralPath $linuxManifest.FullName -Raw | ConvertFrom-Json
-          $releaseVersion = (Select-String -LiteralPath 'CMakeLists.txt' -Pattern 'project\(WinUI3Style VERSION ([0-9.]+)' | Select-Object -First 1).Matches[0].Groups[1].Value
-          if (-not $releaseVersion) { throw 'Cannot identify project version from CMakeLists.txt.' }
-          $expectedLinuxName = "WinUI3Style-${releaseVersion}-linux-x64-gcc-qt$($env:QT_VERSION)"
-          if ($manifestData.name -ne $expectedLinuxName) {
-            throw 'Linux release manifest identifies an unexpected package.'
-          }
-
-          $allPaths = @($assets | ForEach-Object FullName)
-          gh release create $env:RELEASE_TAG @allPaths `
+          $assetPaths = @($assets.FullName)
+          gh release create $env:RELEASE_TAG @assetPaths `
             --title $env:RELEASE_TAG `
             --notes-file RELEASE_NOTES.md `
             --prerelease

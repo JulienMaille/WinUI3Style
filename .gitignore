@@ -1,4 +1,5 @@
 /build*/
+/tmp/
 /.vs/
 __pycache__/
 *.user
