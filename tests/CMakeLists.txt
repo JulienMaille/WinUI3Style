@@ -272,6 +272,18 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_micacard_tests winui3styleplugin)
 endif()
 
+# Card-nested editor controls over a live material (issue #72). Split out of
+# the micacard binary, which is at the 60 KB ratchet. Same shape as the other
+# Mica mechanism binaries.
+add_executable(winui3style_micacardeditor_tests tst_winui3micacardeditor.cpp)
+target_include_directories(winui3style_micacardeditor_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
+target_link_libraries(winui3style_micacardeditor_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_micacardeditor_tests winui3styleplugin)
+endif()
+
 # Exact-construction live repro: the REAL GalleryWindow class (same sources
 # the reviewer runs: gallerywindow.cpp/.h/.ui), offscreen-capable. Mirrors
 # the autosuggest-native target shape without its native-capture define.
@@ -405,6 +417,7 @@ set(_winui3style_linked_test_targets
         winui3style_micabackdrop_tests
         winui3style_micatheme_tests
         winui3style_micacard_tests
+        winui3style_micacardeditor_tests
         winui3style_galleryprobe_tests
         winui3style_galleryicons_tests
         winui3style_rubberband_tests
@@ -500,6 +513,8 @@ add_test(NAME winui3style_micatheme_unit
          COMMAND winui3style_micatheme_tests)
 add_test(NAME winui3style_micacard_unit
          COMMAND winui3style_micacard_tests)
+add_test(NAME winui3style_micacardeditor_unit
+         COMMAND winui3style_micacardeditor_tests)
 add_test(NAME winui3style_galleryprobe_unit
          COMMAND ${CMAKE_COMMAND} -E env
              --unset=WINUI3STYLE_DISABLE_ANIMATIONS

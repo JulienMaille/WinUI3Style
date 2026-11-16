@@ -215,6 +215,14 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
 
     QPalette contentPalette = applicationPalette;
     contentPalette.setColor(QPalette::Window, popupSurfaceColor(applicationPalette));
+    // QWizard's ModernStyle header (QWizardHeader, its title label and the
+    // placeholder widgets) autofills the Base role. WinUI's Base is a
+    // translucent lift (#3A3A3A@76 Dark, white@128 Light), so stacking those
+    // fills over the content surface drew visible lighter rectangles in the
+    // header (issue #73). The wizard is one opaque surface: make every Base
+    // role handed to a wizard descendant resolve to that same content tone, so
+    // a Base-role autofill adds no lift.
+    contentPalette.setColor(QPalette::Base, contentPalette.color(QPalette::Window));
     QPalette commandPalette = applicationPalette;
     const auto isWizardButton = [wizard](QWidget *candidate) {
         for (QWizard::WizardButton role :

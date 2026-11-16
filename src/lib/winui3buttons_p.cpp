@@ -95,8 +95,7 @@ bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOptio
     // This must run even when the widget sits inside an opaque card, because
     // the card tone it just cleared is rebuilt here (the button Fix-B
     // mirror): without the refill the indicator/text paint leaves alpha 0.
-    eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                   cardRefillTone(option->palette, true));
+    eraseForBackdropWithCardRefill(painter, widget, option->rect, cardRefillToneFor(widget, true));
     return true;
 }
 
@@ -173,7 +172,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
              ancestor = ancestor->parentWidget()) {
             if (!qobject_cast<const QGroupBox *>(ancestor))
                 continue;
-            roundedRect(painter, QRectF(option->rect), cardRefillTone(option->palette, true),
+            roundedRect(painter, QRectF(option->rect), cardRefillToneFor(widget, true),
                         Qt::transparent, ControlRadius);
             break;
         }
@@ -201,7 +200,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
     // refill and the erased/unerased fallthrough below.
     if (!calendarPopupButton)
         eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                       cardRefillTone(option->palette, true));
+                                       cardRefillToneFor(widget, true));
     const bool textHelper = textBoxHelperButton(widget);
     const bool toolbarButton = element == QStyle::PE_PanelButtonTool && widget
             && qobject_cast<const QToolBar *>(widget->parentWidget());
