@@ -15,11 +15,12 @@ $buildPath = (Resolve-Path $BuildDir).Path
 $qtPath = (Resolve-Path $QtRoot).Path
 $cache = Join-Path $buildPath 'CMakeCache.txt'
 $gallery = Join-Path $buildPath 'src/gallery/Release/winui3style_gallery.exe'
-$runtime = Join-Path $buildPath 'src/lib/Release/winui3style.dll'
+# The style implementation is embedded in qwinui3style.dll (issue #70), so the
+# package ships one project DLL under styles/ and no winui3style.dll companion.
 $plugin = Join-Path $buildPath 'plugins/styles/qwinui3style.dll'
 $modernWindowsStylePlugin = Join-Path $qtPath 'plugins/styles/qmodernwindowsstyle.dll'
 $deployTool = Join-Path $qtPath 'bin/windeployqt.exe'
-foreach ($required in @($cache, $gallery, $runtime, $plugin, $modernWindowsStylePlugin, $deployTool,
+foreach ($required in @($cache, $gallery, $plugin, $modernWindowsStylePlugin, $deployTool,
                        (Join-Path $qtPath 'plugins/styles/qmodernwindowsstyle.dll'))) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing prerequisite: $required"
@@ -69,7 +70,7 @@ if (-not [string]::IsNullOrEmpty($ReleaseSuffix)) {
 $output = Join-Path $buildPath ('poc/' + [guid]::NewGuid().ToString())
 $stage = Join-Path $output $name
 New-Item -ItemType Directory -Path (Join-Path $stage 'styles') -Force | Out-Null
-Copy-Item -LiteralPath $gallery, $runtime -Destination $stage
+Copy-Item -LiteralPath $gallery -Destination $stage
 Copy-Item -LiteralPath $plugin -Destination (Join-Path $stage 'styles')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'poc/README.md') -Destination $stage
 

@@ -260,10 +260,16 @@ void WinUI3GalleryProbeTest::initTestCase()
 
 void WinUI3GalleryProbeTest::init()
 {
-    if (auto *style = qobject_cast<WinUI3::Style *>(qApp->style())) {
-        style->setThemeMode(WinUI3::ThemeMode::Light);
-        style->setAccentColor({});
-    }
+    // The style plugin embeds the implementation (issue #70), so a style it
+    // creates carries its own staticMetaObject. galleryComparisonStyle...
+    // installs such a style as the application style; every later
+    // qobject_cast<WinUI3::Style *> would then fail in this library-linked
+    // process. Reinstall a style from the linked library before each test.
+    if (!qobject_cast<WinUI3::Style *>(qApp->style()))
+        qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+    style->setAccentColor({});
 }
 
 void WinUI3GalleryProbeTest::galleryComparisonStyleAvailabilityAndRestore()

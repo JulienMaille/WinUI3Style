@@ -667,10 +667,13 @@ void WinUI3DensityApiTest::pluginAliases()
     QScopedPointer<QStyle> compact(QStyleFactory::create(QStringLiteral("winui3compact")));
     QVERIFY(standard);
     QVERIFY(compact);
-    QCOMPARE(qobject_cast<WinUI3::Style *>(standard.data())->densityMode(),
-             WinUI3::DensityMode::Standard);
-    QCOMPARE(qobject_cast<WinUI3::Style *>(compact.data())->densityMode(),
-             WinUI3::DensityMode::Compact);
+    // The plugin embeds the implementation (issue #70), so in this process it
+    // carries its own WinUI3::Style::staticMetaObject. qobject_cast would
+    // compare metaobject pointers from different copies and always fail.
+    // Read the documented Q_PROPERTY by name instead; the enum's integer
+    // value is the stable contract for both aliases.
+    QCOMPARE(standard->property("densityMode").toInt(), int(WinUI3::DensityMode::Standard));
+    QCOMPARE(compact->property("densityMode").toInt(), int(WinUI3::DensityMode::Compact));
 }
 
 QTEST_MAIN(WinUI3DensityApiTest)
