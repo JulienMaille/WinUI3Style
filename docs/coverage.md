@@ -631,3 +631,16 @@ The application lifecycle contract also keeps an uninstalled style's theme and
 accent setters from refreshing unrelated application widgets
 (`uninstalledStyleDoesNotRefreshApplication`); installed widget owners retain
 their existing refresh path.
+
+## Coverage backlog
+
+Follow-up candidates, not coverage claims. Remove an item once it has a mapped
+row above; never promote a candidate from a green test alone.
+
+- `QSplitter`, `QScrollBar`, `QDialog`/`QMessageBox`: source-audited rows whose
+  live review is still open (see their rows for the specific evidence).
+- Unmapped families: `QGraphicsView`, `QFontComboBox`, `QColumnView`,
+  `QUndoView`, `QMdiArea`/`QMdiSubWindow`, `QLCDNumber`, `QDial`, and composed
+  non-native `QFileDialog`/`QColorDialog`/`QFontDialog`/`QInputDialog`/
+  `QProgressDialog`. Any implementation needs an explicit Qt-to-WinUI mapping
+  first (METHODOLOGY section 1).

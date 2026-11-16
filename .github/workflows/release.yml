@@ -149,5 +149,5 @@ jobs:
           $assetPaths = @($assets.FullName)
           gh release create $env:RELEASE_TAG @assetPaths `
             --title $env:RELEASE_TAG `
-            --notes-file RELEASE_NOTES.md `
+            --notes "Prerelease build of WinUI3Style (Qt 6.12.0): Windows x64 and Linux x64 Gallery packages." `
             --prerelease

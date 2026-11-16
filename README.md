@@ -96,7 +96,16 @@ contracts live in `WinUI3::Style`.
 ## Opt-in render benchmark
 
 Build with `-DWINUI3STYLE_BUILD_BENCHMARKS=ON` and run
-`winui3style_render_benchmark.exe` offscreen; see `docs/compatibility.md`.
+`winui3style_render_benchmark.exe` offscreen.
+
+## Validated configurations
+
+The hosted CI workflow is the authoritative matrix: Windows MSVC x64 with Qt
+6.8.3 and 6.12.0 (Debug and Release, full CTest plus the snapshot gate), Windows
+MinGW 5.12.12 (build only), and Linux GCC with Qt 6.8.3 (CTest, native tests
+excluded). The snapshot gate is Windows-only because its baselines pin the
+Windows raster (Segoe UI and Fluent glyphs). The CMake floor is Qt 6.5, falling
+back to Qt 5.12 when Qt 6 is absent.
 
 ## Native widget variants
 

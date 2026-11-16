@@ -221,7 +221,10 @@ captures explicitly use the system font directory so Segoe and Fluent glyphs
 cannot silently become tofu boxes.
 `tools/compare_images.py`
 never resizes inputs and reports dimensions, RMS, differing-pixel count,
-maximum channel delta, and the difference bounding box.
+maximum channel delta, and the difference bounding box. To refresh a baseline,
+regenerate with `winui3style_gallery --capture-dir <absolute-dir>`, review every
+diff (`python tools/compare_images.py <baseline> <candidate>`) and commit the
+approved PNGs; RMS is a signal, never an auto-accept criterion.
 
 `winui3style_image_comparison_contract` tests the oracle itself: RGB differences
 must be rejected even when alpha is identical, including fully transparent
