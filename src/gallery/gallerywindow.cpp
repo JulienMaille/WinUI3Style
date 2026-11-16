@@ -1008,6 +1008,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         activeStyle->setProperty("densityMode", 1);
         ui->densityCombo->setCurrentIndex(1);
         for (int page = 0; page < ui->pages->count(); ++page) {
+            if (page == iconsPageIndex)
+                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();
