@@ -526,6 +526,21 @@ void GalleryWindow::populateIconSheet()
     clearGrid(ui->missingIconsGrid);
     m_iconPreviews.clear();
 
+    // One side-by-side reference style for the whole sheet. On Windows this is
+    // Qt's official Windows 11 plugin; elsewhere Fusion is Qt's own default
+    // style and gives the same plain-Qt comparison. The gallery stays a plain
+    // Qt client and never links the style library.
+    if (!m_iconReferenceStyle) {
+        m_iconReferenceStyle = QStyleFactory::create(QStringLiteral("windows11"));
+        m_iconReferenceStyleName = QStringLiteral("Windows 11");
+        if (!m_iconReferenceStyle) {
+            m_iconReferenceStyle = QStyleFactory::create(QStringLiteral("Fusion"));
+            m_iconReferenceStyleName = QStringLiteral("Fusion");
+        }
+        if (m_iconReferenceStyle)
+            m_iconReferenceStyle->setParent(this);
+    }
+
     // QStyle tags the icons it answers itself with a reserved engine name; an
     // icon the style does not map keeps an empty name and comes from the base
     // style, which has no artwork for some ancestor-dependent pixmaps. Reading
@@ -569,7 +584,26 @@ void GalleryWindow::populateIconSheet()
                                                    "style."));
         if (missing)
             preview->setText(QStringLiteral("\u2205"));
-        cellLayout->addWidget(preview);
+
+        // Windows 11 reference on the left, active style on the right.
+        auto *compareRow = new QHBoxLayout;
+        compareRow->setContentsMargins(0, 0, 0, 0);
+        compareRow->setSpacing(3);
+        QLabel *referenceLabel = nullptr;
+        if (m_iconReferenceStyle) {
+            referenceLabel = new QLabel(cell);
+            referenceLabel->setAlignment(Qt::AlignCenter);
+            referenceLabel->setFixedHeight(28);
+            referenceLabel->setProperty("standardPixmapReference", standardPixmaps.value(index));
+            referenceLabel->setToolTip(tr("Qt %1 style").arg(m_iconReferenceStyleName));
+            compareRow->addWidget(referenceLabel);
+            auto *arrow = new QLabel(QStringLiteral("\u2192"), cell);
+            arrow->setToolTip(tr("Qt %1 \u2192 active style").arg(m_iconReferenceStyleName));
+            compareRow->addWidget(arrow);
+        }
+        compareRow->addWidget(preview);
+        cellLayout->addLayout(compareRow);
+
         auto *caption = new QLabel(name, cell);
         caption->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
         caption->setWordWrap(true);
@@ -579,7 +613,7 @@ void GalleryWindow::populateIconSheet()
         caption->setFont(captionFont);
         cellLayout->addWidget(caption);
         grid->addWidget(cell, position / columns, position % columns);
-        m_iconPreviews.append({ preview, standardPixmaps.value(index) });
+        m_iconPreviews.append({ preview, referenceLabel, standardPixmaps.value(index) });
     }
     for (int column = 0; column < columns; ++column) {
         ui->fluentIconsGrid->setColumnStretch(column, 1);
@@ -593,11 +627,13 @@ void GalleryWindow::populateIconSheet()
     ui->iconsNote->setText(
             tr("%1 of the %2 QStyle::StandardPixmap values are answered with one of the "
                "style's own Fluent glyphs, %3 come from the base style, and %4 have no glyph at "
-               "all. Captions show the QStyle enumerator.")
+               "all. Each cell places Qt's %5 glyph on the left and the active "
+               "style's glyph on the right. Captions show the QStyle enumerator.")
                     .arg(fluentCount)
                     .arg(fluentCount + baseCount + missingCount)
                     .arg(baseCount)
-                    .arg(missingCount));
+                    .arg(missingCount)
+                    .arg(m_iconReferenceStyleName));
     m_iconSheetStyle = style();
     refreshIconSheet();
 }
@@ -607,6 +643,19 @@ void GalleryWindow::refreshIconSheet()
     for (const IconPreview &preview : m_iconPreviews) {
         if (!preview.label)
             continue;
+        if (preview.referenceLabel) {
+            const QPixmap reference =
+                    standardIconPixmap(m_iconReferenceStyle,
+                                       static_cast<QStyle::StandardPixmap>(preview.standardPixmap),
+                                       this, devicePixelRatioF());
+            if (reference.isNull()) {
+                preview.referenceLabel->setPixmap(QPixmap());
+                preview.referenceLabel->setText(QStringLiteral("\u2205"));
+            } else {
+                preview.referenceLabel->setText(QString());
+                preview.referenceLabel->setPixmap(reference);
+            }
+        }
         const QPixmap pixmap = standardIconPixmap(
                 style(), static_cast<QStyle::StandardPixmap>(preview.standardPixmap), this,
                 devicePixelRatioF());

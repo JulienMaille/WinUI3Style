@@ -115,6 +115,15 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_icons_tests winui3styleplugin)
 endif()
 
+# Issue #69: prove that every SP_* the style claims to answer resolves to the
+# exact pinned Fluent glyph and renders ink, not merely a non-empty cell.
+add_executable(winui3style_standardicons_tests tst_winui3standardicons.cpp)
+target_link_libraries(winui3style_standardicons_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_standardicons_tests winui3styleplugin)
+endif()
+
 add_executable(winui3style_density_api_tests tst_winui3density_api.cpp)
 target_link_libraries(winui3style_density_api_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
@@ -409,6 +418,7 @@ set(_winui3style_linked_test_targets
         winui3style_density_api_tests
         winui3style_density_widgets_tests
         winui3style_icons_tests
+        winui3style_standardicons_tests
         winui3style_popupcorners_tests
         winui3style_calendarheader_tests
         winui3style_calendarsurface_tests
@@ -491,6 +501,8 @@ add_test(NAME winui3style_density_widgets_unit
          COMMAND winui3style_density_widgets_tests)
 add_test(NAME winui3style_icons_unit
          COMMAND winui3style_icons_tests)
+add_test(NAME winui3style_standardicons_unit
+         COMMAND winui3style_standardicons_tests)
 add_test(NAME winui3style_popupcorners_unit
          COMMAND winui3style_popupcorners_tests)
 add_test(NAME winui3style_calendarheader_unit
@@ -521,7 +533,10 @@ add_test(NAME winui3style_galleryprobe_unit
              $<TARGET_FILE:winui3style_galleryprobe_tests>
              -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryprobe_unit.txt,txt
              -o -,txt)
-set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 180)
+# Debug builds of the real GalleryWindow construct the richer Icons sheet
+# (per-pixmap Qt reference column) on every temporary style switch in the
+# calendar-capture repro; measured 190 s locally, so allow headroom for CI.
+set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 600)
 add_test(NAME winui3style_galleryicons_unit
          COMMAND ${CMAKE_COMMAND} -E env
              --unset=WINUI3STYLE_DISABLE_ANIMATIONS

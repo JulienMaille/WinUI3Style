@@ -85,7 +85,7 @@ uint qHash(const ColoredIconCacheKey &key, uint seed = 0)
 namespace {
 
 constexpr auto fluentIconNamePrefix = "winui3-fluent-icon:";
-constexpr int fluentIconCount = static_cast<int>(Icon::SortDescending) + 1;
+constexpr int fluentIconCount = static_cast<int>(Icon::Count);
 constexpr int MaxPixmapCacheCost = 4096;
 constexpr int MaxFontCacheCost = 64;
 // Coloured QIcons are normally requested from paint paths. Keep this cache
@@ -197,6 +197,65 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::ReturnKey:
             ucs4 = 0xE751;
             break;
+        case Icon::Forward:
+            ucs4 = 0xE72A;
+            break;
+        case Icon::FolderOpen:
+            ucs4 = 0xE838;
+            break;
+        case Icon::Volume:
+            ucs4 = 0xE767;
+            break;
+        case Icon::Mute:
+            ucs4 = 0xE74F;
+            break;
+        case Icon::Previous:
+            ucs4 = 0xE892;
+            break;
+        case Icon::Next:
+            ucs4 = 0xE893;
+            break;
+        case Icon::Rewind:
+            ucs4 = 0xEB9E;
+            break;
+        case Icon::FastForward:
+            ucs4 = 0xEB9D;
+            break;
+        case Icon::Minimize:
+            ucs4 = 0xE921;
+            break;
+        case Icon::Maximize:
+            ucs4 = 0xE922;
+            break;
+        case Icon::Shield:
+            ucs4 = 0xEA18;
+            break;
+        case Icon::Monitor:
+            ucs4 = 0xE7FB;
+            break;
+        case Icon::StorageOptical:
+            ucs4 = 0xE958;
+            break;
+        case Icon::HardDrive:
+            ucs4 = 0xEDA2;
+            break;
+        case Icon::ChromeClose:
+            ucs4 = 0xE8BB;
+            break;
+        case Icon::ButtonMenu:
+            ucs4 = 0xEDE3;
+            break;
+        case Icon::ErrorBadge:
+            ucs4 = 0xEA39;
+            break;
+        case Icon::NewFolder:
+            ucs4 = 0xE8F4;
+            break;
+        case Icon::GetHelpApp:
+            ucs4 = 0xEA6B;
+            break;
+        case Icon::Count:
+            break; // sentinel, never rendered
         }
         return QString::fromUcs4(&ucs4, 1);
     }
@@ -300,6 +359,65 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::ReturnKey:
         ucs4 = 0x21B5;
         break; // ↵
+    case Icon::Forward:
+        ucs4 = 0x2192;
+        break; // →
+    case Icon::FolderOpen:
+        ucs4 = 0x1F4C2;
+        break; // 📂
+    case Icon::Volume:
+        ucs4 = 0x1F50A;
+        break; // 🔊
+    case Icon::Mute:
+        ucs4 = 0x1F507;
+        break; // 🔇
+    case Icon::Previous:
+        ucs4 = 0x23EE;
+        break; // ⏮
+    case Icon::Next:
+        ucs4 = 0x23ED;
+        break; // ⏭
+    case Icon::Rewind:
+        ucs4 = 0x23EA;
+        break; // ⏪
+    case Icon::FastForward:
+        ucs4 = 0x23E9;
+        break; // ⏩
+    case Icon::Minimize:
+        ucs4 = 0x2212;
+        break; // −
+    case Icon::Maximize:
+        ucs4 = 0x25A1;
+        break; // □
+    case Icon::Shield:
+        ucs4 = 0x1F6E1;
+        break; // 🛡
+    case Icon::Monitor:
+        ucs4 = 0x1F5A5;
+        break; // 🖥
+    case Icon::StorageOptical:
+        ucs4 = 0x1F4BF;
+        break; // 💿
+    case Icon::HardDrive:
+        ucs4 = 0x1F4BD;
+        break; // 💽
+    case Icon::ChromeClose:
+        ucs4 = 0x2715;
+        break; // ✕
+    case Icon::ButtonMenu:
+        ucs4 = 0x2630;
+        break; // ☰
+    case Icon::ErrorBadge:
+        ucs4 = 0x26D4;
+        break; // ⛔
+    case Icon::NewFolder:
+        ucs4 = 0x1F4C1;
+        break; // 📁
+    case Icon::GetHelpApp:
+        ucs4 = 0x2753;
+        break; // ❓
+    case Icon::Count:
+        break; // sentinel, never rendered
     }
     return QString::fromUcs4(&ucs4, 1);
 }

@@ -46,7 +46,34 @@ enum class Icon {
     SortDescending,
     // Dialog standard-button glyphs; appended to preserve existing indices.
     Accept,
-    ReturnKey
+    ReturnKey,
+    // Issue #69: exact Fluent counterparts for standard pixmaps that had
+    // none. Appended so every existing glyph keeps its engine index. Code
+    // points and names come from the pinned Segoe Fluent Icons font list.
+    Forward, // E72A Forward
+    FolderOpen, // E838 FolderOpen
+    Volume, // E767 Volume
+    Mute, // E74F Mute
+    Previous, // E892 Previous
+    Next, // E893 Next
+    Rewind, // EB9E Rewind
+    FastForward, // EB9D FastForward
+    Minimize, // E921 ChromeMinimize
+    Maximize, // E922 ChromeMaximize
+    Shield, // EA18 Shield
+    Monitor, // E7FB DeviceMonitorNoPic
+    StorageOptical, // E958 StorageOptical
+    HardDrive, // EDA2 HardDrive
+    ChromeClose, // E8BB ChromeClose (title-bar close, distinct from Cancel E711)
+    // Issue #69 hand-picked replacements (pinned Segoe Fluent Icons values).
+    ButtonMenu, // EDE3 ButtonMenu
+    ErrorBadge, // EA39 ErrorBadge
+    NewFolder, // E8F4 NewFolder
+    GetHelpApp, // EA6B GetHelpApp
+    // Sentinel: the number of real glyphs. Lookups and the icon cache size
+    // must use this, not the last named glyph (issue #69: stopping at
+    // SortDescending silently dropped Accept and ReturnKey).
+    Count
 };
 
 WINUI3STYLE_EXPORT QIcon icon(Icon glyph);
