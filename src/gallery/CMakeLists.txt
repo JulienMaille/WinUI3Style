@@ -1,8 +1,19 @@
+if(WIN32)
+    # rc.exe resolves ICON paths from the build directory, so generate the
+    # resource script with an absolute path to the icon in the source tree.
+    set(WINUI3_GALLERY_ICON "${CMAKE_CURRENT_SOURCE_DIR}/gallery.ico")
+    configure_file(winui3style_gallery.rc.in winui3style_gallery.rc @ONLY)
+    set(_winui3_gallery_rc "${CMAKE_CURRENT_BINARY_DIR}/winui3style_gallery.rc")
+else()
+    set(_winui3_gallery_rc "")
+endif()
+
 add_executable(winui3style_gallery
     main.cpp
     gallerywindow.cpp
     gallerywindow.h
     gallerywindow.ui
+    ${_winui3_gallery_rc}
 )
 
 target_link_libraries(winui3style_gallery PRIVATE

@@ -13,9 +13,12 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     application.setApplicationName(QStringLiteral("WinUI 3 Style Gallery"));
     application.setOrganizationName(QStringLiteral("WinUI3Style"));
-    if (QStyle *style = QStyleFactory::create(QStringLiteral("winui3")))
+    if (QStyle *style = QStyleFactory::create(QStringLiteral("winui3"))) {
         application.setStyle(style);
-    else {
+        // Give the gallery app an icon from the style's own Fluent glyphs;
+        // no bundled image or resource file is needed.
+        application.setWindowIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
+    } else {
         qCritical() << "The winui3 QStyle plugin could not be loaded.";
         return 1;
     }
