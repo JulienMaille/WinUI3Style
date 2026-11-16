@@ -102,7 +102,7 @@ Build with `-DWINUI3STYLE_BUILD_BENCHMARKS=ON` and run
 
 Visual variants keep Qt's native semantics and are selected with dynamic
 properties (Designer: Property Editor `+` button). No application-side
-painting or animation is required. See `RELEASE_NOTES.md`.
+painting or animation is required.
 
 | Property | Widget |
 |----------|--------|
