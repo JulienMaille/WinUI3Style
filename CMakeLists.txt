@@ -60,6 +60,7 @@ else()
     set(WINUI3STYLE_QT Qt6)
     set(WINUI3STYLE_QT_MIN_VERSION 6.5)
 endif()
+set(WINUI3STYLE_QT_VERSION "${${WINUI3STYLE_QT}Core_VERSION}")
 
 # Shared warning policy: /W4 (MSVC) or -Wall -Wextra -Wpedantic (GCC/Clang)
 # on every first-party target via this interface; WINUI3STYLE_WARNINGS_AS_ERRORS
@@ -179,6 +180,8 @@ if(WINUI3STYLE_BUILD_DEMO AND WINUI_ENABLE_TESTS)
                         ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_snapshot_matrix.py
                         --gallery $<TARGET_FILE:winui3style_gallery>
                         --baseline ${CMAKE_CURRENT_SOURCE_DIR}/tests/baselines/gallery
+                        --baseline-overlay
+                            ${CMAKE_CURRENT_SOURCE_DIR}/tests/baselines/gallery-qt/${WINUI3STYLE_QT_VERSION}
                         --report ${CMAKE_CURRENT_BINARY_DIR}/snapshot-report.json
                         --keep-captures ${CMAKE_CURRENT_BINARY_DIR}/snapshot-captures
             )

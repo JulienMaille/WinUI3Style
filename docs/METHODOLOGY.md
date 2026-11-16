@@ -214,8 +214,11 @@ processes with animations and accessibility disabled before construction,
 requires identical file manifests and image dimensions, and compares every
 pixel. It then requires the same strict comparison against the approved
 `tests/baselines/gallery`; a missing baseline or missing/extra state capture is
-a failure. On Windows, offscreen captures explicitly use the system font
-directory so Segoe and Fluent glyphs cannot silently become tofu boxes.
+a failure. Qt-version-specific raster differences belong in a version-named
+`tests/baselines/gallery-qt/<version>` overlay, which takes precedence over the
+shared baseline without weakening pixel-exact comparison. On Windows, offscreen
+captures explicitly use the system font directory so Segoe and Fluent glyphs
+cannot silently become tofu boxes.
 `tools/compare_images.py`
 never resizes inputs and reports dimensions, RMS, differing-pixel count,
 maximum channel delta, and the difference bounding box.

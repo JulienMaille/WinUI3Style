@@ -10,7 +10,7 @@ from pathlib import Path
 from PIL import Image
 
 from compare_images import compare
-from run_snapshot_matrix import compare_images
+from run_snapshot_matrix import baseline_paths, compare_images
 
 
 class ImageComparisonTest(unittest.TestCase):
@@ -79,6 +79,24 @@ class ImageComparisonTest(unittest.TestCase):
             compare(self.reference, self.candidate, None)
         with self.assertRaisesRegex(AssertionError, "dimension mismatch"):
             compare_images(self.reference, self.candidate, "fixture.png")
+
+    def test_baseline_overlay_overrides_common_and_adds_versioned_files(self) -> None:
+        root = Path(self.temporary.name)
+        common = root / "common"
+        overlay = root / "overlay"
+        common.mkdir()
+        overlay.mkdir()
+        (common / "shared.txt").write_text("common", encoding="utf-8")
+        (common / "fallback.txt").write_text("fallback", encoding="utf-8")
+        (overlay / "shared.txt").write_text("versioned", encoding="utf-8")
+        (overlay / "only-versioned.txt").write_text("added", encoding="utf-8")
+
+        resolved = baseline_paths(common, overlay)
+        self.assertEqual(
+            set(resolved), {"shared.txt", "fallback.txt", "only-versioned.txt"}
+        )
+        self.assertEqual(resolved["shared.txt"].read_text(encoding="utf-8"), "versioned")
+        self.assertEqual(resolved["fallback.txt"].read_text(encoding="utf-8"), "fallback")
 
 
 if __name__ == "__main__":

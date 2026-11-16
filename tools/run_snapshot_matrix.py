@@ -22,10 +22,16 @@ def files(directory: Path) -> set[str]:
     }
 
 
-def png_manifest(directory: Path) -> dict[str, dict[str, object]]:
+def baseline_paths(directory: Path, overlay: Path | None = None) -> dict[str, Path]:
+    paths = {relative: directory / relative for relative in files(directory)}
+    if overlay is not None and overlay.is_dir():
+        paths.update({relative: overlay / relative for relative in files(overlay)})
+    return paths
+
+
+def png_manifest_paths(paths: dict[str, Path]) -> dict[str, dict[str, object]]:
     manifest: dict[str, dict[str, object]] = {}
-    for relative in sorted(files(directory)):
-        path = directory / relative
+    for relative, path in sorted(paths.items()):
         with Image.open(path) as image:
             manifest[relative] = {
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -33,6 +39,12 @@ def png_manifest(directory: Path) -> dict[str, dict[str, object]]:
                 "mode": image.mode,
             }
     return manifest
+
+
+def png_manifest(directory: Path) -> dict[str, dict[str, object]]:
+    return png_manifest_paths(
+        {relative: directory / relative for relative in files(directory)}
+    )
 
 
 def compare_images(left: Path, right: Path, name: str) -> None:
@@ -77,6 +89,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gallery", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--baseline-overlay", type=Path)
     parser.add_argument("--report", type=Path)
     # Optional directory receiving copies of both capture runs. Used by CI to
     # upload debuggable artifacts on failure; absent locally, captures stay in
@@ -128,15 +141,18 @@ def main() -> int:
             if not arguments.baseline.is_dir():
                 raise AssertionError(
                     f"approved baseline directory is missing: {arguments.baseline}")
-            baseline_manifest = png_manifest(arguments.baseline)
+            approved_paths = baseline_paths(arguments.baseline, arguments.baseline_overlay)
+            baseline_manifest = png_manifest_paths(approved_paths)
             if baseline_manifest.keys() != first_manifest.keys():
                 raise AssertionError(
                     "approved baseline manifest differs: "
                     f"only_baseline={sorted(baseline_manifest.keys() - first_manifest.keys())} "
                     f"only_candidate={sorted(first_manifest.keys() - baseline_manifest.keys())}")
             for relative in sorted(first_files):
-                compare_images(first / relative, arguments.baseline / relative, relative)
+                compare_images(first / relative, approved_paths[relative], relative)
             print(f"approved baseline: {arguments.baseline}")
+            if arguments.baseline_overlay and arguments.baseline_overlay.is_dir():
+                print(f"Qt-specific baseline overlay: {arguments.baseline_overlay}")
 
             report = {
                 "files": first_manifest,
