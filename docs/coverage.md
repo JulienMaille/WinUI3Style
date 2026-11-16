@@ -14,9 +14,8 @@ not, and "No glyph" when neither the style nor its base style has artwork for
 that ancestor-dependent pixmap. The page reads the engine tag through plain Qt
 API, so the demo remains a plain Qt client; a style swap rebuilds the sheet and
 a palette change re-renders the rasters (a `QLabel` stores a raster, not an
-engine). Captions show the enumerator name, and `tst_winui3galleryprobe`'s
-`galleryIconsPageListsEveryStandardPixmap` pins one cell per enumerator plus the
-group/artwork agreement, the palette refresh and the style-swap rebuild.
+engine). Captions show the enumerator name; test coverage for the Icons page
+was removed (see `gallerywindow.cpp` `populateIconSheet`/`refreshIconSheet`).
 
 Status: partial — the audit surface exists so the remaining gaps are reviewable
 in the live Gallery; no new glyph mapping is claimed here. Qt 6.12 defines 85
