@@ -365,8 +365,8 @@ void GalleryWindow::configureGallery()
         welcome->setTitle(tr("Welcome"));
         welcome->setSubTitle(tr("Standard QWizard rendered by the style."));
         auto *welcomeLayout = new QVBoxLayout(welcome);
-        welcomeLayout->addWidget(new QLabel(
-                tr("Content and command areas use separate surfaces."), welcome));
+        welcomeLayout->addWidget(
+                new QLabel(tr("Content and command areas use separate surfaces."), welcome));
         wizard.addPage(welcome);
         auto *finish = new QWizardPage;
         finish->setTitle(tr("Ready to continue"));
@@ -431,8 +431,8 @@ void GalleryWindow::populateCollections()
     root->setIcon(0, folder);
     root->setFlags(root->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
     root->setCheckState(0, Qt::PartiallyChecked);
-    const QStringList tracks{ tr("01: First track"), tr("02: Second track"),
-                              tr("03: Third track"), tr("04: Fourth track") };
+    const QStringList tracks{ tr("01: First track"), tr("02: Second track"), tr("03: Third track"),
+                              tr("04: Fourth track") };
     for (int index = 0; index < tracks.size(); ++index) {
         auto *track = new QTreeWidgetItem(root, { tracks.at(index) });
         track->setFlags(track->flags() | Qt::ItemIsUserCheckable);
@@ -946,8 +946,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         contentDialog.close();
 
         QMessageBox messageBox(QMessageBox::Information, tr("WinUI 3 Style"),
-                               tr("Native Qt message box rendered by the style."),
-                               QMessageBox::Ok, this);
+                               tr("Native Qt message box rendered by the style."), QMessageBox::Ok,
+                               this);
         messageBox.show();
         qApp->processEvents();
         success = messageBox.grab().save(output.filePath(theme + "-message-box.png"), "PNG")
@@ -960,8 +960,8 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         wizardWelcome->setTitle(tr("Welcome"));
         wizardWelcome->setSubTitle(tr("Standard QWizard rendered by the style."));
         auto *wizardWelcomeLayout = new QVBoxLayout(wizardWelcome);
-        wizardWelcomeLayout->addWidget(new QLabel(
-                tr("Content and command areas use separate surfaces."), wizardWelcome));
+        wizardWelcomeLayout->addWidget(
+                new QLabel(tr("Content and command areas use separate surfaces."), wizardWelcome));
         wizardSnap.addPage(wizardWelcome);
         wizardSnap.resize(520, 340);
         wizardSnap.show();
