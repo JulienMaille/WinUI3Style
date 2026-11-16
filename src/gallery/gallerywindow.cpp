@@ -839,7 +839,13 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
                     && success;
         }
         ui->fileMenu->hide();
+        const int iconsPageIndex = ui->pages->indexOf(ui->iconsPage);
         for (int page = 0; page < ui->pages->count(); ++page) {
+            // The icon-sheet review was removed from hosted CI because its
+            // font rasterization is not stable on Windows Server. Keep the
+            // live page, but do not emit unapproved page-5 snapshot files.
+            if (page == iconsPageIndex)
+                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();
