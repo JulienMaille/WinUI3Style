@@ -741,12 +741,6 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
     const int previousCalendarMonth = ui->persistentCalendar->monthShown();
     const bool animationsWereDisabled = qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
     const QByteArray previousAnimationSetting = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
-    const int iconsPageIndex = ui->pages->indexOf(ui->iconsPage);
-    const bool iconsRowWasHidden = iconsPageIndex >= 0
-            && iconsPageIndex < ui->navigationList->count()
-            && ui->navigationList->isRowHidden(iconsPageIndex);
-    if (iconsPageIndex >= 0 && iconsPageIndex < ui->navigationList->count())
-        ui->navigationList->setRowHidden(iconsPageIndex, true);
     qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
     setProperty("winuiBackdrop", backdrop);
     if (backdrop == QLatin1String("none")) {
@@ -772,8 +766,6 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
             setLocale(previousLocale);
         else
             unsetLocale();
-        if (iconsPageIndex >= 0 && iconsPageIndex < ui->navigationList->count())
-            ui->navigationList->setRowHidden(iconsPageIndex, iconsRowWasHidden);
         ui->standardDensityDate->setDisplayFormat(previousStandardDateFormat);
         ui->compactDensityDate->setDisplayFormat(previousCompactDateFormat);
         setAttribute(Qt::WA_TransparentForMouseEvents, mouseEventsWereTransparent);
@@ -846,11 +838,6 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         }
         ui->fileMenu->hide();
         for (int page = 0; page < ui->pages->count(); ++page) {
-            // The icon-sheet review was removed from hosted CI because its
-            // font rasterization is not stable on Windows Server. Keep the
-            // live page, but do not emit unapproved page-5 snapshot files.
-            if (page == iconsPageIndex)
-                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();
@@ -1013,8 +1000,6 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         activeStyle->setProperty("densityMode", 1);
         ui->densityCombo->setCurrentIndex(1);
         for (int page = 0; page < ui->pages->count(); ++page) {
-            if (page == iconsPageIndex)
-                continue;
             ui->pages->setCurrentIndex(page);
             qApp->processEvents();
             settle();

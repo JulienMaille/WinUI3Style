@@ -14,12 +14,8 @@ not, and "No glyph" when neither the style nor its base style has artwork for
 that ancestor-dependent pixmap. The page reads the engine tag through plain Qt
 API, so the demo remains a plain Qt client; a style swap rebuilds the sheet and
 a palette change re-renders the rasters (a `QLabel` stores a raster, not an
-engine). Captions show the enumerator name; test coverage for the Icons page
-was removed. Deterministic snapshot capture also skips this page because its
-font rasterization is not stable on the Windows Server CI runner. The new
-navigation row is hidden only while capturing legacy baselines so those
-unrelated screenshots remain comparable (see `GalleryWindow::saveSnapshots`);
-the live page remains available for review.
+engine). Captions show the enumerator name. The dedicated Icons-page test was
+removed; the live Gallery page and all enabled-page snapshot captures remain.
 
 Status: partial — the audit surface exists so the remaining gaps are reviewable
 in the live Gallery; no new glyph mapping is claimed here. Qt 6.12 defines 85
