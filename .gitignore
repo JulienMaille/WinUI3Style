@@ -1,6 +1,7 @@
 /build*/
 /tmp/
 /.vs/
+/tmp/
 __pycache__/
 *.user
 *.pyc
