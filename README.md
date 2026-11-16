@@ -77,11 +77,15 @@ target_link_libraries(app PRIVATE WinUI3::Widgets)
 still honored.
 
 The `winui3style_gallery` executable is the interactive reference application.
-Its widget hierarchy lives in `src/gallery/gallerywindow.ui`. The gallery
-loads the style plugin through Qt's factory; it also links `WinUI3::Widgets`
-for diagnostic/capture support. An independent Qt-only application is checked
-by `tools/install_smoke.ps1`, demonstrating plugin deployment without linking
-or recompiling the application against WinUI3Style.
+Its widget hierarchy lives in `src/gallery/gallerywindow.ui`. The gallery loads
+the style plugin through Qt's factory and does not link `WinUI3::Widgets`
+directly, so it is an ordinary plugin consumer. The style implementation is
+embedded in the plugin, so deployment needs only `qwinui3style.dll` (plus Qt's
+runtime dependencies) and no separate implementation DLL. An independent
+Qt-only application is checked by `tools/install_smoke.ps1`, demonstrating
+plugin deployment without linking or recompiling the application against
+WinUI3Style. Internal targets and tests that need the implementation as a
+library can still link `WinUI3::Widgets`.
 The style can also be loaded through `QStyleFactory::create("winui3")` when the
 plugin is deployed under Qt's `styles` plugin directory. The optional
 `winui3compact` factory key creates the same style with Compact as its global

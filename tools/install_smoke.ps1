@@ -39,9 +39,9 @@ try {
     & $cmakeCommand --install $buildPath --config $Configuration --prefix $stage
     if ($LASTEXITCODE -ne 0) { throw "cmake --install failed with exit code $LASTEXITCODE" }
     $plugin = Get-ChildItem (Join-Path $stage 'plugins\styles') -Filter 'qwinui3style*.dll' | Select-Object -First 1
-    $styleDll = Get-ChildItem (Join-Path $stage 'bin') -Filter 'winui3style*.dll' | Select-Object -First 1
     if (-not $plugin) { throw "staged style plugin is missing under $stage\plugins\styles" }
-    if (-not $styleDll) { throw "staged style runtime is missing under $stage\bin" }
+    # The implementation is embedded in the plugin (issue #70): there is no
+    # winui3style.dll to stage, so this smoke also proves plugin self-containment.
 
     $source = @'
 #include <QApplication>

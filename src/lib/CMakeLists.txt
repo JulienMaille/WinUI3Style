@@ -8,16 +8,7 @@ set(winui3style_public_headers
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/winui3style/navigationview.h
 )
 
-option(WINUI3STYLE_STATIC
-       "Build the style as a static library (self-contained plugin DLL)" OFF)
-if(WINUI3STYLE_STATIC)
-    set(WINUI3STYLE_LIBRARY_TYPE STATIC)
-else()
-    set(WINUI3STYLE_LIBRARY_TYPE SHARED)
-endif()
-
-add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
-    ${winui3style_public_headers}
+set(winui3style_sources
     winui3style.cpp
     winui3interactions_p.h
     winui3interactions_p.cpp
@@ -78,12 +69,53 @@ add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
     navigationview.cpp
 )
 
+option(WINUI3STYLE_STATIC
+       "Build the style as a static library (self-contained plugin DLL)" OFF)
+if(WINUI3STYLE_STATIC)
+    set(WINUI3STYLE_LIBRARY_TYPE STATIC)
+    # Static consumers and the plugin embed the implementation, so no export
+    # or import decoration is needed on the symbols.
+    set(_winui3style_impl_define WINUI3STYLE_STATIC)
+else()
+    set(WINUI3STYLE_LIBRARY_TYPE SHARED)
+    # The shared implementation DLL exports its symbols for tests and other
+    # internal consumers that link WinUI3::Widgets.
+    set(_winui3style_impl_define WINUI3STYLE_LIBRARY)
+endif()
+
+# Compile the implementation exactly once. The same object files are consumed
+# by WinUI3::Widgets (for tests/internal targets) and by the style plugin.
+# Embedding them in the MODULE makes qwinui3style.dll self-contained, so a
+# normal Qt plugin deployment needs only that project DLL plus Qt's runtime
+# dependencies (issue #70). A consumer that links WinUI3::Widgets directly is
+# unaffected and still gets the shared library in the default build.
+add_library(winui3style_impl OBJECT
+    ${winui3style_public_headers}
+    ${winui3style_sources}
+)
+target_compile_definitions(winui3style_impl PRIVATE ${_winui3style_impl_define})
+target_include_directories(winui3style_impl
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(winui3style_impl
+    PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets
+    PRIVATE $<BUILD_INTERFACE:winui3style_warnings>
+)
+if(WIN32)
+    target_link_libraries(winui3style_impl PRIVATE advapi32 dwmapi user32)
+endif()
+
+add_library(winui3style ${WINUI3STYLE_LIBRARY_TYPE}
+    $<TARGET_OBJECTS:winui3style_impl>
+)
+
 add_library(WinUI3::Widgets ALIAS winui3style)
 
 if(WINUI3STYLE_STATIC)
     target_compile_definitions(winui3style PUBLIC WINUI3STYLE_STATIC)
-else()
-    target_compile_definitions(winui3style PRIVATE WINUI3STYLE_LIBRARY)
 endif()
 target_include_directories(winui3style
     PUBLIC
@@ -103,12 +135,6 @@ target_link_libraries(winui3style PRIVATE $<BUILD_INTERFACE:winui3style_warnings
 
 if(WIN32)
     target_link_libraries(winui3style PRIVATE advapi32 dwmapi user32)
-endif()
-
-if(NOT WINUI3STYLE_STATIC AND TARGET winui3styleplugin)
-    # Order the plugin after the library; the TARGET_LINKER_FILE link
-    # in src/plugin/CMakeLists.txt makes MSVC relink it on style rebuilds.
-    add_dependencies(winui3styleplugin winui3style)
 endif()
 
 set_target_properties(winui3style PROPERTIES

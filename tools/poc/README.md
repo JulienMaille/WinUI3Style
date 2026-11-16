@@ -12,7 +12,8 @@ included but not installed automatically. Use View → Style to switch between
 WinUI 3 and Qt's Windows 11 style for comparison.
 
 To use the style in an existing Qt application, deploy `styles/qwinui3style.dll`
-and `winui3style.dll` and start with `-style winui3` (or `winui3compact`). Use a
+and start with `-style winui3` (or `winui3compact`). The style implementation is
+embedded in the plugin, so no `winui3style.dll` companion is needed. Use a
 compatible Qt/MSVC build and architecture; this package is x64 only.
 
 Coverage is tracked in `docs/coverage.md`. Native backdrops need Windows support

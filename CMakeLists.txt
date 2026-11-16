@@ -107,6 +107,27 @@ if(WINUI_ENABLE_TESTS)
     enable_testing()
     find_package(${WINUI3STYLE_QT} REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
+
+    # Issue #70: the plugin embeds the implementation, so the deployed styles
+    # directory must contain only qwinui3style.dll for this project. Check the
+    # actual built directories rather than re-deriving the deploy logic.
+    if(WINUI3STYLE_BUILD_PLUGIN)
+        set(_winui3style_single_dll_args
+            "-DPLUGIN_DIR=${CMAKE_BINARY_DIR}/plugins/styles")
+        if(WINUI3STYLE_BUILD_DEMO)
+            list(APPEND _winui3style_single_dll_args
+                "-DGALLERY_STYLES_DIR=$<TARGET_FILE_DIR:winui3style_gallery>/styles")
+        endif()
+        add_test(
+            NAME winui3style_single_dll_plugin_contract
+            COMMAND ${CMAKE_COMMAND} ${_winui3style_single_dll_args}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/contracts/check_single_dll_plugin.cmake
+        )
+        set_tests_properties(winui3style_single_dll_plugin_contract PROPERTIES
+            LABELS "distribution;contract"
+        )
+    endif()
+
     add_test(
         NAME winui3style_static_package_contract
         COMMAND ${CMAKE_COMMAND}

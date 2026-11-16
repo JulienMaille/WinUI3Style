@@ -516,19 +516,13 @@ void WinUI3StyleNativeTest::captionThemeAfterBackdropDisable()
 
 void WinUI3StyleNativeTest::backdropDisableRestoresOpaqueContent()
 {
-    QStyle *pluginStyle = QStyleFactory::create(QStringLiteral("winui3"));
-    // The style plugin is optional and its availability is an environment
-    // property, not a style property: a run without QT_PLUGIN_PATH pointing at
-    // the build's plugins directory (a direct binary run, or a host whose Qt
-    // plugin loader refuses it) has no "winui3" key at all. Skip instead of
-    // failing - the assertion below still runs whenever the plugin loads, which
-    // is the case under ctest and CI.
-    if (!pluginStyle)
-        QSKIP("The optional WinUI3 style plugin is not available");
-    qApp->setStyle(pluginStyle);
-    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
-    QVERIFY(style);
-    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    // This test exercises native DWM/backdrop behavior, not plugin discovery
+    // (which is covered by pluginFactory and the gallery/snapshot matrix).
+    // Construct the style from the linked library: the plugin embeds its own
+    // implementation (issue #70), so a plugin-created style here would carry
+    // a different staticMetaObject and qobject_cast could not recover it.
+    auto *style = new WinUI3::Style(WinUI3::ThemeMode::Dark);
+    qApp->setStyle(style);
 
     QMainWindow window;
     // This test samples the desktop, not just the backing store. Unrelated
