@@ -113,9 +113,9 @@ void WinUI3MicaCardEditorTest::comboBoxInsideCardKeepsCardFillOverComposited()
         QCOMPARE(combo->geometry(), QRect(60, 140, 160, 32));
         // Mechanism: the real CC_ComboBox path over a seeded card canvas keeps
         // the card tone at the rounded corner the control surface never
-        // reaches (RED over Mica: alpha 0 — the reported glitch; RED over
-        // NONE: a second veiled layer punched through the opaque card), and
-        // the translucent control fill composites ON the card tone once.
+        // reaches (RED over Mica: alpha 0 — the reported glitch; over NONE no
+        // erase runs, so the seeded card tone stands), and the translucent
+        // control fill composites ON the card tone once.
         QImage canvas(combo->size(), QImage::Format_ARGB32_Premultiplied);
         canvas.fill(cardTone);
         QStyleOptionComboBox option;
