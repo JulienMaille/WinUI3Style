@@ -276,7 +276,8 @@ inline QColor cardRefillToneFor(const QWidget *widget, bool onBackdrop)
         return QColor();
     for (const QWidget *card = widget->parentWidget(); card; card = card->parentWidget()) {
         if (card->property(WinUI3::Style::SettingsCardProperty).toBool())
-            return veiledCard(card->palette().color(QPalette::Active, QPalette::Button), onBackdrop);
+            return veiledCard(card->palette().color(QPalette::Active, QPalette::Button),
+                              onBackdrop);
         if (qobject_cast<const QGroupBox *>(card))
             return cardRefillTone(card->palette(), onBackdrop);
     }

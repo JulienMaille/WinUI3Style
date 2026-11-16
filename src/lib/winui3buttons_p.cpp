@@ -95,8 +95,7 @@ bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOptio
     // This must run even when the widget sits inside an opaque card, because
     // the card tone it just cleared is rebuilt here (the button Fix-B
     // mirror): without the refill the indicator/text paint leaves alpha 0.
-    eraseForBackdropWithCardRefill(painter, widget, option->rect,
-                                   cardRefillToneFor(widget, true));
+    eraseForBackdropWithCardRefill(painter, widget, option->rect, cardRefillToneFor(widget, true));
     return true;
 }
 

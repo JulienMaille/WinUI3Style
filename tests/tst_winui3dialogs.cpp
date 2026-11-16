@@ -437,8 +437,8 @@ void WinUI3DialogsTest::wizardHeaderUsesUniformSurface()
         QWidget *header = headerChrome.first();
         QVERIFY(!header->geometry().isEmpty());
         const QImage image = wizard.grab().toImage();
-        const QPoint headerProbe = header->mapTo(&wizard, QPoint(header->width() - 8,
-                                                                 header->height() / 2));
+        const QPoint headerProbe =
+                header->mapTo(&wizard, QPoint(header->width() - 8, header->height() / 2));
         const QPoint bodyProbe = page->mapTo(&wizard, QPoint(2, page->height() / 2));
         QVERIFY(wizard.rect().contains(headerProbe));
         QVERIFY(wizard.rect().contains(bodyProbe));

@@ -101,8 +101,7 @@ void WinUI3MicaCardEditorTest::comboBoxInsideCardKeepsCardFillOverComposited()
         // a group card uses the Base veil, a SettingsCard uses t.control
         // (QPalette::Button). The refill must match that exact role, or the
         // control's rounded corners read as darker patches (issue #72).
-        const QPalette::ColorRole cardRole =
-                settingsCard ? QPalette::Button : QPalette::Base;
+        const QPalette::ColorRole cardRole = settingsCard ? QPalette::Button : QPalette::Base;
         const QColor cardTone = WinUI3::Private::veiledCard(
                 card->palette().color(QPalette::Active, cardRole), composited);
         QCOMPARE(cardTone.alpha(),

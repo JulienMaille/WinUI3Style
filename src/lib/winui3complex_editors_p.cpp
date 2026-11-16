@@ -36,8 +36,8 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             // Outside a card the erase stays
             // bare; with no backdrop the parent-surface refill below keeps its
             // previous contract.
-            const bool erased = eraseForBackdropWithCardRefill(
-                    painter, widget, combo->rect, cardRefillToneFor(widget, true));
+            const bool erased = eraseForBackdropWithCardRefill(painter, widget, combo->rect,
+                                                               cardRefillToneFor(widget, true));
             if (!erased && widget && widget->parentWidget()
                 && widget->parentWidget()->property(Style::SurfaceProperty).isValid()) {
                 painter->fillRect(combo->rect,

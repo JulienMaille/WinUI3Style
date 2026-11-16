@@ -410,8 +410,8 @@ bool drawMenuControl(const Style *style, QStyle::ControlElement element, const Q
             // paint below. The opaque rest-fill is the fallback-only path
             // when the erase gate did not run. In-card samples rebuild the
             // card tone first (same guard as the button panel Fix B).
-            const bool onBackdrop = eraseForBackdropWithCardRefill(
-                    painter, widget, item->rect, cardRefillToneFor(widget, true));
+            const bool onBackdrop = eraseForBackdropWithCardRefill(painter, widget, item->rect,
+                                                                   cardRefillToneFor(widget, true));
             if (!onBackdrop && widget && widget->property(Style::SurfaceProperty).isValid())
                 painter->fillRect(item->rect, widget->palette().color(QPalette::Window));
             // QMenuBar owns the animation properties, while this option is
