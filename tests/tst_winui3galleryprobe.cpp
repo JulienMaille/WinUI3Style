@@ -14,6 +14,7 @@
 #include "../src/lib/winui3surfaces_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
+#include <QAction>
 #include <QComboBox>
 #include <QCheckBox>
 #include <QCommandLinkButton>
@@ -37,6 +38,7 @@
 #include <QStackedWidget>
 #include <QSlider>
 #include <QStyleOptionSlider>
+#include <QStyle>
 #include <QStyleFactory>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -57,6 +59,7 @@ private slots:
     void galleryStaleReapplyAfterDisable();
     void gallerySnapshotPinsAndRestoresCalendarDate();
     void galleryComparisonStyleAvailabilityAndRestore();
+    void galleryToolbarStyleToggle();
     void gallerySettingsExpanderAnimates();
     void galleryRubberBandReachable();
     void settingsIconAlignment_data();
@@ -313,6 +316,45 @@ void WinUI3GalleryProbeTest::galleryComparisonStyleAvailabilityAndRestore()
     QVERIFY(density->isEnabled());
     QCOMPARE(qApp->style()->property("themeMode").toInt(), 2);
     QCOMPARE(qApp->style()->property("densityMode").toInt(), 1);
+}
+
+void WinUI3GalleryProbeTest::galleryToolbarStyleToggle()
+{
+    GalleryWindow gallery;
+    auto *toggle = gallery.findChild<QAction *>(QStringLiteral("comparisonToggleAction"));
+    auto *theme = gallery.findChild<QComboBox *>(QStringLiteral("themeCombo"));
+    QVERIFY(toggle && theme);
+    QVERIFY(toggle->isCheckable());
+    QVERIFY(toggle->isChecked());
+    QVERIFY(qobject_cast<WinUI3::Style *>(qApp->style()));
+
+    // The toggle uses the native comparison style when available and Fusion
+    // on builds without the windows11 plugin (the normal Linux case).
+    QString comparisonKey = QStringLiteral("Fusion");
+    for (const QString &key : QStyleFactory::keys()) {
+        if (key.compare(QStringLiteral("windows11"), Qt::CaseInsensitive) == 0) {
+            comparisonKey = key;
+            break;
+        }
+    }
+    QStyle *probe = QStyleFactory::create(comparisonKey);
+    QVERIFY(probe);
+    const QByteArray comparisonClass = probe->metaObject()->className();
+    delete probe;
+
+    theme->setCurrentIndex(2);
+    toggle->trigger();
+    QVERIFY(!toggle->isChecked());
+    QCOMPARE(QByteArray(qApp->style()->metaObject()->className()), comparisonClass);
+    QVERIFY(!theme->isEnabled());
+
+    toggle->trigger();
+    QVERIFY(toggle->isChecked());
+    QVERIFY(theme->isEnabled());
+    // Re-created through QStyleFactory, so the style has the plugin's
+    // metaobject, not the linked-library one; assert its state instead.
+    QVERIFY(QByteArray(qApp->style()->metaObject()->className()).contains("WinUI3"));
+    QCOMPARE(qApp->style()->property("themeMode").toInt(), 2);
 }
 
 void WinUI3GalleryProbeTest::cleanup()

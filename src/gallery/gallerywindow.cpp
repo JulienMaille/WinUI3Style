@@ -279,6 +279,18 @@ void GalleryWindow::configureGallery()
     ui->pinAction->setIcon(icon(QStyle::SP_DialogApplyButton));
     ui->standaloneToolButton->setIcon(icon(QStyle::SP_FileDialogDetailedView));
     ui->splitToolButton->setIcon(icon(QStyle::SP_DirOpenIcon));
+
+    // Visible toolbar switch between this style and the native comparison.
+    // Windows 11 style ships only with Qt's Windows plugin, so Linux builds
+    // compare against the always-available Fusion style instead.
+    if (QAction *styleToggle = findChild<QAction *>(QStringLiteral("comparisonToggleAction"))) {
+        styleToggle->setIcon(icon(QStyle::SP_DirHomeIcon));
+        const QString comparisonKey =
+                nativeStyleAvailable ? windows11Key : QStringLiteral("Fusion");
+        connect(styleToggle, &QAction::triggered, this, [this, comparisonKey](bool checked) {
+            setComparisonStyle(checked ? QStringLiteral("winui3") : comparisonKey);
+        });
+    }
     refreshCardIcons();
     ui->iconCombo->setItemIcon(0, icon(QStyle::SP_FileIcon));
     ui->iconCombo->setItemIcon(1, icon(QStyle::SP_DirIcon));
@@ -385,6 +397,8 @@ void GalleryWindow::setComparisonStyle(const QString &key)
         ui->statusBar->showMessage(tr("The selected comparison style is unavailable."));
         if (QAction *winuiAction = findChild<QAction *>(QStringLiteral("winui3StyleAction")))
             winuiAction->setChecked(true);
+        if (QAction *styleToggle = findChild<QAction *>(QStringLiteral("comparisonToggleAction")))
+            styleToggle->setChecked(true);
         return;
     }
     comparisonStyle->setProperty("themeMode", m_themeIndex);
@@ -395,11 +409,15 @@ void GalleryWindow::setComparisonStyle(const QString &key)
     if (QAction *action = findChild<QAction *>(winuiStyle ? QStringLiteral("winui3StyleAction")
                                                           : QStringLiteral("windows11StyleAction")))
         action->setChecked(true);
+    // Keep the toolbar switch in sync when the View > Style menu is used.
+    // setChecked() emits toggled(), not triggered(), so this cannot recurse.
+    if (QAction *styleToggle = findChild<QAction *>(QStringLiteral("comparisonToggleAction")))
+        styleToggle->setChecked(winuiStyle);
     ui->themeCombo->setEnabled(winuiStyle);
     ui->densityCombo->setEnabled(winuiStyle);
     ui->micaToggle->setEnabled(winuiStyle);
     ui->statusBar->showMessage(winuiStyle ? tr("WinUI 3 style")
-                                          : tr("Windows 11 comparison style from Qt"));
+                                          : tr("Comparison style: %1").arg(key));
 }
 
 void GalleryWindow::populateCollections()
