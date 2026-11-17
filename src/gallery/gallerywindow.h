@@ -30,6 +30,9 @@ private:
     struct IconPreview
     {
         QLabel *label = nullptr;
+        // Qt Windows 11 reference drawn in the same cell, left of the active
+        // style's glyph. Null when the windows11 style plugin is unavailable.
+        QLabel *referenceLabel = nullptr;
         int standardPixmap = 0;
     };
 
@@ -49,6 +52,8 @@ private:
     // so the pointer, not the event, decides whether the sheet is rebuilt
     // (rebuilding from those events would recurse through layout/show/polish).
     QStyle *m_iconSheetStyle = nullptr;
+    QStyle *m_iconReferenceStyle = nullptr; // Qt reference style, owned by this window
+    QString m_iconReferenceStyleName;
     bool m_iconSheetRebuildPending = false;
     int m_themeIndex = 0;
     int m_densityIndex = 0;

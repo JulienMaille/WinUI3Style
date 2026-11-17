@@ -133,6 +133,41 @@ void WinUI3GalleryIconsTest::galleryIconsPageListsEveryStandardPixmap()
     QVERIFY(missingGroup->title().contains(QStringLiteral("%1").arg(missing.size())));
     QVERIFY(note->text().contains(QStringLiteral("%1").arg(standardCount)));
 
+    // Issue #69: every cell carries a Qt reference glyph on the left — the
+    // Windows 11 plugin where available, Qt's own Fusion style elsewhere.
+    QList<QLabel *> references;
+    for (QLabel *label : window.findChildren<QLabel *>()) {
+        if (label->property("standardPixmapReference").isValid())
+            references.append(label);
+    }
+    QCOMPARE(references.size(), standardCount);
+    const QList<QLabel *> allActive = fluent + fallback + missing;
+    bool differs = false;
+    int renderedReferences = 0;
+    for (QLabel *label : references) {
+        const QPixmap reference = labelPixmap(label);
+        if (reference.isNull()) {
+            // The reference style has no artwork for a handful of the
+            // ancestor-dependent slots; those cells say so explicitly.
+            QVERIFY2(!label->text().isEmpty(), "Qt reference cell is blank");
+            continue;
+        }
+        ++renderedReferences;
+        QCOMPARE(reference.size(), expectedSize);
+        const int value = label->property("standardPixmapReference").toInt();
+        for (QLabel *active : allActive) {
+            if (active->property("standardPixmapValue").toInt() == value) {
+                if (labelPixmap(active).toImage() != reference.toImage())
+                    differs = true;
+                break;
+            }
+        }
+    }
+    // The reference style's glyph coverage is platform/font dependent; the
+    // point of the column is the comparison, not a fixed amount of artwork.
+    QVERIFY(renderedReferences > 0);
+    QVERIFY2(differs, "Qt reference must differ from the active style somewhere");
+
     // A palette change must re-render the rasters: QLabel stores the pixmap the
     // style drew in the old theme's ink, so nothing recolours by itself.
     const QImage lightInk = labelPixmap(fluent.first()).toImage();

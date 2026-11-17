@@ -764,14 +764,21 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
 {
     Q_UNUSED(option)
     Q_UNUSED(widget)
+    // Issue #69: only exact Fluent counterparts are paired here. A lookalike
+    // is not a pairing: folder vs open folder, back vs forward, skip vs seek
+    // and muted vs unmuted must remain distinguishable glyphs. Anything
+    // without an exact counterpart stays on the base style.
     switch (standard) {
     case QStyle::SP_ArrowBack:
-        return WinUI3::icon(Icon::Back);
+        return WinUI3::icon(Icon::ChevronLeft);
     case QStyle::SP_ArrowDown:
         return WinUI3::icon(Icon::ChevronDown);
     case QStyle::SP_ArrowLeft:
         return WinUI3::icon(Icon::ChevronLeft);
     case QStyle::SP_ArrowRight:
+        return WinUI3::icon(Icon::ChevronRight);
+    case QStyle::SP_ArrowForward:
+    case QStyle::SP_CommandLink:
         return WinUI3::icon(Icon::ChevronRight);
     case QStyle::SP_ArrowUp:
         return WinUI3::icon(Icon::ChevronUp);
@@ -784,8 +791,11 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     case QStyle::SP_TabCloseButton:
 #endif
-    case QStyle::SP_TitleBarCloseButton:
         return WinUI3::icon(Icon::Close);
+    case QStyle::SP_TitleBarCloseButton:
+        // Title-bar close uses Fluent's ChromeClose, not the dialog Cancel
+        // mark: the two sit in different chrome families.
+        return WinUI3::icon(Icon::ChromeClose);
     case QStyle::SP_LineEditClearButton:
         return WinUI3::icon(Icon::Clear);
     case QStyle::SP_DialogSaveButton:
@@ -795,8 +805,13 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_DialogOkButton:
         return WinUI3::icon(Icon::ReturnKey);
     case QStyle::SP_DirIcon:
-    case QStyle::SP_DirOpenIcon:
+    case QStyle::SP_DirClosedIcon:
         return WinUI3::icon(Icon::Folder);
+    case QStyle::SP_DirOpenIcon:
+    case QStyle::SP_DialogOpenButton:
+        // FolderOpen (E838) is a distinct glyph; a closed and an open folder
+        // must not be told apart only by a tooltip.
+        return WinUI3::icon(Icon::FolderOpen);
     case QStyle::SP_DirHomeIcon:
         return WinUI3::icon(Icon::Home);
     case QStyle::SP_FileIcon:
@@ -805,25 +820,72 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_FileDialogDetailedView:
         return WinUI3::icon(Icon::List);
     case QStyle::SP_FileDialogNewFolder:
-        return WinUI3::icon(Icon::Add);
+        return WinUI3::icon(Icon::NewFolder);
     case QStyle::SP_MediaPause:
         return WinUI3::icon(Icon::Pause);
     case QStyle::SP_MediaPlay:
         return WinUI3::icon(Icon::Play);
     case QStyle::SP_MediaStop:
         return WinUI3::icon(Icon::Stop);
+    case QStyle::SP_BrowserStop:
+        return WinUI3::icon(Icon::ErrorBadge);
+    case QStyle::SP_MediaSkipBackward:
+        return WinUI3::icon(Icon::Previous);
+    case QStyle::SP_MediaSkipForward:
+        return WinUI3::icon(Icon::Next);
+    case QStyle::SP_MediaSeekBackward:
+        return WinUI3::icon(Icon::Rewind);
+    case QStyle::SP_MediaSeekForward:
+        return WinUI3::icon(Icon::FastForward);
+    case QStyle::SP_MediaVolume:
+        return WinUI3::icon(Icon::Volume);
+    case QStyle::SP_MediaVolumeMuted:
+        return WinUI3::icon(Icon::Mute);
     case QStyle::SP_MessageBoxCritical:
-        return WinUI3::icon(Icon::Error);
+        return WinUI3::icon(Icon::ErrorBadge);
     case QStyle::SP_MessageBoxInformation:
         return WinUI3::icon(Icon::Info);
     case QStyle::SP_MessageBoxQuestion:
         return WinUI3::icon(Icon::Help);
     case QStyle::SP_MessageBoxWarning:
         return WinUI3::icon(Icon::Warning);
+    case QStyle::SP_TitleBarMinButton:
+        return WinUI3::icon(Icon::Minimize);
+    case QStyle::SP_TitleBarMaxButton:
+        return WinUI3::icon(Icon::Maximize);
     case QStyle::SP_TitleBarMenuButton:
+        return WinUI3::icon(Icon::ButtonMenu);
     case QStyle::SP_ToolBarHorizontalExtensionButton:
     case QStyle::SP_ToolBarVerticalExtensionButton:
         return WinUI3::icon(Icon::More);
+    case QStyle::SP_VistaShield:
+        return WinUI3::icon(Icon::Shield);
+    case QStyle::SP_DesktopIcon:
+    case QStyle::SP_ComputerIcon:
+        return WinUI3::icon(Icon::Monitor);
+    case QStyle::SP_DriveCDIcon:
+    case QStyle::SP_DriveDVDIcon:
+        return WinUI3::icon(Icon::StorageOptical);
+    case QStyle::SP_DriveHDIcon:
+        return WinUI3::icon(Icon::HardDrive);
+    case QStyle::SP_DriveFDIcon:
+        // E74E is the Fluent floppy — Qt's Windows style uses the same mark
+        // for the removable-disk slot.
+        return WinUI3::icon(Icon::Save);
+    case QStyle::SP_TrashIcon:
+        return WinUI3::icon(Icon::Delete);
+    case QStyle::SP_DialogHelpButton:
+        return WinUI3::icon(Icon::GetHelpApp);
+    case QStyle::SP_TitleBarContextHelpButton:
+        return WinUI3::icon(Icon::Help);
+    case QStyle::SP_FileDialogBack:
+        return WinUI3::icon(Icon::ChevronLeft);
+    case QStyle::SP_FileDialogToParent:
+        return WinUI3::icon(Icon::ChevronUp);
+    case QStyle::SP_FileDialogInfoView:
+        return WinUI3::icon(Icon::Info);
+    case QStyle::SP_FileDialogListView:
+        return WinUI3::icon(Icon::List);
     case QStyle::SP_TitleBarNormalButton:
         // Qt's dock float button and every other "restore" slot: the base
         // Windows style hands back a two-window mark drawn with 2 px strokes and

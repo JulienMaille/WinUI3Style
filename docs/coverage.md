@@ -11,21 +11,45 @@ enumeration at 24 px through the active style and sorts each cell by what the
 style actually answered: "Fluent glyphs" when the returned `QIcon` carries the
 reserved `winui3-fluent-icon:` engine name, "Base style fallback" when it does
 not, and "No glyph" when neither the style nor its base style has artwork for
-that ancestor-dependent pixmap. The page reads the engine tag through plain Qt
-API, so the demo remains a plain Qt client; a style swap rebuilds the sheet and
-a palette change re-renders the rasters (a `QLabel` stores a raster, not an
-engine). Captions show the enumerator name; `tst_winui3galleryicons`'s
+that ancestor-dependent pixmap. Each cell now shows two rasters side by side:
+a Qt reference style answer on the left and the active style's answer on the
+right, separated by an arrow. The reference is Qt's official `windows11` plugin
+where available, and Qt's own `Fusion` default style elsewhere (the plugin is
+Windows-only) — both created through `QStyleFactory`, so the page reads only
+plain Qt API and never links the style library. When the reference style has no
+artwork for a slot, the left cell shows the same explicit no-glyph mark.
+Sorting, grouping and the count note still describe only the active (right)
+style. `tst_winui3galleryicons`'s
 `galleryIconsPageListsEveryStandardPixmap` pins one cell per enumerator plus the
-group/artwork agreement, the palette refresh and the style-swap rebuild. All
-enabled-page snapshot captures remain as well.
+group/artwork agreement, one reference label per enumerator on every platform,
+the palette refresh and the style-swap rebuild. All enabled-page snapshot
+captures remain as well.
 
-Status: partial — the audit surface exists so the remaining gaps are reviewable
-in the live Gallery; no new glyph mapping is claimed here. Qt 6.12 defines 85
-`QStyle::StandardPixmap` values. The WinUI 3 style answers 33 of them with its
-own Fluent glyphs; the other 52 still come from the base style, and 17 of those
-have no artwork at all, so that group is the work list for this issue.
-Closing it requires pinning a Fluent source glyph for each remaining enumerator
-and running the live-input sequence on the resulting sheet.
+Glyph reference: [Segoe Fluent Icons font (Microsoft Learn, v1.56)](https://learn.microsoft.com/en-us/windows/apps/design/iconography/segoe-fluent-icons-font)
+is the pinned source for the code points used by `WinUI3::Icon`: closed folder
+E8B7 / open folder E838 / NewFolder E8F4, ChevronLeft E76B / ChevronRight E76C
+(arrows, command link and file-dialog back), previous E892 / next E893 / rewind
+EB9E / fast-forward EB9D, volume E767 / mute E74F, minimize E921 / maximize E922,
+title-bar close E8BB (ChromeClose) / restore E923, system menu EDE3 (ButtonMenu),
+critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, monitor
+E7FB, optical drive E958 and hard drive EDA2. Every added glyph also has a
+Unicode fallback for hosts without the Segoe icon font.
+
+Status: partial — 60 `QStyle::StandardPixmap` values now resolve to an **exact**
+Fluent counterpart; the rest stay on the base style. Pairing rules: a lookalike
+is not a pairing. Folder and open folder are E8B7 and E838; dialog Cancel E711
+and title-bar ChromeClose E8BB are separate glyphs; back/forward, skip/seek and
+volume/mute are separate glyphs. `SP_DirLinkIcon`, the floppy drive, the dialog
+*ToAll* variants and the title-bar shade buttons have no exact Fluent
+counterpart in the pinned set and are deliberately left on the base style.
+`SP_CustomBase` is a sentinel and is asserted to stay unmapped.
+
+Mechanism evidence: `trailingGlyphsRenderInk` (RED before the fix —
+`Icon::Accept`/`Icon::ReturnKey` fell past the old icon-count constant and came
+back as the shared empty `QIcon`, which made the old cacheKey comparison pass
+vacuously) and the data-driven `mappedStandardPixmaps` proof, which asserts the
+exact `winui3-fluent-icon:<n>` engine name and rendered ink for every mapping
+the style actually claims, rather than merely checking that a cell is non-empty.
 
 ## Issue #57 — TextBox / NumberBox resting elevation border (2026-11-14)
 

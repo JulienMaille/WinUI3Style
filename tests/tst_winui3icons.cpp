@@ -63,6 +63,7 @@ private slots:
     void simpleMarksUseVectorFallback();
     void complexSymbolsUseUnicodeFallback();
     void saveIconUsesVectorFallbackWithoutSegoe();
+    void trailingGlyphsRenderInk();
 };
 
 void WinUI3IconsTest::cachedFontSurvivesInvalidate()
@@ -259,6 +260,31 @@ void WinUI3IconsTest::saveIconUsesVectorFallbackWithoutSegoe()
             if (qAlpha(image.pixel(x, y)))
                 ++ink;
     QVERIFY(ink * 4 < bounds.width() * bounds.height() * 3);
+}
+
+void WinUI3IconsTest::trailingGlyphsRenderInk()
+{
+    // Issue #69: the icon count used to stop at SortDescending, so the two
+    // glyphs appended after it (the dialog Yes/OK marks) fell off the end of
+    // every lookup table and came back as the shared empty QIcon. Checking
+    // cacheKey equality alone cannot catch that: both the style answer and
+    // the reference are the same empty icon. Render actual ink instead.
+    const WinUI3::Icon trailing[] = { WinUI3::Icon::Accept, WinUI3::Icon::ReturnKey };
+    for (WinUI3::Icon glyph : trailing) {
+        const QIcon icon = WinUI3::icon(glyph);
+        QVERIFY2(!icon.isNull(), "appended glyph has no icon engine");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QVERIFY2(WinUI3::isFluentIcon(icon), "appended glyph lost its Fluent tag");
+#endif
+        const QPixmap pixmap = icon.pixmap(QSize(24, 24));
+        QVERIFY2(!pixmap.isNull(), "appended glyph produced no pixmap");
+#ifdef Q_OS_WIN
+        // Segoe ships with Windows; on Linux the Unicode/vector fallback
+        // depends on installed fonts, so the Fluent-tag assertion above is
+        // the font-independent proof there.
+        QVERIFY2(!alphaBounds(pixmap).isEmpty(), "appended glyph rendered no ink");
+#endif
+    }
 }
 
 QTEST_MAIN(WinUI3IconsTest)
