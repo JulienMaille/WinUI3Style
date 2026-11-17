@@ -1476,7 +1476,12 @@ QColor Style::accentColor() const
 
 bool Style::animationsAllowed()
 {
-    return !qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
+    // Explicit opt-out always wins; otherwise follow the effective Windows
+    // animation preference (SPI_GETCLIENTAREAANIMATION). Non-Windows hosts and
+    // a failed native query keep motion enabled.
+    if (qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS"))
+        return false;
+    return Private::systemAnimationsAllowed();
 }
 
 namespace {

@@ -14,6 +14,10 @@
 #  define NOMINMAX
 #  include <windows.h>
 #  include <dwmapi.h>
+// Older MinGW w32api headers do not declare the accessibility SPI constants.
+#  ifndef SPI_GETCLIENTAREAANIMATION
+#    define SPI_GETCLIENTAREAANIMATION 0x1042
+#  endif
 #endif
 
 namespace WinUI3::Private {
@@ -37,6 +41,9 @@ struct SystemAppearanceCache
     QElapsedTimer accentAge;
     bool accentInitialized = false;
     SystemAccentRamp accentRamp;
+    QElapsedTimer animationsAge;
+    bool animationsInitialized = false;
+    bool animations = true;
 
     bool darkFresh() const
     {
@@ -46,6 +53,11 @@ struct SystemAppearanceCache
     bool accentFresh() const
     {
         return accentAge.isValid() && accentAge.elapsed() < systemAppearanceCacheLifetimeMs;
+    }
+
+    bool animationsFresh() const
+    {
+        return animationsAge.isValid() && animationsAge.elapsed() < systemAppearanceCacheLifetimeMs;
     }
 };
 
@@ -129,6 +141,8 @@ void invalidateSystemAppearanceCache()
     // "fresh" window behind if a later write reuses an old timer value.
     cache.darkAge.invalidate();
     cache.accentAge.invalidate();
+    cache.animationsInitialized = false;
+    cache.animationsAge.invalidate();
 #endif
 }
 
@@ -201,6 +215,37 @@ SystemAccentRamp systemAccentRamp()
 QColor systemAccentColor()
 {
     return systemAccentRamp().accent;
+}
+
+bool systemAnimationsAllowed()
+{
+#ifdef Q_OS_WIN
+    {
+        const QMutexLocker locker(&systemAppearanceCacheMutex());
+        auto &cache = systemAppearanceCache();
+        if (cache.animationsInitialized && cache.animationsFresh())
+            return cache.animations;
+    }
+    // SPI_GETCLIENTAREAANIMATION is the preference behind the Settings
+    // "Animation effects" switch and WinRT UISettings.AnimationsEnabled.
+    // SPI_GETUIEFFECTS is a different master switch and MinAnimate only
+    // covers window minimize/maximize, so neither describes client-area
+    // motion. Fail open when the query is unsupported or refused: missing
+    // evidence is not a user request to remove motion.
+    BOOL enabled = TRUE;
+    const bool queried = SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0) != 0;
+    const bool allowed = !queried || enabled != FALSE;
+    {
+        const QMutexLocker locker(&systemAppearanceCacheMutex());
+        auto &cache = systemAppearanceCache();
+        cache.animations = allowed;
+        cache.animationsInitialized = true;
+        cache.animationsAge.start();
+    }
+    return allowed;
+#else
+    return true;
+#endif
 }
 
 QPalette standardPalette(bool darkTheme, const QColor &accent, bool explicitAccent)

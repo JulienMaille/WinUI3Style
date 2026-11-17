@@ -8,10 +8,19 @@
 // the contract instead of guessing.
 #include <winui3style/winui3style.h>
 
+#include "../src/lib/winui3theme_p.h"
+
 #include <QApplication>
 #include <QPalette>
+#include <QScopeGuard>
 #include <QStyleHints>
 #include <QtTest>
+
+#ifdef Q_OS_WIN
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
+#endif
 
 class WinUI3SystemThemeTest final : public QObject
 {
@@ -21,6 +30,7 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void systemModeFollowsPlatformSchemeOverStyleOwnedPalette();
+    void animationsAllowedFollowsSystemPreferenceAndOverride();
 
 private:
     WinUI3::Style *m_style = nullptr;
@@ -65,6 +75,41 @@ void WinUI3SystemThemeTest::systemModeFollowsPlatformSchemeOverStyleOwnedPalette
     m_style->setThemeMode(WinUI3::ThemeMode::Light);
     QCOMPARE(qGray(qApp->palette().color(QPalette::Window).rgb()) > 128, true);
 #endif
+}
+
+void WinUI3SystemThemeTest::animationsAllowedFollowsSystemPreferenceAndOverride()
+{
+    WinUI3::Private::invalidateSystemAppearanceCache();
+    const bool envWasSet = qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
+    const QByteArray savedEnv = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    const auto restore = qScopeGuard([&] {
+        if (envWasSet)
+            qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", savedEnv);
+        else
+            qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+        WinUI3::Private::invalidateSystemAppearanceCache();
+    });
+
+    qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    WinUI3::Private::invalidateSystemAppearanceCache();
+
+#ifdef Q_OS_WIN
+    constexpr UINT spiGetClientAreaAnimation = 0x1042;
+    BOOL native = FALSE;
+    QVERIFY(SystemParametersInfoW(spiGetClientAreaAnimation, 0, &native, 0));
+    const bool expected = native != FALSE;
+    QCOMPARE(WinUI3::Private::systemAnimationsAllowed(), expected);
+#else
+    const bool expected = true;
+    QVERIFY(WinUI3::Private::systemAnimationsAllowed());
+#endif
+    QCOMPARE(WinUI3::Style::animationsAllowed(), expected);
+
+    // Explicit opt-out wins over the system preference, for any env value.
+    qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
+    QVERIFY(!WinUI3::Style::animationsAllowed());
+    qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "0");
+    QVERIFY(!WinUI3::Style::animationsAllowed());
 }
 
 QTEST_MAIN(WinUI3SystemThemeTest)
