@@ -66,12 +66,19 @@ int main(int argc, char *argv[])
     window.resize(1180, 780);
     window.show();
     if (captureMode) {
-        QTimer::singleShot(250, &application,
-                           [&application, &window, &parser, captureOption, backdropOption] {
-                               const bool saved = window.saveSnapshots(
-                                       parser.value(captureOption), parser.value(backdropOption));
-                               application.exit(saved ? 0 : 2);
-                           });
+        // A persistent QTimer instead of QTimer::singleShot: the transient
+        // single-shot timer can leave the dispatcher unable to deliver timers
+        // created later in the capture (the settle waits), hanging offscreen
+        // runs forever. Keep this timer alive for the whole capture.
+        auto *startCapture = new QTimer(&application);
+        startCapture->setSingleShot(true);
+        QObject::connect(startCapture, &QTimer::timeout,
+                         [&application, &window, &parser, captureOption, backdropOption] {
+                             const bool saved = window.saveSnapshots(parser.value(captureOption),
+                                                                     parser.value(backdropOption));
+                             application.exit(saved ? 0 : 2);
+                         });
+        startCapture->start(250);
     }
     return application.exec();
 }
