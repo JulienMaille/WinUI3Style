@@ -2,6 +2,7 @@
 
 #define WINUI3STYLE_NATIVE_CAPTURE
 #include "winui3testhelpers.h"
+#include "winui3theme_p.h"
 #include "winui3tokens_p.h"
 
 #include <QComboBox>
@@ -23,6 +24,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QScopeGuard>
 #include <QStackedWidget>
 #include <QParallelAnimationGroup>
 #include <QSignalSpy>
@@ -117,6 +119,7 @@ private slots:
     void dockFloatingFocusCleanup();
     void scrollBarNativeInputDiagnostic();
     void sliderToolTipDebounceSurface();
+    void animationPreferenceFollowsWindowsSetting();
 };
 
 void WinUI3StyleNativeTest::initTestCase()
@@ -728,6 +731,51 @@ void WinUI3StyleNativeTest::scrollBarNativeInputDiagnostic()
     if (probe.leaves == 0)
         QSKIP("The current Windows session did not deliver a native Leave event");
     QCOMPARE(probe.leaves, 1);
+}
+
+void WinUI3StyleNativeTest::animationPreferenceFollowsWindowsSetting()
+{
+#ifdef Q_OS_WIN
+    constexpr UINT spiGet = 0x1042;
+    constexpr UINT spiSet = 0x1043;
+    BOOL original = FALSE;
+    QVERIFY(SystemParametersInfoW(spiGet, 0, &original, 0));
+    const auto restore = qScopeGuard([&] {
+        SystemParametersInfoW(spiSet, 0, reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(original)),
+                              0);
+        WinUI3::Private::invalidateSystemAppearanceCache();
+    });
+    const bool envWasSet = qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS");
+    const QByteArray savedEnv = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    const auto restoreEnv = qScopeGuard([&] {
+        if (envWasSet)
+            qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", savedEnv);
+        else
+            qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    });
+    qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+
+    // Both directions: the style must track the effective preference, not a
+    // hardcoded "enabled" default. No SPIF flags: the change is per-session
+    // and the guard restores the original value.
+    QVERIFY(SystemParametersInfoW(spiSet, 0, reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(0)),
+                                  0));
+    WinUI3::Private::invalidateSystemAppearanceCache();
+    QVERIFY(!WinUI3::Private::systemAnimationsAllowed());
+    QVERIFY(!WinUI3::Style::animationsAllowed());
+
+    QVERIFY(SystemParametersInfoW(spiSet, 0, reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(1)),
+                                  0));
+    WinUI3::Private::invalidateSystemAppearanceCache();
+    QVERIFY(WinUI3::Private::systemAnimationsAllowed());
+    QVERIFY(WinUI3::Style::animationsAllowed());
+
+    // Explicit opt-out still wins when the system allows motion.
+    qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
+    QVERIFY(!WinUI3::Style::animationsAllowed());
+#else
+    QSKIP("Windows-only native preference test");
+#endif
 }
 
 QTEST_MAIN(WinUI3StyleNativeTest)

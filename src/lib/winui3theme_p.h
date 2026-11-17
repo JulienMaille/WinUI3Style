@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include <winui3style/winui3global.h>
+
 #include <QColor>
 #include <QPalette>
 
@@ -18,6 +20,13 @@ bool systemUsesDarkTheme();
 SystemAccentRamp systemAccentRamp();
 QColor systemAccentColor();
 
+// Effective Windows animation preference (SPI_GETCLIENTAREAANIMATION, the same
+// signal as WinRT UISettings.AnimationsEnabled / the Settings "Animation
+// effects" switch). True off Windows and when the native query fails: an
+// unreadable preference must never silently remove motion. Same cache and
+// invalidation contract as the theme/accent probes above.
+WINUI3STYLE_EXPORT bool systemAnimationsAllowed();
+
 // Threading contract: every function in this header must be called from the
 // GUI thread. The Windows appearance cache behind these queries (see
 // winui3theme_p.cpp) is mutex-guarded so concurrent cache reads/writes are
@@ -31,7 +40,7 @@ QColor systemAccentColor();
 // Drops the cached Windows appearance values so the next theme/accent query
 // observes the values published by the shell. This is a no-op on platforms
 // where the appearance helpers do not maintain a native cache.
-void invalidateSystemAppearanceCache();
+WINUI3STYLE_EXPORT void invalidateSystemAppearanceCache();
 
 // Builds the application palette for the given theme.
 // Accent roles: when explicitAccent is false the accent argument is IGNORED
