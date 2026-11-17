@@ -249,6 +249,23 @@ jobs:
       - name: Smoke-test clean installation with a Qt-only client
         shell: pwsh
         run: ./tools/install_smoke.ps1 -BuildDir build -Configuration $env:BUILD_CONFIGURATION
+      - name: Enable animation effects for the motion contracts
+        shell: pwsh
+        run: |
+          # Hosted runners commonly report client-area animation off. The style
+          # now honours that preference (#52), but the motion tests and gallery
+          # baselines assert animated frames, so opt this ephemeral session in.
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class WinUI3AnimationSetting {
+              [DllImport("user32.dll", SetLastError = true)]
+              public static extern bool SystemParametersInfoW(uint action, uint param, IntPtr value, uint flags);
+          }
+          "@
+          if (-not [WinUI3AnimationSetting]::SystemParametersInfoW(0x1043, 0, [IntPtr]1, 0)) {
+            throw "SPI_SETCLIENTAREAANIMATION failed"
+          }
       - name: Test (exclude interactive native tests)
         shell: pwsh
         run: |
