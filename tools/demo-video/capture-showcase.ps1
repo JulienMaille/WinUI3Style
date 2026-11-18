@@ -32,6 +32,7 @@ public static class ShowCapture3 {
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint state);
+    [DllImport("user32.dll", SetLastError=true)] public static extern bool SystemParametersInfoW(uint action, uint param, ref int value, uint flags);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 }
@@ -42,6 +43,13 @@ $desktopName = New-Object Text.StringBuilder 128
 $desktopNeeded = 0
 [ShowCapture3]::GetUserObjectInformation($desktopHandle, 2, $desktopName, 128, [ref]$desktopNeeded) | Out-Null
 if ($desktopName.ToString() -ne 'Default') { throw "Windows input desktop is '$($desktopName.ToString())'; unlock Windows before capture." }
+# The style honours this accessibility preference; recording with it off
+# produces a frozen indeterminate progress bar and no transition midpoints.
+[int]$clientAnimation = 0
+[ShowCapture3]::SystemParametersInfoW(0x1042, 0, [ref]$clientAnimation, 0) | Out-Null
+if ($clientAnimation -eq 0) {
+  throw 'Windows client-area animation is off (SPI_GETCLIENTAREAANIMATION). Enable Settings > Accessibility > Visual effects > Animation effects before capture.'
+}
 
 $qt = $QtRoot
 $plugins = Join-Path $BuildDir 'plugins'
