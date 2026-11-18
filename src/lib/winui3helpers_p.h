@@ -21,6 +21,7 @@
 #include <QComboBox>
 #include <QGroupBox>
 #include <QGuiApplication>
+#include <QKeySequenceEdit>
 #include <QLayout>
 #include <QLineEdit>
 #include <QPalette>
@@ -93,6 +94,17 @@ inline bool comboBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
             && qobject_cast<const QComboBox *>(widget->parentWidget());
+}
+
+// The private QLineEdit that QKeySequenceEdit lays over its whole surface.
+// The recorder exposes no style entry for the sequence text, so the TextBox
+// panel paints the keycaps itself and SE_LineEditContents returns an empty
+// slot for this editor. Detected by parent class, not by the private child
+// object name, so it survives Qt version changes.
+inline bool keySequenceEditor(const QWidget *widget)
+{
+    return qobject_cast<const QLineEdit *>(widget)
+            && qobject_cast<const QKeySequenceEdit *>(widget->parentWidget());
 }
 
 // The trailing clear/completer button inside a QLineEdit.
