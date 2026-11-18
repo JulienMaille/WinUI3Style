@@ -1,11 +1,6 @@
 # WinUI3Style
 
-A Qt 6 Widgets style inspired by the released WinUI 3 controls in Windows App
-SDK 2.4. It provides light and dark themes, system accent colors, animated
-interaction states, Standard and Compact density profiles, Fluent glyphs,
-Mica main-window and opaque rounded popup surfaces, property-driven
-native-widget variants, settings/navigation composition, a demo gallery,
-and Qt Test coverage.
+A WinUI 3 `QStyle` for Qt Widgets (Qt 6.5+, with Qt 5.12 fallback), modeled after Windows App SDK 2.4. It styles stock Qt widgets without QSS stylesheet: painting, state animations, light/dark themes, system accent colors, Standard/Compact density, Fluent glyphs, and Windows Mica/Acrylic backdrops.
 
 [![Live 60 fps Light/Dark demo: stock Qt widgets driven by real mouse and keyboard input](docs/images/winui3style-widgets-live.webp)](docs/images/winui3style-widgets-live.mp4)
 
@@ -16,45 +11,58 @@ tooling lives on the `feature/demo-video-and-popup-corners` branch.
 ![WinUI3Style gallery, light theme](docs/images/hero-gallery-light.png)
 ![WinUI3Style gallery, dark theme](docs/images/hero-gallery-dark.png)
 
-The gallery uses stock Qt widgets with no QSS; all visuals are QStyle-painted.
-Deterministic offscreen captures from `winui3style_snapshot_matrix` (gallery page 0, light and dark).
+> **v0.1.0 experimental preview.** Control parity is tracked in [docs/coverage.md](docs/coverage.md); see [tools/poc/README.md](tools/poc/README.md) for the portable Windows x64 gallery package.
 
-The project deliberately contains no QSS. All visuals are produced by
-`QStyle`, widget painting, palettes, and native Windows backdrop APIs.
+## Usage
 
-## First experimental PoC
+### As a Qt style plugin
 
-Version 0.1.0 is an experimental preview, not a claim of complete WinUI parity.
-See [the PoC instructions](tools/poc/README.md) for the portable Windows x64
-gallery package, deployment requirements, limitations, and publication checks.
+Deploy the `qwinui3style` plugin (`qwinui3style.dll` on Windows) into Qt's `styles/` plugin directory. Launch any Qt Widgets app with `-style winui3` or `-style winui3compact`, or load it in code:
 
-## Repository layout
+```cpp
+QApplication::setStyle(QStyleFactory::create(QStringLiteral("winui3")));
+```
 
-| Path | Contents |
-|------|----------|
-| `src/include/winui3style/` | Public headers (`WinUI3::Widgets`) |
-| `src/lib/` | Style library implementation, tokens, and CMake package template |
-| `src/plugin/` | `QStylePlugin` exposing the `winui3`/`winui3compact` keys |
-| `src/gallery/` | `winui3style_gallery` reference application |
-| `tests/` | Qt Test binaries and shared helpers (`winui3testhelpers.h`) |
-| `tests/baselines/gallery/` | Pinned Windows snapshot baselines |
-| `tests/contracts/` | Source, Designer, package, and covered-element gates |
-| `tests/benchmarks/` | Opt-in render benchmark |
-| `tools/` | Snapshot runner, image oracle, packaging and install scripts |
-| `docs/` | Methodology, coverage, compatibility, and pinned WinUI evidence |
+### From CMake
 
-## Build
+When included via `add_subdirectory()` or `FetchContent`, tests and the gallery default to `OFF`:
+
+```cmake
+add_subdirectory(third_party/WinUI3Style)
+target_link_libraries(app PRIVATE WinUI3::Widgets)
+```
+
+## Widget variants and density
+
+Variants are configured on stock widgets via dynamic properties (in C++ or Qt Designer's Property Editor):
+
+| Property | Applies to | Values / behavior |
+|----------|------------|-------------------|
+| `winuiToggleSwitch` | `QCheckBox` | Renders as a ToggleSwitch (`winuiOnText` / `winuiOffText` optional) |
+| `winuiControlRole` | Buttons | `standard`, `accent`, `subtle`, `navigation`, `destructive` |
+| `winuiVerticalSpinButtons` | `QSpinBox`, `QDoubleSpinBox` | `true` for stacked spin buttons (default is inline) |
+| `winuiSettingsCard` | `QFrame`, `QGroupBox` | Styles as a SettingsCard (`winuiSettingsCardExpansion=true` on child, `winuiSettingsCardExpanded` for state) |
+| `winuiNavigationView` | Item views | Styles as a NavigationView |
+| `winuiContentDialog` | `QDialog` | ContentDialog surface and motion (automatic for `QMessageBox`) |
+| `winuiBackdrop` | Top-level window | `none`, `mica`, `mica-alt`, `acrylic` (Windows) |
+| `winuiSurface` | Client widgets | `content` or `layer` over a native backdrop |
+| `winuiDensity` | Any widget / container | `standard` or `compact` (inherited) |
+
+Global density defaults to Standard for `winui3` and Compact for `winui3compact`, and can be switched at runtime via `style()->setProperty("densityMode", 1)`.
+
+## Build and test
+
+### Windows (MSVC)
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-  -DCMAKE_PREFIX_PATH=C:/Qt/6-build/qt-6.9.2-dynamic-msvc-x64
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=C:/Qt/6.9.2/msvc2022_64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The same tree configures and builds on Linux (and macOS) with a Qt 6.5+
-installation; only the Mica backdrop, the system-appearance watcher, and the
-native compositor tests need Windows, and those compile out elsewhere:
+### Linux / macOS
+
+Windows-only features (Mica/Acrylic backdrops, system appearance watcher, native compositor tests) compile out elsewhere:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -62,91 +70,4 @@ cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure -LE native
 ```
 
-The `linux-gate` CI job runs exactly that, including the portable
-`winui3style_image_comparison_contract` oracle. The gallery snapshot matrix
-(`winui3style_snapshot_matrix`) is registered on Windows only, because
-`tests/baselines/gallery` is the pinned Windows raster.
-
-`WINUI_ENABLE_TESTS` (default `ON` for the top-level build) builds the test
-suite and `WINUI3STYLE_BUILD_DEMO` builds the gallery. Both default to `OFF`
-when the tree is embedded with `add_subdirectory()` or `FetchContent`, so a
-consumer gets the library and the plugin without Qt::Test, Pillow, or the
-gallery, and can turn them back on with one switch:
-
-```cmake
-set(WINUI_ENABLE_TESTS OFF)   # or pass -DWINUI_ENABLE_TESTS=OFF
-add_subdirectory(third_party/WinUI3Style)
-target_link_libraries(app PRIVATE WinUI3::Widgets)
-```
-
-`WINUI3STYLE_BUILD_TESTS` is the deprecated spelling of the same switch and is
-still honored.
-
-The `winui3style_gallery` executable is the interactive reference application.
-Its widget hierarchy lives in `src/gallery/gallerywindow.ui`. The gallery loads
-the style plugin through Qt's factory and does not link `WinUI3::Widgets`
-directly, so it is an ordinary plugin consumer. The style implementation is
-embedded in the plugin, so deployment needs only `qwinui3style.dll` (plus Qt's
-runtime dependencies) and no separate implementation DLL. An independent
-Qt-only application is checked by `tools/install_smoke.ps1`, demonstrating
-plugin deployment without linking or recompiling the application against
-WinUI3Style. Internal targets and tests that need the implementation as a
-library can still link `WinUI3::Widgets`.
-The style can also be loaded through `QStyleFactory::create("winui3")` when the
-plugin is deployed under Qt's `styles` plugin directory. The optional
-`winui3compact` factory key creates the same style with Compact as its global
-default; it is an alias, not a second implementation.
-
-The visual comparison workflow and pinned Microsoft sources are documented in
-`docs/`. The public CMake target is `WinUI3::Widgets`. The implementation uses
-`QCommonStyle` only as a small, public Qt fallback for semantic text/icon
-layout and explicitly unsupported controls; all covered visual and interaction
-contracts live in `WinUI3::Style`.
-
-## Opt-in render benchmark
-
-Build with `-DWINUI3STYLE_BUILD_BENCHMARKS=ON` and run
-`winui3style_render_benchmark.exe` offscreen.
-
-## Validated configurations
-
-The hosted CI workflow is the authoritative matrix: Windows MSVC x64 with Qt
-6.8.3 and 6.12.0 (Debug and Release, full CTest plus the snapshot gate), Windows
-MinGW 5.12.12 (build only), and Linux GCC with Qt 6.8.3 (CTest, native tests
-excluded). The snapshot gate is Windows-only because its baselines pin the
-Windows raster (Segoe UI and Fluent glyphs). The CMake floor is Qt 6.5, falling
-back to Qt 5.12 when Qt 6 is absent.
-
-## Native widget variants
-
-Visual variants keep Qt's native semantics and are selected with dynamic
-properties (Designer: Property Editor `+` button). No application-side
-painting or animation is required.
-
-| Property | Widget |
-|----------|--------|
-| `winuiToggleSwitch`, `winuiOnText`/`winuiOffText` (optional) | `QCheckBox` becomes a ToggleSwitch |
-| `winuiControlRole`: `standard`, `accent`, `subtle`, `navigation`, `destructive` | Buttons |
-| `winuiVerticalSpinButtons=true` | `QSpinBox`/`QDoubleSpinBox` (stacked buttons; default is horizontal inline) |
-| `winuiSettingsCard=true` | `QFrame`/`QGroupBox` |
-| `winuiSettingsCardExpansion=true` | Direct child of a settings card: its collapsible content |
-| `winuiSettingsCardExpanded` | Settings card: read/write expanded state (animates) |
-| `winuiNavigationView=true` | Standard Qt item view |
-| `winuiContentDialog=true` | `QDialog` (plus automatic `QMessageBox` surface with Segoe Fluent glyphs) |
-| `winuiBackdrop`: `none`, `mica`, `mica-alt`, `acrylic` | Top-level window |
-| `winuiSurface=content` or `layer` | Client regions over a native backdrop (opaque layers; no hover/scroll trails) |
-| `winuiDensity=standard` or `compact` | Any container or control (inherited; changeable at runtime) |
-
-## Standard and Compact density
-
-Density is independent of theme: `winui3` starts Standard, `winui3compact`
-starts Compact, switchable globally via `style()->setProperty("densityMode", 1)`
-or per-form via the inherited `winuiDensity` property in Designer.
-Compact scope follows WinUI Compact Sizing; Fluent consistency extensions (NumberBox-height
-spin boxes, `QTableView`/multi-column tree headers) are one-liners here — see `docs/coverage.md`.
-
-Item views use standard Qt models and delegates: `QListView` maps to ListView,
-a headerless `QTreeView` to TreeView. The style supplies ContentDialog surface,
-spacing, primary-button role, and entrance motion; the application owns content
-and command composition. QStyle owns geometry, painting, focus, click/drag
-interaction, and state animation; public helpers stay source-compatible wrappers.
+Pass `-DWINUI_ENABLE_TESTS=OFF` or `-DWINUI3STYLE_BUILD_DEMO=OFF` to omit tests or `winui3style_gallery`. See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) for the visual verification workflow and [docs/coverage.md](docs/coverage.md) for supported controls.
