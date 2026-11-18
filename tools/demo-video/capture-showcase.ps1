@@ -8,7 +8,8 @@ param(
     [double]$Scale = 2.109375,
     [int]$MonitorX = 0,
     [int]$MonitorY = 0,
-    [int]$DurationSeconds = 30
+    [int]$DurationSeconds = 30,
+    [int]$Framerate = 30
 )
 $ErrorActionPreference = 'Stop'
 Get-Process winui3showcase -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -116,7 +117,7 @@ if (-not $Ffmpeg -or -not (Test-Path $Ffmpeg)) {
 $raw = $Raw
 $size = "${w}x${hgt}"
 $args = @(
-    '-y', '-f', 'gdigrab', '-framerate', '30',
+    '-y', '-f', 'gdigrab', '-framerate', "$Framerate",
     '-video_size', $size, '-offset_x', "$($pt.X)", '-offset_y', "$($pt.Y)",
     '-draw_mouse', '1', '-i', 'desktop', '-t', "$DurationSeconds",
     '-vf', 'crop=trunc(iw/2)*2:trunc(ih/2)*2',
