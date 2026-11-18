@@ -11,6 +11,16 @@ the capture script refuses to record when the input desktop is not `Default` or
 when the showcase window cannot take foreground. Recording takes over the real
 mouse and keyboard for about 30 seconds per theme; do not touch them.
 
+Windows **Animation effects** must also be enabled for the session. The style
+honours `SPI_GETCLIENTAREAANIMATION`, so with the OS preference off the style's
+16 ms progress-bar timer never runs and the recorded bar is frozen. Check and,
+if needed, enable it before recording:
+
+```powershell
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool SystemParametersInfoW(uint a, uint b, System.IntPtr c, uint d);' -Name Spi -Namespace Win32
+[Win32.Spi]::SystemParametersInfoW(0x1043, 0, [IntPtr]1, 0) # SPI_SETCLIENTAREAANIMATION
+```
+
 ## Files
 
 | File | Purpose |
