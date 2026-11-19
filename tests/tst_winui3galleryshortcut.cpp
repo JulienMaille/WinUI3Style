@@ -4,18 +4,24 @@
 #include "../src/gallery/gallerywindow.h"
 #include "winui3testhelpers.h"
 
+#include "../src/lib/winui3helpers_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
 #include <QApplication>
+#include <QColor>
 #include <QComboBox>
+#include <QHash>
 #include <QImage>
 #include <QKeySequence>
 #include <QKeySequenceEdit>
 #include <QLineEdit>
 #include <QRect>
+#include <QStringList>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QtTest>
+
+#include <algorithm>
 
 namespace {
 
@@ -83,6 +89,37 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderReachable()
     qApp->processEvents();
     const auto t = WinUI3::Private::tokens(recorder->palette());
     const QImage image = recorder->grab().toImage();
+    {
+        // TEMP diagnostic: report the state and the most common colors so the
+        // Linux CI log shows what the rest state actually painted.
+        QHash<QRgb, int> histogram;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                ++histogram[image.pixel(x, y)];
+        QList<QPair<int, QRgb>> top;
+        for (auto it = histogram.cbegin(); it != histogram.cend(); ++it)
+            top.append({ it.value(), it.key() });
+        std::sort(top.begin(), top.end(),
+                  [](const auto &a, const auto &b) { return a.first > b.first; });
+        QStringList dump;
+        for (int i = 0; i < top.size() && i < 12; ++i)
+            dump << QStringLiteral("%1x%2").arg(QColor(top.at(i).second).name(QColor::HexArgb))
+                            .arg(top.at(i).first);
+        qInfo("DIAG rest: size=%dx%d dpr=%g recorderFocus=%d fieldFocus=%d focusWidget=%s"
+              " keySeqEditor=%d accentFill=%s selectionAccent=%s textPrimary=%s"
+              " onAccent=%s dark=%d palAccent=%s palHighlight=%s",
+              image.width(), image.height(), image.devicePixelRatio(),
+              int(recorder->hasFocus()), int(field->hasFocus()),
+              qApp->focusWidget() ? qApp->focusWidget()->metaObject()->className() : "none",
+              int(WinUI3::Private::keySequenceEditor(field)),
+              qPrintable(t.accentFill.name(QColor::HexArgb)),
+              qPrintable(t.selectionAccent.name(QColor::HexArgb)),
+              qPrintable(t.textPrimary.name(QColor::HexArgb)),
+              qPrintable(t.textOnAccentPrimary.name(QColor::HexArgb)), int(t.dark),
+              qPrintable(recorder->palette().color(QPalette::Accent).name(QColor::HexArgb)),
+              qPrintable(recorder->palette().color(QPalette::Highlight).name(QColor::HexArgb)));
+        qInfo("DIAG top colors: %s", qPrintable(dump.join(QStringLiteral(" "))));
+    }
     const qreal dpr = image.devicePixelRatio();
     QRect caps;
     for (int y = 0; y < image.height(); ++y) {
