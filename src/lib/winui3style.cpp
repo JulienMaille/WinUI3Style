@@ -50,6 +50,7 @@
 #include <QFrame>
 #include <QFontDatabase>
 #include <QGroupBox>
+#include <QHeaderView>
 #include <QGuiApplication>
 #include <QLinearGradient>
 #include <QListView>
@@ -647,6 +648,18 @@ void invalidateDensityTree(QWidget *root)
     // so walk in reverse. Each level is repositioned and repainted before
     // its parent freezes its own rows.
     const auto descendants = root->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
+    const auto refreshHeader = [](QWidget *widget) {
+        if (auto *header = qobject_cast<QHeaderView *>(widget)) {
+            QEvent styleChange(QEvent::StyleChange);
+            QCoreApplication::sendEvent(header, &styleChange);
+            if (auto *table = qobject_cast<QTableView *>(header->parentWidget()))
+                table->doItemsLayout();
+        }
+    };
+    // Header caches and table geometry must agree before any synchronous repaint.
+    for (QWidget *widget : descendants)
+        refreshHeader(widget);
+    refreshHeader(root);
     for (auto it = descendants.crbegin(); it != descendants.crend(); ++it)
         invalidateWidget(*it);
     invalidateWidget(root);
@@ -2259,6 +2272,10 @@ void Style::polishDensityWidget(QWidget *widget)
 {
     if (widget->property(DensityProperty).isValid())
         invalidateDensityTree(widget);
+    if (auto *header = qobject_cast<QHeaderView *>(widget)) {
+        QEvent styleChange(QEvent::StyleChange);
+        QCoreApplication::sendEvent(header, &styleChange);
+    }
     if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
         prepareLineEditHelperButtons(lineEdit, this);
         syncCompleterPopupDensity(lineEdit);

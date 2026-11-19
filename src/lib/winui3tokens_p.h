@@ -37,6 +37,10 @@ inline QMargins settingsExpanderContentMargins(bool rtl)
     // + presenter Margin 0,-2,0,0. Header also includes its 1 px border.
     return rtl ? QMargins(45, 7, 59, 9) : QMargins(59, 7, 45, 9);
 }
+// DataGrid consistency extension: docs/coverage.md, not a WinUI Compact template.
+constexpr int CompactTableRowHeight = 28;
+constexpr int CompactTableHeaderHeight = 24;
+constexpr int CompactTableHeaderVerticalPadding = 2;
 constexpr qreal ControlRadius = 4.0;
 // TextBox_themeresources_perf2026.xaml: reflected absolute 0,0 -> 0,2
 // elevation brush, strong stop at 0.5; TextControlBorderThemeThickness is 1.

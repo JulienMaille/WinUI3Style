@@ -330,8 +330,19 @@ static QSize itemViewItemSize(const Style *style, QSize size, const QStyleOption
         size.setHeight(density.listItemHeight);
     } else if (qobject_cast<const QTreeView *>(itemView(widget))) {
         size.setHeight(density.treeItemHeight);
-    } else if (qobject_cast<const QTableView *>(itemView(widget))) {
-        size.setHeight(density.tableItemHeight);
+    } else if (const auto *table = qobject_cast<const QTableView *>(itemView(widget))) {
+        if (!calendarPopupItemView(widget)) {
+            if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+                item && (item->index.flags() & Qt::ItemIsEditable)) {
+                const int editorHeight =
+                        lineEditSize(option, QSize(), density, densityModeFor(widget, style))
+                                .height();
+                size.setHeight(qMax(size.height(), editorHeight + int(table->showGrid())));
+            }
+            size.setHeight(qMax(size.height(), density.tableItemHeight));
+        } else {
+            size.setHeight(standardDensityMetrics.tableItemHeight);
+        }
         // SE_ItemViewItemText insets a table cell by the DataGrid text
         // column's 12 px margin on both sides. The content size must carry
         // that same gutter, or ResizeToContents paints the text into a slot
@@ -344,8 +355,15 @@ static QSize itemViewItemSize(const Style *style, QSize size, const QStyleOption
 }
 
 static QSize headerSectionSize(const Style *style, QSize size, const QStyleOption *option,
-                               const QWidget *widget, const DensityMetrics &density)
+                               const QWidget *widget, const DensityMetrics &density,
+                               DensityMode mode)
 {
+    const bool compactTable = mode == DensityMode::Compact && widget
+            && qobject_cast<const QTableView *>(widget->parentWidget())
+            && !calendarPopupItemView(widget);
+    const int verticalPadding =
+            compactTable ? CompactTableHeaderVerticalPadding : density.headerVerticalPadding;
+    const int minimumHeight = compactTable ? CompactTableHeaderHeight : density.headerHeight;
     // QHeaderView::sectionSizeFromContents passes an empty content size and
     // expects the style to measure the title itself. Padding alone made every
     // section's hint the same minimum (43 px here), so a ResizeToContents
@@ -364,11 +382,13 @@ static QSize headerSectionSize(const Style *style, QSize size, const QStyleOptio
         if (header->sortIndicator != QStyleOptionHeader::None)
             width += 32;
         size.rwidth() = qMax(size.width(), width);
+        if (compactTable)
+            size.setHeight(qMax(size.height(), header->fontMetrics.height()));
     } else {
         size.rwidth() += 2 * density.headerHorizontalPadding;
     }
-    size.rheight() += 2 * density.headerVerticalPadding;
-    size.setHeight(qMax(size.height(), density.headerHeight));
+    size.rheight() += 2 * verticalPadding;
+    size.setHeight(qMax(size.height(), minimumHeight));
     return size;
 }
 
@@ -496,7 +516,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = itemViewItemSize(style, size, option, widget, density);
         break;
     case QStyle::CT_HeaderSection:
-        size = headerSectionSize(style, size, option, widget, density);
+        size = headerSectionSize(style, size, option, widget, density, mode);
         break;
     case QStyle::CT_CheckBox:
         size = checkBoxSize(option, size, widget, density, mode);

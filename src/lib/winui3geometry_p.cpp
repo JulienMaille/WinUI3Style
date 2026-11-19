@@ -5,6 +5,8 @@
 
 #include <winui3style/winui3style.h>
 
+#include <QHeaderView>
+#include <QTableView>
 #include <QStyleOptionComplex>
 #include <QStyleOptionGroupBox>
 #include <QStyleOptionSlider>
@@ -112,15 +114,33 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
     case QStyle::PM_SizeGripSize:
         return 16;
     case QStyle::PM_HeaderMargin:
+        if (const auto *header = qobject_cast<const QHeaderView *>(widget); header
+            && header->orientation() == Qt::Vertical
+            && qobject_cast<const QTableView *>(header->parentWidget())
+            && header->parentWidget()->objectName() != QLatin1String("qt_calendar_calendarview")
+            && densityModeFor(widget) == DensityMode::Compact) {
+            // Qt's minimum section must fit the inline editor plus its grid pixel.
+            QStyleOptionFrame editor;
+            editor.initFrom(header->parentWidget());
+            const int editorHeight = header->style()
+                                             ->sizeFromContents(QStyle::CT_LineEdit, &editor,
+                                                                QSize(), header->parentWidget())
+                                             .height();
+            if (editorHeight + 1 <= metrics.tableItemHeight)
+                return CompactTableHeaderVerticalPadding;
+            return qMax(CompactTableHeaderVerticalPadding,
+                        (editorHeight + 2 - header->fontMetrics().height()) / 2);
+        }
         return 12;
     case QStyle::PM_HeaderMarkSize:
         return 12;
     case QStyle::PM_HeaderGripMargin:
         return 4;
     case QStyle::PM_HeaderDefaultSectionSizeVertical:
-        // QHeaderView's default section is historically 36 px even though
-        // CT_HeaderSection has a 32 px minimum. Compact Sizing does not cover
-        // data-grid headers, so both profiles retain that distinction.
+        if (const auto *header = qobject_cast<const QHeaderView *>(widget); header
+            && qobject_cast<const QTableView *>(header->parentWidget())
+            && header->parentWidget()->objectName() != QLatin1String("qt_calendar_calendarview"))
+            return metrics.tableItemHeight;
         return 36;
     case QStyle::PM_HeaderDefaultSectionSizeHorizontal:
         return 100;

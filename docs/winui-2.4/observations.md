@@ -173,6 +173,39 @@ the odd rows: dark uses the `layer` token (a touch brighter than the even row)
 and light mixes 5% `WindowText` into `AlternateBase` (a touch darker), exposed as
 `tableHeaderFill` so the same value veils correctly over a Mica backdrop.
 
+Issue #83 Compact table proposal (2026-11-19): Microsoft Compact sizing has no
+DataGrid dimensions. At the manifest pin, `DensityStyles/Compact.xaml` sets
+`TextControlThemeMinHeight=24` (Standard 32), `ControlContentThemeFontSize=14`,
+`ListViewItemMinHeight=32` and `TreeViewItemMinHeight=24`; it has no DataGrid
+resource. The Toolkit DataGrid cell and row-presenter minima are 32, as is its
+column-header minimum. Our extension applies one 8 px spacing step to its own
+36 px nominal row default and 32 px header: Compact 28 px rows / 24 px headers,
+with 2 px per-side header vertical padding. Fonts, 12 px horizontal text insets
+and the 32 px sort column stay unchanged. The 28 px row accommodates a 24 px
+Compact editor. Standard remains unchanged, including Qt's font-dependent row
+minimum (43 px on the local Gallery); Compact reduces only the vertical table
+header's minimum-section padding to avoid that legacy clamp. Large fonts retain
+enough row height for the inline editor and grid line. User section sizes and
+larger delegate-measured content remain authoritative. Qt treats sections equal
+to its automatic default as default-sized, even after a one-shot content resize;
+these follow density. Reapply resizeRowsToContents or use ResizeToContents mode
+for a content-driven layout. Non-table headers and calendar grids are excluded.
+This proposal is not an official WinUI Compact DataGrid template.
+The existing Gallery Data grid and global density switch provide the example;
+[the proposal image](../images/table-density-comparison.png) uses unscaled crops
+in both themes. Native Windows Gallery tests exercise selection, keyboard
+navigation, editing, resizing and density round-trip in Light/Dark. Native
+large-font/editor and first-paint regressions pass. The 74 non-native,
+non-matrix CTests pass; density unit/API/widget suites also pass on Qt 6.8.3.
+Both Qt 6.12 and 6.8.3 produce 80 byte-identical captures across two runs, and
+the new focused table captures agree across Qt versions.
+Compared with freshly built main, only the two Compact Table view captures
+change; Standard is pixel-exact. Approve only those table-region deltas and
+the two new focused table captures. The strict approved-baseline gate remains
+blocked by navigation-glyph drift also reproduced on untouched main; Qt 6.12
+also has pre-existing Icons-page drift. Unrelated baselines remain unchanged.
+Full official side-by-side verification remains outstanding.
+
 RichEditBox shares the common text-control background, border and focused
 underline tokens with TextBox. Normal, pointer-over and focused surface changes
 are discrete. ContentDialog uses a 320×184 minimum, 24 px content padding,

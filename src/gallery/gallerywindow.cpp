@@ -1149,6 +1149,14 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
                                   "PNG")
                     && success;
         }
+        ui->pages->setCurrentIndex(1);
+        const int previousCollectionTab = ui->collectionsTabs->currentIndex();
+        ui->collectionsTabs->setCurrentWidget(ui->tableViewTab);
+        settle();
+        success = ui->tableViewTab->grab().save(
+                          output.filePath(theme + "-density-compact-table.png"), "PNG")
+                && success;
+        ui->collectionsTabs->setCurrentIndex(previousCollectionTab);
         ui->pages->setCurrentIndex(0);
         ui->galleryComboBox->showPopup();
         qApp->processEvents();

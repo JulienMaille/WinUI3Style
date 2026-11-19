@@ -270,10 +270,14 @@ void WinUI3DensityApiTest::largeFontControlSizing()
     headerOption.text = tabOption.text;
     QCOMPARE(tabOption.fontMetrics.height(), inkHeight);
     QCOMPARE(headerOption.fontMetrics.height(), inkHeight);
-    QVERIFY(style.sizeFromContents(QStyle::CT_HeaderSection, &headerOption, QSize(80, inkHeight),
-                                   table.horizontalHeader())
-                    .height()
-            >= inkHeight + 8);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &headerOption, QSize(80, inkHeight),
+                                    table.horizontalHeader())
+                     .height(),
+             qMax(compact ? 24 : 32, inkHeight + (compact ? 4 : 8)));
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &headerOption, QSize(80, inkHeight),
+                                    &table)
+                     .height(),
+             qMax(compact ? 28 : 36, inkHeight));
 
     const auto paintedInkHeight = [&](QStyle::ControlElement element, const QStyleOption &option,
                                       QWidget *target) {
@@ -446,17 +450,21 @@ void WinUI3DensityApiTest::geometryContractsAndInvariants()
     QCOMPARE(style.sizeFromContents(QStyle::CT_MenuItem, &menuOption, content, &menu).height(), 32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_PushButton, &buttonOption, content, &button),
              invariantButton);
-    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport()),
-             invariantTable);
+    QCOMPARE(invariantTable.height(), 36);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &generic, content, table.viewport())
+                     .height(),
+             28);
+    QCOMPARE(invariantHeader.height(), 32);
     QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &generic, content,
-                                    table.horizontalHeader()),
-             invariantHeader);
+                                    table.horizontalHeader())
+                     .height(),
+             24);
     QCOMPARE(invariantHeaderDefault, 36);
     QCOMPARE(invariantButtonMargin, 8);
     QCOMPARE(style.pixelMetric(QStyle::PM_ButtonMargin, nullptr, &button), invariantButtonMargin);
     QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr,
                                table.horizontalHeader()),
-             invariantHeaderDefault);
+             28);
 }
 
 void WinUI3DensityApiTest::navigationViewRelayoutsAtRuntime()
