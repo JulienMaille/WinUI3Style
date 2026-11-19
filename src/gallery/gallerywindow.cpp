@@ -483,12 +483,16 @@ void GalleryWindow::populateCollections()
     root->setExpanded(true);
     // Populate the Designer-owned plain TreeView so its hierarchy and
     // disclosure affordance can be inspected independently of checkboxes.
-    auto *plainRoot = new QTreeWidgetItem(ui->plainTreeViewTab, { tr("Example album") });
+    auto *plainRoot =
+            new QTreeWidgetItem(ui->plainTreeViewTab, { tr("Example album"), tr("Expanded") });
     plainRoot->setIcon(0, folder);
     for (const QString &track : tracks)
-        new QTreeWidgetItem(plainRoot, { track });
+        new QTreeWidgetItem(plainRoot, { track, tr("Ready") });
     plainRoot->setExpanded(true);
     ui->plainTreeViewTab->setCurrentItem(plainRoot);
+    ui->plainTreeViewTab->setColumnWidth(0, 360);
+    ui->plainTreeViewTab->setSortingEnabled(true);
+    ui->plainTreeViewTab->header()->setSortIndicator(0, Qt::AscendingOrder);
 
     const QString rows[4][3] = { { tr("Button"), tr("Ready"), tr("Complete") },
                                  { tr("ComboBox"), tr("Interactive"), tr("Complete") },
@@ -1151,6 +1155,11 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         }
         ui->pages->setCurrentIndex(1);
         const int previousCollectionTab = ui->collectionsTabs->currentIndex();
+        ui->collectionsTabs->setCurrentWidget(ui->plainTreeViewTab);
+        settle();
+        success = ui->plainTreeViewTab->grab().save(
+                          output.filePath(theme + "-density-compact-tree.png"), "PNG")
+                && success;
         ui->collectionsTabs->setCurrentWidget(ui->tableViewTab);
         settle();
         success = ui->tableViewTab->grab().save(

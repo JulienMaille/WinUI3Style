@@ -127,8 +127,8 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
                                                                 QSize(), header->parentWidget())
                                              .height();
             if (editorHeight + 1 <= metrics.tableItemHeight)
-                return CompactTableHeaderVerticalPadding;
-            return qMax(CompactTableHeaderVerticalPadding,
+                return CompactItemViewHeaderVerticalPadding;
+            return qMax(CompactItemViewHeaderVerticalPadding,
                         (editorHeight + 2 - header->fontMetrics().height()) / 2);
         }
         return 12;

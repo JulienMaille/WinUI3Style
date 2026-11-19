@@ -331,6 +331,21 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryicons_tests winui3styleplugin)
 endif()
 
+add_executable(winui3style_gallerydensity_tests
+    tst_winui3gallerydensity.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
+set_target_properties(winui3style_gallerydensity_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_include_directories(winui3style_gallerydensity_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_link_libraries(winui3style_gallerydensity_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_gallerydensity_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -430,6 +445,7 @@ set(_winui3style_linked_test_targets
         winui3style_micacardeditor_tests
         winui3style_galleryprobe_tests
         winui3style_galleryicons_tests
+        winui3style_gallerydensity_tests
         winui3style_rubberband_tests
         winui3style_keysequenceedit_tests
         winui3style_toolbox_tests)
@@ -630,6 +646,11 @@ set_tests_properties(winui3style_density_api_unit PROPERTIES
 set_tests_properties(winui3style_density_widgets_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
+add_test(NAME winui3style_gallerydensity_unit COMMAND winui3style_gallerydensity_tests)
+set_tests_properties(winui3style_gallerydensity_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+    TIMEOUT 60
+)
 set_tests_properties(winui3style_icons_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
@@ -769,6 +790,13 @@ if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
         RESOURCE_LOCK winui3style_desktop
         LABELS "native;interactive"
         TIMEOUT 180)
+    add_test(NAME winui3style_gallerydensity_native COMMAND winui3style_gallerydensity_tests)
+    set_tests_properties(winui3style_gallerydensity_native PROPERTIES
+        ENVIRONMENT "${_winui3style_native_environment}"
+        RUN_SERIAL TRUE
+        RESOURCE_LOCK winui3style_desktop
+        LABELS "native;interactive"
+        TIMEOUT 60)
     if(WINUI3STYLE_BUILD_DEMO)
         set_tests_properties(winui3style_galleryprobe_native PROPERTIES
             ENVIRONMENT "${_winui3style_native_environment}"

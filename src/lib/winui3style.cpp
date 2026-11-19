@@ -652,11 +652,11 @@ void invalidateDensityTree(QWidget *root)
         if (auto *header = qobject_cast<QHeaderView *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(header, &styleChange);
-            if (auto *table = qobject_cast<QTableView *>(header->parentWidget()))
-                table->doItemsLayout();
+            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget()))
+                view->doItemsLayout();
         }
     };
-    // Header caches and table geometry must agree before any synchronous repaint.
+    // Header caches and item-view geometry must agree before any synchronous repaint.
     for (QWidget *widget : descendants)
         refreshHeader(widget);
     refreshHeader(root);

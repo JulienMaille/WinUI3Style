@@ -60,8 +60,6 @@ private slots:
     void gallerySnapshotPinsAndRestoresCalendarDate();
     void galleryComparisonStyleAvailabilityAndRestore();
     void galleryToolbarStyleToggle();
-    void galleryTableDensitySwitch_data();
-    void galleryTableDensitySwitch();
     void gallerySettingsExpanderAnimates();
     void galleryRubberBandReachable();
     void settingsIconAlignment_data();
@@ -256,57 +254,6 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
     QCOMPARE(actualEdge, expectedEdge);
     QCOMPARE(actual.pixelColor(actual.width() / 2, 1), t.tooltipFill);
     QCOMPARE(actual.pixelColor(0, 0).alpha(), 0);
-}
-
-void WinUI3GalleryProbeTest::galleryTableDensitySwitch_data()
-{
-    QTest::addColumn<bool>("dark");
-    QTest::newRow("light") << false;
-    QTest::newRow("dark") << true;
-}
-
-void WinUI3GalleryProbeTest::galleryTableDensitySwitch()
-{
-    QFETCH(bool, dark);
-    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
-    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
-    GalleryWindow gallery;
-    auto *density = gallery.findChild<QComboBox *>(QStringLiteral("densityCombo"));
-    auto *pages = gallery.findChild<QStackedWidget *>(QStringLiteral("pages"));
-    auto *tabs = gallery.findChild<QTabWidget *>(QStringLiteral("collectionsTabs"));
-    auto *table = gallery.findChild<QTableWidget *>(QStringLiteral("tableViewTab"));
-    QVERIFY(density && pages && tabs && table);
-    density->setCurrentIndex(0);
-    pages->setCurrentIndex(1);
-    tabs->setCurrentWidget(table);
-    gallery.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
-    const int standardRow = table->rowHeight(0);
-    QCOMPARE(table->horizontalHeader()->height(), 32);
-    QVERIFY(standardRow >= 36);
-    density->setCurrentIndex(1);
-    QTRY_COMPARE(table->rowHeight(0), 28);
-    QTRY_COMPARE(table->horizontalHeader()->height(), 24);
-    const QSize compactViewport = table->viewport()->size();
-    gallery.resize(gallery.size() + QSize(80, 60));
-    QTRY_VERIFY(table->viewport()->size() != compactViewport);
-    QCOMPARE(table->rowHeight(0), 28);
-    QCOMPARE(table->horizontalHeader()->height(), 24);
-    const QPoint cell = table->visualRect(table->model()->index(0, 0)).center();
-    QTest::mouseMove(table->viewport(), cell);
-    QTest::mousePress(table->viewport(), Qt::LeftButton, Qt::NoModifier, cell);
-    QTest::mouseRelease(table->viewport(), Qt::LeftButton, Qt::NoModifier, cell);
-    QCOMPARE(table->currentRow(), 0);
-    QTest::keyClick(table, Qt::Key_Down);
-    QCOMPARE(table->currentRow(), 1);
-    QTest::keyClick(table, Qt::Key_F2);
-    auto *editor = table->findChild<QLineEdit *>();
-    QTRY_VERIFY(editor && editor->isVisible());
-    QVERIFY(editor->height() >= editor->sizeHint().height());
-    QTest::keyClick(editor, Qt::Key_Escape);
-    density->setCurrentIndex(0);
-    QTRY_COMPARE(table->rowHeight(0), standardRow);
-    QTRY_COMPARE(table->horizontalHeader()->height(), 32);
 }
 
 void WinUI3GalleryProbeTest::initTestCase()

@@ -358,12 +358,13 @@ static QSize headerSectionSize(const Style *style, QSize size, const QStyleOptio
                                const QWidget *widget, const DensityMetrics &density,
                                DensityMode mode)
 {
-    const bool compactTable = mode == DensityMode::Compact && widget
-            && qobject_cast<const QTableView *>(widget->parentWidget())
+    const bool compactItemView = mode == DensityMode::Compact && widget
+            && (qobject_cast<const QTableView *>(widget->parentWidget())
+                || qobject_cast<const QTreeView *>(widget->parentWidget()))
             && !calendarPopupItemView(widget);
     const int verticalPadding =
-            compactTable ? CompactTableHeaderVerticalPadding : density.headerVerticalPadding;
-    const int minimumHeight = compactTable ? CompactTableHeaderHeight : density.headerHeight;
+            compactItemView ? CompactItemViewHeaderVerticalPadding : density.headerVerticalPadding;
+    const int minimumHeight = compactItemView ? CompactItemViewHeaderHeight : density.headerHeight;
     // QHeaderView::sectionSizeFromContents passes an empty content size and
     // expects the style to measure the title itself. Padding alone made every
     // section's hint the same minimum (43 px here), so a ResizeToContents
@@ -382,7 +383,7 @@ static QSize headerSectionSize(const Style *style, QSize size, const QStyleOptio
         if (header->sortIndicator != QStyleOptionHeader::None)
             width += 32;
         size.rwidth() = qMax(size.width(), width);
-        if (compactTable)
+        if (compactItemView)
             size.setHeight(qMax(size.height(), header->fontMetrics.height()));
     } else {
         size.rwidth() += 2 * density.headerHorizontalPadding;

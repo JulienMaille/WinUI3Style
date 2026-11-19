@@ -27,6 +27,7 @@
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QStyleFactory>
+#include <QStyleOptionHeader>
 #include <QStyleOptionViewItem>
 #include <QTabWidget>
 #include <QTableView>
@@ -137,12 +138,14 @@ private slots:
     void openComboPopupFollowsDensitySwitch();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
     void compactNumberBoxAndUnlistedControlGeometry();
+    void treeHeaderDensityGeometry_data();
+    void treeHeaderDensityGeometry();
     void tableDensityUpdatesRealSections_data();
     void tableDensityUpdatesRealSections();
     void tableContentAndEditorSizing_data();
     void tableContentAndEditorSizing();
-    void tableDensitySwitchFirstPaint_data();
-    void tableDensitySwitchFirstPaint();
+    void itemViewDensitySwitchFirstPaint_data();
+    void itemViewDensitySwitchFirstPaint();
     void tableDefaultSizedContentFollowsDensity_data();
     void tableDefaultSizedContentFollowsDensity();
     void menuDensityPreservesPopupGeometry_data();
@@ -801,6 +804,83 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
     popup->hide();
 }
 
+void WinUI3DensityWidgetsTest::treeHeaderDensityGeometry_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<int>("fontPixels");
+    for (bool compact : { false, true })
+        for (bool dark : { false, true })
+            for (bool rtl : { false, true })
+                for (int pixels : { 14, 32 })
+                    QTest::newRow(qPrintable(QStringLiteral("%1-%2-%3-%4")
+                                                     .arg(compact ? "compact" : "standard")
+                                                     .arg(dark ? "dark" : "light")
+                                                     .arg(rtl ? "rtl" : "ltr")
+                                                     .arg(pixels)))
+                            << compact << dark << rtl << pixels;
+}
+
+void WinUI3DensityWidgetsTest::treeHeaderDensityGeometry()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, dark);
+    QFETCH(bool, rtl);
+    QFETCH(int, fontPixels);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    style.setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QWidget root;
+    QVBoxLayout layout(&root);
+    QTreeView tree(&root);
+    QStandardItemModel model(2, 2);
+    model.setHorizontalHeaderLabels({ QStringLiteral("Item"), QStringLiteral("State") });
+    model.setData(model.index(0, 0), QStringLiteral("Branch"));
+    tree.setModel(&model);
+    tree.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    tree.setSortingEnabled(true);
+    tree.setColumnWidth(0, 180);
+    QFont font = tree.header()->font();
+    font.setPixelSize(fontPixels);
+    tree.header()->setFont(font);
+    layout.addWidget(&tree);
+    settle(root);
+    QStyleOptionHeader option;
+    option.initFrom(tree.header());
+    option.text = QStringLiteral("Item");
+    option.sortIndicator = QStyleOptionHeader::SortDown;
+    const auto expectedHeight = [&](bool dense) {
+        return dense ? qMax(24, option.fontMetrics.height() + 4) : 32;
+    };
+    QCOMPARE(tree.header()->height(), expectedHeight(compact));
+    const QSize hint =
+            style.sizeFromContents(QStyle::CT_HeaderSection, &option, QSize(), tree.header());
+    QCOMPARE(hint.height(), expectedHeight(compact));
+    QCOMPARE(hint.width(), option.fontMetrics.horizontalAdvance(option.text) + 24 + 32);
+    QCOMPARE(tree.visualRect(model.index(0, 0)).height(), compact ? 24 : 28);
+    QCOMPARE(tree.columnWidth(0), 180);
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderMargin, nullptr, tree.header()), 12);
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr, tree.header()),
+             36);
+    QHeaderView standalone(Qt::Horizontal);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &option, QSize(), &standalone)
+                     .height(),
+             32);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
+    QTRY_COMPARE(tree.header()->height(), expectedHeight(!compact));
+    QCOMPARE(tree.columnWidth(0), 180);
+    QCOMPARE(tree.header()->font(), font);
+    root.setProperty("winuiDensity", QStringLiteral("compact"));
+    QTRY_COMPARE(tree.header()->height(), expectedHeight(true));
+    root.setProperty("winuiDensity", QStringLiteral("standard"));
+    QTRY_COMPARE(tree.header()->height(), expectedHeight(false));
+    tree.header()->setFixedHeight(64);
+    root.setProperty("winuiDensity", QStringLiteral("compact"));
+    QCOMPARE(tree.header()->height(), 64);
+    QCOMPARE(tree.columnWidth(0), 180);
+}
+
 void WinUI3DensityWidgetsTest::tableDensityUpdatesRealSections_data()
 {
     QTest::addColumn<bool>("compact");
@@ -971,45 +1051,57 @@ void WinUI3DensityWidgetsTest::tableContentAndEditorSizing()
     QTest::keyClick(editor, Qt::Key_Escape);
 }
 
-void WinUI3DensityWidgetsTest::tableDensitySwitchFirstPaint_data()
+void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint_data()
 {
     QTest::addColumn<bool>("compact");
-    QTest::newRow("standard-to-compact") << true;
-    QTest::newRow("compact-to-standard") << false;
+    QTest::addColumn<bool>("tree");
+    QTest::newRow("table-standard-to-compact") << true << false;
+    QTest::newRow("table-compact-to-standard") << false << false;
+    QTest::newRow("tree-standard-to-compact") << true << true;
+    QTest::newRow("tree-compact-to-standard") << false << true;
 }
 
-void WinUI3DensityWidgetsTest::tableDensitySwitchFirstPaint()
+void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint()
 {
     QFETCH(bool, compact);
+    QFETCH(bool, tree);
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
     style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
     QTableView table;
+    QTreeView treeView;
+    QAbstractItemView *view = tree ? static_cast<QAbstractItemView *>(&treeView) : &table;
+    QHeaderView *header = tree ? treeView.header() : table.horizontalHeader();
     QStandardItemModel model(2, 1);
     model.setData(model.index(0, 0), QStringLiteral("Cell"));
-    table.setModel(&model);
-    table.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&table));
+    view->setModel(&model);
+    view->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view));
     QCoreApplication::processEvents();
     struct PaintProbe : QObject
     {
-        QTableView *table = nullptr;
+        QAbstractItemView *view = nullptr;
+        QHeaderView *header = nullptr;
         QList<QPair<int, int>> frames;
         bool eventFilter(QObject *, QEvent *event) override
         {
             if (event->type() == QEvent::Paint)
-                frames.append({ table->rowHeight(0), table->horizontalHeader()->height() });
+                frames.append({ view->visualRect(view->model()->index(0, 0)).height(),
+                                header->height() });
             return false;
         }
     } probe;
-    probe.table = &table;
-    table.viewport()->installEventFilter(&probe);
-    table.horizontalHeader()->viewport()->installEventFilter(&probe);
-    const int standardRow = qMax(36, table.verticalHeader()->fontMetrics().height() + 24);
+    probe.view = view;
+    probe.header = header;
+    view->viewport()->installEventFilter(&probe);
+    header->viewport()->installEventFilter(&probe);
+    const int standardRow =
+            tree ? 28 : qMax(36, table.verticalHeader()->fontMetrics().height() + 24);
+    const int grid = tree ? 0 : int(table.showGrid());
     style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     QCoreApplication::processEvents();
     QVERIFY(!probe.frames.isEmpty());
     for (const auto &frame : probe.frames) {
-        QCOMPARE(frame.first, compact ? 28 : standardRow);
+        QCOMPARE(frame.first, compact ? (tree ? 24 : 28 - grid) : standardRow - grid);
         QCOMPARE(frame.second, compact ? 24 : 32);
     }
 }

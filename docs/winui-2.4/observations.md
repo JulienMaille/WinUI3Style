@@ -189,22 +189,43 @@ enough row height for the inline editor and grid line. User section sizes and
 larger delegate-measured content remain authoritative. Qt treats sections equal
 to its automatic default as default-sized, even after a one-shot content resize;
 these follow density. Reapply resizeRowsToContents or use ResizeToContents mode
-for a content-driven layout. Non-table headers and calendar grids are excluded.
+for a content-driven layout. Standalone headers and calendar grids are excluded.
 This proposal is not an official WinUI Compact DataGrid template.
 The existing Gallery Data grid and global density switch provide the example;
 [the proposal image](../images/table-density-comparison.png) uses unscaled crops
 in both themes. Native Windows Gallery tests exercise selection, keyboard
 navigation, editing, resizing and density round-trip in Light/Dark. Native
-large-font/editor and first-paint regressions pass. The 74 non-native,
-non-matrix CTests pass; density unit/API/widget suites also pass on Qt 6.8.3.
-Both Qt 6.12 and 6.8.3 produce 80 byte-identical captures across two runs, and
-the new focused table captures agree across Qt versions.
-Compared with freshly built main, only the two Compact Table view captures
-change; Standard is pixel-exact. Approve only those table-region deltas and
-the two new focused table captures. The strict approved-baseline gate remains
-blocked by navigation-glyph drift also reproduced on untouched main; Qt 6.12
-also has pre-existing Icons-page drift. Unrelated baselines remain unchanged.
-Full official side-by-side verification remains outstanding.
+large-font/editor and first-paint regressions pass. The strict approved-baseline
+gate remains blocked locally by navigation-glyph drift also reproduced on
+untouched main; Qt 6.12 also has pre-existing Icons-page drift. Unrelated
+baselines remain unchanged. Full official side-by-side verification remains
+outstanding.
+
+The same PR extends Compact headers to QTreeView/QTreeWidget: 32/24 px
+Standard/Compact minimum height and 4/2 px per-side vertical padding. WinUI
+TreeView has no multi-column header template, so this is also a consistency
+extension. Existing 28/24 px tree rows, indentation, horizontal padding,
+typography and explicit column sizes are unchanged. Large header fonts enlarge
+the Compact height to fit; explicit fixed header heights remain authoritative.
+The Gallery's existing plain-tree tab now exposes Item/State columns and sorting;
+[the tree proposal image](../images/tree-density-comparison.png) uses unscaled
+Light/Dark crops. Native reproduction retained a 32 px header above 24 px rows
+in both themes; the regression now passes with a 24 px header. Geometry tests
+cover Standard/Compact, Light/Dark, LTR/RTL, large header fonts, inherited
+switches and fixed header heights. Header cache invalidation refreshes both tree
+and table item layouts before any synchronous repaint; first-paint tests cover
+both switch directions. Native Gallery checks cover selection, keyboard
+navigation, sorting, collapse/expand, resizing and the density round-trip.
+The Qt 6.12 non-native/non-matrix suite passes 75/75; Qt 6.12 and 6.8.3
+density and Gallery-density suites pass, including native Gallery interactions.
+Tree header geometry and first-paint checks also pass at 125%, 150% and 200%
+logical scale on Qt 6.8.3. Both produce 82
+byte-identical captures across two runs, and the new focused tree/table captures
+agree across versions. Against the preceding table proposal, only the two
+Standard plain-tree captures change because the header/second column is now
+visible; the existing Standard table remains pixel-exact. Approvals change only
+the tree fixture region in the shared baselines and Qt 6.8.3 overlays, adding
+two focused Compact tree captures. Full official verification remains pending.
 
 RichEditBox shares the common text-control background, border and focused
 underline tokens with TextBox. Normal, pointer-over and focused surface changes
