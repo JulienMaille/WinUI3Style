@@ -24,6 +24,7 @@
 #include <QTabBar>
 #include <QStyleOptionButton>
 #include <QStyleOptionDockWidget>
+#include <QStyleOptionHeader>
 #include <QStyleOptionMenuItem>
 #include <QStyleOptionProgressBar>
 #include <QStyleOptionToolButton>
@@ -34,6 +35,12 @@
 
 namespace WinUI3::Private {
 namespace {
+
+// DATAGRIDTEXTCOLUMN_leftMargin/_rightMargin (both 12.0) from the pinned
+// DataGridTextColumn template. Shared by the cell text rect and the item
+// view's content size so a ResizeToContents column reserves the gutter it
+// paints into.
+constexpr int tableCellHorizontalPadding = 12;
 
 const QAbstractItemView *itemView(const QWidget *widget)
 {
@@ -301,8 +308,18 @@ static QSize menuItemSize(const Style *style, const QStyleOption *option, QSize 
     return size;
 }
 
-static QSize itemViewItemSize(QSize size, const QWidget *widget, const DensityMetrics &density)
+static QSize itemViewItemSize(const Style *style, QSize size, const QStyleOption *option,
+                              const QWidget *widget, const DensityMetrics &density)
 {
+    // QStyledItemDelegate::sizeHint() asks the style for the entire item and
+    // passes an empty content size. Resolve the intrinsic text / decoration /
+    // check-indicator extent from Qt's generic item layout: without it a
+    // ResizeToContents header sees a zero-width hint and falls back to the
+    // header label width, which is the CommitForm column-collapse defect.
+    if (qstyleoption_cast<const QStyleOptionViewItem *>(option))
+        size = size.expandedTo(style->QProxyStyle::sizeFromContents(QStyle::CT_ItemViewItem, option,
+                                                                    QSize(), widget));
+
     if (comboPopupItemView(widget)) {
         // ComboBoxItem has its own resource.  Keep it separate from the
         // ListView row metric even while both profiles currently resolve
@@ -315,15 +332,42 @@ static QSize itemViewItemSize(QSize size, const QWidget *widget, const DensityMe
         size.setHeight(density.treeItemHeight);
     } else if (qobject_cast<const QTableView *>(itemView(widget))) {
         size.setHeight(density.tableItemHeight);
+        // SE_ItemViewItemText insets a table cell by the DataGrid text
+        // column's 12 px margin on both sides. The content size must carry
+        // that same gutter, or ResizeToContents paints the text into a slot
+        // narrower than the string it just measured.
+        size.rwidth() += 2 * tableCellHorizontalPadding;
     } else {
         size.setHeight(density.listItemHeight);
     }
     return size;
 }
 
-static QSize headerSectionSize(QSize size, const DensityMetrics &density)
+static QSize headerSectionSize(const Style *style, QSize size, const QStyleOption *option,
+                               const QWidget *widget, const DensityMetrics &density)
 {
-    size += QSize(2 * density.headerHorizontalPadding, 2 * density.headerVerticalPadding);
+    // QHeaderView::sectionSizeFromContents passes an empty content size and
+    // expects the style to measure the title itself. Padding alone made every
+    // section's hint the same minimum (43 px here), so a ResizeToContents
+    // column with only a check indicator in its cells sized the header to the
+    // cell instead of the "Commit" title, clipping the title away.
+    if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
+        int contentWidth = header->fontMetrics.horizontalAdvance(header->text);
+        if (!header->icon.isNull()) {
+            contentWidth += style->pixelMetric(QStyle::PM_SmallIconSize, header, widget) + 8;
+        }
+        int width = 2 * density.headerHorizontalPadding + contentWidth;
+        // CE_Header reserves the pinned DataGrid template's trailing 32 px
+        // sort column for every section whenever sorting is enabled. The
+        // content hint has to carry it too, or a sortable title is clipped by
+        // the very column the painter reserves.
+        if (header->sortIndicator != QStyleOptionHeader::None)
+            width += 32;
+        size.rwidth() = qMax(size.width(), width);
+    } else {
+        size.rwidth() += 2 * density.headerHorizontalPadding;
+    }
+    size.rheight() += 2 * density.headerVerticalPadding;
     size.setHeight(qMax(size.height(), density.headerHeight));
     return size;
 }
@@ -449,10 +493,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = menuItemSize(style, option, size, widget, density);
         break;
     case QStyle::CT_ItemViewItem:
-        size = itemViewItemSize(size, widget, density);
+        size = itemViewItemSize(style, size, option, widget, density);
         break;
     case QStyle::CT_HeaderSection:
-        size = headerSectionSize(size, density);
+        size = headerSectionSize(style, size, option, widget, density);
         break;
     case QStyle::CT_CheckBox:
         size = checkBoxSize(option, size, widget, density, mode);
@@ -629,7 +673,6 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
             // (DataGridTextColumn.cs), which is also the column header's
             // Padding="12,0,0,0" leading inset. A header and its cells must
             // share the leading edge.
-            constexpr int tableCellHorizontalPadding = 12;
             if (source->direction == Qt::RightToLeft) {
                 result.setLeft(
                         qMax(result.left(), source->rect.left() + tableCellHorizontalPadding));

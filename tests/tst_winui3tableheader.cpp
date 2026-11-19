@@ -69,6 +69,8 @@ private slots:
     void initTestCase();
     void tableHeaderContract();
     void tableHeaderLabelKeepsLeadingEdgeWithSortColumn();
+    void tableResizeToContentsIncludesCellPadding();
+    void tableResizeToContentsKeepsHeaderLabelVisible();
     void tableSortIndicatorGeometryContract();
     void tableHeaderPaletteFollowsThemeRoundTrip_data();
     void tableHeaderPaletteFollowsThemeRoundTrip();
@@ -192,6 +194,100 @@ void WinUI3TableHeaderTest::tableHeaderLabelKeepsLeadingEdgeWithSortColumn()
     QVERIFY(rightAlignedInk.right() >= column.left() - 2
             && rightAlignedInk.right() <= column.left());
     QVERIFY(rightAlignedInk.left() > labelInk.left());
+}
+
+void WinUI3TableHeaderTest::tableResizeToContentsIncludesCellPadding()
+{
+    // Live CommitForm defect: the Git status table sizes Commit and Status
+    // with ResizeToContents, but the WinUI table cell insets its text by 12 px
+    // on each side. If the item view's content size omits that gutter, the
+    // column collapses to the header label width and the cell text is clipped.
+    QTableWidget table(1, 1);
+    table.setHorizontalHeaderLabels({ QStringLiteral("Status") });
+    table.setItem(0, 0, new QTableWidgetItem(QStringLiteral("Untracked")));
+    table.resize(320, 120);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+
+    QHeaderView *header = table.horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    header->resizeSections(QHeaderView::ResizeToContents);
+    qApp->processEvents();
+
+    const QFontMetrics fm(table.font());
+    const int textWidth = fm.horizontalAdvance(QStringLiteral("Untracked"));
+    QVERIFY(textWidth > 0);
+    // Same shared leading edge as the header: exactly 12 px on both sides.
+    QStyleOptionViewItem cell;
+    cell.initFrom(table.viewport());
+    cell.index = table.model()->index(0, 0);
+    cell.rect = table.visualRect(cell.index);
+    cell.features = QStyleOptionViewItem::HasDisplay;
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &cell, table.viewport());
+    QCOMPARE(textRect.left() - cell.rect.left(), 12);
+    QCOMPARE(cell.rect.right() - textRect.right(), 12);
+    // The mechanism: after "resize to contents" the text slot must actually
+    // fit the text it was sized for. Before the fix the column was only as
+    // wide as the header title (~43 px), leaving ~19 px for a 64 px string.
+    QVERIFY2(textRect.width() >= textWidth,
+             qPrintable(QStringLiteral("column=%1 textRect=%2 text=%3")
+                                .arg(header->sectionSize(0))
+                                .arg(textRect.width())
+                                .arg(textWidth)));
+    QVERIFY2(header->sectionSize(0) >= textWidth + 24,
+             qPrintable(QStringLiteral("column=%1 text=%2")
+                                .arg(header->sectionSize(0))
+                                .arg(textWidth)));
+}
+
+void WinUI3TableHeaderTest::tableResizeToContentsKeepsHeaderLabelVisible()
+{
+    // Live CommitForm first column: only a check indicator sits in the cells,
+    // so the item view hint is narrower than the "Commit" header title. A
+    // ResizeToContents section must still reserve the header's 12 px leading
+    // edge and the full title, or the header is elided away.
+    QTableWidget table(1, 1);
+    table.setHorizontalHeaderLabels({ QStringLiteral("Commit") });
+    auto *commit = new QTableWidgetItem;
+    commit->setCheckState(Qt::Unchecked);
+    table.setItem(0, 0, commit);
+    table.resize(320, 120);
+    table.show();
+    QTRY_VERIFY(table.isVisible());
+
+    QHeaderView *header = table.horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    header->resizeSections(QHeaderView::ResizeToContents);
+    qApp->processEvents();
+
+    QStyleOptionHeader option;
+    option.initFrom(header);
+    option.section = 0;
+    option.orientation = Qt::Horizontal;
+    option.text = QStringLiteral("Commit");
+    QFont font = header->font();
+    font.setBold(true);
+    option.fontMetrics = QFontMetrics(font);
+    const int textWidth = option.fontMetrics.horizontalAdvance(option.text);
+    QVERIFY(textWidth > 0);
+
+    const QSize hint =
+            header->style()->sizeFromContents(QStyle::CT_HeaderSection, &option, QSize(), header);
+    QVERIFY2(hint.width() >= textWidth + 24,
+             qPrintable(QStringLiteral("hint=%1 text=%2").arg(hint.width()).arg(textWidth)));
+
+    option.rect = QRect(0, 0, header->sectionSize(0), header->height());
+    option.textAlignment = header->defaultAlignment();
+    const QRect labelRect =
+            header->style()->subElementRect(QStyle::SE_HeaderLabel, &option, header);
+    QVERIFY2(header->sectionSize(0) >= textWidth + 24,
+             qPrintable(QStringLiteral("column=%1 text=%2")
+                                .arg(header->sectionSize(0))
+                                .arg(textWidth)));
+    QVERIFY2(labelRect.width() >= textWidth,
+             qPrintable(
+                     QStringLiteral("labelRect=%1 text=%2").arg(labelRect.width()).arg(textWidth)));
 }
 
 void WinUI3TableHeaderTest::tableSortIndicatorGeometryContract()

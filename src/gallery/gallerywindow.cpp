@@ -25,6 +25,9 @@
 #include <QPainter>
 #include <QScreen>
 #include <QScopeGuard>
+#include <QStandardItem>
+#include <QStandardItemModel>
+#include <QStyledItemDelegate>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QTableWidgetItem>
@@ -37,6 +40,26 @@
 #include <QWizardPage>
 
 namespace {
+// Matches codepointer's CommitForm PathElideDelegate: the file path is elided
+// on the left before the stock item view item is painted, so the available
+// width is the column width and not the model's full path string.
+class PathElideDelegate final : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override
+    {
+        QStyleOptionViewItem opt(option);
+        initStyleOption(&opt, index);
+        opt.text = opt.fontMetrics.elidedText(opt.text, Qt::ElideLeft, opt.rect.width() - 10);
+        opt.textElideMode = Qt::ElideNone;
+        QStyle *style = opt.widget ? opt.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
+    }
+};
+
 void configureContentDialog(QDialog *dialog)
 {
     dialog->setProperty("winuiContentDialog", true);
@@ -317,7 +340,8 @@ void GalleryWindow::configureGallery()
         QStyle::SP_FileDialogContentsView,
         QStyle::SP_MessageBoxInformation,
         QStyle::SP_FileDialogDetailedView,
-        QStyle::SP_ToolBarHorizontalExtensionButton
+        QStyle::SP_ToolBarHorizontalExtensionButton,
+        QStyle::SP_FileDialogListView
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
@@ -481,6 +505,49 @@ void GalleryWindow::populateCollections()
     // flips the indicator through the stock QTableWidget behaviour.
     ui->tableViewTab->setSortingEnabled(true);
     ui->tableViewTab->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
+
+    // Live todo-list reproducer: a checkable Task column, a Status column,
+    // and a left-elided File path. The header modes are the same ones the
+    // CommitForm defect exposed (0/1 ResizeToContents, 2 Stretch). These modes
+    // exercise both sizing contracts: the cell's 12 px inset must be part of
+    // the item view hint, and CT_HeaderSection must measure the title itself.
+    // Keep them so this page remains a regression fixture.
+    auto *tableViewModel = new QStandardItemModel(ui->tableView);
+    tableViewModel->setHorizontalHeaderLabels({ tr("Task"), tr("Status"), tr("File") });
+    struct TodoRow
+    {
+        const char *task;
+        const char *status;
+        const char *file;
+        bool checked;
+    };
+    const TodoRow todoRows[] = {
+        TodoRow{ "Write release notes", "Done", "docs/release-notes.md", true },
+        TodoRow{ "Review header sizing", "In progress", "src/lib/winui3style_contracts_p.cpp",
+                 false },
+        TodoRow{ "Update coverage", "To do", "docs/coverage.md", false },
+        TodoRow{ "Run gallery capture", "To do", "tests/tst_winui3tableheader.cpp", false },
+        TodoRow{ "Fix clipped table text", "To do", "docs/evidence/datagrid-header.png", false },
+    };
+    for (const TodoRow &row : todoRows) {
+        auto *task = new QStandardItem(tr(row.task));
+        task->setCheckable(true);
+        task->setCheckState(row.checked ? Qt::Checked : Qt::Unchecked);
+        task->setEditable(false);
+        auto *status = new QStandardItem(tr(row.status));
+        status->setEditable(false);
+        auto *fileItem = new QStandardItem(tr(row.file));
+        fileItem->setEditable(false);
+        tableViewModel->appendRow({ task, status, fileItem });
+    }
+    ui->tableView->setModel(tableViewModel);
+    ui->tableView->setItemDelegateForColumn(2, new PathElideDelegate(ui->tableView));
+    auto *tableHeader = ui->tableView->horizontalHeader();
+    tableHeader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    tableHeader->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    tableHeader->setSectionResizeMode(2, QHeaderView::Stretch);
+    // Row heights stay non-interactive; only the column modes above matter.
+    ui->tableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 }
 
 namespace {
