@@ -13,6 +13,14 @@
 - [ ] If a fallback was removed or `sizeFromContents()` changed: first-open
   test with a nonzero selected index passes (no one-frame jump).
 
+## Snapshot baselines (METHODOLOGY §5a)
+- [ ] If the gallery widget hierarchy, capture set, or any painted visual
+  changed: regenerated and approved `tests/baselines/gallery` (plus the Qt
+  version overlay under `tests/baselines/gallery-qt/<version>` wherever the
+  raster differs), reviewing every diff. `winui3style_snapshot_matrix` fails
+  on a missing baseline or an extra capture. Do not generate Windows baselines
+  on Linux.
+
 ## Unpolish restoration (P1 ledger)
 - [ ] Every attribute the change touches is restored on unpolish
   (`styleMutationRestoration` covers the touched path).
