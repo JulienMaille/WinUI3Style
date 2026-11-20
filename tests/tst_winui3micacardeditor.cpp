@@ -13,6 +13,7 @@
 
 #include <QComboBox>
 #include <QStyleOptionComboBox>
+#include <QTabWidget>
 
 class WinUI3MicaCardEditorTest final : public QObject
 {
@@ -68,8 +69,8 @@ void WinUI3MicaCardEditorTest::comboBoxInsideCardKeepsCardFillOverComposited()
     DisableAnimationsGuard animations;
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     QVERIFY(style);
-    const auto checkComboOverCard = [&](bool dark, int density, bool settingsCard,
-                                        bool composited) {
+    enum class CardKind { GroupBox, SettingsCard, TabPane, DocumentTabs };
+    const auto checkComboOverCard = [&](bool dark, int density, CardKind kind, bool composited) {
         style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
         style->setProperty("densityMode", density);
         QWidget window;
@@ -80,10 +81,21 @@ void WinUI3MicaCardEditorTest::comboBoxInsideCardKeepsCardFillOverComposited()
         auto *island = new QWidget(&window);
         island->setProperty(WinUI3::Style::SurfaceProperty, QStringLiteral("content"));
         island->setGeometry(0, 0, 480, 320);
-        QWidget *card = settingsCard ? static_cast<QWidget *>(new WinUI3::SettingsCard(island))
-                                     : static_cast<QWidget *>(new QGroupBox(island));
+        QWidget *card = kind == CardKind::GroupBox ? static_cast<QWidget *>(new QGroupBox(island))
+                                                   : new WinUI3::SettingsCard(island);
         card->setGeometry(40, 40, 400, 240);
-        auto *combo = new QComboBox(card);
+        QWidget *editorParent = card;
+        const QWidget *fillOwner = card;
+        if (kind == CardKind::TabPane || kind == CardKind::DocumentTabs) {
+            auto *tabs = new QTabWidget(card);
+            tabs->setDocumentMode(kind == CardKind::DocumentTabs);
+            tabs->setGeometry(0, 0, card->width(), card->height());
+            editorParent = new QWidget;
+            tabs->addTab(editorParent, QStringLiteral("Preferences"));
+            if (kind == CardKind::TabPane)
+                fillOwner = tabs;
+        }
+        auto *combo = new QComboBox(editorParent);
         combo->addItems({ QStringLiteral("Automatic"), QStringLiteral("Notify me") });
         combo->setGeometry(60, 140, 160, 32);
         window.resize(480, 320);
@@ -97,17 +109,17 @@ void WinUI3MicaCardEditorTest::comboBoxInsideCardKeepsCardFillOverComposited()
         // veiled refill the owning card itself paints.
         QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(combo), composited);
         QVERIFY(WinUI3::Private::insideOpaqueCard(combo));
-        // The card that owns the surface paints a different role per family:
-        // a group card uses the Base veil, a SettingsCard uses t.control
-        // (QPalette::Button). The refill must match that exact role, or the
-        // control's rounded corners read as darker patches (issue #72).
-        const QPalette::ColorRole cardRole = settingsCard ? QPalette::Button : QPalette::Base;
+        // Group cards and tab panes paint Base. SettingsCards paint Button
+        // even with document-mode tabs, since Qt skips the pane in that mode.
+        const QPalette::ColorRole cardRole = kind == CardKind::GroupBox || kind == CardKind::TabPane
+                ? QPalette::Base
+                : QPalette::Button;
         const QColor cardTone = WinUI3::Private::veiledCard(
-                card->palette().color(QPalette::Active, cardRole), composited);
+                fillOwner->palette().color(QPalette::Active, cardRole), composited);
         QCOMPARE(cardTone.alpha(),
-                 composited ? qMin(card->palette().color(cardRole).alpha(),
+                 composited ? qMin(fillOwner->palette().color(cardRole).alpha(),
                                    WinUI3::Private::VeiledCardAlpha)
-                            : card->palette().color(cardRole).alpha());
+                            : fillOwner->palette().color(cardRole).alpha());
         QCOMPARE(WinUI3::Private::cardRefillToneFor(combo, composited), cardTone);
         QCOMPARE(combo->geometry(), QRect(60, 140, 160, 32));
         // Mechanism: the real CC_ComboBox path over a seeded card canvas keeps
@@ -142,10 +154,12 @@ void WinUI3MicaCardEditorTest::comboBoxInsideCardKeepsCardFillOverComposited()
     };
     for (const bool dark : { false, true }) {
         for (const int density : { 0, 1 }) {
-            for (const bool settingsCard : { false, true }) {
-                checkComboOverCard(dark, density, settingsCard, true);
-                checkComboOverCard(dark, density, settingsCard, false);
+            for (const CardKind kind : { CardKind::GroupBox, CardKind::SettingsCard }) {
+                checkComboOverCard(dark, density, kind, true);
+                checkComboOverCard(dark, density, kind, false);
             }
+            checkComboOverCard(dark, density, CardKind::TabPane, true);
+            checkComboOverCard(dark, density, CardKind::DocumentTabs, true);
         }
     }
 }
