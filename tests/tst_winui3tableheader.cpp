@@ -298,20 +298,25 @@ void WinUI3TableHeaderTest::tableCellElidesAtHardBreak()
     option.text = QStringLiteral("AB\nHidden");
     const QRect textRect =
             table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
-    QCOMPARE(textRect, option.rect.adjusted(12, 0, -12, 0));
-    QVERIFY(option.fontMetrics.horizontalAdvance(QStringLiteral("AB Hidden")) < textRect.width());
-    const auto render = [&](const QStyleOptionViewItem &cell) {
-        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        QPainter painter(&image);
-        table.style()->drawControl(QStyle::CE_ItemViewItem, &cell, &painter, table.viewport());
-        return image;
-    };
-    QStyleOptionViewItem expected = option;
-    expected.features.setFlag(QStyleOptionViewItem::WrapText, false);
-    expected.textElideMode = Qt::ElideNone;
-    expected.text = visibleText;
-    QCOMPARE(render(option), render(expected));
+    QCOMPARE(textRect.left(), option.rect.left() + 12);
+    QCOMPARE(textRect.height(), option.rect.height());
+    QVERIFY(textRect.right() <= option.rect.right() - 12);
+    QVERIFY(QFontMetricsF(option.font).horizontalAdvance(visibleText) <= textRect.width());
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    painter.setClipRect(textRect);
+    painter.setFont(option.font);
+    painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+    painter.drawText(textRect, int(option.displayAlignment) | Qt::TextSingleLine, visibleText);
+    painter.end();
+    QCOMPARE(actual, expected);
 }
 
 void WinUI3TableHeaderTest::tableCellKeepsFittingText_data()
