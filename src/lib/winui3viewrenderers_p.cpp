@@ -20,6 +20,7 @@
 #include <QStyleOptionProgressBar>
 #include <QStyleOptionSizeGrip>
 #include <QTextEdit>
+#include <QTextLayout>
 
 #include <QAbstractItemView>
 #include <QHeaderView>
@@ -50,6 +51,95 @@ namespace WinUI3::Private {
 using namespace PaintPrivate;
 
 namespace {
+
+void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &option,
+                              const QRect &rect, int textFlags)
+{
+    if (option.textElideMode == Qt::ElideNone) {
+        painter->drawText(rect, textFlags, option.text);
+        return;
+    }
+    QString normalized = option.text;
+    normalized.replace(QLatin1Char('\n'), QChar::LineSeparator);
+    normalized.replace(QLatin1Char('\t'), QLatin1Char(' '));
+    normalized.replace(QLatin1Char('\r'), QLatin1Char(' '));
+    QTextLayout layout(normalized, option.font);
+    QTextOption textOption;
+    textOption.setWrapMode(QTextOption::WordWrap);
+    textOption.setTextDirection(painter->layoutDirection());
+    textOption.setAlignment(textFlags & Qt::AlignJustify ? Qt::AlignJustify : Qt::AlignLeft);
+    layout.setTextOption(textOption);
+    QList<QTextLine> lines;
+    const qreal leading = QFontMetricsF(option.font).leading();
+    qreal height = -leading;
+    bool overflow = false;
+    layout.beginLayout();
+    while (true) {
+        QTextLine line = layout.createLine();
+        if (!line.isValid())
+            break;
+        line.setLineWidth(rect.width());
+        // QPainter rounds line origins, not individual line heights.
+        const qreal top = qCeil(height + leading);
+        const qreal nextHeight = top + line.ascent() + line.descent();
+        if (!lines.isEmpty() && qFloor(nextHeight) > rect.height()) {
+            overflow = true;
+            break;
+        }
+        line.setPosition(QPointF(0, top));
+        lines.append(line);
+        height = nextHeight;
+        overflow |= line.naturalTextWidth() > rect.width();
+    }
+    layout.endLayout();
+    if (!overflow) {
+        painter->drawText(rect, textFlags, option.text);
+        return;
+    }
+    const qreal top = rect.top()
+            + (textFlags & Qt::AlignBottom ? rect.height() - height : (rect.height() - height) / 2);
+    const Qt::Alignment alignment = QStyle::visualAlignment(
+            painter->layoutDirection(),
+            Qt::Alignment(textFlags & (Qt::AlignHorizontal_Mask | Qt::AlignAbsolute)));
+    for (int i = 0; i < lines.size(); ++i) {
+        const QTextLine line = lines.at(i);
+        const bool hiddenLines =
+                i == lines.size() - 1 && line.textStart() + line.textLength() < normalized.size();
+        if (!hiddenLines && line.naturalTextWidth() <= rect.width()) {
+            qreal left = rect.left();
+            if (alignment & Qt::AlignRight) {
+                left += rect.width() - line.horizontalAdvance();
+                if (textOption.textDirection() == Qt::RightToLeft
+                    || (textOption.textDirection() == Qt::LayoutDirectionAuto
+                        && normalized.isRightToLeft())) {
+                    const int end = line.textStart() + line.textLength();
+                    int trailing = end;
+                    while (trailing > line.textStart() && normalized.at(trailing - 1).isSpace())
+                        --trailing;
+                    // Qt's RTL wrap spaces are visually leading, outside horizontalAdvance().
+                    left -= QFontMetricsF(option.font)
+                                    .horizontalAdvance(normalized.mid(trailing, end - trailing));
+                }
+            } else if (alignment & Qt::AlignHCenter)
+                left += (rect.width() - line.horizontalAdvance()) / 2;
+            line.draw(painter, QPointF(left, top));
+            continue;
+        }
+        QString text = normalized.mid(line.textStart(), hiddenLines ? -1 : line.textLength());
+        if (hiddenLines)
+            text.replace(QChar::LineSeparator, QLatin1Char(' '));
+        else if (text.endsWith(QChar::LineSeparator))
+            text.chop(1);
+        if (hiddenLines && option.fontMetrics.horizontalAdvance(text) <= rect.width())
+            text += QChar(0x2026);
+        text = option.fontMetrics.elidedText(text, option.textElideMode, rect.width());
+        painter->drawText(
+                QRectF(rect.left(), top + line.y(), rect.width(), line.ascent() + line.descent()),
+                (textFlags & ~int(Qt::TextWordWrap | Qt::AlignVertical_Mask)) | Qt::AlignTop
+                        | Qt::TextSingleLine | Qt::TextDontClip,
+                text);
+    }
+}
 
 QFont controlLabelFont(const QWidget *widget)
 {
@@ -1245,11 +1335,17 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
             const bool wraps = source->features & QStyleOptionViewItem::WrapText;
             const int textFlags =
                     int(alignment) | (wraps ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine));
-            const QString text = wraps
-                    ? source->text
-                    : source->fontMetrics.elidedText(source->text, source->textElideMode,
-                                                     textRect.width());
-            painter->drawText(textRect, textFlags, text);
+            const bool wrappedTableCell = wraps && tableView && !calendar;
+            if (wrappedTableCell) {
+                painter->setClipRect(textRect, Qt::IntersectClip);
+                drawWrappedTableCellText(painter, *source, textRect, textFlags);
+            } else {
+                const QString text = wraps
+                        ? source->text
+                        : source->fontMetrics.elidedText(source->text, source->textElideMode,
+                                                         textRect.width());
+                painter->drawText(textRect, textFlags, text);
+            }
             painter->restore();
         }
 
