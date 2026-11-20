@@ -8,6 +8,8 @@
 
 #include <winui3style/winui3style.h>
 
+#include "winui3tokens_p.h"
+
 #include <QMetaType>
 #include <QApplication>
 #include <QStyle>
@@ -175,7 +177,7 @@ inline constexpr DensityMetrics makeCompactDensityMetrics()
     m.menuSeparatorHeight = 7;
     m.listItemHeight = 32;
     m.treeItemHeight = 24;
-    m.tableItemHeight = 36;
+    m.tableItemHeight = CompactTableRowHeight;
     m.navigationItemHeight = 32;
     m.headerHeight = 32;
     // Buttons, tabs, and sliders are not on that resource page; preserve.

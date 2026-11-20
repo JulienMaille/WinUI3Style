@@ -27,6 +27,7 @@
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QStyleFactory>
+#include <QStyleOptionHeader>
 #include <QStyleOptionViewItem>
 #include <QTabWidget>
 #include <QTableView>
@@ -137,6 +138,16 @@ private slots:
     void openComboPopupFollowsDensitySwitch();
     void runtimeThemeChangeRefreshesOpenCompleterPopup();
     void compactNumberBoxAndUnlistedControlGeometry();
+    void treeHeaderDensityGeometry_data();
+    void treeHeaderDensityGeometry();
+    void tableDensityUpdatesRealSections_data();
+    void tableDensityUpdatesRealSections();
+    void tableContentAndEditorSizing_data();
+    void tableContentAndEditorSizing();
+    void itemViewDensitySwitchFirstPaint_data();
+    void itemViewDensitySwitchFirstPaint();
+    void tableDefaultSizedContentFollowsDensity_data();
+    void tableDefaultSizedContentFollowsDensity();
     void menuDensityPreservesPopupGeometry_data();
     void menuDensityPreservesPopupGeometry();
     void inheritedCompactNumberBoxMatchesTextBoxHeight();
@@ -793,6 +804,337 @@ void WinUI3DensityWidgetsTest::runtimeThemeChangeRefreshesOpenCompleterPopup()
     popup->hide();
 }
 
+void WinUI3DensityWidgetsTest::treeHeaderDensityGeometry_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<int>("fontPixels");
+    for (bool compact : { false, true })
+        for (bool dark : { false, true })
+            for (bool rtl : { false, true })
+                for (int pixels : { 14, 32 })
+                    QTest::newRow(qPrintable(QStringLiteral("%1-%2-%3-%4")
+                                                     .arg(compact ? "compact" : "standard")
+                                                     .arg(dark ? "dark" : "light")
+                                                     .arg(rtl ? "rtl" : "ltr")
+                                                     .arg(pixels)))
+                            << compact << dark << rtl << pixels;
+}
+
+void WinUI3DensityWidgetsTest::treeHeaderDensityGeometry()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, dark);
+    QFETCH(bool, rtl);
+    QFETCH(int, fontPixels);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    style.setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QWidget root;
+    QVBoxLayout layout(&root);
+    QTreeView tree(&root);
+    QStandardItemModel model(2, 2);
+    model.setHorizontalHeaderLabels({ QStringLiteral("Item"), QStringLiteral("State") });
+    model.setData(model.index(0, 0), QStringLiteral("Branch"));
+    tree.setModel(&model);
+    tree.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    tree.setSortingEnabled(true);
+    tree.setColumnWidth(0, 180);
+    QFont font = tree.header()->font();
+    font.setPixelSize(fontPixels);
+    tree.header()->setFont(font);
+    layout.addWidget(&tree);
+    settle(root);
+    QStyleOptionHeader option;
+    option.initFrom(tree.header());
+    option.text = QStringLiteral("Item");
+    option.sortIndicator = QStyleOptionHeader::SortDown;
+    const auto expectedHeight = [&](bool dense) {
+        return dense ? qMax(24, option.fontMetrics.height() + 4) : 32;
+    };
+    QCOMPARE(tree.header()->height(), expectedHeight(compact));
+    const QSize hint =
+            style.sizeFromContents(QStyle::CT_HeaderSection, &option, QSize(), tree.header());
+    QCOMPARE(hint.height(), expectedHeight(compact));
+    QCOMPARE(hint.width(), option.fontMetrics.horizontalAdvance(option.text) + 24 + 32);
+    QCOMPARE(tree.visualRect(model.index(0, 0)).height(), compact ? 24 : 28);
+    QCOMPARE(tree.columnWidth(0), 180);
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderMargin, nullptr, tree.header()), 12);
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr, tree.header()),
+             36);
+    QHeaderView standalone(Qt::Horizontal);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &option, QSize(), &standalone)
+                     .height(),
+             32);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
+    QTRY_COMPARE(tree.header()->height(), expectedHeight(!compact));
+    QCOMPARE(tree.columnWidth(0), 180);
+    QCOMPARE(tree.header()->font(), font);
+    root.setProperty("winuiDensity", QStringLiteral("compact"));
+    QTRY_COMPARE(tree.header()->height(), expectedHeight(true));
+    root.setProperty("winuiDensity", QStringLiteral("standard"));
+    QTRY_COMPARE(tree.header()->height(), expectedHeight(false));
+    tree.header()->setFixedHeight(64);
+    root.setProperty("winuiDensity", QStringLiteral("compact"));
+    QCOMPARE(tree.header()->height(), 64);
+    QCOMPARE(tree.columnWidth(0), 180);
+}
+
+void WinUI3DensityWidgetsTest::tableDensityUpdatesRealSections_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("rtl");
+    for (bool compact : { false, true })
+        for (bool dark : { false, true })
+            for (bool rtl : { false, true })
+                QTest::newRow(qPrintable(QStringLiteral("%1-%2-%3")
+                                                 .arg(compact ? "compact" : "standard")
+                                                 .arg(dark ? "dark" : "light")
+                                                 .arg(rtl ? "rtl" : "ltr")))
+                        << compact << dark << rtl;
+}
+
+void WinUI3DensityWidgetsTest::tableDensityUpdatesRealSections()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, dark);
+    QFETCH(bool, rtl);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QWidget root;
+    QVBoxLayout layout(&root);
+    QTableView table(&root);
+    QStandardItemModel model(6, 2);
+    model.setHorizontalHeaderLabels({ QStringLiteral("Control"), QStringLiteral("State") });
+    for (int row = 0; row < model.rowCount(); ++row)
+        model.setData(model.index(row, 0), QStringLiteral("Editable cell"));
+    table.setModel(&model);
+    table.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    table.setSortingEnabled(true);
+    table.setRowHeight(3, 64);
+    table.setColumnWidth(0, 180);
+    layout.addWidget(&table);
+    settle(root);
+    const QFont originalFont = table.font();
+    const int standardRow = qMax(36, table.verticalHeader()->fontMetrics().height() + 24);
+    QTRY_COMPARE(table.rowHeight(0), compact ? 28 : standardRow);
+    QTRY_COMPARE(table.horizontalHeader()->height(), compact ? 24 : 32);
+    QCOMPARE(table.rowHeight(3), 64);
+    QCOMPARE(table.columnWidth(0), 180);
+    QCalendarWidget calendar(&root);
+    auto *calendarView =
+            calendar.findChild<QTableView *>(QStringLiteral("qt_calendar_calendarview"));
+    QVERIFY(calendarView);
+    QStyleOption calendarOption;
+    calendarOption.initFrom(calendarView);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_ItemViewItem, &calendarOption, QSize(80, 16),
+                                    calendarView)
+                     .height(),
+             36);
+    QCOMPARE(style.sizeFromContents(QStyle::CT_HeaderSection, &calendarOption, QSize(80, 16),
+                                    calendarView->horizontalHeader())
+                     .height(),
+             32);
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderMargin, nullptr, calendarView->verticalHeader()),
+             12);
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr,
+                               calendarView->verticalHeader()),
+             36);
+
+    style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
+    QTRY_COMPARE(table.rowHeight(0), compact ? standardRow : 28);
+    QTRY_COMPARE(table.horizontalHeader()->height(), compact ? 32 : 24);
+    QCOMPARE(table.rowHeight(3), 64);
+    QCOMPARE(table.columnWidth(0), 180);
+    QCOMPARE(table.font(), originalFont);
+
+    root.setProperty("winuiDensity", QStringLiteral("compact"));
+    QTRY_COMPARE(table.rowHeight(0), 28);
+    QTRY_COMPARE(table.horizontalHeader()->height(), 24);
+    table.setCurrentIndex(model.index(0, 0));
+    QTest::keyClick(&table, Qt::Key_F2);
+    auto *editor = table.findChild<QLineEdit *>();
+    QTRY_VERIFY(editor && editor->isVisible());
+    QVERIFY(editor->height() >= editor->sizeHint().height());
+    QTest::keyClick(editor, Qt::Key_Escape);
+
+    model.setData(model.index(1, 0), QSize(100, 56), Qt::SizeHintRole);
+    table.resizeRowToContents(1);
+    QCOMPARE(table.rowHeight(1), 56 + int(table.showGrid()));
+
+    table.verticalHeader()->setDefaultSectionSize(52);
+    root.setProperty("winuiDensity", QStringLiteral("standard"));
+    QTRY_COMPARE(table.rowHeight(0), 52);
+    root.setProperty("winuiDensity", QStringLiteral("compact"));
+    QTRY_COMPARE(table.rowHeight(0), 52);
+    QCOMPARE(table.rowHeight(3), 64);
+}
+
+void WinUI3DensityWidgetsTest::tableContentAndEditorSizing_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("fontPixels");
+    for (bool compact : { false, true })
+        for (int pixels : { 14, 32 })
+            QTest::newRow(qPrintable(
+                    QStringLiteral("%1-%2").arg(compact ? "compact" : "standard").arg(pixels)))
+                    << compact << pixels;
+}
+
+void WinUI3DensityWidgetsTest::tableContentAndEditorSizing()
+{
+    QFETCH(bool, compact);
+    QFETCH(int, fontPixels);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QTableView table;
+    QFont font = table.font();
+    font.setPixelSize(fontPixels);
+    table.setFont(font);
+    if (!compact) {
+        table.horizontalHeader()->setFont(font);
+        table.verticalHeader()->setFont(font);
+    }
+    QStandardItemModel model(4, 1);
+    model.setData(model.index(0, 0), QStringLiteral("Editable"));
+    model.setData(model.index(1, 0), QStringLiteral("First line\nSecond line\nThird line"));
+    QPixmap decoration(48, 48);
+    decoration.fill(Qt::red);
+    model.setData(model.index(2, 0), decoration, Qt::DecorationRole);
+    QFont cellFont = font;
+    cellFont.setPixelSize(48);
+    model.setData(model.index(3, 0), QStringLiteral("Large font"));
+    model.setData(model.index(3, 0), cellFont, Qt::FontRole);
+    table.setModel(&model);
+    table.setIconSize(decoration.size());
+    table.setColumnWidth(0, 240);
+    table.resize(400, 400);
+    table.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&table));
+    table.setCurrentIndex(model.index(0, 0));
+    QTest::keyClick(&table, Qt::Key_F2);
+    auto *editor = table.findChild<QLineEdit *>();
+    QTRY_VERIFY(editor && editor->isVisible());
+    QVERIFY2(editor->height() >= editor->sizeHint().height(),
+             qPrintable(QStringLiteral("row=%1 editor=%2 hint=%3")
+                                .arg(table.rowHeight(0))
+                                .arg(editor->height())
+                                .arg(editor->sizeHint().height())));
+    QTest::keyClick(editor, Qt::Key_Escape);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    table.resizeRowsToContents();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.widget = &table;
+    const auto *delegate = table.itemDelegate();
+    const int grid = int(table.showGrid());
+    option.decorationSize = table.iconSize();
+    option.features |= QStyleOptionViewItem::WrapText;
+    for (int row : { 1, 2, 3 }) {
+        option.rect = table.visualRect(model.index(row, 0));
+        QCOMPARE(table.rowHeight(row),
+                 qMax(table.verticalHeader()->minimumSectionSize(),
+                      delegate->sizeHint(option, model.index(row, 0)).height() + grid));
+    }
+    QVERIFY(table.rowHeight(1) >= 3 * table.fontMetrics().height());
+    QVERIFY(table.rowHeight(2) >= decoration.height() + grid);
+    QVERIFY(table.rowHeight(3) >= QFontMetrics(cellFont).height() + grid);
+    table.setCurrentIndex(model.index(3, 0));
+    QTest::keyClick(&table, Qt::Key_F2);
+    editor = table.findChild<QLineEdit *>();
+    QTRY_VERIFY(editor && editor->isVisible());
+    QVERIFY(editor->height() >= editor->sizeHint().height());
+    QTest::keyClick(editor, Qt::Key_Escape);
+}
+
+void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("tree");
+    QTest::newRow("table-standard-to-compact") << true << false;
+    QTest::newRow("table-compact-to-standard") << false << false;
+    QTest::newRow("tree-standard-to-compact") << true << true;
+    QTest::newRow("tree-compact-to-standard") << false << true;
+}
+
+void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, tree);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
+    QTableView table;
+    QTreeView treeView;
+    QAbstractItemView *view = tree ? static_cast<QAbstractItemView *>(&treeView) : &table;
+    QHeaderView *header = tree ? treeView.header() : table.horizontalHeader();
+    QStandardItemModel model(2, 1);
+    model.setData(model.index(0, 0), QStringLiteral("Cell"));
+    view->setModel(&model);
+    view->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view));
+    QCoreApplication::processEvents();
+    struct PaintProbe : QObject
+    {
+        QAbstractItemView *view = nullptr;
+        QHeaderView *header = nullptr;
+        QList<QPair<int, int>> frames;
+        bool eventFilter(QObject *, QEvent *event) override
+        {
+            if (event->type() == QEvent::Paint)
+                frames.append({ view->visualRect(view->model()->index(0, 0)).height(),
+                                header->height() });
+            return false;
+        }
+    } probe;
+    probe.view = view;
+    probe.header = header;
+    view->viewport()->installEventFilter(&probe);
+    header->viewport()->installEventFilter(&probe);
+    const int standardRow =
+            tree ? 28 : qMax(36, table.verticalHeader()->fontMetrics().height() + 24);
+    const int grid = tree ? 0 : int(table.showGrid());
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QCoreApplication::processEvents();
+    QVERIFY(!probe.frames.isEmpty());
+    for (const auto &frame : probe.frames) {
+        QCOMPARE(frame.first, compact ? (tree ? 24 : 28 - grid) : standardRow - grid);
+        QCOMPARE(frame.second, compact ? 24 : 32);
+    }
+}
+
+void WinUI3DensityWidgetsTest::tableDefaultSizedContentFollowsDensity_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("standard-to-compact") << true;
+    QTest::newRow("compact-to-standard") << false;
+}
+
+void WinUI3DensityWidgetsTest::tableDefaultSizedContentFollowsDensity()
+{
+    QFETCH(bool, compact);
+    auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
+    style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
+    QTableView table;
+    QStandardItemModel model(1, 1);
+    table.setModel(&model);
+    table.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&table));
+    const int previousDefault = table.verticalHeader()->defaultSectionSize();
+    model.setData(model.index(0, 0), QSize(100, previousDefault - int(table.showGrid())),
+                  Qt::SizeHintRole);
+    table.resizeRowToContents(0);
+    QCOMPARE(table.rowHeight(0), previousDefault);
+    style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    QCOMPARE(table.rowHeight(0), table.verticalHeader()->defaultSectionSize());
+    table.resizeRowToContents(0);
+    QCOMPARE(table.rowHeight(0),
+             qMax(previousDefault, table.verticalHeader()->minimumSectionSize()));
+}
+
 void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
 {
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
@@ -841,7 +1183,8 @@ void WinUI3DensityWidgetsTest::compactNumberBoxAndUnlistedControlGeometry()
     QCOMPARE(spinBox.sizeHint().width(), spinStandard.width());
     QCOMPARE(slider.sizeHint(), sliderStandard);
     QCOMPARE(tabs.sizeHint(), tabsStandard);
-    QCOMPARE(table.rowHeight(0), tableRowStandard);
+    QVERIFY(tableRowStandard > 28);
+    QCOMPARE(table.rowHeight(0), 28);
     QCOMPARE(table.horizontalHeader()->sectionSize(0), headerStandard);
     QCOMPARE(menu.actionGeometry(&menuAction).height(), 32);
 }
