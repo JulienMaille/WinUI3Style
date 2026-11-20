@@ -82,6 +82,7 @@
 #include <QTextEdit>
 #include <QThread>
 #include <QToolBar>
+#include <QTreeView>
 #include <QWizard>
 #include <QToolButton>
 #include <QToolBox>
@@ -652,8 +653,17 @@ void invalidateDensityTree(QWidget *root)
         if (auto *header = qobject_cast<QHeaderView *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(header, &styleChange);
-            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget()))
+            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget())) {
+                if (header->orientation() == Qt::Horizontal
+                    && (qobject_cast<QTableView *>(view) || qobject_cast<QTreeView *>(view))
+                    && view->objectName() != QLatin1String("qt_calendar_calendarview")) {
+                    // Qt's header event skips the size-hint cache when the application
+                    // sets a default section size. The viewport event always clears it.
+                    QEvent viewportStyleChange(QEvent::StyleChange);
+                    QCoreApplication::sendEvent(header->viewport(), &viewportStyleChange);
+                }
                 view->doItemsLayout();
+            }
         }
     };
     // Header caches and item-view geometry must agree before any synchronous repaint.

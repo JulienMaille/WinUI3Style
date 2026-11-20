@@ -1055,16 +1055,20 @@ void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint_data()
 {
     QTest::addColumn<bool>("compact");
     QTest::addColumn<bool>("tree");
-    QTest::newRow("table-standard-to-compact") << true << false;
-    QTest::newRow("table-compact-to-standard") << false << false;
-    QTest::newRow("tree-standard-to-compact") << true << true;
-    QTest::newRow("tree-compact-to-standard") << false << true;
+    QTest::addColumn<bool>("customColumnSize");
+    QTest::newRow("table-standard-to-compact") << true << false << false;
+    QTest::newRow("table-compact-to-standard") << false << false << false;
+    QTest::newRow("tree-standard-to-compact") << true << true << false;
+    QTest::newRow("tree-compact-to-standard") << false << true << false;
+    QTest::newRow("tree-custom-column-size-to-compact") << true << true << true;
+    QTest::newRow("tree-custom-column-size-to-standard") << false << true << true;
 }
 
 void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint()
 {
     QFETCH(bool, compact);
     QFETCH(bool, tree);
+    QFETCH(bool, customColumnSize);
     auto &style = *qobject_cast<WinUI3::Style *>(qApp->style());
     style.setDensityMode(compact ? WinUI3::DensityMode::Standard : WinUI3::DensityMode::Compact);
     QTableView table;
@@ -1074,6 +1078,10 @@ void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint()
     QStandardItemModel model(2, 1);
     model.setData(model.index(0, 0), QStringLiteral("Cell"));
     view->setModel(&model);
+    if (customColumnSize) {
+        header->setStretchLastSection(false);
+        header->setDefaultSectionSize(160);
+    }
     view->show();
     QVERIFY(QTest::qWaitForWindowExposed(view));
     QCoreApplication::processEvents();
@@ -1098,6 +1106,8 @@ void WinUI3DensityWidgetsTest::itemViewDensitySwitchFirstPaint()
             tree ? 28 : qMax(36, table.verticalHeader()->fontMetrics().height() + 24);
     const int grid = tree ? 0 : int(table.showGrid());
     style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    if (customColumnSize)
+        QCOMPARE(header->sectionSize(0), 160);
     QCoreApplication::processEvents();
     QVERIFY(!probe.frames.isEmpty());
     for (const auto &frame : probe.frames) {
