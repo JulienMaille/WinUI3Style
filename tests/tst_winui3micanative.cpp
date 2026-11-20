@@ -13,6 +13,7 @@
 #include "../src/lib/winui3surfaces_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
+#include <QBackingStore>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGuiApplication>
@@ -34,6 +35,8 @@ private slots:
     void initTestCase();
     void liveThemeSwitchWhileGrantedThenDisable();
     void popupGrantAliveRejectsRevokedEffect();
+    void micaToggleClearsVacatedClientPixels_data();
+    void micaToggleClearsVacatedClientPixels();
 };
 
 void WinUI3MicaNativeTest::initTestCase()
@@ -83,14 +86,17 @@ void WinUI3MicaNativeTest::liveThemeSwitchWhileGrantedThenDisable()
     QVERIFY(WinUI3::Private::backdropEffectiveSurface(&gallery)
             != WinUI3::Private::BackdropSurface::Composited);
 
-    // Verdict on presented pixels: nav ink readable on a Light pane,
-    // window opaque on the Light theme.
-    const QImage frame = gallery.grab().toImage();
+    // Reading the backing store avoids a grab() repaint hiding stale pixels.
+    QBackingStore *store = gallery.backingStore();
+    QVERIFY(store && store->paintDevice());
+    QCOMPARE(store->paintDevice()->devType(), int(QInternal::Image));
+    const QImage frame = *static_cast<const QImage *>(store->paintDevice());
     QVERIFY(!frame.isNull());
     const QColor windowInk = frame.pixelColor(frame.width() / 2, frame.height() / 2);
     QCOMPARE(windowInk.alpha(), 255);
     const QPalette lightPalette = style->standardPalette();
     const QColor expectedWindow = lightPalette.color(QPalette::Window);
+    QCOMPARE(gallery.palette().color(QPalette::Window), expectedWindow);
     QVERIFY(qAbs(windowInk.red() - expectedWindow.red()) <= 8);
     QVERIFY(qAbs(windowInk.green() - expectedWindow.green()) <= 8);
     QVERIFY(qAbs(windowInk.blue() - expectedWindow.blue()) <= 8);
@@ -147,6 +153,82 @@ void WinUI3MicaNativeTest::popupGrantAliveRejectsRevokedEffect()
     QCOMPARE(popup->contentsMargins().top(), 4);
     QCOMPARE(popup->contentsMargins().bottom(), 4);
     style->setThemeMode(WinUI3::ThemeMode::Dark);
+}
+
+void WinUI3MicaNativeTest::micaToggleClearsVacatedClientPixels_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("styledBackground");
+    for (bool dark : { false, true }) {
+        for (bool compact : { false, true }) {
+            for (bool styledBackground : { false, true }) {
+                const QByteArray name = QByteArray(dark ? "dark" : "light")
+                        + (compact ? "-compact" : "-standard")
+                        + (styledBackground ? "-styled" : "-unstyled");
+                QTest::newRow(name.constData()) << dark << compact << styledBackground;
+            }
+        }
+    }
+}
+
+void WinUI3MicaNativeTest::micaToggleClearsVacatedClientPixels()
+{
+    if (QGuiApplication::platformName() != QStringLiteral("windows"))
+        QSKIP("requires the live DWM compositor and raster backing store");
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, styledBackground);
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QMainWindow window;
+    window.setProperty(WinUI3::Style::DensityProperty, compact ? 1 : 0);
+    window.setAttribute(Qt::WA_StyledBackground, styledBackground);
+    window.setContentsMargins(0, 0, 0, 64);
+    auto *dock = new QDockWidget(QStringLiteral("Inspector"), &window);
+    dock->setWidget(new QPlainTextEdit(dock));
+    window.addDockWidget(Qt::LeftDockWidgetArea, dock);
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *marker = new QLabel(QStringLiteral("Transient client content"), &window);
+    marker->setGeometry(window.width() - 160, window.height() - 60, 140, 32);
+    marker->setAutoFillBackground(true);
+    marker->setBackgroundRole(QPalette::Highlight);
+    const QPoint sample = marker->geometry().topLeft() + QPoint(4, 4);
+    const QColor seed = marker->palette().color(QPalette::Highlight);
+    for (int cycle = 0; cycle < 2; ++cycle) {
+        window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
+        QTRY_COMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
+                     WinUI3::Private::BackdropSurface::Composited);
+        marker->show();
+        marker->repaint();
+        QTest::qWait(30);
+        QBackingStore *store = window.backingStore();
+        QVERIFY(store && store->paintDevice());
+        QCOMPARE(store->paintDevice()->devType(), int(QInternal::Image));
+        const auto *buffer = static_cast<const QImage *>(store->paintDevice());
+        const QPoint pixel = sample * window.devicePixelRatioF();
+        QCOMPARE(buffer->pixelColor(pixel), seed);
+        marker->hide();
+        QCOMPARE(window.childAt(sample), nullptr);
+        window.repaint();
+        QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
+        QCOMPARE(buffer->pixelColor(pixel), QColor(Qt::transparent));
+        QCOMPARE(window.testAttribute(Qt::WA_StyledBackground), true);
+        QCOMPARE(window.testAttribute(Qt::WA_NoSystemBackground), false);
+        window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
+        QTRY_COMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
+                     WinUI3::Private::BackdropSurface::Solid);
+        QCOMPARE(window.testAttribute(Qt::WA_StyledBackground), styledBackground);
+        QCOMPARE(window.palette().color(QPalette::Window),
+                 style->standardPalette().color(QPalette::Window));
+        buffer = static_cast<const QImage *>(window.backingStore()->paintDevice());
+        QCOMPARE(buffer->pixelColor(pixel), style->standardPalette().color(QPalette::Window));
+    }
+    window.close();
 }
 
 QTEST_MAIN(WinUI3MicaNativeTest)
