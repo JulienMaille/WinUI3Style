@@ -16,6 +16,7 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTextLayout>
+#include <QtMath>
 #include <QtTest>
 
 namespace {
@@ -73,6 +74,8 @@ private slots:
     void tableCellElidesOverflow();
     void tableCellPreservesFittingMultilineText();
     void tableCellElidesLastVisibleLine();
+    void tableCellElidesAtHardBreak_data();
+    void tableCellElidesAtHardBreak();
     void tableCellKeepsFittingText_data();
     void tableCellKeepsFittingText();
     void tableCellKeepsFittingLineBeforeOverflow();
@@ -207,6 +210,7 @@ void WinUI3TableHeaderTest::tableCellPreservesFittingMultilineText()
     QImage expected(actual.size(), actual.format());
     expected.fill(Qt::transparent);
     QPainter painter(&expected);
+    painter.setClipRect(textRect);
     painter.setFont(option.font);
     painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
     painter.drawText(textRect, int(option.displayAlignment) | Qt::TextWordWrap, option.text);
@@ -234,8 +238,7 @@ void WinUI3TableHeaderTest::tableCellElidesLastVisibleLine()
     QCOMPARE(textRect.left(), 12);
     QCOMPARE(textRect.right(), option.rect.right() - 12);
     const QString lastLine = option.fontMetrics.elidedText(
-            QStringLiteral("Second line has far too much text Third line"), Qt::ElideRight,
-            textRect.width());
+            QStringLiteral("Second line has far too much text"), Qt::ElideRight, textRect.width());
     QVERIFY(lastLine.endsWith(QChar(0x2026)));
     QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
     actual.fill(Qt::transparent);
@@ -246,12 +249,69 @@ void WinUI3TableHeaderTest::tableCellElidesLastVisibleLine()
     QImage expected(actual.size(), actual.format());
     expected.fill(Qt::transparent);
     QPainter painter(&expected);
+    painter.setClipRect(textRect);
     painter.setFont(option.font);
     painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
     painter.drawText(textRect, int(option.displayAlignment) | Qt::TextWordWrap,
                      QStringLiteral("First line\n") + lastLine);
     painter.end();
     QCOMPARE(actual, expected);
+}
+
+void WinUI3TableHeaderTest::tableCellElidesAtHardBreak_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("elideMode");
+    QTest::addColumn<QString>("visibleText");
+    const QChar ellipsis(0x2026);
+    for (bool compact : { false, true }) {
+        const QByteArray prefix = compact ? "compact-" : "standard-";
+        QTest::newRow((prefix + "left").constData())
+                << compact << int(Qt::ElideLeft) << (ellipsis + QStringLiteral("AB"));
+        QTest::newRow((prefix + "middle").constData())
+                << compact << int(Qt::ElideMiddle)
+                << (QStringLiteral("A") + ellipsis + QLatin1Char('B'));
+        QTest::newRow((prefix + "right").constData())
+                << compact << int(Qt::ElideRight) << (QStringLiteral("AB") + ellipsis);
+    }
+}
+
+void WinUI3TableHeaderTest::tableCellElidesAtHardBreak()
+{
+    QFETCH(bool, compact);
+    QFETCH(int, elideMode);
+    QFETCH(QString, visibleText);
+    QTableWidget table(1, 1);
+    table.setProperty("winuiDensity", compact ? "compact" : "standard");
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.font.setPixelSize(16);
+    option.fontMetrics = QFontMetrics(option.font);
+    option.rect = QRect(0, 0, 200, option.fontMetrics.height());
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    option.textElideMode = Qt::TextElideMode(elideMode);
+    option.text = QStringLiteral("AB\nHidden");
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect, option.rect.adjusted(12, 0, -12, 0));
+    QVERIFY(option.fontMetrics.horizontalAdvance(QStringLiteral("AB Hidden")) < textRect.width());
+    const auto render = [&](const QStyleOptionViewItem &cell) {
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &cell, &painter, table.viewport());
+        return image;
+    };
+    QStyleOptionViewItem expected = option;
+    expected.features.setFlag(QStyleOptionViewItem::WrapText, false);
+    expected.textElideMode = Qt::ElideNone;
+    expected.text = visibleText;
+    QCOMPARE(render(option), render(expected));
 }
 
 void WinUI3TableHeaderTest::tableCellKeepsFittingText_data()
@@ -279,9 +339,9 @@ void WinUI3TableHeaderTest::tableCellKeepsFittingText()
     option.fontMetrics = QFontMetrics(option.font);
     option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
     const int flags = int(option.displayAlignment) | Qt::TextWordWrap;
+    const QFontMetricsF metrics(option.font);
     const int height =
-            option.fontMetrics.boundingRect(QRect(0, 0, width, 1000), flags, text).height()
-            - int(text.contains(QLatin1Char('\n')));
+            qFloor(metrics.boundingRect(QRectF(0, 0, width, 1000), flags, text).height());
     option.rect = QRect(0, 0, width + 24, height);
     option.index = table.model()->index(0, 0);
     option.state = QStyle::State_Enabled;
@@ -300,6 +360,7 @@ void WinUI3TableHeaderTest::tableCellKeepsFittingText()
     QImage expected(actual.size(), actual.format());
     expected.fill(Qt::transparent);
     QPainter painter(&expected);
+    painter.setClipRect(textRect);
     painter.setFont(option.font);
     painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
     painter.drawText(textRect, flags, text);
@@ -315,7 +376,8 @@ void WinUI3TableHeaderTest::tableCellKeepsFittingLineBeforeOverflow()
     option.initFrom(table.viewport());
     option.font = table.font();
     option.fontMetrics = QFontMetrics(option.font);
-    const int width = option.fontMetrics.horizontalAdvance(QStringLiteral("First line"));
+    const int width =
+            qCeil(QFontMetricsF(option.font).horizontalAdvance(QStringLiteral("First line")));
     option.rect = QRect(0, 0, width + 24, 2 * option.fontMetrics.height() + 2);
     option.index = table.model()->index(0, 0);
     option.state = QStyle::State_Enabled;
@@ -335,6 +397,7 @@ void WinUI3TableHeaderTest::tableCellKeepsFittingLineBeforeOverflow()
     QImage expected(actual.size(), actual.format());
     expected.fill(Qt::transparent);
     QPainter painter(&expected);
+    painter.setClipRect(textRect);
     painter.setFont(option.font);
     painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
     painter.drawText(

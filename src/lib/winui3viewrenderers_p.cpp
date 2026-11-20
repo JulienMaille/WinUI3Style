@@ -19,8 +19,10 @@
 #include <QStyleOptionComboBox>
 #include <QStyleOptionProgressBar>
 #include <QStyleOptionSizeGrip>
+#include <QTextBoundaryFinder>
 #include <QTextEdit>
 #include <QTextLayout>
+#include <QtMath>
 
 #include <QAbstractItemView>
 #include <QHeaderView>
@@ -52,6 +54,35 @@ using namespace PaintPrivate;
 
 namespace {
 
+QString elideTableCellLine(QString text, const QFontMetricsF &metrics, Qt::TextElideMode mode,
+                           int width, bool hasHiddenLines)
+{
+    if (!hasHiddenLines)
+        return metrics.elidedText(text, mode, width);
+
+    const qreal advance = metrics.horizontalAdvance(text);
+    if (advance > width)
+        return metrics.elidedText(text, mode, width);
+
+    const QChar ellipsis(0x2026);
+    auto position = mode == Qt::ElideLeft ? 0 : text.size();
+    if (mode == Qt::ElideMiddle && !text.isEmpty()) {
+        QTextBoundaryFinder graphemes(QTextBoundaryFinder::Grapheme, text);
+        graphemes.setPosition(text.size() / 2);
+        position = graphemes.isAtBoundary() ? graphemes.position() : graphemes.toPreviousBoundary();
+    }
+    QString marked = text;
+    marked.insert(position, ellipsis);
+    if (metrics.horizontalAdvance(marked) <= width)
+        return marked;
+
+    // Force Qt to elide the original so that only one ellipsis is rendered.
+    text = metrics.elidedText(text, mode, qCeil(advance) - 1);
+    if (text.isEmpty() && metrics.horizontalAdvance(ellipsis) <= width)
+        return QString(ellipsis);
+    return text;
+}
+
 void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &option,
                               const QRect &rect, int textFlags)
 {
@@ -70,7 +101,8 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
     textOption.setAlignment(textFlags & Qt::AlignJustify ? Qt::AlignJustify : Qt::AlignLeft);
     layout.setTextOption(textOption);
     QList<QTextLine> lines;
-    const qreal leading = QFontMetricsF(option.font).leading();
+    const QFontMetricsF metrics(option.font);
+    const qreal leading = metrics.leading();
     qreal height = -leading;
     bool overflow = false;
     layout.beginLayout();
@@ -117,22 +149,21 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
                     while (trailing > line.textStart() && normalized.at(trailing - 1).isSpace())
                         --trailing;
                     // Qt's RTL wrap spaces are visually leading, outside horizontalAdvance().
-                    left -= QFontMetricsF(option.font)
-                                    .horizontalAdvance(normalized.mid(trailing, end - trailing));
+                    left -= metrics.horizontalAdvance(normalized.mid(trailing, end - trailing));
                 }
             } else if (alignment & Qt::AlignHCenter)
                 left += (rect.width() - line.horizontalAdvance()) / 2;
             line.draw(painter, QPointF(left, top));
             continue;
         }
-        QString text = normalized.mid(line.textStart(), hiddenLines ? -1 : line.textLength());
-        if (hiddenLines)
-            text.replace(QChar::LineSeparator, QLatin1Char(' '));
-        else if (text.endsWith(QChar::LineSeparator))
+        const auto start = line.textStart();
+        // A soft wrap can continue the same paragraph, but a hard break starts a new one.
+        const auto end = hiddenLines ? normalized.indexOf(QChar::LineSeparator, start)
+                                     : start + line.textLength();
+        QString text = normalized.mid(start, end < 0 ? -1 : end - start);
+        if (text.endsWith(QChar::LineSeparator))
             text.chop(1);
-        if (hiddenLines && option.fontMetrics.horizontalAdvance(text) <= rect.width())
-            text += QChar(0x2026);
-        text = option.fontMetrics.elidedText(text, option.textElideMode, rect.width());
+        text = elideTableCellLine(text, metrics, option.textElideMode, rect.width(), hiddenLines);
         painter->drawText(
                 QRectF(rect.left(), top + line.y(), rect.width(), line.ascent() + line.descent()),
                 (textFlags & ~int(Qt::TextWordWrap | Qt::AlignVertical_Mask)) | Qt::AlignTop
