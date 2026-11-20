@@ -19,6 +19,7 @@
 #include <QGuiApplication>
 #include <QListWidget>
 #include <QMenuBar>
+#include <QPaintEvent>
 #include <QScrollArea>
 
 #ifdef Q_OS_WIN
@@ -26,6 +27,47 @@
 #endif
 #include <QLibrary>
 #include <QWindow>
+
+namespace {
+
+class BackingStorePixelProbe final : public QObject
+{
+public:
+    BackingStorePixelProbe(QWidget *widget, QPoint sample) : m_sample(sample)
+    {
+        widget->installEventFilter(this);
+    }
+
+    QColor color() const { return m_color; }
+    void reset() { m_color = QColor(); }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() != QEvent::Paint
+            || !static_cast<QPaintEvent *>(event)->region().contains(m_sample))
+            return false;
+
+        // Qt has painted the widget background and the paint device is still valid.
+        const auto *widget = static_cast<QWidget *>(watched);
+        QBackingStore *store = widget->backingStore();
+        const QPaintDevice *device = store ? store->paintDevice() : nullptr;
+        if (device && device->devType() == QInternal::Image) {
+            const auto *image = static_cast<const QImage *>(device);
+            const QPoint pixel =
+                    widget->mapTo(widget->window(), m_sample) * widget->devicePixelRatioF();
+            if (image->rect().contains(pixel))
+                m_color = image->pixelColor(pixel);
+        }
+        return false;
+    }
+
+private:
+    QPoint m_sample;
+    QColor m_color;
+};
+
+} // namespace
 
 class WinUI3MicaNativeTest final : public QObject
 {
@@ -86,11 +128,8 @@ void WinUI3MicaNativeTest::liveThemeSwitchWhileGrantedThenDisable()
     QVERIFY(WinUI3::Private::backdropEffectiveSurface(&gallery)
             != WinUI3::Private::BackdropSurface::Composited);
 
-    // Reading the backing store avoids a grab() repaint hiding stale pixels.
-    QBackingStore *store = gallery.backingStore();
-    QVERIFY(store && store->paintDevice());
-    QCOMPARE(store->paintDevice()->devType(), int(QInternal::Image));
-    const QImage frame = *static_cast<const QImage *>(store->paintDevice());
+    // Check the Gallery's restored theme. The dock regression below samples live paints.
+    const QImage frame = gallery.grab().toImage();
     QVERIFY(!frame.isNull());
     const QColor windowInk = frame.pixelColor(frame.width() / 2, frame.height() / 2);
     QCOMPARE(windowInk.alpha(), 255);
@@ -197,36 +236,33 @@ void WinUI3MicaNativeTest::micaToggleClearsVacatedClientPixels()
     marker->setGeometry(window.width() - 160, window.height() - 60, 140, 32);
     marker->setAutoFillBackground(true);
     marker->setBackgroundRole(QPalette::Highlight);
-    const QPoint sample = marker->geometry().topLeft() + QPoint(4, 4);
+    const QPoint markerSample(4, 4);
+    const QPoint sample = marker->mapTo(&window, markerSample);
     const QColor seed = marker->palette().color(QPalette::Highlight);
+    BackingStorePixelProbe markerProbe(marker, markerSample);
+    BackingStorePixelProbe windowProbe(&window, sample);
     for (int cycle = 0; cycle < 2; ++cycle) {
         window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("mica"));
         QTRY_COMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
                      WinUI3::Private::BackdropSurface::Composited);
+        markerProbe.reset();
         marker->show();
-        marker->repaint();
-        QTest::qWait(30);
-        QBackingStore *store = window.backingStore();
-        QVERIFY(store && store->paintDevice());
-        QCOMPARE(store->paintDevice()->devType(), int(QInternal::Image));
-        const auto *buffer = static_cast<const QImage *>(store->paintDevice());
-        const QPoint pixel = sample * window.devicePixelRatioF();
-        QCOMPARE(buffer->pixelColor(pixel), seed);
+        QTRY_COMPARE(markerProbe.color(), seed);
+        windowProbe.reset();
         marker->hide();
         QCOMPARE(window.childAt(sample), nullptr);
-        window.repaint();
         QCOMPARE(window.palette().color(QPalette::Window).alpha(), 0);
-        QCOMPARE(buffer->pixelColor(pixel), QColor(Qt::transparent));
+        QTRY_COMPARE(windowProbe.color(), QColor(Qt::transparent));
         QCOMPARE(window.testAttribute(Qt::WA_StyledBackground), true);
         QCOMPARE(window.testAttribute(Qt::WA_NoSystemBackground), false);
+        windowProbe.reset();
         window.setProperty(WinUI3::Style::BackdropProperty, QStringLiteral("none"));
         QTRY_COMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
                      WinUI3::Private::BackdropSurface::Solid);
         QCOMPARE(window.testAttribute(Qt::WA_StyledBackground), styledBackground);
         QCOMPARE(window.palette().color(QPalette::Window),
                  style->standardPalette().color(QPalette::Window));
-        buffer = static_cast<const QImage *>(window.backingStore()->paintDevice());
-        QCOMPARE(buffer->pixelColor(pixel), style->standardPalette().color(QPalette::Window));
+        QTRY_COMPARE(windowProbe.color(), style->standardPalette().color(QPalette::Window));
     }
     window.close();
 }

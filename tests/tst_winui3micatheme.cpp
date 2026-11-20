@@ -65,11 +65,13 @@ void WinUI3MicaThemeTest::windowBackgroundEraseIsRectangularAndClipped_data()
 {
     QTest::addColumn<bool>("dark");
     QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("popup");
     for (bool dark : { false, true }) {
         for (bool compact : { false, true }) {
             const QByteArray name =
                     QByteArray(dark ? "dark" : "light") + (compact ? "-compact" : "-standard");
-            QTest::newRow(name.constData()) << dark << compact;
+            QTest::newRow(name.constData()) << dark << compact << false;
+            QTest::newRow((name + "-popup").constData()) << dark << compact << true;
         }
     }
 }
@@ -78,15 +80,16 @@ void WinUI3MicaThemeTest::windowBackgroundEraseIsRectangularAndClipped()
 {
     QFETCH(bool, dark);
     QFETCH(bool, compact);
+    QFETCH(bool, popup);
     WinUI3::Style style(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
     style.setDensityMode(compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
-    QMainWindow window;
+    QMainWindow window(nullptr, popup ? Qt::Popup : Qt::Window);
+    window.resize(96, 64);
     window.setPalette(style.standardPalette());
     window.setProperty("_winui_backdrop", 1);
     window.setProperty("_winui_backdrop_effective", 2);
     QStyleOption option;
     option.initFrom(&window);
-    option.rect = QRect(0, 0, 96, 64);
     const QColor seed = style.standardPalette().color(QPalette::Highlight);
     QImage frame(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
     frame.fill(seed);
@@ -99,8 +102,9 @@ void WinUI3MicaThemeTest::windowBackgroundEraseIsRectangularAndClipped()
     QCOMPARE(frame.size(), option.rect.size());
     QCOMPARE(WinUI3::Private::backdropEffectiveSurface(&window),
              WinUI3::Private::BackdropSurface::Composited);
-    QCOMPARE(frame.pixelColor(0, 0), QColor(Qt::transparent));
-    QCOMPARE(frame.pixelColor(dirty.center()), QColor(Qt::transparent));
+    QCOMPARE(frame.pixelColor(0, 0), popup ? seed : QColor(Qt::transparent));
+    QCOMPARE(frame.pixelColor(dirty.center()),
+             popup ? window.palette().color(QPalette::Window) : QColor(Qt::transparent));
     QCOMPARE(frame.pixelColor(dirty.right() + 1, dirty.bottom() + 1), seed);
     frame.fill(seed);
     {
