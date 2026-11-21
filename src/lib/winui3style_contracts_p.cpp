@@ -967,7 +967,10 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_FileDialogInfoView:
         return WinUI3::icon(Icon::Info);
     case QStyle::SP_FileDialogListView:
-        return WinUI3::icon(Icon::List);
+        // The Windows reference draws a four-tile grid for this slot, not the
+        // List mark used by ContentsView/DetailedView. GridView F0E2 is the
+        // exact counterpart, so this slot is paired by artwork, not by name.
+        return WinUI3::icon(Icon::GridView);
     case QStyle::SP_TitleBarNormalButton:
         // Qt's dock float button and every other "restore" slot: the base
         // Windows style hands back a two-window mark drawn with 2 px strokes and

@@ -120,7 +120,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("FileDialogBack", SP::SP_FileDialogBack, Glyph::ChevronLeft);
     add("FileDialogToParent", SP::SP_FileDialogToParent, Glyph::ChevronUp);
     add("FileDialogInfoView", SP::SP_FileDialogInfoView, Glyph::Info);
-    add("FileDialogListView", SP::SP_FileDialogListView, Glyph::List);
+    add("FileDialogListView", SP::SP_FileDialogListView, Glyph::GridView);
     add("ToolBarHorizontalExtensionButton", SP::SP_ToolBarHorizontalExtensionButton, Glyph::More);
     add("ToolBarVerticalExtensionButton", SP::SP_ToolBarVerticalExtensionButton, Glyph::More);
     add("TitleBarNormalButton", SP::SP_TitleBarNormalButton, Glyph::Restore);

@@ -73,6 +73,7 @@ enum class Icon {
     MapDrive, // E8CE MapDrive (network/mapped drive)
     CaretSolidUp, // F090 CaretSolidUp (title-bar shade button)
     CaretSolidDown, // F08E CaretSolidDown (title-bar unshade button)
+    GridView, // F0E2 GridView (file-dialog list view)
     // Sentinel: the number of real glyphs. Lookups and the icon cache size
     // must use this, not the last named glyph (issue #69: stopping at
     // SortDescending silently dropped Accept and ReturnKey).

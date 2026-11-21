@@ -33,8 +33,9 @@ EB9E / fast-forward EB9D, volume E767 / mute E74F, minimize E921 / maximize E922
 title-bar close E8BB (ChromeClose) / restore E923, system menu EDE3 (ButtonMenu),
 critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, monitor
 E7FB, optical drive E958, hard drive EDA2, mapped/network drive E8CE
-(MapDrive) and the title-bar shade/unshade pair F090 (CaretSolidUp) / F08E
-(CaretSolidDown), both PUA and present in the pinned Segoe icon fonts.
+(MapDrive), the title-bar shade/unshade pair F090 (CaretSolidUp) / F08E
+(CaretSolidDown) and file-dialog grid F0E2 (GridView), all PUA and present
+in the pinned Segoe icon fonts.
 Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
 is not a lookalike. Every added glyph also has a Unicode fallback for hosts
@@ -50,7 +51,10 @@ with `SP_TrashIcon`: both slots draw the same trash mark in the Windows referenc
 `SP_DriveNetIcon` is MapDrive E8CE, distinct from the local HardDrive EDA2.
 `SP_TitleBarShadeButton` / `SP_TitleBarUnshadeButton` are the matched pair
 CaretSolidUp F090 / CaretSolidDown F08E used by the Windows shade/unshade
-controls. `SP_DirLinkIcon`, the floppy drive and the dialog
+controls. `SP_FileDialogListView` is GridView F0E2 (four-tile grid), replacing
+its earlier List pairing: the Windows reference pairs this slot by artwork,
+while ContentsView/DetailedView keep the List E8FD mark.
+`SP_DirLinkIcon`, the floppy drive and the dialog
 *ToAll* variants have no exact Fluent counterpart in the pinned set and are
 deliberately left on the base style.
 `SP_CustomBase` is a sentinel and is asserted to stay unmapped.

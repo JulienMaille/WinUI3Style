@@ -263,6 +263,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::CaretSolidDown:
             ucs4 = 0xF08E;
             break;
+        case Icon::GridView:
+            ucs4 = 0xF0E2;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -434,6 +437,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::CaretSolidDown:
         ucs4 = 0x25BC;
         break; // ▼ solid down caret (same shape as ChevronDown's fallback)
+    case Icon::GridView:
+        ucs4 = 0x25A6;
+        break; // ▦ grid-square fallback for hosts without the icon font
     case Icon::Count:
         break; // sentinel, never rendered
     }
