@@ -93,11 +93,6 @@ add_library(winui3style_impl OBJECT
     ${winui3style_public_headers}
     ${winui3style_sources}
 )
-# These objects are linked into both the SHARED winui3style library and the
-# MODULE style plugin. OBJECT targets default to non-PIC, which makes TLS
-# relocations (e.g. the thread_local token cache) use the local-exec model and
-# breaks the shared link with "local-exec is incompatible with -shared".
-set_target_properties(winui3style_impl PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(winui3style_impl PRIVATE ${_winui3style_impl_define})
 target_include_directories(winui3style_impl
     PUBLIC
