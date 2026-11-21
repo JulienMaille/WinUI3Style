@@ -107,7 +107,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("TitleBarContextHelpButton", SP::SP_TitleBarContextHelpButton, Glyph::Help);
     add("VistaShield", SP::SP_VistaShield, Glyph::Shield);
     add("DesktopIcon", SP::SP_DesktopIcon, Glyph::Monitor);
-    add("ComputerIcon", SP::SP_ComputerIcon, Glyph::Monitor);
+    add("ComputerIcon", SP::SP_ComputerIcon, Glyph::TVMonitor);
     add("DriveCDIcon", SP::SP_DriveCDIcon, Glyph::StorageOptical);
     add("DriveDVDIcon", SP::SP_DriveDVDIcon, Glyph::StorageOptical);
     add("DriveHDIcon", SP::SP_DriveHDIcon, Glyph::HardDrive);

@@ -938,8 +938,11 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_VistaShield:
         return WinUI3::icon(Icon::Shield);
     case QStyle::SP_DesktopIcon:
-    case QStyle::SP_ComputerIcon:
         return WinUI3::icon(Icon::Monitor);
+    case QStyle::SP_ComputerIcon:
+        // TVMonitor (E7F4) is the monitor-with-stand the Windows reference
+        // draws here; DeviceMonitorNoPic (E7FB) is the flatter Desktop mark.
+        return WinUI3::icon(Icon::TVMonitor);
     case QStyle::SP_DriveCDIcon:
     case QStyle::SP_DriveDVDIcon:
         return WinUI3::icon(Icon::StorageOptical);

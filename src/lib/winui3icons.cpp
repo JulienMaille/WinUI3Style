@@ -266,6 +266,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::GridView:
             ucs4 = 0xF0E2;
             break;
+        case Icon::TVMonitor:
+            ucs4 = 0xE7F4;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -440,6 +443,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::GridView:
         ucs4 = 0x25A6;
         break; // ▦ grid-square fallback for hosts without the icon font
+    case Icon::TVMonitor:
+        ucs4 = 0x1F4FA;
+        break; // 📺 TV fallback; distinct from Monitor's 🖥 desktop glyph
     case Icon::Count:
         break; // sentinel, never rendered
     }

@@ -31,11 +31,11 @@ E8B7 / open folder E838 / NewFolder E8F4, ChevronLeft E76B / ChevronRight E76C
 (arrows, command link and file-dialog back), previous E892 / next E893 / rewind
 EB9E / fast-forward EB9D, volume E767 / mute E74F, minimize E921 / maximize E922,
 title-bar close E8BB (ChromeClose) / restore E923, system menu EDE3 (ButtonMenu),
-critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, monitor
-E7FB, optical drive E958, hard drive EDA2, mapped/network drive E8CE
-(MapDrive), the title-bar shade/unshade pair F090 (CaretSolidUp) / F08E
-(CaretSolidDown) and file-dialog grid F0E2 (GridView), all PUA and present
-in the pinned Segoe icon fonts.
+critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, desktop
+monitor E7FB (DeviceMonitorNoPic) / TV monitor E7F4 (TVMonitor), optical drive
+E958, hard drive EDA2, mapped/network drive E8CE (MapDrive), the title-bar
+shade/unshade pair F090 (CaretSolidUp) / F08E (CaretSolidDown) and file-dialog
+grid F0E2 (GridView), all PUA and present in the pinned Segoe icon fonts.
 Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
 is not a lookalike. Every added glyph also has a Unicode fallback for hosts
@@ -54,6 +54,9 @@ CaretSolidUp F090 / CaretSolidDown F08E used by the Windows shade/unshade
 controls. `SP_FileDialogListView` is GridView F0E2 (four-tile grid), replacing
 its earlier List pairing: the Windows reference pairs this slot by artwork,
 while ContentsView/DetailedView keep the List E8FD mark.
+`SP_ComputerIcon` is TVMonitor E7F4 (monitor with stand), replacing its earlier
+DeviceMonitorNoPic pairing; `SP_DesktopIcon` keeps E7FB because the Windows
+reference draws a distinct flatter mark for that slot.
 `SP_DirLinkIcon`, the floppy drive and the dialog
 *ToAll* variants have no exact Fluent counterpart in the pinned set and are
 deliberately left on the base style.
