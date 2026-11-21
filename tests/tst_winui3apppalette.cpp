@@ -17,6 +17,7 @@
 #include <QProxyStyle>
 #include <QPushButton>
 #include <QStyleOptionViewItem>
+#include <QWizard>
 #include <QtTest>
 
 #include "winui3testhelpers.h"
@@ -93,6 +94,8 @@ private slots:
     void proxyStylePolishTintReachesSelectionMarker();
     void proxyStylePolishTintReachesCheckboxAndDefaultButton();
     void proxyStylePolishTintSurvivesThemeAndAccentRefresh();
+    void wizardPreservesApplicationPalette_data();
+    void wizardPreservesApplicationPalette();
 
 private:
     WinUI3::Style *installProxyStyle();
@@ -227,6 +230,44 @@ void WinUI3AppPaletteTest::proxyStylePolishTintSurvivesThemeAndAccentRefresh()
     winui->setAccentColor(QColor(0x44, 0xaa, 0x44));
     QCOMPARE(qApp->palette().color(QPalette::Highlight), Tint);
     QCOMPARE(WinUI3::Private::tokens(qApp->palette()).selectionAccent, Tint);
+}
+
+void WinUI3AppPaletteTest::wizardPreservesApplicationPalette_data()
+{
+    QTest::addColumn<bool>("proxy");
+    QTest::newRow("application-override") << false;
+    QTest::newRow("style-wrapper") << true;
+}
+
+void WinUI3AppPaletteTest::wizardPreservesApplicationPalette()
+{
+    QFETCH(bool, proxy);
+    auto *style = proxy ? installProxyStyle() : qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    if (!proxy)
+        qApp->setPalette(tintedPalette(qApp->palette()));
+    QCOMPARE(qApp->palette().color(QPalette::Highlight), Tint);
+
+    QWizard wizard;
+    const int first = wizard.addPage(new QWizardPage);
+    const int last = wizard.addPage(new QWizardPage);
+    wizard.resize(520, 340);
+    wizard.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&wizard));
+    // Include the queued post-Show refresh before sampling the command row.
+    QTest::qWait(30);
+    QCOMPARE(wizard.currentId(), first);
+    QCOMPARE(wizard.button(QWizard::NextButton)->palette().color(QPalette::Highlight), Tint);
+
+    QTest::mouseClick(wizard.button(QWizard::NextButton), Qt::LeftButton);
+    QCOMPARE(wizard.currentId(), last);
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    QTest::qWait(30);
+    QCOMPARE(qApp->palette().color(QPalette::Highlight), Tint);
+    QCOMPARE(wizard.button(QWizard::FinishButton)->palette().color(QPalette::Highlight), Tint);
+    QTest::mouseClick(wizard.button(QWizard::BackButton), Qt::LeftButton);
+    QCOMPARE(wizard.currentId(), first);
+    QCOMPARE(wizard.button(QWizard::NextButton)->palette().color(QPalette::Highlight), Tint);
 }
 
 QTEST_MAIN(WinUI3AppPaletteTest)

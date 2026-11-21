@@ -11,13 +11,17 @@
 #include <QColor>
 #include <QComboBox>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeySequence>
 #include <QKeySequenceEdit>
 #include <QLineEdit>
 #include <QRect>
+#include <QScopeGuard>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QTextDocumentFragment>
+#include <QToolTip>
 #include <QtTest>
 
 namespace {
@@ -48,6 +52,8 @@ private slots:
     void galleryShortcutRecorderSplitsChords_data();
     void galleryShortcutRecorderSplitsChords();
     void galleryShortcutRecorderDarkTheme();
+    void galleryShortcutRecorderShowsOverflow_data();
+    void galleryShortcutRecorderShowsOverflow();
 };
 
 void WinUI3GalleryShortcutTest::initTestCase()
@@ -273,6 +279,75 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderDarkTheme()
     QVERIFY2(closestInk <= 48, qPrintable(QString::number(closestInk)));
     QVERIFY2(!containsColor(image, t.textPrimary),
              "native line-edit text painted over the keycaps");
+}
+
+void WinUI3GalleryShortcutTest::galleryShortcutRecorderShowsOverflow_data()
+{
+    QTest::addColumn<int>("density");
+    QTest::newRow("standard") << int(WinUI3::DensityMode::Standard);
+    QTest::newRow("compact") << int(WinUI3::DensityMode::Compact);
+}
+
+void WinUI3GalleryShortcutTest::galleryShortcutRecorderShowsOverflow()
+{
+    QFETCH(int, density);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const auto originalDensity = style->densityMode();
+    const auto restoreDensity = qScopeGuard([&] { style->setDensityMode(originalDensity); });
+    style->setDensityMode(static_cast<WinUI3::DensityMode>(density));
+    GalleryWindow window;
+    window.resize(1180, 780);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    auto *recorder = window.findChild<QKeySequenceEdit *>(QStringLiteral("shortcutEdit"));
+    QVERIFY(recorder);
+    auto *field = recorder->findChild<QLineEdit *>();
+    QVERIFY(field);
+    recorder->setFixedWidth(112);
+    recorder->clearFocus();
+    recorder->clear();
+    qApp->processEvents();
+    const QImage empty = recorder->grab().toImage();
+    const auto sequence = QKeySequence::fromString(
+            QStringLiteral(
+                    "Ctrl+Alt+Shift+F1, Ctrl+Alt+Shift+F2, Ctrl+Alt+Shift+F3, Ctrl+Alt+Shift+F4"),
+            QKeySequence::PortableText);
+    QCOMPARE(sequence.count(), 4);
+    recorder->setKeySequence(sequence);
+    QCOMPARE(recorder->keySequence(), sequence);
+    QCOMPARE(field->width(), 112);
+
+    const QPoint center = field->rect().center();
+    const auto requestTooltip = [&] {
+        QHelpEvent help(QEvent::ToolTip, center, field->mapToGlobal(center));
+        QApplication::sendEvent(field, &help);
+    };
+    const auto hideTip = qScopeGuard([] { QToolTip::hideText(); });
+    requestTooltip();
+    QTRY_VERIFY(QToolTip::isVisible());
+    QCOMPARE(QTextDocumentFragment::fromHtml(QToolTip::text()).toPlainText().simplified(),
+             sequence.toString(QKeySequence::NativeText).simplified());
+
+    QFont font = field->font();
+    font.setPixelSize(WinUI3::Private::ShortcutKeycapFontSize);
+    const QFontMetrics metrics(font);
+    const int markerWidth = metrics.horizontalAdvance(QStringLiteral("…"));
+    const int markerX = field->width() - WinUI3::Private::ShortcutFieldTextInset - markerWidth;
+    const QImage overflow = recorder->grab().toImage();
+    const qreal dpr = overflow.devicePixelRatio();
+    const QRect marker(qRound(markerX * dpr), 0, qRound(markerWidth * dpr), overflow.height());
+    QVERIFY(overflow.rect().contains(marker));
+    const auto tokens = WinUI3::Private::tokens(field->palette());
+    QVERIFY(!containsColor(overflow.copy(marker), tokens.accentFill));
+    QVERIFY(overflow.copy(marker) != empty.copy(marker));
+
+    QToolTip::hideText();
+    QTRY_VERIFY(!QToolTip::isVisible());
+    recorder->setKeySequence(QKeySequence(QStringLiteral("Ctrl+K")));
+    requestTooltip();
+    QCOMPARE(QToolTip::text(), recorder->toolTip());
 }
 
 QTEST_MAIN(WinUI3GalleryShortcutTest)
