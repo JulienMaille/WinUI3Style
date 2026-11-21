@@ -332,7 +332,7 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderShowsOverflow()
 
     QFont font = field->font();
     font.setPixelSize(WinUI3::Private::ShortcutKeycapFontSize);
-    const QFontMetrics metrics(font, field);
+    const QFontMetrics metrics(font);
     const int markerWidth = metrics.horizontalAdvance(QStringLiteral("…"));
     const int markerX = field->width() - WinUI3::Private::ShortcutFieldTextInset - markerWidth;
     const QImage overflow = recorder->grab().toImage();

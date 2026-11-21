@@ -299,7 +299,7 @@ void paintShortcutKeycaps(QPainter *painter, const QStyleOption *option, const Q
     const bool recording = option->state & QStyle::State_HasFocus;
     const QFont savedFont = painter->font();
     const QFont font = shortcutKeycapFont(editor);
-    const QFontMetrics fm(font, editor);
+    const QFontMetrics fm(font);
     const auto layout = shortcutKeycapLayout(editor->text(), option->rect, fm);
     const QColor fill = !enabled ? t.accentFillDisabled
             : recording          ? t.accentFillPressed
@@ -367,7 +367,7 @@ bool showShortcutOverflowTooltip(QWidget *widget, const QHelpEvent &event, const
         return false;
 
     const QString text = editor->text();
-    const QFontMetrics metrics(shortcutKeycapFont(editor), editor);
+    const QFontMetrics metrics(shortcutKeycapFont(editor));
     if (!shortcutKeycapLayout(text, editor->rect(), metrics).overflow.isValid())
         return false;
 
