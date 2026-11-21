@@ -16,6 +16,7 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QHeaderView>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
@@ -276,6 +277,13 @@ void GalleryWindow::configureGallery()
             makeAutoSuggestCompleter(autoSuggestWords, ui->standardDensityAutoSuggest));
     ui->compactDensityAutoSuggest->setCompleter(
             makeAutoSuggestCompleter(autoSuggestWords, ui->compactDensityAutoSuggest));
+
+    // QKeySequenceEdit has no WinUI counterpart. It stays a stock widget: the
+    // style recognizes the recorder's private editor and paints the TextBox
+    // field plus KeyTip-derived keycaps, so the Gallery adds no code at all.
+    // The presets keep the rest states legible; clicking and typing records.
+    ui->shortcutEdit->setKeySequence(QKeySequence(QStringLiteral("Ctrl+K")));
+    ui->modifierShortcutEdit->setKeySequence(QKeySequence(QStringLiteral("Meta+Shift+K")));
 
     // QToolBox -> WinUI Expander accordion: three pages so the live pass can
     // compare open/closed headers, hover/press on the chevron, and the shared

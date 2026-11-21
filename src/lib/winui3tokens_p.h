@@ -42,6 +42,16 @@ constexpr int CompactTableRowHeight = 28;
 constexpr int CompactItemViewHeaderHeight = 24;
 constexpr int CompactItemViewHeaderVerticalPadding = 2;
 constexpr qreal ControlRadius = 4.0;
+// KeyTip-derived shortcut badges: 20 px cap height, 4 px gap, 6 px horizontal
+// inset, 12 px body text. Geometry is pinned here, never copied into paint.
+constexpr int ShortcutKeycapHeight = 20;
+constexpr int ShortcutKeycapGap = 4;
+constexpr int ShortcutKeycapPadding = 6;
+constexpr int ShortcutSeparatorPadding = 2;
+constexpr int ShortcutChordBreakGap = 10;
+constexpr qreal ShortcutChordDotRadius = 3.0;
+constexpr int ShortcutKeycapFontSize = 12;
+constexpr int ShortcutFieldTextInset = 10;
 // TextBox_themeresources_perf2026.xaml: reflected absolute 0,0 -> 0,2
 // elevation brush, strong stop at 0.5; TextControlBorderThemeThickness is 1.
 constexpr qreal EditorBorderThickness = 1.0;
