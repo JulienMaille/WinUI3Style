@@ -349,6 +349,21 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryshortcut_tests winui3styleplugin)
 endif()
 
+add_executable(winui3style_gallerydensity_tests
+    tst_winui3gallerydensity.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
+set_target_properties(winui3style_gallerydensity_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_include_directories(winui3style_gallerydensity_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_link_libraries(winui3style_gallerydensity_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_gallerydensity_tests winui3styleplugin)
+endif()
+
 if(WINUI3STYLE_BUILD_NATIVE_TESTS AND WIN32)
     add_executable(winui3style_native_tests tst_winui3style_native.cpp)
     target_include_directories(winui3style_native_tests PRIVATE
@@ -449,6 +464,7 @@ set(_winui3style_linked_test_targets
         winui3style_galleryprobe_tests
         winui3style_galleryicons_tests
         winui3style_galleryshortcut_tests
+        winui3style_gallerydensity_tests
         winui3style_rubberband_tests
         winui3style_keysequenceedit_tests
         winui3style_toolbox_tests)
@@ -575,7 +591,6 @@ add_test(NAME winui3style_galleryshortcut_unit
              $<TARGET_FILE:winui3style_galleryshortcut_tests>
              -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryshortcut_unit.txt,txt
              -o -,txt)
-set_tests_properties(winui3style_galleryshortcut_unit PROPERTIES TIMEOUT 180)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -632,6 +647,10 @@ set_tests_properties(winui3style_covered_elements PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
     LABELS "contract")
 
+set_tests_properties(winui3style_galleryshortcut_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+    TIMEOUT 180
+)
 set_tests_properties(winui3style_frameproperties_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )

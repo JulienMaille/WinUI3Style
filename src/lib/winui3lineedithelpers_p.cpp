@@ -198,22 +198,29 @@ struct ShortcutText
 // while recording, which never reaches a cap.
 ShortcutText parseShortcutText(QString text)
 {
-    text.remove(QStringLiteral(", ..."));
+    const QString recordingSuffix = QStringLiteral(", ...");
+    if (text.endsWith(recordingSuffix))
+        text.chop(recordingSuffix.size());
+
     ShortcutText parsed;
-    QString token;
-    for (const QChar ch : text) {
-        if (ch == QLatin1Char('+') || ch == QLatin1Char(',')) {
-            if (!token.trimmed().isEmpty()) {
-                parsed.labels.append(token.trimmed());
-                parsed.separators.append(ch);
-            }
-            token.clear();
-        } else {
-            token.append(ch);
+    // Qt joins chords using comma-space. A bare comma or a terminal plus
+    // belongs to the chord's key, as in "Ctrl++, Ctrl+,".
+    for (const QString &chord : text.split(QStringLiteral(", "))) {
+        if (chord.isEmpty())
+            continue;
+        QStringList keys = chord.split(QLatin1Char('+'));
+        if (chord.endsWith(QLatin1Char('+'))) {
+            keys.removeLast();
+            keys.last() = QStringLiteral("+");
+        }
+        QChar separator = QLatin1Char(',');
+        for (const QString &key : keys) {
+            if (!parsed.labels.isEmpty())
+                parsed.separators.append(separator);
+            parsed.labels.append(key);
+            separator = QLatin1Char('+');
         }
     }
-    if (!token.trimmed().isEmpty())
-        parsed.labels.append(token.trimmed());
     return parsed;
 }
 

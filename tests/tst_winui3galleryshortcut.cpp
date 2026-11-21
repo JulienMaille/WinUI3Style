@@ -10,26 +10,24 @@
 #include <QApplication>
 #include <QColor>
 #include <QComboBox>
-#include <QHash>
+#include <QFontMetrics>
 #include <QImage>
 #include <QKeySequence>
 #include <QKeySequenceEdit>
 #include <QLineEdit>
 #include <QRect>
-#include <QStringList>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QtTest>
 
-#include <algorithm>
-
 namespace {
 
+// Compare palette tokens at the same 8-bit precision as the rendered image.
 bool containsColor(const QImage &image, const QColor &color)
 {
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
-            if (image.pixelColor(x, y) == color)
+            if (image.pixelColor(x, y).rgba() == color.rgba())
                 return true;
         }
     }
@@ -47,6 +45,7 @@ private slots:
     void init();
     void galleryShortcutRecorderReachable();
     void galleryShortcutRecorderShowsLiveKeys();
+    void galleryShortcutRecorderSplitsChords_data();
     void galleryShortcutRecorderSplitsChords();
     void galleryShortcutRecorderDarkTheme();
 };
@@ -89,66 +88,11 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderReachable()
     qApp->processEvents();
     const auto t = WinUI3::Private::tokens(recorder->palette());
     const QImage image = recorder->grab().toImage();
-    {
-        // TEMP diagnostic: report the state and the most common colors so the
-        // Linux CI log shows what the rest state actually painted.
-        QHash<QRgb, int> histogram;
-        for (int y = 0; y < image.height(); ++y)
-            for (int x = 0; x < image.width(); ++x)
-                ++histogram[image.pixel(x, y)];
-        QList<QPair<int, QRgb>> top;
-        for (auto it = histogram.cbegin(); it != histogram.cend(); ++it)
-            top.append({ it.value(), it.key() });
-        std::sort(top.begin(), top.end(),
-                  [](const auto &a, const auto &b) { return a.first > b.first; });
-        QStringList dump;
-        for (int i = 0; i < top.size() && i < 12; ++i)
-            dump << QStringLiteral("%1x%2")
-                            .arg(QColor(top.at(i).second).name(QColor::HexArgb))
-                            .arg(top.at(i).first);
-        qInfo("DIAG rest: size=%dx%d dpr=%g recorderFocus=%d fieldFocus=%d focusWidget=%s"
-              " keySeqEditor=%d accentFill=%s selectionAccent=%s textPrimary=%s"
-              " onAccent=%s dark=%d palAccent=%s palHighlight=%s",
-              image.width(), image.height(), image.devicePixelRatio(), int(recorder->hasFocus()),
-              int(field->hasFocus()),
-              qApp->focusWidget() ? qApp->focusWidget()->metaObject()->className() : "none",
-              int(WinUI3::Private::keySequenceEditor(field)),
-              qPrintable(t.accentFill.name(QColor::HexArgb)),
-              qPrintable(t.selectionAccent.name(QColor::HexArgb)),
-              qPrintable(t.textPrimary.name(QColor::HexArgb)),
-              qPrintable(t.textOnAccentPrimary.name(QColor::HexArgb)), int(t.dark),
-#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
-              qPrintable(recorder->palette().color(QPalette::Accent).name(QColor::HexArgb)),
-#else
-              "n/a",
-#endif
-              qPrintable(recorder->palette().color(QPalette::Highlight).name(QColor::HexArgb)));
-        qInfo("DIAG top colors: %s", qPrintable(dump.join(QStringLiteral(" "))));
-        // Compare the raw 8-bit pixel with the token color the same way the
-        // assertion does, and report the QColor specs/16-bit values.
-        int reported = 0;
-        for (int y = 0; y < image.height() && reported < 3; ++y) {
-            for (int x = 0; x < image.width() && reported < 3; ++x) {
-                if (QColor(image.pixel(x, y)).name(QColor::HexArgb)
-                    != t.accentFill.name(QColor::HexArgb))
-                    continue;
-                const QColor sample = image.pixelColor(x, y);
-                qInfo("DIAG pixel(%d,%d): format=%d sample=%s spec=%d rgba64=%llx"
-                      " token=%s spec=%d rgba64=%llx equal=%d",
-                      x, y, int(image.format()), qPrintable(sample.name(QColor::HexArgb)),
-                      int(sample.spec()), static_cast<unsigned long long>(sample.rgba64()),
-                      qPrintable(t.accentFill.name(QColor::HexArgb)), int(t.accentFill.spec()),
-                      static_cast<unsigned long long>(t.accentFill.rgba64()),
-                      int(sample == t.accentFill));
-                ++reported;
-            }
-        }
-    }
     const qreal dpr = image.devicePixelRatio();
     QRect caps;
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
-            if (image.pixelColor(x, y) == t.accentFill)
+            if (image.pixelColor(x, y).rgba() == t.accentFill.rgba())
                 caps |= QRect(x, y, 1, 1);
         }
     }
@@ -227,8 +171,16 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderShowsLiveKeys()
     QTest::keyRelease(recorder, Qt::Key_Control);
 }
 
+void WinUI3GalleryShortcutTest::galleryShortcutRecorderSplitsChords_data()
+{
+    QTest::addColumn<QString>("shortcut");
+    QTest::newRow("letters") << QStringLiteral("Ctrl+C, Ctrl+G");
+    QTest::newRow("punctuation") << QStringLiteral("Ctrl++, Ctrl+,");
+}
+
 void WinUI3GalleryShortcutTest::galleryShortcutRecorderSplitsChords()
 {
+    QFETCH(QString, shortcut);
     GalleryWindow window;
     window.resize(1180, 780);
     window.show();
@@ -237,7 +189,7 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderSplitsChords()
     QVERIFY(recorder);
     auto *field = recorder->findChild<QLineEdit *>();
     QVERIFY(field);
-    recorder->setKeySequence(QKeySequence(QStringLiteral("Ctrl+C, Ctrl+G")));
+    recorder->setKeySequence(QKeySequence::fromString(shortcut, QKeySequence::PortableText));
     recorder->clearFocus();
     qApp->processEvents();
     QCOMPARE(field->text().count(QStringLiteral("Ctrl")), 2);
@@ -253,7 +205,7 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderSplitsChords()
     bool inRun = false;
     int runStart = 0;
     for (int x = 0; x < image.width(); ++x) {
-        const bool accent = image.pixelColor(x, y) == t.accentFill;
+        const bool accent = image.pixelColor(x, y).rgba() == t.accentFill.rgba();
         if (accent && !inRun)
             runStart = x;
         if (!accent && inRun)
@@ -268,7 +220,7 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderSplitsChords()
     for (int x = runs.at(0).second + 1; x < runs.at(1).first && !separatorInk; ++x) {
         for (int yy = y - qRound(8 * dpr); yy <= y + qRound(8 * dpr); ++yy) {
             const QColor pixel = image.pixelColor(x, yy);
-            if (pixel != fieldFill && pixel != t.accentFill) {
+            if (pixel != fieldFill && pixel.rgba() != t.accentFill.rgba()) {
                 separatorInk = true;
                 break;
             }
@@ -298,7 +250,27 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderDarkTheme()
     // Same cap geometry and role tokens as Light, resolved for Dark: the
     // fill/ink pair must both appear, not a hard-coded light-mode color.
     QVERIFY(containsColor(image, t.accentFill));
-    QVERIFY(containsColor(image, t.textOnAccentPrimary));
+    auto *field = recorder->findChild<QLineEdit *>();
+    QVERIFY(field);
+    QFont capFont = field->font();
+    capFont.setPixelSize(WinUI3::Private::ShortcutKeycapFontSize);
+    const int capWidth = QFontMetrics(capFont).horizontalAdvance(QStringLiteral("Ctrl"))
+            + 2 * WinUI3::Private::ShortcutKeycapPadding;
+    const qreal dpr = image.devicePixelRatio();
+    const int capHeight = qRound(WinUI3::Private::ShortcutKeycapHeight * dpr);
+    const QRect cap(qRound(WinUI3::Private::ShortcutFieldTextInset * dpr),
+                    (image.height() - capHeight) / 2, qRound(capWidth * dpr), capHeight);
+    const int border = qCeil(2 * dpr);
+    const QRect interior = cap.adjusted(border, border, -border, -border);
+    QVERIFY(image.rect().contains(interior));
+    int closestInk = 765;
+    for (int y = interior.top(); y <= interior.bottom(); ++y) {
+        for (int x = interior.left(); x <= interior.right(); ++x)
+            closestInk =
+                    qMin(closestInk, colorDistance(image.pixelColor(x, y), t.textOnAccentPrimary));
+    }
+    // Small glyphs can be antialiased throughout, so no pixel has to be fully ink.
+    QVERIFY2(closestInk <= 48, qPrintable(QString::number(closestInk)));
     QVERIFY2(!containsColor(image, t.textPrimary),
              "native line-edit text painted over the keycaps");
 }
