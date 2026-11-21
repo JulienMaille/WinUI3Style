@@ -63,6 +63,7 @@ private slots:
     void simpleMarksUseVectorFallback();
     void complexSymbolsUseUnicodeFallback();
     void saveIconUsesVectorFallbackWithoutSegoe();
+    void mappedDeviceFallbacksHonorTint();
     void trailingGlyphsRenderInk();
 };
 
@@ -260,6 +261,38 @@ void WinUI3IconsTest::saveIconUsesVectorFallbackWithoutSegoe()
             if (qAlpha(image.pixel(x, y)))
                 ++ink;
     QVERIFY(ink * 4 < bounds.width() * bounds.height() * 3);
+}
+
+void WinUI3IconsTest::mappedDeviceFallbacksHonorTint()
+{
+    struct RestoreFontDetection
+    {
+        ~RestoreFontDetection() { WinUI3::Private::setIconFontAvailabilityOverrideForTest(-1); }
+    } restore;
+    WinUI3::Private::setIconFontAvailabilityOverrideForTest(0);
+    QVERIFY(!WinUI3::Private::segoeIconFontAvailable());
+
+    for (const auto glyph : { WinUI3::Icon::MapDrive, WinUI3::Icon::TVMonitor }) {
+        for (const QColor tint : { QColor(Qt::red), QColor(Qt::green) }) {
+            const QPixmap pixmap = WinUI3::icon(glyph, tint).pixmap(24, 24);
+            QCOMPARE(pixmap.size(), QSize(24, 24));
+            const QRect bounds = alphaBounds(pixmap);
+            QVERIFY(bounds.isValid());
+            QVERIFY(pixmap.rect().contains(bounds));
+            const QImage image = pixmap.toImage();
+            int opaquePixels = 0;
+            for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
+                for (int x = bounds.left(); x <= bounds.right(); ++x) {
+                    const QColor pixel = image.pixelColor(x, y);
+                    if (pixel.alpha() == 255) {
+                        QCOMPARE(pixel.rgba(), tint.rgba());
+                        ++opaquePixels;
+                    }
+                }
+            }
+            QVERIFY(opaquePixels > 0);
+        }
+    }
 }
 
 void WinUI3IconsTest::trailingGlyphsRenderInk()

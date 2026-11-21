@@ -38,9 +38,8 @@ shade/unshade pair F090 (CaretSolidUp) / F08E (CaretSolidDown) and file-dialog
 grid F0E2 (GridView), all PUA and present in the pinned Segoe icon fonts.
 Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
-is not a lookalike. Every added glyph also has a Unicode fallback for hosts
-without the Segoe icon font (MapDrive uses a network marker; no dedicated
-mapped-drive Unicode exists).
+is not a lookalike. Hosts without the Segoe icon font use tintable vector fallbacks for
+MapDrive and TVMonitor, and Unicode fallbacks for the other added glyphs.
 
 Status: partial — 64 `QStyle::StandardPixmap` values now resolve to an **exact**
 Fluent counterpart; the rest stay on the base style. Pairing rules: a lookalike
