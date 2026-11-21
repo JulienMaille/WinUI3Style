@@ -217,7 +217,8 @@ bool drawWidgetBackdropPrimitive(const Style *, const QStyleOption *option, QPai
         return true;
     }
 
-    if (eraseForBackdrop(painter, widget, option->rect, ControlRadius)) {
+    const bool nonPopupWindow = widget && widget->isWindow() && widget->windowType() != Qt::Popup;
+    if (eraseForBackdrop(painter, widget, option->rect, nonPopupWindow ? 0.0 : ControlRadius)) {
         // erase is disabled here (StyledBackground, no autofill) and neither
         // the island nor its descendants repaint fully on scroll/hover/page
         // switches, so shifted frames accumulate as permanent smear until a

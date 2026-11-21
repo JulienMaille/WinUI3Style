@@ -1947,8 +1947,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget
-        && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
+    if (element == PE_Widget && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
         return;
     if (Private::drawChromePrimitive(this, element, option, painter, widget))
         return;
