@@ -96,8 +96,9 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
         // carries a 12 px glyph in that slot instead, matching the 12 px marks
         // its other 20 px command surfaces use.
         if (metric == QStyle::PM_SmallIconSize && widget
-            && widget->inherits("QDockWidgetTitleButton"))
-            return 12;
+            && (widget->inherits("QDockWidgetTitleButton")
+                || widget->property(dockTitleButtonProperty).toBool()))
+            return DockTitleIconExtent;
         return 16;
     case QStyle::PM_ToolBarIconSize:
         return 20;
@@ -108,9 +109,9 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
     case QStyle::PM_DockWidgetFrameWidth:
         return 1;
     case QStyle::PM_DockWidgetTitleMargin:
-        return 8;
+        return DockTitleInset;
     case QStyle::PM_DockWidgetTitleBarButtonMargin:
-        return 4;
+        return (DockTitleButtonExtent - DockTitleIconExtent) / 2;
     case QStyle::PM_SizeGripSize:
         return 16;
     case QStyle::PM_HeaderMargin:

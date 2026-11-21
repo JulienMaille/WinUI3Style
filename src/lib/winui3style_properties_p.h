@@ -3,6 +3,9 @@
 
 namespace WinUI3::Private {
 
+inline constexpr auto dockTitleBarProperty = "_winui_dock_title_bar";
+inline constexpr auto dockTitleButtonProperty = "_winui_dock_title_button";
+inline constexpr auto dockTitleControllerProperty = "_winui_dock_title_controller";
 inline constexpr auto roleProperty = "_winui_control_role";
 inline constexpr auto hoverProperty = "_winui_hover_progress";
 inline constexpr auto pressProperty = "_winui_press_progress";

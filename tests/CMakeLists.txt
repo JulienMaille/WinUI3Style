@@ -13,6 +13,7 @@ set(_winui3style_split_tests
     winui3style_editablecombo_tests tst_winui3editablecombo.cpp
     winui3style_surfaces_tests tst_winui3surfaces.cpp
     winui3style_dialogs_tests tst_winui3dialogs.cpp
+    winui3style_docktitles_tests tst_winui3docktitles.cpp
     winui3style_interaction_tests tst_winui3interaction.cpp
     winui3style_settingscard_tests tst_winui3settingscard.cpp
     winui3style_animatedstack_tests tst_winui3animatedstack.cpp
@@ -441,6 +442,7 @@ set(_winui3style_linked_test_targets
         winui3style_editablecombo_tests
         winui3style_surfaces_tests
         winui3style_dialogs_tests
+        winui3style_docktitles_tests
         winui3style_interaction_tests
         winui3style_settingscard_tests
         winui3style_animatedstack_tests
@@ -510,6 +512,7 @@ foreach(_split_target IN ITEMS
         winui3style_editablecombo_tests
         winui3style_surfaces_tests
         winui3style_dialogs_tests
+        winui3style_docktitles_tests
         winui3style_interaction_tests
         winui3style_settingscard_tests
         winui3style_animatedstack_tests
