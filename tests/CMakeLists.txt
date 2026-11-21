@@ -331,6 +331,24 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryicons_tests winui3styleplugin)
 endif()
 
+# Shortcut recorder coverage (keycaps, live recording, style fallback), split
+# out of the gallery probe to respect the 60 KB source ratchet.
+add_executable(winui3style_galleryshortcut_tests
+    tst_winui3galleryshortcut.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.ui)
+set_target_properties(winui3style_galleryshortcut_tests PROPERTIES
+    AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_include_directories(winui3style_galleryshortcut_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery)
+target_link_libraries(winui3style_galleryshortcut_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_galleryshortcut_tests winui3styleplugin)
+endif()
+
 add_executable(winui3style_gallerydensity_tests
     tst_winui3gallerydensity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gallery/gallerywindow.cpp
@@ -445,6 +463,7 @@ set(_winui3style_linked_test_targets
         winui3style_micacardeditor_tests
         winui3style_galleryprobe_tests
         winui3style_galleryicons_tests
+        winui3style_galleryshortcut_tests
         winui3style_gallerydensity_tests
         winui3style_rubberband_tests
         winui3style_keysequenceedit_tests
@@ -566,6 +585,12 @@ add_test(NAME winui3style_galleryicons_unit
              -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryicons_unit.txt,txt
              -o -,txt)
 set_tests_properties(winui3style_galleryicons_unit PROPERTIES TIMEOUT 180)
+add_test(NAME winui3style_galleryshortcut_unit
+         COMMAND ${CMAKE_COMMAND} -E env
+             --unset=WINUI3STYLE_DISABLE_ANIMATIONS
+             $<TARGET_FILE:winui3style_galleryshortcut_tests>
+             -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_galleryshortcut_unit.txt,txt
+             -o -,txt)
 add_test(NAME winui3style_designer_gallery_contract
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -622,6 +647,10 @@ set_tests_properties(winui3style_covered_elements PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
     LABELS "contract")
 
+set_tests_properties(winui3style_galleryshortcut_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+    TIMEOUT 180
+)
 set_tests_properties(winui3style_frameproperties_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )

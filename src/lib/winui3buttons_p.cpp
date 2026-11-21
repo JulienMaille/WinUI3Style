@@ -443,6 +443,13 @@ static bool drawLineEditPanelPrimitive(const Style *, const QStyleOption *option
     }
     if (focused)
         drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill, ControlRadius);
+    // A QKeySequenceEdit has no style entry for its sequence text: the TextBox
+    // panel paints the keycaps over the field it just drew, and
+    // SE_LineEditContents returns an empty slot so Qt's line control cannot
+    // paint the raw sequence on top of them.
+    if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget);
+        lineEdit && keySequenceEditor(lineEdit))
+        paintShortcutKeycaps(painter, option, lineEdit);
     return true;
 }
 
