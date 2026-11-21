@@ -2,10 +2,14 @@
 #include <winui3style/winui3style.h>
 
 #include "gallerywindow.h"
+#include "../src/lib/winui3tokens_p.h"
 
 #include <QComboBox>
 #include <QHeaderView>
 #include <QLineEdit>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -22,6 +26,8 @@ private slots:
     void galleryTableDensitySwitch();
     void galleryTreeHeaderDensitySwitch_data();
     void galleryTreeHeaderDensitySwitch();
+    void galleryTreeRowHighlight_data();
+    void galleryTreeRowHighlight();
 };
 
 void WinUI3GalleryDensityTest::initTestCase()
@@ -32,13 +38,17 @@ void WinUI3GalleryDensityTest::initTestCase()
 void WinUI3GalleryDensityTest::galleryTableDensitySwitch_data()
 {
     QTest::addColumn<bool>("dark");
-    QTest::newRow("light") << false;
-    QTest::newRow("dark") << true;
+    QTest::addColumn<bool>("customColumnSize");
+    QTest::newRow("light") << false << false;
+    QTest::newRow("dark") << true << false;
+    QTest::newRow("light-custom-column-size") << false << true;
+    QTest::newRow("dark-custom-column-size") << true << true;
 }
 
 void WinUI3GalleryDensityTest::galleryTableDensitySwitch()
 {
     QFETCH(bool, dark);
+    QFETCH(bool, customColumnSize);
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
     GalleryWindow gallery;
@@ -50,14 +60,22 @@ void WinUI3GalleryDensityTest::galleryTableDensitySwitch()
     density->setCurrentIndex(0);
     pages->setCurrentIndex(1);
     tabs->setCurrentWidget(table);
+    auto *header = table->horizontalHeader();
+    constexpr int columnSize = 160;
+    if (customColumnSize) {
+        header->setStretchLastSection(false);
+        header->setDefaultSectionSize(columnSize);
+    }
     gallery.show();
     QVERIFY(QTest::qWaitForWindowExposed(&gallery));
     const int standardRow = table->rowHeight(0);
     QCOMPARE(table->horizontalHeader()->height(), 32);
     QVERIFY(standardRow >= 36);
     density->setCurrentIndex(1);
+    QCOMPARE(header->height(), 24);
+    if (customColumnSize)
+        QCOMPARE(table->columnWidth(0), columnSize);
     QTRY_COMPARE(table->rowHeight(0), 28);
-    QTRY_COMPARE(table->horizontalHeader()->height(), 24);
     const QSize compactViewport = table->viewport()->size();
     gallery.resize(gallery.size() + QSize(80, 60));
     QTRY_VERIFY(table->viewport()->size() != compactViewport);
@@ -76,8 +94,10 @@ void WinUI3GalleryDensityTest::galleryTableDensitySwitch()
     QVERIFY(editor->height() >= editor->sizeHint().height());
     QTest::keyClick(editor, Qt::Key_Escape);
     density->setCurrentIndex(0);
+    QCOMPARE(header->height(), 32);
+    if (customColumnSize)
+        QCOMPARE(table->columnWidth(0), columnSize);
     QTRY_COMPARE(table->rowHeight(0), standardRow);
-    QTRY_COMPARE(table->horizontalHeader()->height(), 32);
 }
 
 void WinUI3GalleryDensityTest::galleryTreeHeaderDensitySwitch_data()
@@ -148,6 +168,80 @@ void WinUI3GalleryDensityTest::galleryTreeHeaderDensitySwitch()
     QCOMPARE(tree->visualItemRect(root).height(), 28);
     QCOMPARE(tree->columnWidth(0), columnWidth);
     QVERIFY(root->isExpanded());
+}
+
+void WinUI3GalleryDensityTest::galleryTreeRowHighlight_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    QTest::newRow("standard-ltr") << false << false;
+    QTest::newRow("compact-ltr") << true << false;
+    QTest::newRow("standard-rtl") << false << true;
+    QTest::newRow("compact-rtl") << true << true;
+}
+
+void WinUI3GalleryDensityTest::galleryTreeRowHighlight()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    GalleryWindow gallery;
+    auto *pages = gallery.findChild<QStackedWidget *>(QStringLiteral("pages"));
+    auto *tabs = gallery.findChild<QTabWidget *>(QStringLiteral("collectionsTabs"));
+    auto *tree = gallery.findChild<QTreeWidget *>(QStringLiteral("plainTreeViewTab"));
+    QVERIFY(pages && tabs && tree);
+    pages->setCurrentIndex(1);
+    tabs->setCurrentWidget(tree);
+    tree->setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    WinUI3::Style::setDensityMode(
+            tree, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    tree->header()->setStretchLastSection(false);
+    tree->setColumnWidth(1, 1000);
+    tree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    QVERIFY(tree->horizontalScrollBar()->maximum() > 30);
+    tree->horizontalScrollBar()->setValue(30);
+    auto *child = tree->topLevelItem(0)->child(0);
+    QVERIFY(child);
+    const QRect row = tree->visualItemRect(child);
+    QCOMPARE(row.height(), compact ? 24 : 28);
+    QCOMPARE(tree->selectionBehavior(), QAbstractItemView::SelectRows);
+    const int seam = rtl ? tree->columnViewportPosition(0) : tree->columnViewportPosition(1);
+    // Sample on either side of the seam, away from fractionally scaled clip edges.
+    const int sampleInset = tree->devicePixelRatioF() == 1.0 ? 0 : 2;
+    const QPoint before(seam - 1 - sampleInset, row.center().y());
+    const QPoint after(seam + sampleInset, row.center().y());
+    QVERIFY(tree->viewport()->rect().contains(before));
+    QVERIFY(tree->viewport()->rect().contains(after));
+    tree->clearSelection();
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(tree->viewport(), &leave);
+    const QImage rest = tree->viewport()->grab().toImage();
+    const auto tokens = WinUI3::Private::tokens(tree->palette());
+    const auto checkHighlight = [&] {
+        const QImage painted = tree->viewport()->grab().toImage();
+        for (const QPoint point : { before, after }) {
+            const qreal dpr = painted.devicePixelRatio();
+            const QPoint sample(int((point.x() + 0.5) * dpr), int((point.y() + 0.5) * dpr));
+            QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+            expected.fill(rest.pixelColor(sample));
+            QPainter painter(&expected);
+            painter.fillRect(expected.rect(), tokens.subtleHover);
+            painter.end();
+            QCOMPARE(painted.pixelColor(sample), expected.pixelColor(0, 0));
+        }
+    };
+    const QPoint hoverPoint = rtl ? before - QPoint(28, 0) : after + QPoint(28, 0);
+    QMouseEvent move(QEvent::MouseMove, QPointF(hoverPoint),
+                     QPointF(tree->viewport()->mapToGlobal(hoverPoint)), Qt::NoButton, Qt::NoButton,
+                     Qt::NoModifier);
+    QCoreApplication::sendEvent(tree->viewport(), &move);
+    checkHighlight();
+    QCoreApplication::sendEvent(tree->viewport(), &leave);
+    child->setSelected(true);
+    checkHighlight();
 }
 
 QTEST_MAIN(WinUI3GalleryDensityTest)

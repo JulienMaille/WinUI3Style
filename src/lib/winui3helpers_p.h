@@ -21,6 +21,7 @@
 #include <QComboBox>
 #include <QGroupBox>
 #include <QGuiApplication>
+#include <QKeySequenceEdit>
 #include <QLayout>
 #include <QLineEdit>
 #include <QPalette>
@@ -93,6 +94,17 @@ inline bool comboBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
             && qobject_cast<const QComboBox *>(widget->parentWidget());
+}
+
+// The private QLineEdit that QKeySequenceEdit lays over its whole surface.
+// The recorder exposes no style entry for the sequence text, so the TextBox
+// panel paints the keycaps itself and SE_LineEditContents returns an empty
+// slot for this editor. Detected by parent class, not by the private child
+// object name, so it survives Qt version changes.
+inline bool keySequenceEditor(const QWidget *widget)
+{
+    return qobject_cast<const QLineEdit *>(widget)
+            && qobject_cast<const QKeySequenceEdit *>(widget->parentWidget());
 }
 
 // The trailing clear/completer button inside a QLineEdit.
@@ -265,21 +277,23 @@ inline bool insideOpaqueCard(const QWidget *widget)
 }
 
 // Tone a child must Source-rebuild after erasing its rect over an opaque card.
-// The two card families paint different roles: a group card uses the Base
-// veil (cardRefillTone), while a SettingsCard uses the control fill
-// (QPalette::Button, see CE_ShapedFrame). Refilling a SettingsCard with Base
-// leaves a darker patch in the control's rounded corners (issue #72), so pick
-// the nearest card's own role. Falls back to Base when there is no card.
+// Group cards and tab panes use the Base veil. SettingsCard uses Button
+// (see CE_ShapedFrame). The nearest painted card determines the refill.
 inline QColor cardRefillToneFor(const QWidget *widget, bool onBackdrop)
 {
     if (!widget)
         return QColor();
-    for (const QWidget *card = widget->parentWidget(); card; card = card->parentWidget()) {
+    const QWidget *window = widget->window();
+    for (const QWidget *card = widget->parentWidget(); card && card->window() == window;
+         card = card->parentWidget()) {
         if (card->property(WinUI3::Style::SettingsCardProperty).toBool())
             return veiledCard(card->palette().color(QPalette::Active, QPalette::Button),
                               onBackdrop);
         if (qobject_cast<const QGroupBox *>(card))
             return cardRefillTone(card->palette(), onBackdrop);
+        if (const auto *tabs = qobject_cast<const QTabWidget *>(card);
+            tabs && !tabs->documentMode())
+            return cardRefillTone(tabs->palette(), onBackdrop);
     }
     return cardRefillTone(widget->palette(), onBackdrop);
 }
