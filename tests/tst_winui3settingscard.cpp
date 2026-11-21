@@ -928,7 +928,11 @@ void WinUI3SettingsCardTest::settingsCardWrappedContentFits()
     qobject_cast<WinUI3::Style *>(qApp->style())
             ->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
     DisableAnimationsGuard animations;
-    WinUI3::SettingsCard card;
+    QWidget window;
+    QVBoxLayout layout(&window);
+    WinUI3::SettingsCard card(&window);
+    layout.addWidget(&card);
+    layout.addStretch();
     WinUI3::Style::setDensityMode(
             &card, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
     card.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
@@ -939,18 +943,18 @@ void WinUI3SettingsCardTest::settingsCardWrappedContentFits()
     details->setWordWrap(true);
     card.setExpandableWidget(details);
     auto *host = details->parentWidget();
-    card.resize(290, 300);
-    card.show();
+    window.resize(310, 320);
+    window.show();
     card.setExpanded(true);
     QCoreApplication::processEvents();
     QCOMPARE(details->width(), host->width() - 104);
     QVERIFY(details->height() >= details->heightForWidth(details->width()));
-    const int narrowHeight = host->maximumHeight();
+    const int narrowHeight = host->height();
 
-    card.resize(490, 300);
+    window.resize(510, 320);
     QCoreApplication::processEvents();
     QCOMPARE(details->width(), host->width() - 104);
-    QTRY_VERIFY(host->maximumHeight() < narrowHeight);
+    QTRY_VERIFY(host->height() < narrowHeight);
     QVERIFY(details->height() >= details->heightForWidth(details->width()));
 }
 

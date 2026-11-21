@@ -435,9 +435,16 @@ void SettingsCard::setExpansionProgress(qreal progress)
 {
     m_expansionProgress = qBound<qreal>(0.0, progress, 1.0);
     const int contentHeight = m_expandableWidget ? expandableContentHeight() : 0;
-    const int maximumHeight = qRound(contentHeight * m_expansionProgress);
-    if (m_expandableHost->maximumHeight() != maximumHeight) {
-        m_expandableHost->setMaximumHeight(maximumHeight);
+    const int hostHeight = qRound(contentHeight * m_expansionProgress);
+    // A maximum alone caps the ordinary sizeHint. For height-for-width
+    // content, also give the parent layout the measured minimum so it can
+    // allocate enough room when the label wraps past its ordinary sizeHint.
+    const QLayout *layout = m_expandableHost->layout();
+    const int minimumHeight = layout && layout->hasHeightForWidth() ? hostHeight : 0;
+    if (m_expandableHost->maximumHeight() != hostHeight
+        || m_expandableHost->minimumHeight() != minimumHeight) {
+        m_expandableHost->setMinimumHeight(minimumHeight);
+        m_expandableHost->setMaximumHeight(hostHeight);
         // The animated host changes the SettingsCard's layout size hint.
         // Explicitly notify the parent layout when the card is nested in a
         // scroll-area layout. Without this, QBoxLayout can retain the
@@ -555,8 +562,8 @@ void SettingsCard::resetExpansionState()
     m_expansionAnimation->stop();
     m_expansionProgress = 0.0;
     m_expandableHeightRefreshPending = false;
-    if (m_expandableHost->maximumHeight() != 0)
-        m_expandableHost->setMaximumHeight(0);
+    m_expandableHost->setMinimumHeight(0);
+    m_expandableHost->setMaximumHeight(0);
     m_expandableHost->setVisible(false);
     m_expanded = false;
     refreshChevronState();
