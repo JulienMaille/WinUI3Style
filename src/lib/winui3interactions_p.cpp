@@ -316,23 +316,24 @@ void prepareTooltipLabel(QLabel *label)
     // `1 + PM_ToolTipLabelFrameWidth` there would inflate the tip by 14 px.
     label->setMargin(0);
     label->setContentsMargins(tooltipContentMargins());
+    const QScreen *screen = widgetScreen(label);
+    const QRect available = screen ? screen->availableGeometry() : QRect();
+    const int widthLimit = available.isEmpty() ? TooltipMaximumWidth
+                                               : qMin(TooltipMaximumWidth, available.width());
     label->setWordWrap(false);
     QSize surface = label->sizeHint();
-    if (surface.width() > TooltipMaximumWidth) {
+    if (surface.width() > widthLimit) {
         label->setWordWrap(true);
-        surface = QSize(TooltipMaximumWidth,
-                        qMax(label->heightForWidth(TooltipMaximumWidth),
-                             label->minimumSizeHint().height()));
+        surface = QSize(widthLimit,
+                        qMax(label->heightForWidth(widthLimit), label->minimumSizeHint().height()));
     }
     if (label->size() != surface)
         label->resize(surface);
     // Qt's placeTip clamps against the size the label had when it was placed.
     // The template re-layout can grow it afterwards (the label's font is only
     // resolved on show), so keep the surface inside the screen it sits on.
-    const QScreen *screen = widgetScreen(label);
-    if (!screen)
+    if (available.isEmpty())
         return;
-    const QRect available = screen->availableGeometry();
     QRect placed = label->geometry();
     if (placed.right() > available.right())
         placed.moveRight(available.right());

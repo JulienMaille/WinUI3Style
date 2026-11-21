@@ -91,6 +91,8 @@
 #include <QWidget>
 #include <QWindow>
 
+#include <algorithm>
+
 namespace WinUI3 {
 using namespace PaintPrivate;
 using namespace Private;
@@ -946,10 +948,10 @@ public:
         }
     }
 
-    bool progressBarNeedsAnimation(const QProgressBar *progressBar) const
+    static bool isVisibleIndeterminateProgressBar(const QProgressBar *progressBar)
     {
         return progressBar && progressBar->minimum() == progressBar->maximum()
-                && progressBar->isVisible() && Style::animationsAllowed();
+                && progressBar->isVisible();
     }
 
     void refreshProgressTimer()
@@ -961,24 +963,19 @@ public:
                 ++it;
         }
 
-        bool active = false;
-        for (const QPointer<QProgressBar> &guarded : progressBars) {
-            if (progressBarNeedsAnimation(guarded)) {
-                active = true;
-                break;
-            }
-        }
-        if (active)
+        const bool active = Style::animationsAllowed()
+                && std::any_of(progressBars.cbegin(), progressBars.cend(),
+                               isVisibleIndeterminateProgressBar);
+        if (active && !progressTimer->isActive())
             progressTimer->start();
-        else
+        else if (!active)
             progressTimer->stop();
     }
 
     void advanceProgressBars()
     {
         const bool allowed = Style::animationsAllowed();
-        const qreal phase =
-                allowed ? qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0 : 0.35;
+        const qreal phase = qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0;
         bool active = false;
         for (auto it = progressBars.begin(); it != progressBars.end();) {
             const QPointer<QProgressBar> guarded = *it;
@@ -986,9 +983,12 @@ public:
                 it = progressBars.erase(it);
                 continue;
             }
-            if (progressBarNeedsAnimation(guarded)) {
-                active = true;
-                framePropertyRegistry().set(guarded, progressPhaseProperty, phase);
+            if (isVisibleIndeterminateProgressBar(guarded)) {
+                active = allowed;
+                if (allowed)
+                    framePropertyRegistry().set(guarded, progressPhaseProperty, phase);
+                // The painter uses the stationary phase when motion is off.
+                // Repaint once before stopping so the last moving frame is cleared.
                 guarded->update();
             }
             ++it;
@@ -1716,6 +1716,10 @@ void Style::invalidateDensity(QWidget *scope)
 void Style::checkSystemAppearance()
 {
     Private::invalidateSystemAppearanceCache();
+    if (Style::animationsAllowed())
+        d->refreshProgressTimer();
+    else if (d->progressTimer->isActive())
+        d->advanceProgressBars();
     if (!d->needsSystemAppearancePolling()) {
         d->systemAppearanceWatchdog->stop();
         return;
