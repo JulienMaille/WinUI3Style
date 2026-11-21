@@ -82,6 +82,30 @@ if(UNIX AND NOT APPLE)
     install(TARGETS winui3style_gallery
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT Runtime)
+    # Qt 6.10 added plugin-type filtering. Earlier versions need explicit
+    # plugin modules and must scan the build binaries before RPATH is replaced.
+    set(_winui3style_deploy_executable "\"\${QT_DEPLOY_BIN_DIR}/$<TARGET_FILE_NAME:winui3style_gallery>\"")
+    set(_winui3style_deploy_modules "\"\${QT_DEPLOY_PLUGINS_DIR}/styles/$<TARGET_FILE_NAME:winui3styleplugin>\"")
+    set(_winui3style_deploy_plugin_types "INCLUDE_PLUGIN_TYPES platforms imageformats")
+    if(WINUI3STYLE_QT_VERSION VERSION_LESS "6.10")
+        set(_winui3style_deploy_executable "\"$<TARGET_FILE:winui3style_gallery>\"")
+        set(_winui3style_deploy_modules "\"$<TARGET_FILE:winui3styleplugin>\"")
+        set(_winui3style_deploy_plugin_types "")
+        foreach(_plugin IN ITEMS QXcbIntegrationPlugin QOffscreenIntegrationPlugin
+                QWaylandIntegrationPlugin QWaylandEglPlatformIntegrationPlugin
+                QGifPlugin QICOPlugin QJpegPlugin)
+            if(TARGET Qt6::${_plugin})
+                get_target_property(_type Qt6::${_plugin} QT_PLUGIN_TYPE)
+                install(FILES "$<TARGET_FILE:Qt6::${_plugin}>" DESTINATION "plugins/${_type}"
+                    COMPONENT Runtime)
+                string(APPEND _winui3style_deploy_modules " \"$<TARGET_FILE:Qt6::${_plugin}>\"")
+            endif()
+        endforeach()
+        if(TARGET Qt6::QWaylandIntegrationPlugin)
+            install(FILES "$<TARGET_FILE_DIR:Qt6::QWaylandIntegrationPlugin>/../wayland-shell-integration/libxdg-shell.so"
+                DESTINATION plugins/wayland-shell-integration COMPONENT Runtime OPTIONAL)
+        endif()
+    endif()
     # Use the versioned command so QT_DEPLOY_* references remain unevaluated
     # until install time even when QTP0008 is not enabled by the parent project.
     qt6_generate_deploy_script(
@@ -89,13 +113,13 @@ if(UNIX AND NOT APPLE)
         OUTPUT_SCRIPT winui3style_gallery_deploy_script
         CONTENT "
 qt_deploy_runtime_dependencies(
-    EXECUTABLE \"\${QT_DEPLOY_BIN_DIR}/$<TARGET_FILE_NAME:winui3style_gallery>\"
-    ADDITIONAL_MODULES \"\${QT_DEPLOY_PLUGINS_DIR}/styles/$<TARGET_FILE_NAME:winui3styleplugin>\"
+    EXECUTABLE ${_winui3style_deploy_executable}
+    ADDITIONAL_MODULES ${_winui3style_deploy_modules}
     BIN_DIR bin
     LIB_DIR lib
     PLUGINS_DIR plugins
     GENERATE_QT_CONF
-    INCLUDE_PLUGIN_TYPES platforms imageformats
+    ${_winui3style_deploy_plugin_types}
     NO_TRANSLATIONS
     VERBOSE
 )")
