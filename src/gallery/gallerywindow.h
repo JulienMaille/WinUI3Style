@@ -39,6 +39,7 @@ private:
 
     void configureGallery();
     void refreshCardIcons();
+    void refreshNavGlyphs();
     void populateCollections();
     void populateIconSheet();
     void refreshIconSheet();

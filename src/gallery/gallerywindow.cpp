@@ -15,8 +15,9 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFont>
-#include <winui3style/winui3icons.h>
 #include <QGuiApplication>
+#include <QIcon>
+#include <QPixmap>
 #include <QHeaderView>
 #include <QKeySequence>
 #include <QLabel>
@@ -46,6 +47,21 @@
 #include <QWizardPage>
 
 namespace {
+// Plain-Qt navigation glyph: same font, size and alignment the style uses for
+// its Fluent icon engine, so the raster matches QMenu-style item decorations.
+QIcon navigationGlyph(char16_t codePoint, const QPalette &palette)
+{
+    QPixmap pixmap(32, 32);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    QFont font(QStringLiteral("Segoe Fluent Icons"));
+    font.setPixelSize(32);
+    painter.setFont(font);
+    painter.setPen(palette.color(QPalette::Active, QPalette::WindowText));
+    painter.drawText(pixmap.rect(), Qt::AlignCenter, QString(QChar(codePoint)));
+    return QIcon(pixmap);
+}
+
 // Matches codepointer's CommitForm PathElideDelegate: the file path is elided
 // on the left before the stock item view item is painted, so the available
 // width is the column width and not the model's full path string.
@@ -358,12 +374,7 @@ void GalleryWindow::configureGallery()
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
-    // Use the style's Fluent icon engine (the same QIcon path QMenu uses) so
-    // Qt centres these decorations like any other item-view icon.
-    ui->navigationList->item(0)->setIcon(WinUI3::icon(WinUI3::Icon::Monitor));
-    ui->navigationList->item(2)->setIcon(WinUI3::icon(WinUI3::Icon::Settings));
-    ui->navigationList->item(4)->setIcon(WinUI3::icon(WinUI3::Icon::Color));
-    ui->navigationList->item(5)->setIcon(WinUI3::icon(WinUI3::Icon::EmojiTabSymbols));
+    refreshNavGlyphs();
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &GalleryWindow::setTheme);
     connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -930,6 +941,14 @@ void GalleryWindow::configurePaletteLab(bool captureMode)
     refresh();
 }
 
+void GalleryWindow::refreshNavGlyphs()
+{
+    ui->navigationList->item(0)->setIcon(navigationGlyph(u'\uE7FB', palette()));
+    ui->navigationList->item(2)->setIcon(navigationGlyph(u'\uE713', palette()));
+    ui->navigationList->item(4)->setIcon(navigationGlyph(u'\uE790', palette()));
+    ui->navigationList->item(5)->setIcon(navigationGlyph(u'\uED58', palette()));
+}
+
 void GalleryWindow::setTheme(int index)
 {
     // Theme selection must not also change the composition pipeline. System
@@ -938,6 +957,7 @@ void GalleryWindow::setTheme(int index)
     // independently through the winuiBackdrop top-level property.
     m_themeIndex = index;
     qApp->style()->setProperty("themeMode", index);
+    refreshNavGlyphs();
 }
 
 bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backdrop)
@@ -1037,6 +1057,7 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
     bool success = true;
     for (int mode : { 1, 2 }) {
         activeStyle->setProperty("themeMode", mode);
+        refreshNavGlyphs();
         const QString theme = mode == 1 ? QStringLiteral("light") : QStringLiteral("dark");
         ui->fileMenu->popup(ui->menuBar->mapToGlobal(
                 QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
