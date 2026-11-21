@@ -274,11 +274,6 @@ QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window, const QPalette 
             palette.setColor(QPalette::Base, palette.color(QPalette::Window));
     } else if (qobject_cast<QWizardPage *>(widget)) {
         palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
-        // Keep the owner-refresh path in step with refreshWizardSurface:
-        // QWizard's header chrome autofills Base, so it must resolve to the
-        // same uniform content surface instead of the translucent application
-        // Base (issue #73).
-        palette.setColor(QPalette::Base, palette.color(QPalette::Window));
     } else if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
                calendarGrid && insideCalendarWidget(widget)) {
         // Transient pickers spawn a QCalendarWidget in Qt::Popup (gets
