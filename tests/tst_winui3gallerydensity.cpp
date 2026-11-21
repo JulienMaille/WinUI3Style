@@ -32,13 +32,17 @@ void WinUI3GalleryDensityTest::initTestCase()
 void WinUI3GalleryDensityTest::galleryTableDensitySwitch_data()
 {
     QTest::addColumn<bool>("dark");
-    QTest::newRow("light") << false;
-    QTest::newRow("dark") << true;
+    QTest::addColumn<bool>("customColumnSize");
+    QTest::newRow("light") << false << false;
+    QTest::newRow("dark") << true << false;
+    QTest::newRow("light-custom-column-size") << false << true;
+    QTest::newRow("dark-custom-column-size") << true << true;
 }
 
 void WinUI3GalleryDensityTest::galleryTableDensitySwitch()
 {
     QFETCH(bool, dark);
+    QFETCH(bool, customColumnSize);
     auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
     style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
     GalleryWindow gallery;
@@ -50,14 +54,22 @@ void WinUI3GalleryDensityTest::galleryTableDensitySwitch()
     density->setCurrentIndex(0);
     pages->setCurrentIndex(1);
     tabs->setCurrentWidget(table);
+    auto *header = table->horizontalHeader();
+    constexpr int columnSize = 160;
+    if (customColumnSize) {
+        header->setStretchLastSection(false);
+        header->setDefaultSectionSize(columnSize);
+    }
     gallery.show();
     QVERIFY(QTest::qWaitForWindowExposed(&gallery));
     const int standardRow = table->rowHeight(0);
     QCOMPARE(table->horizontalHeader()->height(), 32);
     QVERIFY(standardRow >= 36);
     density->setCurrentIndex(1);
+    QCOMPARE(header->height(), 24);
+    if (customColumnSize)
+        QCOMPARE(table->columnWidth(0), columnSize);
     QTRY_COMPARE(table->rowHeight(0), 28);
-    QTRY_COMPARE(table->horizontalHeader()->height(), 24);
     const QSize compactViewport = table->viewport()->size();
     gallery.resize(gallery.size() + QSize(80, 60));
     QTRY_VERIFY(table->viewport()->size() != compactViewport);
@@ -76,8 +88,10 @@ void WinUI3GalleryDensityTest::galleryTableDensitySwitch()
     QVERIFY(editor->height() >= editor->sizeHint().height());
     QTest::keyClick(editor, Qt::Key_Escape);
     density->setCurrentIndex(0);
+    QCOMPARE(header->height(), 32);
+    if (customColumnSize)
+        QCOMPARE(table->columnWidth(0), columnSize);
     QTRY_COMPARE(table->rowHeight(0), standardRow);
-    QTRY_COMPARE(table->horizontalHeader()->height(), 32);
 }
 
 void WinUI3GalleryDensityTest::galleryTreeHeaderDensitySwitch_data()
