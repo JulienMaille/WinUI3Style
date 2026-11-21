@@ -178,6 +178,8 @@ void WinUI3TableHeaderTest::tableCellElidesOverflow()
         option.displayAlignment = alignment | Qt::AlignVCenter;
         QStyleOptionViewItem expected = option;
         expected.features.setFlag(QStyleOptionViewItem::WrapText, false);
+        // Reshaping an elided bidi run can make a second elision change the text.
+        expected.textElideMode = Qt::ElideNone;
         expected.text = elided;
         QCOMPARE(render(option), render(expected));
     }
