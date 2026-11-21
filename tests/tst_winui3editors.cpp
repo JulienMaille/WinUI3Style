@@ -1091,6 +1091,21 @@ void WinUI3EditorsTest::editorElevationBorder()
         QVERIFY(colorDistance(image.pixelColor(x, qFloor((height - 1.5) * scale)),
                               compositeOverFill(t.accentFill))
                 <= 2);
+        // A view can scale its painter instead of setting the image's DPR.
+        // The cosmetic border and its background inset must still share a
+        // single physical pixel at the straight edge.
+        QImage transformed(image.size(), image.format());
+        transformed.fill(t.surface);
+        {
+            QPainter painter(&transformed);
+            painter.scale(scale, scale);
+            if (editor == 0)
+                style.drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter);
+            else
+                style.drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
+        }
+        QCOMPARE(transformed.pixelColor(x, 0), image.pixelColor(x, 0));
+        QCOMPARE(transformed.pixelColor(x, 1), image.pixelColor(x, 1));
         return;
     }
     const QColor bottomStroke = state == 2 ? t.stroke : t.strokeStrong;

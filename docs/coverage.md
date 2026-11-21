@@ -266,6 +266,8 @@ previously blended its translucent stroke over the control fill; XAML `Border`
 insets the background inside the border ring so the stroke composites over the
 parent surface. The fill is now inset by the stroke extent (1 DIP editor
 brush, 1 device pixel cosmetic brush). Pinned stroke tokens are unchanged.
+The cosmetic inset follows the painter's device transform so zoomed views
+keep the fill against the same one-pixel border.
 `editorElevationBorder` asserts stroke-over-surface rings and
 `buttonBorderCompositesOverParentSurface` the same button contract; the
 50-PNG Windows snapshot refresh is thin-band audited (all deltas <=2 px border
