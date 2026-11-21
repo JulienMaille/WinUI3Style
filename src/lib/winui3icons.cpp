@@ -254,6 +254,24 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::GetHelpApp:
             ucs4 = 0xEA6B;
             break;
+        case Icon::MapDrive:
+            ucs4 = 0xE8CE;
+            break;
+        case Icon::CaretSolidUp:
+            ucs4 = 0xF090;
+            break;
+        case Icon::CaretSolidDown:
+            ucs4 = 0xF08E;
+            break;
+        case Icon::GridView:
+            ucs4 = 0xF0E2;
+            break;
+        case Icon::TVMonitor:
+            ucs4 = 0xE7F4;
+            break;
+        case Icon::Unknown:
+            ucs4 = 0xE9CE;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -416,6 +434,19 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::GetHelpApp:
         ucs4 = 0x2753;
         break; // ❓
+    case Icon::CaretSolidUp:
+        ucs4 = 0x25B2;
+        break; // ▲ solid up caret (same shape as ChevronUp's fallback)
+    case Icon::CaretSolidDown:
+        ucs4 = 0x25BC;
+        break; // ▼ solid down caret (same shape as ChevronDown's fallback)
+    case Icon::GridView:
+        ucs4 = 0x25A6;
+        break; // ▦ grid-square fallback for hosts without the icon font
+    case Icon::MapDrive:
+    case Icon::TVMonitor:
+    case Icon::Unknown:
+        return {}; // painted by the vector fallback
     case Icon::Count:
         break; // sentinel, never rendered
     }
@@ -434,6 +465,9 @@ bool hasVectorFallback(Icon icon)
     case Icon::ChevronUp:
     case Icon::Clear:
     case Icon::Close:
+    case Icon::MapDrive:
+    case Icon::TVMonitor:
+    case Icon::Unknown:
     case Icon::Restore:
     case Icon::Save:
     case Icon::SortAscending:
@@ -520,6 +554,34 @@ QPainterPath vectorFallbackPath(Icon icon)
         path.lineTo(5.5, 13);
         path.lineTo(18.5, 13);
         path.lineTo(18.5, 21);
+        break;
+    case Icon::MapDrive:
+        path.addRoundedRect(QRectF(3, 4, 18, 9), 1.5, 1.5);
+        path.moveTo(16, 9);
+        path.lineTo(18, 9);
+        path.moveTo(12, 13);
+        path.lineTo(12, 18);
+        path.moveTo(5, 18);
+        path.lineTo(19, 18);
+        path.moveTo(5, 18);
+        path.lineTo(5, 21);
+        path.moveTo(19, 18);
+        path.lineTo(19, 21);
+        break;
+    case Icon::TVMonitor:
+        path.addRoundedRect(QRectF(3, 4, 18, 13), 1.5, 1.5);
+        path.moveTo(8, 17);
+        path.lineTo(6, 21);
+        path.moveTo(16, 17);
+        path.lineTo(18, 21);
+        break;
+    case Icon::Unknown:
+        path.addEllipse(QRectF(3, 3, 18, 18));
+        path.moveTo(9, 9);
+        path.cubicTo(9, 6.5, 15, 6.5, 15, 9.5);
+        path.cubicTo(15, 12, 12, 11.5, 12, 14);
+        path.moveTo(12, 17);
+        path.lineTo(12, 17.15);
         break;
     case Icon::SortAscending:
     case Icon::SortDescending: {
