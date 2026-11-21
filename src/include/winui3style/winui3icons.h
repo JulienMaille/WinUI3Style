@@ -70,6 +70,8 @@ enum class Icon {
     ErrorBadge, // EA39 ErrorBadge
     NewFolder, // E8F4 NewFolder
     GetHelpApp, // EA6B GetHelpApp
+    MapDrive, // E8CE MapDrive (network/mapped drive)
+    CaretSolidUp, // F090 CaretSolidUp (title-bar shade button)
     // Sentinel: the number of real glyphs. Lookups and the icon cache size
     // must use this, not the last named glyph (issue #69: stopping at
     // SortDescending silently dropped Accept and ReturnKey).

@@ -78,6 +78,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("DialogSaveButton", SP::SP_DialogSaveButton, Glyph::Save);
     add("DialogYesButton", SP::SP_DialogYesButton, Glyph::Accept);
     add("DialogOkButton", SP::SP_DialogOkButton, Glyph::ReturnKey);
+    add("DialogDiscardButton", SP::SP_DialogDiscardButton, Glyph::Delete);
     add("DirIcon", SP::SP_DirIcon, Glyph::Folder);
     add("DirOpenIcon", SP::SP_DirOpenIcon, Glyph::FolderOpen);
     add("DirHomeIcon", SP::SP_DirHomeIcon, Glyph::Home);
@@ -100,6 +101,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("MessageBoxWarning", SP::SP_MessageBoxWarning, Glyph::Warning);
     add("TitleBarMinButton", SP::SP_TitleBarMinButton, Glyph::Minimize);
     add("TitleBarMaxButton", SP::SP_TitleBarMaxButton, Glyph::Maximize);
+    add("TitleBarShadeButton", SP::SP_TitleBarShadeButton, Glyph::CaretSolidUp);
     add("TitleBarMenuButton", SP::SP_TitleBarMenuButton, Glyph::ButtonMenu);
     add("TitleBarContextHelpButton", SP::SP_TitleBarContextHelpButton, Glyph::Help);
     add("VistaShield", SP::SP_VistaShield, Glyph::Shield);
@@ -108,6 +110,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("DriveCDIcon", SP::SP_DriveCDIcon, Glyph::StorageOptical);
     add("DriveDVDIcon", SP::SP_DriveDVDIcon, Glyph::StorageOptical);
     add("DriveHDIcon", SP::SP_DriveHDIcon, Glyph::HardDrive);
+    add("DriveNetIcon", SP::SP_DriveNetIcon, Glyph::MapDrive);
     add("DriveFDIcon", SP::SP_DriveFDIcon, Glyph::Save);
     add("TrashIcon", SP::SP_TrashIcon, Glyph::Delete);
     add("DialogHelpButton", SP::SP_DialogHelpButton, Glyph::GetHelpApp);

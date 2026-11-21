@@ -868,6 +868,11 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         return WinUI3::icon(Icon::Accept);
     case QStyle::SP_DialogOkButton:
         return WinUI3::icon(Icon::ReturnKey);
+    case QStyle::SP_DialogDiscardButton:
+        // Fluent Delete (E74D, trash) is the exact counterpart of Qt's Discard
+        // button: the Windows reference draws the same trash mark. It shares
+        // the glyph with SP_TrashIcon for that reason, not as a lookalike.
+        return WinUI3::icon(Icon::Delete);
     case QStyle::SP_DirIcon:
     case QStyle::SP_DirClosedIcon:
         return WinUI3::icon(Icon::Folder);
@@ -917,6 +922,10 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         return WinUI3::icon(Icon::Minimize);
     case QStyle::SP_TitleBarMaxButton:
         return WinUI3::icon(Icon::Maximize);
+    case QStyle::SP_TitleBarShadeButton:
+        // Fluent CaretSolidUp (F090) is the solid up-caret of the Windows
+        // title-bar shade control, matching the Qt reference raster.
+        return WinUI3::icon(Icon::CaretSolidUp);
     case QStyle::SP_TitleBarMenuButton:
         return WinUI3::icon(Icon::ButtonMenu);
     case QStyle::SP_ToolBarHorizontalExtensionButton:
@@ -932,6 +941,11 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         return WinUI3::icon(Icon::StorageOptical);
     case QStyle::SP_DriveHDIcon:
         return WinUI3::icon(Icon::HardDrive);
+    case QStyle::SP_DriveNetIcon:
+        // Fluent MapDrive (E8CE) is the mapped/network-drive mark: a drive with
+        // a network connector. It is distinct from the local HardDrive EDA2,
+        // matching the distinct Windows-reference raster for this slot.
+        return WinUI3::icon(Icon::MapDrive);
     case QStyle::SP_DriveFDIcon:
         // E74E is the Fluent floppy — Qt's Windows style uses the same mark
         // for the removable-disk slot.

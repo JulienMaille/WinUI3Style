@@ -254,6 +254,12 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::GetHelpApp:
             ucs4 = 0xEA6B;
             break;
+        case Icon::MapDrive:
+            ucs4 = 0xE8CE;
+            break;
+        case Icon::CaretSolidUp:
+            ucs4 = 0xF090;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -416,6 +422,12 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::GetHelpApp:
         ucs4 = 0x2753;
         break; // ❓
+    case Icon::MapDrive:
+        ucs4 = 0x1F310;
+        break; // 🌐 network marker; no dedicated mapped-drive Unicode glyph
+    case Icon::CaretSolidUp:
+        ucs4 = 0x25B2;
+        break; // ▲ solid up caret (same shape as ChevronUp's fallback)
     case Icon::Count:
         break; // sentinel, never rendered
     }
