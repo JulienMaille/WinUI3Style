@@ -102,6 +102,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("TitleBarMinButton", SP::SP_TitleBarMinButton, Glyph::Minimize);
     add("TitleBarMaxButton", SP::SP_TitleBarMaxButton, Glyph::Maximize);
     add("TitleBarShadeButton", SP::SP_TitleBarShadeButton, Glyph::CaretSolidUp);
+    add("TitleBarUnshadeButton", SP::SP_TitleBarUnshadeButton, Glyph::CaretSolidDown);
     add("TitleBarMenuButton", SP::SP_TitleBarMenuButton, Glyph::ButtonMenu);
     add("TitleBarContextHelpButton", SP::SP_TitleBarContextHelpButton, Glyph::Help);
     add("VistaShield", SP::SP_VistaShield, Glyph::Shield);

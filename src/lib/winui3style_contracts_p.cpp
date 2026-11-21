@@ -926,6 +926,10 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         // Fluent CaretSolidUp (F090) is the solid up-caret of the Windows
         // title-bar shade control, matching the Qt reference raster.
         return WinUI3::icon(Icon::CaretSolidUp);
+    case QStyle::SP_TitleBarUnshadeButton:
+        // The matched down-caret of the pair: CaretSolidDown (F08E), the
+        // Windows unshade control, distinct from the up-caret above.
+        return WinUI3::icon(Icon::CaretSolidDown);
     case QStyle::SP_TitleBarMenuButton:
         return WinUI3::icon(Icon::ButtonMenu);
     case QStyle::SP_ToolBarHorizontalExtensionButton:

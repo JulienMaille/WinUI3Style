@@ -33,22 +33,24 @@ EB9E / fast-forward EB9D, volume E767 / mute E74F, minimize E921 / maximize E922
 title-bar close E8BB (ChromeClose) / restore E923, system menu EDE3 (ButtonMenu),
 critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, monitor
 E7FB, optical drive E958, hard drive EDA2, mapped/network drive E8CE
-(MapDrive) and title-bar shade caret F090 (CaretSolidUp, PUA; present in both
-pinned Segoe icon fonts). Delete E74D (trash) is the exact dialog Discard
+(MapDrive) and the title-bar shade/unshade pair F090 (CaretSolidUp) / F08E
+(CaretSolidDown), both PUA and present in the pinned Segoe icon fonts.
+Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
 is not a lookalike. Every added glyph also has a Unicode fallback for hosts
 without the Segoe icon font (MapDrive uses a network marker; no dedicated
 mapped-drive Unicode exists).
 
-Status: partial — 63 `QStyle::StandardPixmap` values now resolve to an **exact**
+Status: partial — 64 `QStyle::StandardPixmap` values now resolve to an **exact**
 Fluent counterpart; the rest stay on the base style. Pairing rules: a lookalike
 is not a pairing. Folder and open folder are E8B7 and E838; dialog Cancel E711
 and title-bar ChromeClose E8BB are separate glyphs; back/forward, skip/seek and
 volume/mute are separate glyphs. `SP_DialogDiscardButton` shares Delete E74D
 with `SP_TrashIcon`: both slots draw the same trash mark in the Windows reference.
 `SP_DriveNetIcon` is MapDrive E8CE, distinct from the local HardDrive EDA2.
-`SP_TitleBarShadeButton` is CaretSolidUp F090, the solid up-caret the Windows
-title-bar shade control uses. `SP_DirLinkIcon`, the floppy drive and the dialog
+`SP_TitleBarShadeButton` / `SP_TitleBarUnshadeButton` are the matched pair
+CaretSolidUp F090 / CaretSolidDown F08E used by the Windows shade/unshade
+controls. `SP_DirLinkIcon`, the floppy drive and the dialog
 *ToAll* variants have no exact Fluent counterpart in the pinned set and are
 deliberately left on the base style.
 `SP_CustomBase` is a sentinel and is asserted to stay unmapped.

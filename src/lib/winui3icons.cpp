@@ -260,6 +260,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::CaretSolidUp:
             ucs4 = 0xF090;
             break;
+        case Icon::CaretSolidDown:
+            ucs4 = 0xF08E;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -428,6 +431,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::CaretSolidUp:
         ucs4 = 0x25B2;
         break; // ▲ solid up caret (same shape as ChevronUp's fallback)
+    case Icon::CaretSolidDown:
+        ucs4 = 0x25BC;
+        break; // ▼ solid down caret (same shape as ChevronDown's fallback)
     case Icon::Count:
         break; // sentinel, never rendered
     }
