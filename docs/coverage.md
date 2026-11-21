@@ -34,8 +34,9 @@ title-bar close E8BB (ChromeClose) / restore E923, system menu EDE3 (ButtonMenu)
 critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, desktop
 monitor E7FB (DeviceMonitorNoPic) / TV monitor E7F4 (TVMonitor), optical drive
 E958, hard drive EDA2, mapped/network drive E8CE (MapDrive), the title-bar
-shade/unshade pair F090 (CaretSolidUp) / F08E (CaretSolidDown) and file-dialog
-grid F0E2 (GridView), all PUA and present in the pinned Segoe icon fonts.
+shade/unshade pair F090 (CaretSolidUp) / F08E (CaretSolidDown), file-dialog
+grid F0E2 (GridView) and circled question mark E9CE (Unknown), all PUA and
+present in the pinned Segoe icon fonts.
 Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
 is not a lookalike. Hosts without the Segoe icon font use tintable vector fallbacks for
@@ -56,6 +57,9 @@ while ContentsView/DetailedView keep the List E8FD mark.
 `SP_ComputerIcon` is TVMonitor E7F4 (monitor with stand), replacing its earlier
 DeviceMonitorNoPic pairing; `SP_DesktopIcon` keeps E7FB because the Windows
 reference draws a distinct flatter mark for that slot.
+`SP_MessageBoxQuestion` is the circled question mark Unknown E9CE (Help E897 is
+a bare ? and does not match the reference); `SP_TitleBarContextHelpButton`
+keeps E897 because its reference is bare too.
 `SP_DirLinkIcon`, the floppy drive and the dialog
 *ToAll* variants have no exact Fluent counterpart in the pinned set and are
 deliberately left on the base style.

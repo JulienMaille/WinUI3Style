@@ -921,7 +921,10 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_MessageBoxInformation:
         return WinUI3::icon(Icon::Info);
     case QStyle::SP_MessageBoxQuestion:
-        return WinUI3::icon(Icon::Help);
+        // Unknown (E9CE) is the circled question mark the Windows reference
+        // draws here. Help (E897) is a bare ? and stays on title-bar context
+        // help, whose reference is bare too.
+        return WinUI3::icon(Icon::Unknown);
     case QStyle::SP_MessageBoxWarning:
         return WinUI3::icon(Icon::Warning);
     case QStyle::SP_TitleBarMinButton:

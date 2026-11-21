@@ -97,7 +97,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("MediaVolumeMuted", SP::SP_MediaVolumeMuted, Glyph::Mute);
     add("MessageBoxCritical", SP::SP_MessageBoxCritical, Glyph::ErrorBadge);
     add("MessageBoxInformation", SP::SP_MessageBoxInformation, Glyph::Info);
-    add("MessageBoxQuestion", SP::SP_MessageBoxQuestion, Glyph::Help);
+    add("MessageBoxQuestion", SP::SP_MessageBoxQuestion, Glyph::Unknown);
     add("MessageBoxWarning", SP::SP_MessageBoxWarning, Glyph::Warning);
     add("TitleBarMinButton", SP::SP_TitleBarMinButton, Glyph::Minimize);
     add("TitleBarMaxButton", SP::SP_TitleBarMaxButton, Glyph::Maximize);

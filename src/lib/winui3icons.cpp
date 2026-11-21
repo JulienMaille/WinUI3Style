@@ -269,6 +269,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::TVMonitor:
             ucs4 = 0xE7F4;
             break;
+        case Icon::Unknown:
+            ucs4 = 0xE9CE;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -443,6 +446,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::MapDrive:
     case Icon::TVMonitor:
         return {}; // painted by the vector fallback
+    case Icon::Unknown:
+        ucs4 = 0x2754;
+        break; // ❔ question-mark ornament; closest circled-? BMP fallback
     case Icon::Count:
         break; // sentinel, never rendered
     }
