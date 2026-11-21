@@ -814,16 +814,20 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         return WinUI3::icon(Icon::Check);
     case QStyle::SP_DialogCancelButton:
     case QStyle::SP_DockWidgetCloseButton:
+        return WinUI3::icon(Icon::Close);
+    case QStyle::SP_DialogCloseButton:
+    case QStyle::SP_DialogNoButton:
+    case QStyle::SP_LineEditClearButton:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     case QStyle::SP_TabCloseButton:
 #endif
-        return WinUI3::icon(Icon::Close);
+        // These four X-mark slots share the same Clear (E894) glyph: the
+        // Windows reference draws the same outlined cross for each of them.
+        return WinUI3::icon(Icon::Clear);
     case QStyle::SP_TitleBarCloseButton:
         // Title-bar close uses Fluent's ChromeClose, not the dialog Cancel
         // mark: the two sit in different chrome families.
         return WinUI3::icon(Icon::ChromeClose);
-    case QStyle::SP_LineEditClearButton:
-        return WinUI3::icon(Icon::Clear);
     case QStyle::SP_DialogSaveButton:
         return WinUI3::icon(Icon::Save);
     case QStyle::SP_DialogYesButton:
@@ -847,6 +851,10 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         return WinUI3::icon(Icon::Home);
     case QStyle::SP_FileIcon:
         return WinUI3::icon(Icon::Document);
+    case QStyle::SP_FileLinkIcon:
+        // OpenFile (E8E5) is the file-with-arrow mark the Windows reference
+        // draws here, distinct from the plain Document glyph of SP_FileIcon.
+        return WinUI3::icon(Icon::OpenFile);
     case QStyle::SP_FileDialogContentsView:
     case QStyle::SP_FileDialogDetailedView:
         return WinUI3::icon(Icon::List);

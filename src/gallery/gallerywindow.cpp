@@ -15,6 +15,7 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFont>
+#include <winui3style/winui3icons.h>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QKeySequence>
@@ -357,15 +358,12 @@ void GalleryWindow::configureGallery()
     };
     for (int row = 0; row < ui->navigationList->count(); ++row)
         ui->navigationList->item(row)->setIcon(icon(navigationIcons.at(row)));
-    QPixmap iconsGlyph(32, 32);
-    iconsGlyph.fill(Qt::transparent);
-    QPainter iconsGlyphPainter(&iconsGlyph);
-    QFont iconsGlyphFont(QStringLiteral("Segoe Fluent Icons"));
-    iconsGlyphFont.setPixelSize(20);
-    iconsGlyphPainter.setFont(iconsGlyphFont);
-    iconsGlyphPainter.setPen(palette().color(QPalette::Text));
-    iconsGlyphPainter.drawText(iconsGlyph.rect(), Qt::AlignCenter, QStringLiteral("\uEAD5"));
-    ui->navigationList->item(5)->setIcon(QIcon(iconsGlyph));
+    // Use the style's Fluent icon engine (the same QIcon path QMenu uses) so
+    // Qt centres these decorations like any other item-view icon.
+    ui->navigationList->item(0)->setIcon(WinUI3::icon(WinUI3::Icon::Monitor));
+    ui->navigationList->item(2)->setIcon(WinUI3::icon(WinUI3::Icon::Settings));
+    ui->navigationList->item(4)->setIcon(WinUI3::icon(WinUI3::Icon::Color));
+    ui->navigationList->item(5)->setIcon(WinUI3::icon(WinUI3::Icon::EmojiTabSymbols));
     connect(ui->themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &GalleryWindow::setTheme);
     connect(ui->densityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,

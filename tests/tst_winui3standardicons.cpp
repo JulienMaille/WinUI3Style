@@ -70,8 +70,10 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("DialogApplyButton", SP::SP_DialogApplyButton, Glyph::Check);
     add("DialogCancelButton", SP::SP_DialogCancelButton, Glyph::Close);
     add("DockWidgetCloseButton", SP::SP_DockWidgetCloseButton, Glyph::Close);
+    add("DialogCloseButton", SP::SP_DialogCloseButton, Glyph::Clear);
+    add("DialogNoButton", SP::SP_DialogNoButton, Glyph::Clear);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    add("TabCloseButton", SP::SP_TabCloseButton, Glyph::Close);
+    add("TabCloseButton", SP::SP_TabCloseButton, Glyph::Clear);
 #endif
     add("TitleBarCloseButton", SP::SP_TitleBarCloseButton, Glyph::ChromeClose);
     add("LineEditClearButton", SP::SP_LineEditClearButton, Glyph::Clear);
@@ -83,6 +85,7 @@ void WinUI3StandardIconsTest::mappedStandardPixmaps_data()
     add("DirOpenIcon", SP::SP_DirOpenIcon, Glyph::FolderOpen);
     add("DirHomeIcon", SP::SP_DirHomeIcon, Glyph::Home);
     add("FileIcon", SP::SP_FileIcon, Glyph::Document);
+    add("FileLinkIcon", SP::SP_FileLinkIcon, Glyph::OpenFile);
     add("FileDialogContentsView", SP::SP_FileDialogContentsView, Glyph::List);
     add("FileDialogDetailedView", SP::SP_FileDialogDetailedView, Glyph::List);
     add("FileDialogNewFolder", SP::SP_FileDialogNewFolder, Glyph::NewFolder);

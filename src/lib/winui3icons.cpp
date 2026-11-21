@@ -272,6 +272,15 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::Unknown:
             ucs4 = 0xE9CE;
             break;
+        case Icon::OpenFile:
+            ucs4 = 0xE8E5;
+            break;
+        case Icon::Color:
+            ucs4 = 0xE790;
+            break;
+        case Icon::EmojiTabSymbols:
+            ucs4 = 0xED58;
+            break;
         case Icon::Count:
             break; // sentinel, never rendered
         }
@@ -447,6 +456,15 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::TVMonitor:
     case Icon::Unknown:
         return {}; // painted by the vector fallback
+    case Icon::OpenFile:
+        ucs4 = 0x1F4C4;
+        break; // 📄 page marker; no dedicated open-file Unicode glyph
+    case Icon::Color:
+        ucs4 = 0x1F3A8;
+        break; // 🎨 artist palette
+    case Icon::EmojiTabSymbols:
+        ucs4 = 0x1F4A1;
+        break; // 💡 symbol mark fallback
     case Icon::Count:
         break; // sentinel, never rendered
     }

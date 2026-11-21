@@ -76,6 +76,9 @@ enum class Icon {
     GridView, // F0E2 GridView (file-dialog list view)
     TVMonitor, // E7F4 TVMonitor (computer icon, monitor with stand)
     Unknown, // E9CE Unknown (circled question mark; message-box Question)
+    OpenFile, // E8E5 OpenFile (file-link icon)
+    Color, // E790 Color (palette lab)
+    EmojiTabSymbols, // ED58 EmojiTabSymbols (icons page)
     // Sentinel: the number of real glyphs. Lookups and the icon cache size
     // must use this, not the last named glyph (issue #69: stopping at
     // SortDescending silently dropped Accept and ReturnKey).

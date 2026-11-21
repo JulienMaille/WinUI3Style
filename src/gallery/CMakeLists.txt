@@ -18,6 +18,9 @@ add_executable(winui3style_gallery
 
 target_link_libraries(winui3style_gallery PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets)
+# Navigation icons use the same Fluent QIcon engine as menu/button glyphs,
+# so Qt centres them exactly like any other item-view decoration.
+target_link_libraries(winui3style_gallery PRIVATE winui3style)
 target_link_libraries(winui3style_gallery PRIVATE winui3style_warnings)
 set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 

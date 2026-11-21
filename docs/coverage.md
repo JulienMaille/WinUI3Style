@@ -35,14 +35,14 @@ critical error EA39 (ErrorBadge), help EA6B (GetHelpApp), shield EA18, desktop
 monitor E7FB (DeviceMonitorNoPic) / TV monitor E7F4 (TVMonitor), optical drive
 E958, hard drive EDA2, mapped/network drive E8CE (MapDrive), the title-bar
 shade/unshade pair F090 (CaretSolidUp) / F08E (CaretSolidDown), file-dialog
-grid F0E2 (GridView) and circled question mark E9CE (Unknown), all PUA and
-present in the pinned Segoe icon fonts.
+grid F0E2 (GridView), circled question mark E9CE (Unknown) and open file E8E5
+(OpenFile), all PUA and present in the pinned Segoe icon fonts.
 Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
 is not a lookalike. On hosts without Segoe, MapDrive, TVMonitor, and Unknown use tintable vector
 fallbacks. The other added glyphs use Unicode fallbacks.
 
-Status: partial — 64 `QStyle::StandardPixmap` values now resolve to an **exact**
+Status: partial — 67 `QStyle::StandardPixmap` values now resolve to an **exact**
 Fluent counterpart; the rest stay on the base style. Pairing rules: a lookalike
 is not a pairing. Folder and open folder are E8B7 and E838; dialog Cancel E711
 and title-bar ChromeClose E8BB are separate glyphs; back/forward, skip/seek and
@@ -59,7 +59,12 @@ DeviceMonitorNoPic pairing; `SP_DesktopIcon` keeps E7FB because the Windows
 reference draws a distinct flatter mark for that slot.
 `SP_MessageBoxQuestion` is the circled question mark Unknown E9CE (Help E897 is
 a bare ? and does not match the reference); `SP_TitleBarContextHelpButton`
-keeps E897 because its reference is bare too.
+keeps E897 because its reference is bare too. `SP_FileLinkIcon` is OpenFile E8E5
+(file with arrow), distinct from the plain Document E7C3 of `SP_FileIcon`.
+`SP_DialogCloseButton`, `SP_DialogNoButton`, `SP_TabCloseButton` and
+`SP_LineEditClearButton` deliberately share Clear E894: the Windows reference
+draws the same outlined X for all four. Dialog Cancel and dock close keep
+Close E711, and title-bar close keeps ChromeClose E8BB.
 `SP_DirLinkIcon`, the floppy drive and the dialog
 *ToAll* variants have no exact Fluent counterpart in the pinned set and are
 deliberately left on the base style.
