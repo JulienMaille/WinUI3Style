@@ -30,6 +30,7 @@ constexpr auto originalPaletteExplicitProperty = "_winui_backdrop_original_palet
 constexpr auto originalTranslucentProperty = "_winui_backdrop_original_translucent";
 constexpr auto originalNoSystemBackgroundProperty = "_winui_backdrop_original_no_system_background";
 constexpr auto originalOpaquePaintProperty = "_winui_backdrop_original_opaque_paint";
+constexpr auto originalStyledBackgroundProperty = "_winui_backdrop_original_styled_background";
 constexpr auto originalAutoFillProperty = "_winui_backdrop_original_auto_fill";
 
 QColor themedWindowColor()
@@ -51,6 +52,8 @@ void rememberBackdropState(QWidget *window)
                       window->testAttribute(Qt::WA_NoSystemBackground));
     Private::remember(window, originalOpaquePaintProperty,
                       window->testAttribute(Qt::WA_OpaquePaintEvent));
+    Private::remember(window, originalStyledBackgroundProperty,
+                      window->testAttribute(Qt::WA_StyledBackground));
     Private::remember(window, originalAutoFillProperty, window->autoFillBackground());
     Private::remember(window, originalWindowColorProperty,
                       window->palette().color(QPalette::Window));
@@ -88,6 +91,9 @@ void restoreBackdropState(QWidget *window)
     if (window->property(originalOpaquePaintProperty).isValid())
         window->setAttribute(Qt::WA_OpaquePaintEvent,
                              window->property(originalOpaquePaintProperty).toBool());
+    if (window->property(originalStyledBackgroundProperty).isValid())
+        window->setAttribute(Qt::WA_StyledBackground,
+                             window->property(originalStyledBackgroundProperty).toBool());
     if (window->property(originalAutoFillProperty).isValid())
         window->setAutoFillBackground(window->property(originalAutoFillProperty).toBool());
     if (window->property(originalPaletteProperty).isValid()) {
@@ -103,6 +109,7 @@ void restoreBackdropState(QWidget *window)
     window->setProperty(originalTranslucentProperty, {});
     window->setProperty(originalNoSystemBackgroundProperty, {});
     window->setProperty(originalOpaquePaintProperty, {});
+    window->setProperty(originalStyledBackgroundProperty, {});
     window->setProperty(originalAutoFillProperty, {});
 }
 #endif
@@ -503,6 +510,11 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
         // stick the calendar opaque under a granted material.
         window->setProperty(Private::effectiveBackdropProperty,
                             static_cast<int>(Private::BackdropSurface::Composited));
+        if (window->windowType() != Qt::Popup) {
+            // NoSystemBackground vetoes Qt's PE_Widget dispatch, leaving vacated client pixels.
+            window->setAttribute(Qt::WA_NoSystemBackground, false);
+            window->setAttribute(Qt::WA_StyledBackground, true);
+        }
         repaintBackdropHierarchy(window);
     } else {
         // DWM refused the material: opaque painted fallback, explicit
@@ -513,6 +525,9 @@ bool applyBackdrop(QWidget *window, Backdrop backdrop)
             window->setAttribute(Qt::WA_TranslucentBackground,
                                  window->property(originalTranslucentProperty).toBool());
         window->setAttribute(Qt::WA_NoSystemBackground, false);
+        if (window->property(originalStyledBackgroundProperty).isValid())
+            window->setAttribute(Qt::WA_StyledBackground,
+                                 window->property(originalStyledBackgroundProperty).toBool());
         if (window->property(originalOpaquePaintProperty).isValid())
             window->setAttribute(Qt::WA_OpaquePaintEvent,
                                  window->property(originalOpaquePaintProperty).toBool());

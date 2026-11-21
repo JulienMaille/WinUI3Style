@@ -113,10 +113,10 @@ if(WINUI_ENABLE_TESTS)
     # actual built directories rather than re-deriving the deploy logic.
     if(WINUI3STYLE_BUILD_PLUGIN)
         set(_winui3style_single_dll_args
-            "-DPLUGIN_DIR=${CMAKE_BINARY_DIR}/plugins/styles")
+            "-DPLUGIN_FILE=$<TARGET_FILE:winui3styleplugin>")
         if(WINUI3STYLE_BUILD_DEMO)
             list(APPEND _winui3style_single_dll_args
-                "-DGALLERY_STYLES_DIR=$<TARGET_FILE_DIR:winui3style_gallery>/styles")
+                "-DGALLERY_PLUGIN_FILE=$<TARGET_FILE_DIR:winui3style_gallery>/styles/$<TARGET_FILE_NAME:winui3styleplugin>")
         endif()
         add_test(
             NAME winui3style_single_dll_plugin_contract

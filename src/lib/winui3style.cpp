@@ -82,6 +82,7 @@
 #include <QTextEdit>
 #include <QThread>
 #include <QToolBar>
+#include <QTreeView>
 #include <QWizard>
 #include <QToolButton>
 #include <QToolBox>
@@ -273,11 +274,6 @@ QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window, const QPalette 
             palette.setColor(QPalette::Base, palette.color(QPalette::Window));
     } else if (qobject_cast<QWizardPage *>(widget)) {
         palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
-        // Keep the owner-refresh path in step with refreshWizardSurface:
-        // QWizard's header chrome autofills Base, so it must resolve to the
-        // same uniform content surface instead of the translucent application
-        // Base (issue #73).
-        palette.setColor(QPalette::Base, palette.color(QPalette::Window));
     } else if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
                calendarGrid && insideCalendarWidget(widget)) {
         // Transient pickers spawn a QCalendarWidget in Qt::Popup (gets
@@ -652,8 +648,17 @@ void invalidateDensityTree(QWidget *root)
         if (auto *header = qobject_cast<QHeaderView *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(header, &styleChange);
-            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget()))
+            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget())) {
+                if (header->orientation() == Qt::Horizontal
+                    && (qobject_cast<QTableView *>(view) || qobject_cast<QTreeView *>(view))
+                    && view->objectName() != QLatin1String("qt_calendar_calendarview")) {
+                    // Qt's header event skips the size-hint cache when the application
+                    // sets a default section size. The viewport event always clears it.
+                    QEvent viewportStyleChange(QEvent::StyleChange);
+                    QCoreApplication::sendEvent(header->viewport(), &viewportStyleChange);
+                }
                 view->doItemsLayout();
+            }
         }
     };
     // Header caches and item-view geometry must agree before any synchronous repaint.
@@ -1942,8 +1947,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget
-        && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
+    if (element == PE_Widget && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
         return;
     if (Private::drawChromePrimitive(this, element, option, painter, widget))
         return;

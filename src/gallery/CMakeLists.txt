@@ -22,18 +22,18 @@ target_link_libraries(winui3style_gallery PRIVATE winui3style_warnings)
 set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 
 if(TARGET winui3styleplugin)
-    add_dependencies(winui3style_gallery winui3styleplugin)
-    # The gallery loads the style through Qt's factory and embeds the
-    # implementation in the plugin, so only qwinui3style.dll is needed here.
-    # Do not copy winui3style.dll beside the gallery or into styles/: that
-    # would reintroduce the two-DLL deployment issue #70 removes.
-    add_custom_command(TARGET winui3style_gallery POST_BUILD
+    # Stage the self-contained plugin on every Gallery build. The executable
+    # does not relink when its dynamically loaded plugin changes.
+    add_custom_target(winui3style_gallery_stage_plugin
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_FILE_DIR:winui3style_gallery>/styles"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:winui3styleplugin>
             "$<TARGET_FILE_DIR:winui3style_gallery>/styles"
+        DEPENDS winui3styleplugin
+        VERBATIM
     )
+    add_dependencies(winui3style_gallery winui3style_gallery_stage_plugin)
 endif()
 
 # The snapshot oracle deliberately uses Qt's offscreen platform. A previously

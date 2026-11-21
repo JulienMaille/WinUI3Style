@@ -186,10 +186,13 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface_data()
 {
     QTest::addColumn<bool>("dark");
     QTest::addColumn<bool>("compact");
-    QTest::newRow("light-standard") << false << false;
-    QTest::newRow("light-compact") << false << true;
-    QTest::newRow("dark-standard") << true << false;
-    QTest::newRow("dark-compact") << true << true;
+    QTest::addColumn<bool>("localStyle");
+    QTest::newRow("light-standard") << false << false << false;
+    QTest::newRow("light-compact") << false << true << false;
+    QTest::newRow("dark-standard") << true << false << false;
+    QTest::newRow("dark-compact") << true << true << false;
+    QTest::newRow("local-dark-standard") << true << false << true;
+    QTest::newRow("local-light-compact") << false << true << true;
 }
 
 void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
@@ -198,6 +201,15 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
         QSKIP("Slider tool windows require a native platform; run with XCB or Windows.");
     QFETCH(bool, dark);
     QFETCH(bool, compact);
+    QFETCH(bool, localStyle);
+    WinUI3::Style sliderStyle(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    if (localStyle) {
+        auto *fusion = QStyleFactory::create(QStringLiteral("Fusion"));
+        QVERIFY(fusion);
+        qApp->setStyle(fusion);
+        sliderStyle.setDensityMode(compact ? WinUI3::DensityMode::Compact
+                                           : WinUI3::DensityMode::Standard);
+    }
     GalleryWindow gallery;
     auto *theme = gallery.findChild<QComboBox *>(QStringLiteral("themeCombo"));
     auto *density = gallery.findChild<QComboBox *>(QStringLiteral("densityCombo"));
@@ -206,6 +218,10 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
     QVERIFY(theme && density && page && slider);
     theme->setCurrentIndex(dark ? 2 : 1);
     density->setCurrentIndex(compact ? 1 : 0);
+    if (localStyle) {
+        slider->setStyle(&sliderStyle);
+        slider->setPalette(sliderStyle.standardPalette());
+    }
     gallery.resize(1180, 780);
     gallery.show();
     QVERIFY(QTest::qWaitForWindowExposed(&gallery));
@@ -225,7 +241,7 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
     QWidget *tip = nullptr;
     QTRY_VERIFY((tip = slider->findChild<QWidget *>(QStringLiteral("_winui_slider_value_tip"))));
     QTRY_VERIFY(tip->isVisible());
-    const auto t = WinUI3::Private::tokens(tip->palette());
+    const auto t = WinUI3::Private::tokens(slider->palette());
     QCOMPARE(t.dark, dark);
     QCOMPARE(t.tooltipStroke, dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15));
     QCOMPARE(t.tooltipFill, dark ? QColor(44, 44, 44) : QColor(249, 249, 249));
@@ -236,7 +252,8 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
     QPainter painter(&expected);
     QStyleOption panel;
     panel.initFrom(tip);
-    tip->style()->drawPrimitive(QStyle::PE_PanelTipLabel, &panel, &painter, tip);
+    panel.palette = slider->palette();
+    slider->style()->drawPrimitive(QStyle::PE_PanelTipLabel, &panel, &painter, tip);
     painter.end();
     // Inspect the top edge, away from text and the antialiased corners.
     const QPoint edge(actual.width() / 2, 0);

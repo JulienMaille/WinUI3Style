@@ -115,21 +115,32 @@ static void borderedSurface(QPainter *painter, const QRectF &rect, const QColor 
     painter->setRenderHint(QPainter::Antialiasing);
     // XAML Border insets the background inside the border ring, so the
     // translucent stroke composites over the parent surface, not the fill.
-    const qreal strokeLogical =
-            cosmetic ? strokeWidth / painter->device()->devicePixelRatioF() : strokeWidth;
+    qreal insetX = strokeWidth;
+    qreal insetY = strokeWidth;
+    if (cosmetic) {
+        const QTransform transform = painter->deviceTransform();
+        const qreal areaScale = qAbs(transform.determinant());
+        if (transform.isAffine() && areaScale > 0.0) {
+            // The area scale divided by an edge's length scale gives the
+            // perpendicular scale, including device DPR and painter zoom.
+            insetX *= std::hypot(transform.m21(), transform.m22()) / areaScale;
+            insetY *= std::hypot(transform.m11(), transform.m12()) / areaScale;
+        } else {
+            insetX = insetY = strokeWidth / painter->device()->devicePixelRatioF();
+        }
+    }
     painter->setPen(Qt::NoPen);
     painter->setBrush(fill);
-    const qreal fillRadius = qMax(0.0, radius - strokeLogical);
-    painter->drawRoundedRect(
-            rect.adjusted(strokeLogical, strokeLogical, -strokeLogical, -strokeLogical), fillRadius,
-            fillRadius);
+    const QRectF fillRect = rect.adjusted(insetX, insetY, -insetX, -insetY);
+    if (!fillRect.isEmpty())
+        painter->drawRoundedRect(fillRect, qMax(0.0, radius - insetX), qMax(0.0, radius - insetY));
     QPen borderPen(border, strokeWidth);
     borderPen.setCosmetic(cosmetic);
     painter->setBrush(Qt::NoBrush);
     painter->setPen(borderPen);
-    painter->drawRoundedRect(rect.adjusted(strokeLogical / 2.0, strokeLogical / 2.0,
-                                           -strokeLogical / 2.0, -strokeLogical / 2.0),
-                             radius, radius);
+    painter->drawRoundedRect(
+            rect.adjusted(insetX / 2.0, insetY / 2.0, -insetX / 2.0, -insetY / 2.0), radius,
+            radius);
     painter->restore();
 }
 
