@@ -61,9 +61,12 @@ protected:
         QStyleOption panel;
         panel.initFrom(this);
         // Share the official ToolTip surface with ordinary widget tooltips.
-        // This helper owns tracking/text, not a second Fluent border recipe.
-        style()->drawPrimitive(QStyle::PE_PanelTipLabel, &panel, &painter, this);
-        painter.setPen(palette().color(QPalette::ToolTipText));
+        // QWidget's explicit styles stay on the slider, so use the owner to
+        // keep the popup in the slider's style and palette.
+        const QWidget *slider = parentWidget();
+        panel.palette = slider->palette();
+        slider->style()->drawPrimitive(QStyle::PE_PanelTipLabel, &panel, &painter, this);
+        painter.setPen(panel.palette.color(QPalette::ToolTipText));
         painter.drawText(rect().adjusted(8, 0, -8, 0), Qt::AlignCenter, m_text);
     }
 
