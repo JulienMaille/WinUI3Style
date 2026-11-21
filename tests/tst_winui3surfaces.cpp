@@ -74,6 +74,7 @@ private slots:
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
     void progressTimerScalingAndLifecycle();
+    void visibleProgressTracksMotionPreference();
 };
 
 void WinUI3SurfacesTest::contentLayerSurfacePredicate()
@@ -1059,6 +1060,30 @@ void WinUI3SurfacesTest::progressTimerScalingAndLifecycle()
     bars.clear();
     QCoreApplication::processEvents();
     QVERIFY(!timer->isActive());
+}
+
+void WinUI3SurfacesTest::visibleProgressTracksMotionPreference()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    if (!WinUI3::Style::animationsAllowed())
+        QSKIP("Animation effects are disabled for this test session");
+    QProgressBar bar;
+    bar.setRange(0, 0);
+    bar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    auto *progress = style->findChild<QTimer *>(QStringLiteral("_winui_progress_timer"));
+    auto *appearance =
+            style->findChild<QTimer *>(QStringLiteral("_winui_system_appearance_watchdog"));
+    QVERIFY(progress && appearance);
+    QVERIFY(progress->isActive());
+    {
+        DisableAnimationsGuard disableMotion;
+        QVERIFY(QMetaObject::invokeMethod(appearance, "timeout", Qt::DirectConnection));
+        QVERIFY(!progress->isActive());
+    }
+    QVERIFY(QMetaObject::invokeMethod(appearance, "timeout", Qt::DirectConnection));
+    QVERIFY(progress->isActive());
 }
 
 QTEST_MAIN(WinUI3SurfacesTest)
