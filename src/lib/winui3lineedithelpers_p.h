@@ -4,9 +4,11 @@
 #include <winui3style/winui3global.h>
 
 class QAbstractButton;
+class QHelpEvent;
 class QLineEdit;
 class QPainter;
 class QStyleOption;
+class QWidget;
 
 namespace WinUI3 {
 class Style;
@@ -28,6 +30,7 @@ const QAbstractButton *lineEditClearButton(const QLineEdit *lineEdit);
 // read at paint time, so keys appear while they are still being pressed, and
 // the focused editor state supplies the pressed cap fill.
 void paintShortcutKeycaps(QPainter *painter, const QStyleOption *option, const QLineEdit *editor);
+bool showShortcutOverflowTooltip(QWidget *widget, const QHelpEvent &event, const Style *style);
 
 } // namespace Private
 } // namespace WinUI3

@@ -29,6 +29,7 @@
 #include <QDynamicPropertyChangeEvent>
 #include <QEasingCurve>
 #include <QEvent>
+#include <QHelpEvent>
 #include <QFocusEvent>
 #include <QFrame>
 #include <QHoverEvent>
@@ -1312,6 +1313,8 @@ bool StyleInteractionController::eventFilter(QObject *watched, QEvent *event)
         return handleFocusIn(widget, event);
     case QEvent::FocusOut:
         return handleFocusOut(widget);
+    case QEvent::ToolTip:
+        return showShortcutOverflowTooltip(widget, *static_cast<QHelpEvent *>(event), m_style);
     case QEvent::ReadOnlyChange:
         return handleReadOnlyChange(widget);
     case QEvent::ChildAdded:
