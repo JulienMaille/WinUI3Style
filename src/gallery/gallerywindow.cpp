@@ -11,6 +11,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDockWidget>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFont>
@@ -24,6 +25,7 @@
 #include <QMetaEnum>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QScreen>
 #include <QScopeGuard>
 #include <QStandardItem>
@@ -31,9 +33,11 @@
 #include <QStyledItemDelegate>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTimer>
 #include <QToolBox>
+#include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -419,6 +423,81 @@ void GalleryWindow::configureGallery()
         finishLayout->addWidget(new QLabel(tr("Setup complete."), finish));
         wizard.addPage(finish);
         wizard.exec();
+    });
+
+    auto *dockWidgetsAction = new QAction(tr("Dock widgets"), this);
+    dockWidgetsAction->setObjectName(QStringLiteral("dockWidgetsAction"));
+    dockWidgetsAction->setCheckable(true);
+    dockWidgetsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+    ui->viewMenu->addAction(dockWidgetsAction);
+    connect(dockWidgetsAction, &QAction::toggled, this, [this](bool on) {
+        if (!on) {
+            for (QDockWidget *dock : m_demoDocks) {
+                removeDockWidget(dock);
+                dock->deleteLater();
+            }
+            m_demoDocks.clear();
+            return;
+        }
+        const QList<QPair<QString, QString>> changedFiles = {
+            { tr("src/plugins/help/help_plg.cpp"), tr("Modified") },
+            { tr(".qtcreator/"), tr("Untracked") },
+            { tr("CMakePresets.json"), tr("Untracked") },
+            { tr("CMakeUserPresets.json"), tr("Untracked") },
+            { tr("codepointer.json"), tr("Untracked") },
+            { tr("conan-create-all.sh"), tr("Untracked") },
+            { tr("recipes/"), tr("Untracked") },
+            { tr("src/widgets/ResponsiveHBoxLayout.cpp"), tr("Untracked") }
+        };
+        auto *projectDock = new QDockWidget(tr("Project"), this);
+        auto *projectTree = new QTreeWidget(projectDock);
+        projectTree->setHeaderLabels({ tr("File"), tr("Status") });
+        auto *projectRoot = new QTreeWidgetItem(projectTree, { tr("codepointer") });
+        for (const auto &file : changedFiles)
+            new QTreeWidgetItem(projectRoot, { file.first, file.second });
+        projectRoot->setExpanded(true);
+        projectTree->header()->setStretchLastSection(true);
+        projectDock->setWidget(projectTree);
+        auto *filesDock = new QDockWidget(tr("Files"), this);
+        auto *filesTable = new QTableWidget(changedFiles.size(), 3, filesDock);
+        filesTable->setHorizontalHeaderLabels({ tr("Commit"), tr("Status"), tr("File") });
+        filesTable->verticalHeader()->hide();
+        filesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        filesTable->horizontalHeader()->setStretchLastSection(true);
+        filesTable->setColumnWidth(0, 64);
+        filesTable->setColumnWidth(1, 90);
+        for (int row = 0; row < changedFiles.size(); ++row) {
+            auto *check = new QTableWidgetItem();
+            check->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
+            check->setCheckState(Qt::Unchecked);
+            filesTable->setItem(row, 0, check);
+            filesTable->setItem(row, 1, new QTableWidgetItem(changedFiles.at(row).second));
+            filesTable->setItem(row, 2, new QTableWidgetItem(changedFiles.at(row).first));
+        }
+        filesDock->setWidget(filesTable);
+        auto *commitDock = new QDockWidget(tr("Commit message"), this);
+        commitDock->setWidget(new QPlainTextEdit(commitDock));
+        auto *outputDock = new QDockWidget(tr("Output"), this);
+        auto *outputPane = new QPlainTextEdit(outputDock);
+        outputPane->setReadOnly(true);
+        outputPane->setPlainText(tr("LspClientImpl: connected to clangd\n"
+                                    "CodeAction failed: trying to get AST for non-added document\n"
+                                    "CodeAction failed: trying to get AST for non-added document\n"
+                                    "CodeAction failed: trying to get AST for non-added document"));
+        outputDock->setWidget(outputPane);
+        for (QDockWidget *dock : { projectDock, filesDock, commitDock, outputDock }) {
+            dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable
+                              | QDockWidget::DockWidgetFloatable);
+            dock->setAllowedAreas(Qt::AllDockWidgetAreas);
+            m_demoDocks.append(dock);
+        }
+        addDockWidget(Qt::LeftDockWidgetArea, projectDock);
+        addDockWidget(Qt::RightDockWidgetArea, filesDock);
+        tabifyDockWidget(filesDock, commitDock);
+        addDockWidget(Qt::BottomDockWidgetArea, outputDock);
+        resizeDocks({ projectDock }, { 260 }, Qt::Horizontal);
+        resizeDocks({ filesDock }, { 420 }, Qt::Horizontal);
+        resizeDocks({ outputDock }, { 140 }, Qt::Vertical);
     });
 }
 

@@ -13,8 +13,10 @@
 #include "../src/lib/winui3surfaces_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
+#include <QAction>
 #include <QBackingStore>
 #include <QCheckBox>
+#include <QDockWidget>
 #include <QComboBox>
 #include <QGuiApplication>
 #include <QListWidget>
@@ -76,6 +78,7 @@ class WinUI3MicaNativeTest final : public QObject
 private slots:
     void initTestCase();
     void liveThemeSwitchWhileGrantedThenDisable();
+    void dockWidgetsDemoRemainsAvailable();
     void popupGrantAliveRejectsRevokedEffect();
     void micaToggleClearsVacatedClientPixels_data();
     void micaToggleClearsVacatedClientPixels();
@@ -141,6 +144,44 @@ void WinUI3MicaNativeTest::liveThemeSwitchWhileGrantedThenDisable()
     QVERIFY(qAbs(windowInk.blue() - expectedWindow.blue()) <= 8);
     QCOMPARE(navigation->palette().color(QPalette::Active, QPalette::Text),
              lightPalette.color(QPalette::Active, QPalette::Text));
+}
+
+void WinUI3MicaNativeTest::dockWidgetsDemoRemainsAvailable()
+{
+    GalleryWindow gallery;
+    gallery.resize(1180, 780);
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    auto *action = gallery.findChild<QAction *>(QStringLiteral("dockWidgetsAction"));
+    QVERIFY(action);
+    QCOMPARE(action->text(), QStringLiteral("Dock widgets"));
+    QCOMPARE(action->shortcut(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+    QVERIFY(action->isCheckable());
+    QVERIFY(!action->isChecked());
+    QCOMPARE(gallery.findChildren<QDockWidget *>(QString(), Qt::FindDirectChildrenOnly).size(), 0);
+    for (int cycle = 0; cycle < 2; ++cycle) {
+        action->trigger();
+        QVERIFY(action->isChecked());
+        const auto docks =
+                gallery.findChildren<QDockWidget *>(QString(), Qt::FindDirectChildrenOnly);
+        QCOMPARE(docks.size(), 4);
+        QStringList titles;
+        for (QDockWidget *dock : docks) {
+            titles.append(dock->windowTitle());
+            QCOMPARE(dock->features(),
+                     QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable
+                             | QDockWidget::DockWidgetFloatable);
+        }
+        titles.sort();
+        QCOMPARE(titles,
+                 QStringList({ QStringLiteral("Commit message"), QStringLiteral("Files"),
+                               QStringLiteral("Output"), QStringLiteral("Project") }));
+        action->trigger();
+        QVERIFY(!action->isChecked());
+        QTRY_COMPARE(
+                gallery.findChildren<QDockWidget *>(QString(), Qt::FindDirectChildrenOnly).size(),
+                0);
+    }
 }
 
 void WinUI3MicaNativeTest::popupGrantAliveRejectsRevokedEffect()

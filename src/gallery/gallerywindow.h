@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QString>
 
+class QDockWidget;
 class QLabel;
 class QStyle;
 
@@ -46,6 +47,7 @@ private:
     void setComparisonStyle(const QString &key);
 
     Ui::GalleryWindow *ui;
+    QList<QDockWidget *> m_demoDocks;
     QList<IconPreview> m_iconPreviews;
     // Style the Icons page was built against. Child widgets of a visible page
     // receive their own StyleChange while the application style has not moved,
