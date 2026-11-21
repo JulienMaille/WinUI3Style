@@ -15,6 +15,8 @@
 #include <QStyleOptionViewItem>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTextLayout>
+#include <QtMath>
 #include <QtTest>
 
 namespace {
@@ -68,6 +70,18 @@ class WinUI3TableHeaderTest final : public QObject, private WinUI3StandardTestFi
 private slots:
     void initTestCase();
     void tableHeaderContract();
+    void tableCellElidesOverflow_data();
+    void tableCellElidesOverflow();
+    void tableCellPreservesFittingMultilineText();
+    void tableCellElidesLastVisibleLine();
+    void tableCellElidesAtHardBreak_data();
+    void tableCellElidesAtHardBreak();
+    void tableCellKeepsFittingText_data();
+    void tableCellKeepsFittingText();
+    void tableCellKeepsFittingLineBeforeOverflow();
+    void tableCellHonorsElideNone();
+    void tableCellPreservesWrappedPrefix_data();
+    void tableCellPreservesWrappedPrefix();
     void tableHeaderLabelKeepsLeadingEdgeWithSortColumn();
     void tableResizeToContentsIncludesCellPadding();
     void tableResizeToContentsKeepsHeaderLabelVisible();
@@ -81,6 +95,467 @@ private slots:
 void WinUI3TableHeaderTest::initTestCase()
 {
     initializeStandardWinUI3TestStyle();
+}
+
+void WinUI3TableHeaderTest::tableCellElidesOverflow_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<bool>("wrap");
+    QTest::addColumn<int>("elideMode");
+    QTest::addColumn<QString>("text");
+    for (bool compact : { false, true })
+        for (bool dark : { false, true })
+            for (bool rtl : { false, true })
+                for (bool wrap : { false, true })
+                    for (const auto mode : { Qt::ElideLeft, Qt::ElideMiddle, Qt::ElideRight })
+                        for (const QString &text :
+                             { QStringLiteral("src/plugins/help/help_plg.cpp"),
+                               QStringLiteral("A long description that does not fit"),
+                               QStringLiteral("CMakeUserPresetsWithAnExtraLongName.json"),
+                               QStringLiteral(
+                                       "Qt \u05e7\u05d5\u05d1\u05e5 \u05d1\u05d3\u05d9\u05e7\u05d4 "
+                                       "src/plugins/help/help_plg.cpp"),
+                               QStringLiteral(
+                                       "Qt \u0645\u0644\u0641 \u0627\u062e\u062a\u0628\u0627\u0631 "
+                                       "src/plugins/help/help_plg.cpp") }) {
+                            const QByteArray name = QByteArray::number(compact) + '-'
+                                    + QByteArray::number(dark) + '-' + QByteArray::number(rtl) + '-'
+                                    + QByteArray::number(wrap) + '-' + QByteArray::number(mode)
+                                    + '-' + text.toUtf8();
+                            QTest::newRow(name.constData())
+                                    << compact << dark << rtl << wrap << int(mode) << text;
+                        }
+}
+
+void WinUI3TableHeaderTest::tableCellElidesOverflow()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, dark);
+    QFETCH(bool, rtl);
+    QFETCH(bool, wrap);
+    QFETCH(int, elideMode);
+    QFETCH(QString, text);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    QTableWidget table(1, 1);
+    table.setProperty("winuiDensity", compact ? "compact" : "standard");
+    table.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    table.ensurePolished();
+    QCOMPARE(table.wordWrap(), true);
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.font.setPixelSize(22);
+    option.fontMetrics = QFontMetrics(option.font);
+    option.rect = QRect(0, 0, 150, compact ? 28 : 36);
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay;
+    option.features.setFlag(QStyleOptionViewItem::WrapText, wrap);
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    option.textElideMode = Qt::TextElideMode(elideMode);
+    option.text = text;
+    const QRect textRect =
+            style->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.left(), 12);
+    QCOMPARE(textRect.right(), option.rect.right() - 12);
+    QVERIFY(textRect.height() < 2 * option.fontMetrics.height());
+    const QString elided =
+            option.fontMetrics.elidedText(text, option.textElideMode, textRect.width());
+    QVERIFY(elided != text);
+    QVERIFY(elided.contains(QChar(0x2026)));
+    const auto render = [&](const QStyleOptionViewItem &cell) {
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_ItemViewItem, &cell, &painter, table.viewport());
+        return image;
+    };
+    for (Qt::Alignment alignment : { Qt::Alignment(Qt::AlignLeft), Qt::Alignment(Qt::AlignHCenter),
+                                     Qt::Alignment(Qt::AlignRight) }) {
+        option.displayAlignment = alignment | Qt::AlignVCenter;
+        QStyleOptionViewItem expected = option;
+        expected.features.setFlag(QStyleOptionViewItem::WrapText, false);
+        // Reshaping an elided bidi run can make a second elision change the text.
+        expected.textElideMode = Qt::ElideNone;
+        expected.text = elided;
+        QCOMPARE(render(option), render(expected));
+    }
+}
+
+void WinUI3TableHeaderTest::tableCellPreservesFittingMultilineText()
+{
+    QTableWidget table(1, 1);
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.fontMetrics = QFontMetrics(option.font);
+    option.rect = QRect(0, 0, 240, 100);
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    option.text = QStringLiteral("First line\nSecond line\nThird line");
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.left(), 12);
+    QVERIFY(textRect.height() >= 3 * option.fontMetrics.height());
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    painter.setClipRect(textRect);
+    painter.setFont(option.font);
+    painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+    painter.drawText(textRect, int(option.displayAlignment) | Qt::TextWordWrap, option.text);
+    painter.end();
+    QCOMPARE(actual, expected);
+}
+
+void WinUI3TableHeaderTest::tableCellElidesLastVisibleLine()
+{
+    QTableWidget table(1, 1);
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.fontMetrics = QFontMetrics(option.font);
+    option.rect = QRect(0, 0, 180, 2 * option.fontMetrics.height() + 2);
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    option.textElideMode = Qt::ElideRight;
+    option.text = QStringLiteral("First line\nSecond line has far too much text\nThird line");
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.left(), 12);
+    QCOMPARE(textRect.right(), option.rect.right() - 12);
+    const QString lastLine = option.fontMetrics.elidedText(
+            QStringLiteral("Second line has far too much text"), Qt::ElideRight, textRect.width());
+    QVERIFY(lastLine.endsWith(QChar(0x2026)));
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    painter.setClipRect(textRect);
+    painter.setFont(option.font);
+    painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+    painter.drawText(textRect, int(option.displayAlignment) | Qt::TextWordWrap,
+                     QStringLiteral("First line\n") + lastLine);
+    painter.end();
+    QCOMPARE(actual, expected);
+}
+
+void WinUI3TableHeaderTest::tableCellElidesAtHardBreak_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<int>("elideMode");
+    QTest::addColumn<QString>("visibleText");
+    const QChar ellipsis(0x2026);
+    for (bool compact : { false, true }) {
+        const QByteArray prefix = compact ? "compact-" : "standard-";
+        QTest::newRow((prefix + "left").constData())
+                << compact << int(Qt::ElideLeft) << (ellipsis + QStringLiteral("AB"));
+        QTest::newRow((prefix + "middle").constData())
+                << compact << int(Qt::ElideMiddle)
+                << (QStringLiteral("A") + ellipsis + QLatin1Char('B'));
+        QTest::newRow((prefix + "right").constData())
+                << compact << int(Qt::ElideRight) << (QStringLiteral("AB") + ellipsis);
+    }
+}
+
+void WinUI3TableHeaderTest::tableCellElidesAtHardBreak()
+{
+    QFETCH(bool, compact);
+    QFETCH(int, elideMode);
+    QFETCH(QString, visibleText);
+    QTableWidget table(1, 1);
+    table.setProperty("winuiDensity", compact ? "compact" : "standard");
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.font.setPixelSize(16);
+    option.fontMetrics = QFontMetrics(option.font);
+    option.rect = QRect(0, 0, 200, option.fontMetrics.height());
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    option.textElideMode = Qt::TextElideMode(elideMode);
+    option.text = QStringLiteral("AB\nHidden");
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.left(), option.rect.left() + 12);
+    QCOMPARE(textRect.height(), option.rect.height());
+    QVERIFY(textRect.right() <= option.rect.right() - 12);
+    QVERIFY(QFontMetricsF(option.font).horizontalAdvance(visibleText) <= textRect.width());
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    painter.setClipRect(textRect);
+    painter.setFont(option.font);
+    painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+    painter.drawText(textRect, int(option.displayAlignment) | Qt::TextSingleLine, visibleText);
+    painter.end();
+    QCOMPARE(actual, expected);
+}
+
+void WinUI3TableHeaderTest::tableCellKeepsFittingText_data()
+{
+    QTest::addColumn<QString>("text");
+    QTest::addColumn<int>("fontSize");
+    QTest::addColumn<int>("width");
+    QTest::newRow("tabs") << QStringLiteral("A\tB") << 14 << 50;
+    QTest::newRow("carriage-return") << QStringLiteral("A\rB") << 14 << 50;
+    QTest::newRow("fractional-line-height")
+            << QStringLiteral("First line\nSecond line") << 22 << 200;
+}
+
+void WinUI3TableHeaderTest::tableCellKeepsFittingText()
+{
+    QFETCH(QString, text);
+    QFETCH(int, fontSize);
+    QFETCH(int, width);
+    QTableWidget table(1, 1);
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.font.setPixelSize(fontSize);
+    option.fontMetrics = QFontMetrics(option.font);
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    const int flags = int(option.displayAlignment) | Qt::TextWordWrap;
+    const QFontMetricsF metrics(option.font);
+    const int height =
+            qFloor(metrics.boundingRect(QRectF(0, 0, width, 1000), flags, text).height());
+    option.rect = QRect(0, 0, width + 24, height);
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.textElideMode = Qt::ElideRight;
+    option.text = text;
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect, QRect(12, 0, width, height));
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    painter.setClipRect(textRect);
+    painter.setFont(option.font);
+    painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+    painter.drawText(textRect, flags, text);
+    painter.end();
+    QCOMPARE(actual, expected);
+}
+
+void WinUI3TableHeaderTest::tableCellKeepsFittingLineBeforeOverflow()
+{
+    QTableWidget table(1, 1);
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.fontMetrics = QFontMetrics(option.font);
+    const int width =
+            qCeil(QFontMetricsF(option.font).horizontalAdvance(QStringLiteral("First line")));
+    option.rect = QRect(0, 0, width + 24, 2 * option.fontMetrics.height() + 2);
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    option.textElideMode = Qt::ElideRight;
+    option.text = QStringLiteral("First line\nSecondLineWithTooMuchText");
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.width(), width);
+    QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    QImage expected(actual.size(), actual.format());
+    expected.fill(Qt::transparent);
+    QPainter painter(&expected);
+    painter.setClipRect(textRect);
+    painter.setFont(option.font);
+    painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+    painter.drawText(
+            textRect, int(option.displayAlignment) | Qt::TextWordWrap,
+            QStringLiteral("First line\n")
+                    + option.fontMetrics.elidedText(QStringLiteral("SecondLineWithTooMuchText"),
+                                                    Qt::ElideRight, width));
+    painter.end();
+    QCOMPARE(actual, expected);
+}
+
+void WinUI3TableHeaderTest::tableCellHonorsElideNone()
+{
+    for (bool compact : { false, true }) {
+        QTableWidget table(1, 1);
+        table.setProperty("winuiDensity", compact ? "compact" : "standard");
+        table.ensurePolished();
+        QStyleOptionViewItem option;
+        option.initFrom(table.viewport());
+        option.font = table.font();
+        option.fontMetrics = QFontMetrics(option.font);
+        option.rect = QRect(0, 0, 120, compact ? 28 : 36);
+        option.index = table.model()->index(0, 0);
+        option.state = QStyle::State_Enabled;
+        option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+        option.displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+        option.textElideMode = Qt::ElideNone;
+        option.text = QStringLiteral("A long description that does not fit");
+        const QRect textRect = table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option,
+                                                             table.viewport());
+        QCOMPARE(textRect, option.rect.adjusted(12, 0, -12, 0));
+        QImage actual(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        actual.fill(Qt::transparent);
+        {
+            QPainter painter(&actual);
+            table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter,
+                                       table.viewport());
+        }
+        QImage expected(actual.size(), actual.format());
+        expected.fill(Qt::transparent);
+        QPainter painter(&expected);
+        painter.setClipRect(textRect);
+        painter.setFont(option.font);
+        painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+        painter.drawText(textRect, int(option.displayAlignment) | Qt::TextWordWrap, option.text);
+        painter.end();
+        QCOMPARE(actual, expected);
+    }
+}
+
+void WinUI3TableHeaderTest::tableCellPreservesWrappedPrefix_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("justify");
+    QTest::addColumn<bool>("bottom");
+    QTest::addColumn<bool>("rtl");
+    QTest::newRow("standard-justify") << false << true << false << false;
+    QTest::newRow("compact-justify") << true << true << false << false;
+    QTest::newRow("standard-soft-hyphen") << false << false << false << false;
+    QTest::newRow("compact-soft-hyphen") << true << false << false << false;
+    QTest::newRow("standard-bottom") << false << false << true << false;
+    QTest::newRow("compact-bottom") << true << false << true << false;
+    QTest::newRow("standard-rtl") << false << false << false << true;
+    QTest::newRow("compact-rtl") << true << false << false << true;
+}
+
+void WinUI3TableHeaderTest::tableCellPreservesWrappedPrefix()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, justify);
+    QFETCH(bool, bottom);
+    QFETCH(bool, rtl);
+    QTableWidget table(1, 1);
+    table.setProperty("winuiDensity", compact ? "compact" : "standard");
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.fontMetrics = QFontMetrics(option.font);
+    const int width = justify || bottom || rtl
+            ? 100
+            : option.fontMetrics.horizontalAdvance(QStringLiteral("hy-"));
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
+    option.displayAlignment = (justify ? Qt::AlignJustify : Qt::AlignLeft)
+            | (bottom ? Qt::AlignBottom : Qt::AlignVCenter);
+    option.direction = rtl ? Qt::RightToLeft : Qt::LeftToRight;
+    option.textElideMode = Qt::ElideRight;
+    option.text = rtl
+            ? QStringLiteral(
+                      "\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd \u05e9\u05dc\u05d5\u05dd "
+                      "\u05e2\u05d5\u05dc\u05dd \u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd")
+            : justify || bottom
+            ? QStringLiteral("First line with extra text that wraps into several lines")
+            : QStringLiteral("hy\u00adphenLongMoreText tail word");
+    QTextLayout layout(option.text, option.font);
+    QTextOption textOption;
+    textOption.setWrapMode(QTextOption::WordWrap);
+    textOption.setAlignment(justify ? Qt::AlignJustify : Qt::AlignLeft);
+    textOption.setTextDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    layout.setTextOption(textOption);
+    layout.beginLayout();
+    QTextLine first = layout.createLine();
+    first.setLineWidth(width);
+    first.setPosition(QPointF(0, 0));
+    QTextLine second = layout.createLine();
+    QVERIFY(second.isValid());
+    second.setLineWidth(width);
+    second.setPosition(QPointF(
+            0, qCeil(first.ascent() + first.descent() + QFontMetricsF(option.font).leading())));
+    const qreal height = second.y() + second.ascent() + second.descent();
+    layout.endLayout();
+    // Give the shaped lines enough room even when fallback fonts increase their height.
+    option.rect = QRect(0, 0, width + 24, qCeil(height));
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.width(), width);
+    if (!justify && !bottom && !rtl)
+        QCOMPARE(option.text.at(first.textLength() - 1), QChar(0x00ad));
+    if (rtl)
+        QVERIFY(option.text.at(first.textLength() - 1).isSpace());
+    const qreal top = bottom ? textRect.height() - height : (textRect.height() - height) / 2;
+    QImage expected(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    expected.fill(Qt::transparent);
+    {
+        QPainter painter(&expected);
+        painter.setPen(WinUI3::Private::tokens(option.palette).textPrimary);
+        if (rtl || bottom) {
+            painter.setFont(option.font);
+            painter.setLayoutDirection(option.direction);
+            const Qt::Alignment horizontal = QStyle::visualAlignment(
+                    option.direction,
+                    Qt::Alignment(option.displayAlignment)
+                            & (Qt::AlignHorizontal_Mask | Qt::AlignAbsolute));
+            painter.drawText(QRectF(textRect.left(), top, width, height),
+                             int(horizontal) | Qt::AlignTop | Qt::TextWordWrap, option.text);
+        } else {
+            first.draw(&painter, QPointF(textRect.left(), top));
+        }
+    }
+    QImage actual(expected.size(), expected.format());
+    actual.fill(Qt::transparent);
+    {
+        QPainter painter(&actual);
+        painter.setLayoutDirection(option.direction);
+        table.style()->drawControl(QStyle::CE_ItemViewItem, &option, &painter, table.viewport());
+    }
+    const QRect firstLineRect(12, 0, width, qFloor(top + second.y()));
+    QVERIFY(firstLineRect.isValid());
+    QCOMPARE(actual.copy(firstLineRect), expected.copy(firstLineRect));
 }
 
 void WinUI3TableHeaderTest::tableHeaderContract()
