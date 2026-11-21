@@ -24,6 +24,7 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -31,7 +32,7 @@ on:
 # blew through the 20-job free-tier concurrency cap, so jobs waited 2m46s-
 # 14m46s for a runner before doing any work. A superseded branch/PR run can
 # never become the merged state, so cancel it and hand its slots to the
-# current commit. Main's gate is never cancelled (branch protection needs it).
+# current commit. Let running main checks finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}

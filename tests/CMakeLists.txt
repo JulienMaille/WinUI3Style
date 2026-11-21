@@ -450,8 +450,9 @@ set(_winui3style_linked_test_targets
         winui3style_keysequenceedit_tests
         winui3style_toolbox_tests)
 # On Windows the executable directory is searched before PATH. Keep the
-# runtime DLL beside every linked test executable so an old manual copy can
-# never shadow the library that was just rebuilt.
+# runtime DLL beside the linked test executables so an old manual copy can
+# never shadow the library that was just rebuilt. The tests share an output
+# directory per configuration, so stage the DLL once before building them.
 if(WIN32 AND NOT WINUI3STYLE_STATIC)
     if(WINUI3STYLE_BUILD_NATIVE_TESTS)
         list(APPEND _winui3style_linked_test_targets winui3style_micanative_tests)
@@ -461,11 +462,16 @@ if(WIN32 AND NOT WINUI3STYLE_STATIC)
         list(APPEND _winui3style_linked_test_targets
             winui3style_autosuggest_native_tests)
     endif()
+    set(_winui3style_test_runtime_dir "$<TARGET_FILE_DIR:winui3style_buttons_tests>")
+    add_custom_target(winui3style_stage_test_runtime
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_winui3style_test_runtime_dir}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:winui3style>" "${_winui3style_test_runtime_dir}"
+        DEPENDS winui3style
+        VERBATIM
+    )
     foreach(_target IN LISTS _winui3style_linked_test_targets)
-        add_custom_command(TARGET ${_target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:winui3style>
-                $<TARGET_FILE_DIR:${_target}>)
+        add_dependencies(${_target} winui3style_stage_test_runtime)
     endforeach()
 endif()
 
