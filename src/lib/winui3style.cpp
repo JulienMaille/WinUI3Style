@@ -45,6 +45,9 @@
 #include <QDateTimeEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDockWidget>
+#include <QBoxLayout>
+#include <QStyleOptionDockWidget>
 #include <QDynamicPropertyChangeEvent>
 #include <QEvent>
 #include <QFrame>
@@ -552,6 +555,192 @@ void restoreCompleterPopup(QLineEdit *editor, Style *style)
     editor->setProperty(completerLastPopupProperty, {});
 }
 
+// Behavior/composition only: QWidget/QToolButton and QStyle own all paint.
+// A non-null stock title widget is required by Qt's nativeWindowDeco() check;
+// window flags alone cannot suppress the native floating-dock caption.
+class DockTitleController final : public QObject
+{
+public:
+    explicit DockTitleController(QDockWidget *dock) : QObject(dock), m_dock(dock)
+    {
+        m_title = new QWidget(dock);
+        m_title->setProperty(dockTitleBarProperty, true);
+        m_title->setAttribute(Qt::WA_StyledBackground);
+        m_title->setFocusPolicy(Qt::NoFocus);
+        m_layout = new QBoxLayout(QBoxLayout::LeftToRight, m_title);
+        m_layout->setSpacing(DockTitleButtonGap);
+        m_strut =
+                new QSpacerItem(0, DockTitleButtonExtent, QSizePolicy::Minimum, QSizePolicy::Fixed);
+        m_layout->addItem(m_strut);
+        m_layout->addStretch();
+        const auto makeButton = [this](const QString &name, const QString &label,
+                                       QStyle::StandardPixmap icon) {
+            auto *button = new QToolButton(m_title);
+            button->setObjectName(name);
+            button->setProperty(dockTitleButtonProperty, true);
+            button->setFocusPolicy(Qt::NoFocus);
+            button->setAutoRaise(true);
+            button->setAccessibleName(label);
+            button->setToolTip(label);
+            button->setIconSize(QSize(DockTitleIconExtent, DockTitleIconExtent));
+            button->setFixedSize(DockTitleButtonExtent, DockTitleButtonExtent);
+            Style::setControlRole(button, ControlRole::Subtle);
+            button->setIcon(m_dock->style()->standardIcon(icon, nullptr, m_dock));
+            m_layout->addWidget(button);
+            return button;
+        };
+        m_float = makeButton(QStringLiteral("_winui_dock_float"), tr("Float"),
+                             QStyle::SP_TitleBarNormalButton);
+        m_close = makeButton(QStringLiteral("_winui_dock_close"), tr("Close"),
+                             QStyle::SP_TitleBarCloseButton);
+        connect(m_float, &QToolButton::clicked, this,
+                [this] { m_dock->setFloating(!m_dock->isFloating()); });
+        connect(m_close, &QToolButton::clicked, m_dock, &QDockWidget::close);
+        connect(dock, &QDockWidget::featuresChanged, this, [this] { sync(); });
+        connect(dock, &QDockWidget::topLevelChanged, this, [this] { sync(); });
+        connect(dock, &QWidget::windowTitleChanged, this, [this] { sync(); });
+        dock->installEventFilter(this);
+        m_title->installEventFilter(this);
+        dock->setTitleBarWidget(m_title);
+        sync();
+    }
+
+    void sync()
+    {
+        if (m_syncing || !m_title || m_dock->titleBarWidget() != m_title)
+            return;
+        m_syncing = true;
+        const bool vertical = m_dock->features() & QDockWidget::DockWidgetVerticalTitleBar;
+        const int padding = (densityMetricsFor(m_dock).dockTitleHeight - DockTitleButtonExtent) / 2;
+        QFont font = m_title->font();
+        font.setWeight(QFont::DemiBold);
+        const int contentExtent = qMax(DockTitleButtonExtent, QFontMetrics(font).height());
+        const int extent = contentExtent + 2 * padding;
+        const QSize strutSize = vertical ? QSize(contentExtent, 0) : QSize(0, contentExtent);
+        if (m_strut->sizeHint() != strutSize) {
+            m_strut->changeSize(strutSize.width(), strutSize.height(),
+                                vertical ? QSizePolicy::Fixed : QSizePolicy::Minimum,
+                                vertical ? QSizePolicy::Minimum : QSizePolicy::Fixed);
+            m_layout->invalidate();
+        }
+        m_layout->setDirection(vertical ? QBoxLayout::BottomToTop : QBoxLayout::LeftToRight);
+        m_layout->setContentsMargins(
+                vertical ? padding : DockTitleInset, vertical ? DockTitleInset : padding,
+                vertical ? padding : DockTitleInset, vertical ? DockTitleInset : padding);
+        // Reset the previous perpendicular constraint when orientation changes.
+        const QSize minimum = vertical ? QSize(extent, 0) : QSize(0, extent);
+        const QSize maximum =
+                vertical ? QSize(extent, QWIDGETSIZE_MAX) : QSize(QWIDGETSIZE_MAX, extent);
+        m_title->setMinimumSize(minimum);
+        m_title->setMaximumSize(maximum);
+        m_title->setSizePolicy(vertical ? QSizePolicy::Fixed : QSizePolicy::Expanding,
+                               vertical ? QSizePolicy::Expanding : QSizePolicy::Fixed);
+        m_float->setVisible(m_dock->features() & QDockWidget::DockWidgetFloatable);
+        m_close->setVisible(m_dock->features() & QDockWidget::DockWidgetClosable);
+        m_layout->activate();
+        // The same style contract drives live child geometry and title text.
+        QStyleOptionDockWidget option;
+        dockTitleStyleOption(m_title, &option);
+        m_float->setGeometry(
+                m_dock->style()->subElementRect(QStyle::SE_DockWidgetFloatButton, &option, m_dock));
+        m_close->setGeometry(
+                m_dock->style()->subElementRect(QStyle::SE_DockWidgetCloseButton, &option, m_dock));
+        m_title->update();
+        m_syncing = false;
+    }
+
+    void detach()
+    {
+        m_dock->removeEventFilter(this);
+        disconnect(m_dock, nullptr, this, nullptr);
+        if (m_title) {
+            m_title->removeEventFilter(this);
+            if (m_dock->titleBarWidget() == m_title)
+                m_dock->setTitleBarWidget(nullptr);
+            m_title->hide();
+            // QApplication's style-switch snapshot still includes these widgets.
+            // Leave them alive/parented until the complete unpolish pass returns.
+            m_title->deleteLater();
+        }
+        deleteLater();
+    }
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::Resize:
+        case QEvent::LayoutRequest:
+        case QEvent::LayoutDirectionChange:
+        case QEvent::EnabledChange:
+        case QEvent::FontChange:
+        case QEvent::ModifiedChange:
+        case QEvent::PaletteChange:
+        case QEvent::StyleChange:
+        case QEvent::Show:
+        case QEvent::DynamicPropertyChange:
+            sync();
+            break;
+        default:
+            break;
+        }
+        // In particular do not consume title mouse events: stock QWidget ignores
+        // them and Qt's dock receives drag, double-click and floating resize.
+        return false;
+    }
+
+private:
+    QDockWidget *m_dock;
+    QPointer<QWidget> m_title;
+    QToolButton *m_float = nullptr;
+    QToolButton *m_close = nullptr;
+    QBoxLayout *m_layout = nullptr;
+    QSpacerItem *m_strut = nullptr;
+    bool m_syncing = false;
+};
+
+void syncDockTitleBar(QWidget *widget)
+{
+    if (auto *dock = qobject_cast<QDockWidget *>(widget))
+        if (auto *controller = static_cast<DockTitleController *>(
+                    dock->property(dockTitleControllerProperty).value<QObject *>()))
+            controller->sync();
+}
+
+void polishDockTitleBar(QWidget *widget)
+{
+    auto *dock = qobject_cast<QDockWidget *>(widget);
+    if (!dock)
+        return;
+    if (auto *controller = static_cast<DockTitleController *>(
+                dock->property(dockTitleControllerProperty).value<QObject *>())) {
+        if (dock->titleBarWidget()) {
+            controller->sync();
+            return;
+        }
+        // The application cleared/replaced the title since polish. A new
+        // polish may claim an empty slot again, never a custom replacement.
+        dock->setProperty(dockTitleControllerProperty, {});
+        controller->detach();
+    }
+    if (!dock->titleBarWidget()) {
+        auto *controller = new DockTitleController(dock);
+        dock->setProperty(dockTitleControllerProperty,
+                          QVariant::fromValue(static_cast<QObject *>(controller)));
+    }
+}
+
+void unpolishDockTitleBar(QWidget *widget)
+{
+    if (auto *dock = qobject_cast<QDockWidget *>(widget)) {
+        auto *controller = static_cast<DockTitleController *>(
+                dock->property(dockTitleControllerProperty).value<QObject *>());
+        dock->setProperty(dockTitleControllerProperty, {});
+        if (controller)
+            controller->detach();
+    }
+}
+
 void invalidateDensityTree(QWidget *root)
 {
     if (!root)
@@ -562,6 +751,7 @@ void invalidateDensityTree(QWidget *root)
     // "Palette lab", combos superposes). Le layout doit etre actif avant le
     // repaint, sinon updateGeometry() ne fait que marquer dirty.
     const auto invalidateWidget = [](QWidget *widget) {
+        syncDockTitleBar(widget);
         if (widget->layout())
             widget->layout()->activate();
         widget->updateGeometry();
@@ -2138,6 +2328,7 @@ void Style::polish(QWidget *widget)
             expansion->setMaximumHeight(expanded ? QWIDGETSIZE_MAX : 0);
         }
     }
+    polishDockTitleBar(widget);
     polishWizard(widget);
     if (auto *toolBox = qobject_cast<QToolBox *>(widget))
         d->interactionController->watchToolBox(toolBox);
@@ -2637,6 +2828,7 @@ void Style::unpolish(QWidget *widget)
         d->unregisterPaletteOwner(widget);
         widget->removeEventFilter(this);
         Private::removeCalendarPopupBorder(widget);
+        unpolishDockTitleBar(widget);
         if (auto *lineEdit = qobject_cast<QLineEdit *>(widget)) {
             cancelLineEditHelperUpdate(lineEdit);
             cacheLineEditClearButton(lineEdit, nullptr);

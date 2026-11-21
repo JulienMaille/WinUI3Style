@@ -155,12 +155,19 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
         if (!clearForBackdropFill(painter, widget, option->rect, surface))
             painter->fillRect(option->rect, surface);
     }
+    // The dock title is itself a veiled layer. Rebuild that exact surface
+    // under each Subtle overlay on Mica, including idle/disabled buttons; a
+    // generic Subtle erase would punch a command-shaped hole through the title.
+    const bool dockTitleButton = dockTitleBarWidget(parent);
+    if (dockTitleButton)
+        clearForBackdropFill(painter, widget, option->rect,
+                             cardRefillTone(parent->palette(), paintsDirectlyOnBackdrop(parent)));
     // Subtle-at-rest is the WinUI no-fill case: the parent surface must
     // show straight through. Erase the hover ghost, then repaint the
     // parent card tone when inside a group card (directly on the
     // material transparent is correct). Interactive states keep the
     // standard erase-then-fill path below.
-    if (!calendarPopupButton
+    if (!calendarPopupButton && !dockTitleButton
         && (flatSurface || autoRaiseSurface || role == ControlRole::Subtle
             || role == ControlRole::Navigation)
         && paintsDirectlyOnBackdrop(widget)
@@ -198,7 +205,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
     // Card-tone rebuild after the erase (Dialogs-page band defect):
     // eraseForBackdropWithCardRefill covers the erase, the in-card
     // refill and the erased/unerased fallthrough below.
-    if (!calendarPopupButton)
+    if (!calendarPopupButton && !dockTitleButton)
         eraseForBackdropWithCardRefill(painter, widget, option->rect,
                                        cardRefillToneFor(widget, true));
     const bool textHelper = textBoxHelperButton(widget);

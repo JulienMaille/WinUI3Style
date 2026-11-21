@@ -20,6 +20,8 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
+#include <QDockWidget>
+#include <QStyleOptionDockWidget>
 #include <QGuiApplication>
 #include <QLayout>
 #include <QLineEdit>
@@ -93,6 +95,39 @@ inline bool comboBoxEditor(const QWidget *widget)
 {
     return qobject_cast<const QLineEdit *>(widget)
             && qobject_cast<const QComboBox *>(widget->parentWidget());
+}
+
+inline bool dockTitleBarWidget(const QWidget *widget)
+{
+    return widget && widget->property(dockTitleBarProperty).toBool()
+            && qobject_cast<const QDockWidget *>(widget->parentWidget());
+}
+
+inline void dockTitleStyleOption(const QWidget *title, QStyleOptionDockWidget *option)
+{
+    const auto *dock = qobject_cast<const QDockWidget *>(title->parentWidget());
+    option->initFrom(dock);
+    option->rect = title->rect();
+    option->title = dock->windowTitle();
+    const QString marker = QStringLiteral("[*]");
+    const QString modified = dock->isWindowModified()
+                    && dock->style()->styleHint(QStyle::SH_TitleBar_ModifyNotification, nullptr,
+                                                dock)
+            ? QWidget::tr("*")
+            : QString();
+    for (int start = option->title.indexOf(marker); start != -1;) {
+        int end = start + marker.size();
+        while (option->title.indexOf(marker, end) == end)
+            end += marker.size();
+        const int count = (end - start) / marker.size();
+        const QString replacement = marker.repeated(count / 2) + (count % 2 ? modified : QString());
+        option->title.replace(start, end - start, replacement);
+        start = option->title.indexOf(marker, start + replacement.size());
+    }
+    option->closable = dock->features() & QDockWidget::DockWidgetClosable;
+    option->floatable = dock->features() & QDockWidget::DockWidgetFloatable;
+    option->movable = dock->features() & QDockWidget::DockWidgetMovable;
+    option->verticalTitleBar = dock->features() & QDockWidget::DockWidgetVerticalTitleBar;
 }
 
 // The trailing clear/completer button inside a QLineEdit.

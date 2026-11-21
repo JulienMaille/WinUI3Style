@@ -502,6 +502,8 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = spinBoxSize(option, size, widget, density, mode);
         break;
     case QStyle::CT_ToolButton:
+        if (widget && widget->property(dockTitleButtonProperty).toBool())
+            return QSize(DockTitleButtonExtent, DockTitleButtonExtent);
         size = toolButtonSize(option, size, widget, density, mode);
         break;
     case QStyle::CT_MenuBarItem:
@@ -593,6 +595,42 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
             return QStyle::visualRect(option->direction, option->rect, logical);
         }
     }
+    if (element == QStyle::SE_DockWidgetCloseButton || element == QStyle::SE_DockWidgetFloatButton
+        || element == QStyle::SE_DockWidgetTitleBarText) {
+        const auto *dock = qstyleoption_cast<const QStyleOptionDockWidget *>(option);
+        if (!dock)
+            return {};
+        const bool vertical = dock->verticalTitleBar;
+        const int length = vertical ? dock->rect.height() : dock->rect.width();
+        const int thickness = vertical ? dock->rect.width() : dock->rect.height();
+        const int slot = DockTitleButtonExtent;
+        const int count = int(dock->closable) + int(dock->floatable);
+        const int stack = count ? count * slot + (count - 1) * DockTitleButtonGap : 0;
+        QRect logical;
+        if (element == QStyle::SE_DockWidgetTitleBarText) {
+            logical = QRect(
+                    DockTitleInset, 0,
+                    qMax(0, length - 2 * DockTitleInset - stack - (count ? DockTitleButtonGap : 0)),
+                    thickness);
+        } else {
+            if ((element == QStyle::SE_DockWidgetCloseButton && !dock->closable)
+                || (element == QStyle::SE_DockWidgetFloatButton && !dock->floatable))
+                return {};
+            const int offset = element == QStyle::SE_DockWidgetFloatButton && dock->closable
+                    ? slot + DockTitleButtonGap
+                    : 0;
+            logical = QRect(length - DockTitleInset - slot - offset, (thickness - slot) / 2, slot,
+                            slot);
+        }
+        if (vertical) {
+            // The title reads bottom-up; its trailing edge (buttons) is top.
+            return QRect(dock->rect.left() + logical.y(),
+                         dock->rect.top() + length - logical.x() - logical.width(),
+                         logical.height(), logical.width());
+        }
+        logical.translate(dock->rect.topLeft());
+        return QStyle::visualRect(dock->direction, dock->rect, logical);
+    }
     QRect result = style->QProxyStyle::subElementRect(element, option, widget);
     // WinUI docks the tab close button against the right edge of the tab;
     // Qt leaves an 8px gap. Slide the slot closer to the edge.
@@ -600,88 +638,6 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         const int shift = qMin(8, option->rect.right() - result.right());
         if (shift > 0)
             result.translate(shift, 0);
-    }
-    if (element == QStyle::SE_DockWidgetCloseButton || element == QStyle::SE_DockWidgetFloatButton
-        || element == QStyle::SE_DockWidgetTitleBarText) {
-        // Live defect #43: Fluent keeps one content inset on every side of a
-        // surface, and the dock title card is no exception, but QCommonStyle
-        // docks the title buttons against the end of the title bar. Pull the
-        // button stack in from that end and give the title row the same room,
-        // so a long title elides before the buttons instead of running under
-        // them. The base slot sizes, the gutter between the float and close
-        // buttons and their shared centre line stay untouched.
-        const auto *dock = qstyleoption_cast<const QStyleOptionDockWidget *>(option);
-        const bool closable = !dock || dock->closable;
-        const bool verticalTitleBar = dock && dock->verticalTitleBar;
-        // A vertical title bar reads bottom-up, so the end its buttons sit
-        // against is the top of the strip; a horizontal one reads
-        // left-to-right, or the mirror when the layout is right-to-left.
-        const bool trailingIsLeft = !verticalTitleBar && option->direction == Qt::RightToLeft;
-        // Measure the base placement in one fixed frame: the logical rect is
-        // identical in both directions, but the rect the stack hands back is
-        // already mirrored back into visual coordinates.
-        QStyleOption logical = *option;
-        logical.direction = Qt::LeftToRight;
-        const int inset = style->pixelMetric(QStyle::PM_DockWidgetTitleMargin, option, widget);
-        // The same defect on the other side of the row: QCommonStyle starts the
-        // title flush against the leading edge and only the button stack eats
-        // into the trailing one, so "Inspector" reads as a clipped word sitting
-        // on the card's stroke. A Fluent surface keeps its content inset on
-        // every side, so the row begins one inset in as well. A vertical strip
-        // reads bottom-up, which makes its bottom edge the leading one.
-        if (element == QStyle::SE_DockWidgetTitleBarText) {
-            const int extent = verticalTitleBar ? result.height() : result.width();
-            if (extent > inset) {
-                if (verticalTitleBar)
-                    result.setBottom(result.bottom() - inset);
-                else if (trailingIsLeft)
-                    result.setRight(result.right() - inset);
-                else
-                    result.setLeft(result.left() + inset);
-            }
-        }
-        // The stack's outer member is whichever button sits at the end.
-        const QRect stack = style->QProxyStyle::subElementRect(
-                closable ? QStyle::SE_DockWidgetCloseButton : QStyle::SE_DockWidgetFloatButton,
-                &logical, widget);
-        if (!stack.isNull()) {
-            // Qt already leaves a column or two short of the end; close that
-            // remainder instead of adding the inset twice.
-            const int slack = verticalTitleBar ? (stack.top() - option->rect.top())
-                                               : (option->rect.right() - stack.right());
-            const QRect textRect = style->QProxyStyle::subElementRect(
-                    QStyle::SE_DockWidgetTitleBarText, &logical, widget);
-            // The row is the innermost slot, so only its own extent stops it
-            // from giving up the trailing columns the stack used; every other
-            // element may never let the stack reach the title row.
-            const int room = element == QStyle::SE_DockWidgetTitleBarText
-                    ? qMax(0, (verticalTitleBar ? textRect.height() : textRect.width()) - 1)
-                    : (verticalTitleBar ? qMax(0, textRect.top() - stack.top())
-                                        : qMax(0, stack.right() - textRect.right()));
-            const int pull = qMin(inset - slack, room);
-            if (pull > 0) {
-                // The button slots move as a block, but the title row is not a
-                // slot: it only gives up columns at its trailing end. Moving it
-                // too would drag the text off the leading edge, which is what
-                // made "Inspector" read as a clipped word.
-                if (verticalTitleBar) {
-                    if (element == QStyle::SE_DockWidgetTitleBarText)
-                        result.setTop(result.top() + pull);
-                    else
-                        result.translate(0, pull);
-                } else if (trailingIsLeft) {
-                    if (element == QStyle::SE_DockWidgetTitleBarText)
-                        result.setLeft(result.left() + pull);
-                    else
-                        result.translate(pull, 0);
-                } else {
-                    if (element == QStyle::SE_DockWidgetTitleBarText)
-                        result.setRight(result.right() - pull);
-                    else
-                        result.translate(-pull, 0);
-                }
-            }
-        }
     }
     if (const auto *source = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
         if (element == QStyle::SE_ItemViewItemText

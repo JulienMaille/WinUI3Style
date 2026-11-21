@@ -68,6 +68,14 @@ inline QMargins tooltipContentMargins()
 // Group cards over a live material veil to 178 so Mica shows through; opaque
 // windows keep the full card tone. One definition shared by the group frame
 // and the resting subtle button inside it (same surface, same alpha).
+// Docking is a consistency extension: title height follows the editor's
+// Standard/Compact 32 -> 24 step; command slots retain the #43 contract.
+constexpr int DockTitleHeight = 32;
+constexpr int CompactDockTitleHeight = 24;
+constexpr int DockTitleInset = 8;
+constexpr int DockTitleButtonExtent = 20;
+constexpr int DockTitleIconExtent = 12;
+constexpr int DockTitleButtonGap = 1;
 constexpr int VeiledCardAlpha = 178;
 inline QColor veiledCard(const QColor &layer, bool onBackdrop)
 {
