@@ -1174,7 +1174,18 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
     if (element == QStyle::PE_FrameTabBarBase) {
         const Tokens t = tokens(option->palette);
         painter->setPen(t.strokeSecondary);
-        painter->drawLine(option->rect.bottomLeft(), option->rect.bottomRight());
+        const auto *base = qstyleoption_cast<const QStyleOptionTabBarBase *>(option);
+        if (base
+            && (base->shape == QTabBar::RoundedSouth || base->shape == QTabBar::TriangularSouth))
+            painter->drawLine(option->rect.topLeft(), option->rect.topRight());
+        else if (base
+                 && (base->shape == QTabBar::RoundedWest || base->shape == QTabBar::TriangularWest))
+            painter->drawLine(option->rect.topRight(), option->rect.bottomRight());
+        else if (base
+                 && (base->shape == QTabBar::RoundedEast || base->shape == QTabBar::TriangularEast))
+            painter->drawLine(option->rect.topLeft(), option->rect.bottomLeft());
+        else
+            painter->drawLine(option->rect.bottomLeft(), option->rect.bottomRight());
         return true;
     }
 
@@ -1545,16 +1556,42 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
         const Tokens t = tokens(option->palette);
         const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option);
         const bool selected = option->state & QStyle::State_Selected;
-        const bool north = !tab || tab->shape == QTabBar::RoundedNorth
-                || tab->shape == QTabBar::TriangularNorth;
-        if (selected && north) {
+        const bool south = tab
+                && (tab->shape == QTabBar::RoundedSouth || tab->shape == QTabBar::TriangularSouth);
+        const bool west = tab
+                && (tab->shape == QTabBar::RoundedWest || tab->shape == QTabBar::TriangularWest);
+        const bool east = tab
+                && (tab->shape == QTabBar::RoundedEast || tab->shape == QTabBar::TriangularEast);
+        if (selected) {
             // Selected tab veils over a live material (same card recipe as
             // CC_GroupBox): an opaque selectedTabFill bands against the
             // transparentized pane under Mica. Off-material it stays opaque.
             const QColor selectedFill =
                     veiledCard(t.selectedTabFill, paintsDirectlyOnBackdrop(widget));
-            const QRectF rect = QRectF(option->rect).adjusted(1, 1, -1, 0);
             const qreal radius = 8.0;
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+            eraseForBackdrop(painter, widget, option->rect, south || west || east ? 0 : radius);
+            QRect canonicalRect = option->rect;
+            if (south || west || east) {
+                const QSize size = west || east ? QSize(option->rect.height(), option->rect.width())
+                                                : option->rect.size();
+                canonicalRect = QRect(QPoint(0, 0), size);
+                if (south) {
+                    painter->translate(option->rect.left(),
+                                       option->rect.top() + option->rect.height());
+                    painter->scale(1, -1);
+                } else if (west) {
+                    painter->translate(option->rect.left(),
+                                       option->rect.top() + option->rect.height());
+                    painter->rotate(-90);
+                } else {
+                    painter->translate(option->rect.left() + option->rect.width(),
+                                       option->rect.top());
+                    painter->rotate(90);
+                }
+            }
+            const QRectF rect = QRectF(canonicalRect).adjusted(1, 1, -1, 0);
             QPainterPath surface;
             surface.moveTo(rect.left(), rect.bottom());
             surface.lineTo(rect.left(), rect.top() + radius);
@@ -1563,9 +1600,6 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             surface.quadTo(rect.right(), rect.top(), rect.right(), rect.top() + radius);
             surface.lineTo(rect.right(), rect.bottom());
             surface.lineTo(rect.left(), rect.bottom());
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-            eraseForBackdrop(painter, widget, option->rect, radius);
             painter->fillPath(surface, selectedFill);
             QPainterPath border;
             border.moveTo(rect.left(), rect.bottom());
@@ -1580,21 +1614,24 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->restore();
         } else {
             // Unselected pill veils its hover fill over a live material so
-            // it cannot band or ghost; rest stays transparent. A tab bar
-            // hosted by a QTabWidget shares its last row with the pane frame
-            // (PM_TabBarBaseOverlap == 1), and the parent has already painted
-            // the pane's 1 px stroke there. Clearing that row erased the
-            // separator over the material - Collections lost its tab-strip
-            // hairline while NONE kept it - so stop the clear one row short.
+            // it cannot band or ghost; rest stays transparent. QTabWidget
+            // paints its pane stroke under the tab edge (the one-pixel base
+            // overlap). Dock tab bars draw their own stroke there before
+            // painting the tabs. In either case, keep the pane-facing pixel
+            // intact when clearing an unselected tab over material.
             QRect clearRect = option->rect;
             const auto *bar = qobject_cast<const QTabBar *>(widget);
-            const bool paneBelow = bar
-                    && (bar->shape() == QTabBar::RoundedNorth
-                        || bar->shape() == QTabBar::TriangularNorth);
-            if (paneBelow && qobject_cast<const QTabWidget *>(bar->parentWidget())
-                && clearRect.height() > 1)
-                clearRect.adjust(0, 0, 0, -1);
-            eraseForBackdrop(painter, widget, clearRect, ControlRadius);
+            if (bar && (bar->drawBase() || qobject_cast<const QTabWidget *>(bar->parentWidget()))) {
+                if (south && clearRect.height() > 1)
+                    clearRect.adjust(0, 1, 0, 0);
+                else if (west && clearRect.width() > 1)
+                    clearRect.adjust(0, 0, -1, 0);
+                else if (east && clearRect.width() > 1)
+                    clearRect.adjust(1, 0, 0, 0);
+                else if (!south && !west && !east && clearRect.height() > 1)
+                    clearRect.adjust(0, 0, 0, -1);
+            }
+            eraseForBackdrop(painter, widget, clearRect, south || west || east ? 0 : ControlRadius);
             QColor fill = Qt::transparent;
             if (option->state & QStyle::State_Sunken)
                 fill = veiledCard(t.controlPressed, paintsDirectlyOnBackdrop(widget));
@@ -1606,10 +1643,16 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                     tab && tab->selectedPosition == QStyleOptionTab::NextIsSelected;
             if (!selected && !nextTabSelected && !(option->state & QStyle::State_MouseOver)) {
                 painter->setPen(t.stroke);
-                const int separatorX = option->direction == Qt::RightToLeft ? option->rect.left()
-                                                                            : option->rect.right();
-                painter->drawLine(separatorX, option->rect.top() + 8, separatorX,
-                                  option->rect.bottom() - 8);
+                if (west || east) {
+                    painter->drawLine(option->rect.left() + 8, option->rect.bottom(),
+                                      option->rect.right() - 8, option->rect.bottom());
+                } else {
+                    const int separatorX = option->direction == Qt::RightToLeft
+                            ? option->rect.left()
+                            : option->rect.right();
+                    painter->drawLine(separatorX, option->rect.top() + 8, separatorX,
+                                      option->rect.bottom() - 8);
+                }
             }
         }
         if ((option->state & QStyle::State_HasFocus) && keyboardFocusVisible(widget)) {
