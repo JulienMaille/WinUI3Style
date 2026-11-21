@@ -357,7 +357,7 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
         return;
 
     const bool wasExpanded = m_expanded;
-    resetExpansionState(false);
+    resetExpansionState();
     if (m_expandableDestroyedConnection)
         disconnect(m_expandableDestroyedConnection);
     if (m_expandableWidget) {
@@ -378,10 +378,15 @@ void SettingsCard::setExpandableWidget(QWidget *widget)
                 connect(widget, &QObject::destroyed, this, [this, guarded] {
                     if (m_expandableWidget == guarded) {
                         m_expandableWidget = nullptr;
-                        resetExpansionState(true);
+                        delete m_expandableHost->layout();
+                        const bool wasExpanded = m_expanded;
+                        resetExpansionState();
+                        invalidateExpandableHeight();
                         updateInteractivity();
-                        refreshChevronState();
+                        refreshHeaderGeometry();
                         updateGeometry();
+                        if (wasExpanded)
+                            emit expandedChanged(false);
                     }
                 });
         widget->show();
@@ -533,17 +538,19 @@ int SettingsCard::expandableContentHeight()
     if (!m_expandableWidget)
         return 0;
 
-    const int width = m_expandableWidget->width();
+    const int width = m_expandableHost->width();
     if (!m_expandableHeightValid || m_expandableContentWidth != width) {
-        m_expandableContentHeight = qMax(Private::SettingsExpanderContentMinHeight,
-                                         m_expandableHost->layout()->sizeHint().height());
+        const QLayout *layout = m_expandableHost->layout();
+        const int height = layout->hasHeightForWidth() ? layout->heightForWidth(width)
+                                                       : layout->sizeHint().height();
+        m_expandableContentHeight = qMax(Private::SettingsExpanderContentMinHeight, height);
         m_expandableContentWidth = width;
         m_expandableHeightValid = true;
     }
     return m_expandableContentHeight;
 }
 
-void SettingsCard::resetExpansionState(bool notify)
+void SettingsCard::resetExpansionState()
 {
     m_expansionAnimation->stop();
     m_expansionProgress = 0.0;
@@ -551,11 +558,8 @@ void SettingsCard::resetExpansionState(bool notify)
     if (m_expandableHost->maximumHeight() != 0)
         m_expandableHost->setMaximumHeight(0);
     m_expandableHost->setVisible(false);
-    const bool wasExpanded = m_expanded;
     m_expanded = false;
     refreshChevronState();
-    if (notify && wasExpanded)
-        emit expandedChanged(false);
 }
 
 bool SettingsCard::eventFilter(QObject *watched, QEvent *event)
