@@ -830,6 +830,11 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
         return WinUI3::icon(Icon::Accept);
     case QStyle::SP_DialogOkButton:
         return WinUI3::icon(Icon::ReturnKey);
+    case QStyle::SP_DialogDiscardButton:
+        // Fluent Delete (E74D, trash) is the exact counterpart of Qt's Discard
+        // button: the Windows reference draws the same trash mark. It shares
+        // the glyph with SP_TrashIcon for that reason, not as a lookalike.
+        return WinUI3::icon(Icon::Delete);
     case QStyle::SP_DirIcon:
     case QStyle::SP_DirClosedIcon:
         return WinUI3::icon(Icon::Folder);
@@ -872,13 +877,24 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_MessageBoxInformation:
         return WinUI3::icon(Icon::Info);
     case QStyle::SP_MessageBoxQuestion:
-        return WinUI3::icon(Icon::Help);
+        // Unknown (E9CE) is the circled question mark the Windows reference
+        // draws here. Help (E897) is a bare ? and stays on title-bar context
+        // help, whose reference is bare too.
+        return WinUI3::icon(Icon::Unknown);
     case QStyle::SP_MessageBoxWarning:
         return WinUI3::icon(Icon::Warning);
     case QStyle::SP_TitleBarMinButton:
         return WinUI3::icon(Icon::Minimize);
     case QStyle::SP_TitleBarMaxButton:
         return WinUI3::icon(Icon::Maximize);
+    case QStyle::SP_TitleBarShadeButton:
+        // Fluent CaretSolidUp (F090) is the solid up-caret of the Windows
+        // title-bar shade control, matching the Qt reference raster.
+        return WinUI3::icon(Icon::CaretSolidUp);
+    case QStyle::SP_TitleBarUnshadeButton:
+        // The matched down-caret of the pair: CaretSolidDown (F08E), the
+        // Windows unshade control, distinct from the up-caret above.
+        return WinUI3::icon(Icon::CaretSolidDown);
     case QStyle::SP_TitleBarMenuButton:
         return WinUI3::icon(Icon::ButtonMenu);
     case QStyle::SP_ToolBarHorizontalExtensionButton:
@@ -887,13 +903,21 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_VistaShield:
         return WinUI3::icon(Icon::Shield);
     case QStyle::SP_DesktopIcon:
-    case QStyle::SP_ComputerIcon:
         return WinUI3::icon(Icon::Monitor);
+    case QStyle::SP_ComputerIcon:
+        // TVMonitor (E7F4) is the monitor-with-stand the Windows reference
+        // draws here; DeviceMonitorNoPic (E7FB) is the flatter Desktop mark.
+        return WinUI3::icon(Icon::TVMonitor);
     case QStyle::SP_DriveCDIcon:
     case QStyle::SP_DriveDVDIcon:
         return WinUI3::icon(Icon::StorageOptical);
     case QStyle::SP_DriveHDIcon:
         return WinUI3::icon(Icon::HardDrive);
+    case QStyle::SP_DriveNetIcon:
+        // Fluent MapDrive (E8CE) is the mapped/network-drive mark: a drive with
+        // a network connector. It is distinct from the local HardDrive EDA2,
+        // matching the distinct Windows-reference raster for this slot.
+        return WinUI3::icon(Icon::MapDrive);
     case QStyle::SP_DriveFDIcon:
         // E74E is the Fluent floppy — Qt's Windows style uses the same mark
         // for the removable-disk slot.
@@ -911,7 +935,10 @@ QIcon standardIcon(const Style *style, QStyle::StandardPixmap standard, const QS
     case QStyle::SP_FileDialogInfoView:
         return WinUI3::icon(Icon::Info);
     case QStyle::SP_FileDialogListView:
-        return WinUI3::icon(Icon::List);
+        // The Windows reference draws a four-tile grid for this slot, not the
+        // List mark used by ContentsView/DetailedView. GridView F0E2 is the
+        // exact counterpart, so this slot is paired by artwork, not by name.
+        return WinUI3::icon(Icon::GridView);
     case QStyle::SP_TitleBarNormalButton:
         // Qt's dock float button and every other "restore" slot: the base
         // Windows style hands back a two-window mark drawn with 2 px strokes and
