@@ -85,6 +85,7 @@
 #include <QTextEdit>
 #include <QThread>
 #include <QToolBar>
+#include <QTreeView>
 #include <QWizard>
 #include <QToolButton>
 #include <QToolBox>
@@ -92,6 +93,8 @@
 #include <QVector>
 #include <QWidget>
 #include <QWindow>
+
+#include <algorithm>
 
 namespace WinUI3 {
 using namespace PaintPrivate;
@@ -276,11 +279,6 @@ QPalette ownedPaletteForWidget(QWidget *widget, QWidget *window, const QPalette 
             palette.setColor(QPalette::Base, palette.color(QPalette::Window));
     } else if (qobject_cast<QWizardPage *>(widget)) {
         palette.setColor(QPalette::Window, Private::popupSurfaceColor(applicationPalette));
-        // Keep the owner-refresh path in step with refreshWizardSurface:
-        // QWizard's header chrome autofills Base, so it must resolve to the
-        // same uniform content surface instead of the translucent application
-        // Base (issue #73).
-        palette.setColor(QPalette::Base, palette.color(QPalette::Window));
     } else if (auto *calendarGrid = qobject_cast<QTableView *>(widget);
                calendarGrid && insideCalendarWidget(widget)) {
         // Transient pickers spawn a QCalendarWidget in Qt::Popup (gets
@@ -555,9 +553,7 @@ void restoreCompleterPopup(QLineEdit *editor, Style *style)
     editor->setProperty(completerLastPopupProperty, {});
 }
 
-// Behavior/composition only: QWidget/QToolButton and QStyle own all paint.
-// A non-null stock title widget is required by Qt's nativeWindowDeco() check;
-// window flags alone cannot suppress the native floating-dock caption.
+// Qt requires a non-null title widget to suppress native floating-dock decoration.
 class DockTitleController final : public QObject
 {
 public:
@@ -658,8 +654,7 @@ public:
             if (m_dock->titleBarWidget() == m_title)
                 m_dock->setTitleBarWidget(nullptr);
             m_title->hide();
-            // QApplication's style-switch snapshot still includes these widgets.
-            // Leave them alive/parented until the complete unpolish pass returns.
+            // QApplication's style-switch snapshot must stay valid through the full unpolish pass.
             m_title->deleteLater();
         }
         deleteLater();
@@ -684,8 +679,7 @@ protected:
         default:
             break;
         }
-        // In particular do not consume title mouse events: stock QWidget ignores
-        // them and Qt's dock receives drag, double-click and floating resize.
+        // Ignored title events must reach Qt's dock drag, double-click and resize handlers.
         return false;
     }
 
@@ -718,8 +712,7 @@ void polishDockTitleBar(QWidget *widget)
             controller->sync();
             return;
         }
-        // The application cleared/replaced the title since polish. A new
-        // polish may claim an empty slot again, never a custom replacement.
+        // Only a cleared slot may be reclaimed; application title replacements remain untouched.
         dock->setProperty(dockTitleControllerProperty, {});
         controller->detach();
     }
@@ -842,8 +835,17 @@ void invalidateDensityTree(QWidget *root)
         if (auto *header = qobject_cast<QHeaderView *>(widget)) {
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(header, &styleChange);
-            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget()))
+            if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget())) {
+                if (header->orientation() == Qt::Horizontal
+                    && (qobject_cast<QTableView *>(view) || qobject_cast<QTreeView *>(view))
+                    && view->objectName() != QLatin1String("qt_calendar_calendarview")) {
+                    // Qt's header event skips the size-hint cache when the application
+                    // sets a default section size. The viewport event always clears it.
+                    QEvent viewportStyleChange(QEvent::StyleChange);
+                    QCoreApplication::sendEvent(header->viewport(), &viewportStyleChange);
+                }
                 view->doItemsLayout();
+            }
         }
     };
     // Header caches and item-view geometry must agree before any synchronous repaint.
@@ -1131,10 +1133,10 @@ public:
         }
     }
 
-    bool progressBarNeedsAnimation(const QProgressBar *progressBar) const
+    static bool isVisibleIndeterminateProgressBar(const QProgressBar *progressBar)
     {
         return progressBar && progressBar->minimum() == progressBar->maximum()
-                && progressBar->isVisible() && Style::animationsAllowed();
+                && progressBar->isVisible();
     }
 
     void refreshProgressTimer()
@@ -1146,24 +1148,19 @@ public:
                 ++it;
         }
 
-        bool active = false;
-        for (const QPointer<QProgressBar> &guarded : progressBars) {
-            if (progressBarNeedsAnimation(guarded)) {
-                active = true;
-                break;
-            }
-        }
-        if (active)
+        const bool active = Style::animationsAllowed()
+                && std::any_of(progressBars.cbegin(), progressBars.cend(),
+                               isVisibleIndeterminateProgressBar);
+        if (active && !progressTimer->isActive())
             progressTimer->start();
-        else
+        else if (!active)
             progressTimer->stop();
     }
 
     void advanceProgressBars()
     {
         const bool allowed = Style::animationsAllowed();
-        const qreal phase =
-                allowed ? qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0 : 0.35;
+        const qreal phase = qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0;
         bool active = false;
         for (auto it = progressBars.begin(); it != progressBars.end();) {
             const QPointer<QProgressBar> guarded = *it;
@@ -1171,9 +1168,12 @@ public:
                 it = progressBars.erase(it);
                 continue;
             }
-            if (progressBarNeedsAnimation(guarded)) {
-                active = true;
-                framePropertyRegistry().set(guarded, progressPhaseProperty, phase);
+            if (isVisibleIndeterminateProgressBar(guarded)) {
+                active = allowed;
+                if (allowed)
+                    framePropertyRegistry().set(guarded, progressPhaseProperty, phase);
+                // The painter uses the stationary phase when motion is off.
+                // Repaint once before stopping so the last moving frame is cleared.
                 guarded->update();
             }
             ++it;
@@ -1901,6 +1901,10 @@ void Style::invalidateDensity(QWidget *scope)
 void Style::checkSystemAppearance()
 {
     Private::invalidateSystemAppearanceCache();
+    if (Style::animationsAllowed())
+        d->refreshProgressTimer();
+    else if (d->progressTimer->isActive())
+        d->advanceProgressBars();
     if (!d->needsSystemAppearancePolling()) {
         d->systemAppearanceWatchdog->stop();
         return;
@@ -2132,8 +2136,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (Private::drawViewPrimitive(this, element, option, painter, widget))
         return;
 
-    if (element == PE_Widget && widget
-        && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
+    if (element == PE_Widget && Private::drawWidgetBackdropPrimitive(this, option, painter, widget))
         return;
     if (Private::drawChromePrimitive(this, element, option, painter, widget))
         return;

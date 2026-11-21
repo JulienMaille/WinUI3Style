@@ -31,6 +31,7 @@
 #include <QStyleOptionDockWidget>
 #include <QTest>
 #include <QToolButton>
+#include <QTextEdit>
 
 #include "../src/lib/winui3density_p.h"
 #include "../src/lib/winui3helpers_p.h"
@@ -369,6 +370,9 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     wizard.resize(520, 340);
     auto *page = new QWizardPage;
     page->setTitle(QStringLiteral("Welcome"));
+    auto *layout = new QVBoxLayout(page);
+    auto *editor = new QTextEdit(page);
+    layout->addWidget(editor);
     wizard.addPage(page);
     wizard.show();
     QVERIFY(QTest::qWaitForWindowExposed(&wizard));
@@ -388,6 +392,10 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
     const QColor lightContent(252, 252, 252);
     const QColor lightCommand(243, 243, 243);
     QTRY_COMPARE(page->palette().color(QPalette::Window), darkContent);
+    QTRY_COMPARE(page->palette().color(QPalette::Base),
+                 style->standardPalette().color(QPalette::Base));
+    QCOMPARE(editor->viewport()->palette().color(QPalette::Base),
+             style->standardPalette().color(QPalette::Base));
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));
@@ -398,11 +406,15 @@ void WinUI3DialogsTest::wizardOpenThemeSwitchLifecycle()
 #endif
     style->setThemeMode(WinUI3::ThemeMode::Light);
     QTRY_COMPARE(page->palette().color(QPalette::Window), lightContent);
+    QTRY_COMPARE(editor->viewport()->palette().color(QPalette::Base),
+                 style->standardPalette().color(QPalette::Base));
     QTRY_COMPARE(next->palette().color(QPalette::Window), lightCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(0, 0, 0, 228));
     style->setThemeMode(WinUI3::ThemeMode::Dark);
     QTRY_COMPARE(page->palette().color(QPalette::Window), darkContent);
+    QTRY_COMPARE(editor->viewport()->palette().color(QPalette::Base),
+                 style->standardPalette().color(QPalette::Base));
     QTRY_COMPARE(next->palette().color(QPalette::Window), darkCommand);
     for (QLabel *label : titleLabels)
         QTRY_COMPARE(label->palette().color(label->foregroundRole()), QColor(255, 255, 255));

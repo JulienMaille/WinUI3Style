@@ -10,6 +10,7 @@
 
 #include "../src/lib/winui3frameproperties_p.h"
 #include "../src/lib/winui3helpers_p.h"
+#include "../src/lib/winui3qtcompat_p.h"
 #include "../src/lib/winui3surfaces_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
@@ -26,6 +27,7 @@
 #include <QPainter>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QMoveEvent>
@@ -74,6 +76,7 @@ private slots:
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
     void progressTimerScalingAndLifecycle();
+    void visibleProgressTracksMotionPreference();
 };
 
 void WinUI3SurfacesTest::contentLayerSurfacePredicate()
@@ -767,9 +770,12 @@ void WinUI3SurfacesTest::tooltipLabelFollowsTemplateMetrics()
     QCOMPARE(tip->font().pixelSize(), WinUI3::Private::TooltipContentFontSize);
     QCOMPARE(tip->size(), tip->sizeHint());
 
-    const QFontMetrics metrics(tip->font());
-    QCOMPARE(tip->height(), metrics.height() + expected.top() + expected.bottom());
-    QVERIFY(tip->width() > metrics.horizontalAdvance(text) + 18);
+    // QLabel uses the text rectangle on its own paint device. The nominal
+    // font line height can round differently on some platforms.
+    const QSize textSize =
+            tip->fontMetrics().boundingRect(QRect(0, 0, 2000, 2000), Qt::AlignLeft, text).size();
+    QCOMPARE(tip->height(), textSize.height() + expected.top() + expected.bottom());
+    QCOMPARE(tip->width(), textSize.width() + expected.left() + expected.right());
 
     // The card's own ink must start inside the template padding: the 1 px
     // stroke and the 9/6/9/8 padding put the first glyph at x=10 and keep the
@@ -821,9 +827,14 @@ void WinUI3SurfacesTest::tooltipLabelFollowsTemplateMetrics()
                            "which Qt's own tooltip label never applies.");
     QToolTip::showText(host.mapToGlobal(QPoint(120, 90)), longText, button);
     QTRY_COMPARE(tip->text(), longText);
-    QCOMPARE(tip->width(), WinUI3::Private::TooltipMaximumWidth);
+    const QScreen *screen = WinUI3::Private::widgetScreen(tip);
+    QVERIFY(screen);
+    const QRect available = screen->availableGeometry();
+    QCOMPARE(tip->width(), qMin(WinUI3::Private::TooltipMaximumWidth, available.width()));
+    QVERIFY(tip->geometry().left() >= available.left());
+    QVERIFY(tip->geometry().right() <= available.right());
     QVERIFY(tip->wordWrap());
-    QVERIFY(tip->height() > metrics.height() + expected.top() + expected.bottom());
+    QVERIFY(tip->height() > textSize.height() + expected.top() + expected.bottom());
 
     QToolTip::hideText();
     QTRY_VERIFY(!QToolTip::isVisible());
@@ -925,9 +936,18 @@ void WinUI3SurfacesTest::progressAnimationAndOrientations()
     bar.setRange(0, 0);
     bar.resize(240, 24);
     bar.show();
-    QImage first = bar.grab().toImage();
-    QTest::qWait(40);
-    QImage second = bar.grab().toImage();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    const QImage first = bar.grab().toImage();
+    QVERIFY(!first.isNull());
+    // The phase advances on a wall-clock timer, so one fixed wait can sample
+    // the same quantized indicator position on a busy runner (as happened in
+    // CI). Keep sampling until the painted frame actually moves; a stopped
+    // animation still fails after the bounded retry.
+    QImage second = first;
+    for (int attempt = 0; attempt < 15 && second == first; ++attempt) {
+        QTest::qWait(20);
+        second = bar.grab().toImage();
+    }
     QVERIFY(first != second);
     auto *timer = style->findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
                                              Qt::FindDirectChildrenOnly);
@@ -1059,6 +1079,30 @@ void WinUI3SurfacesTest::progressTimerScalingAndLifecycle()
     bars.clear();
     QCoreApplication::processEvents();
     QVERIFY(!timer->isActive());
+}
+
+void WinUI3SurfacesTest::visibleProgressTracksMotionPreference()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    if (!WinUI3::Style::animationsAllowed())
+        QSKIP("Animation effects are disabled for this test session");
+    QProgressBar bar;
+    bar.setRange(0, 0);
+    bar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    auto *progress = style->findChild<QTimer *>(QStringLiteral("_winui_progress_timer"));
+    auto *appearance =
+            style->findChild<QTimer *>(QStringLiteral("_winui_system_appearance_watchdog"));
+    QVERIFY(progress && appearance);
+    QVERIFY(progress->isActive());
+    {
+        DisableAnimationsGuard disableMotion;
+        QVERIFY(QMetaObject::invokeMethod(appearance, "timeout", Qt::DirectConnection));
+        QVERIFY(!progress->isActive());
+    }
+    QVERIFY(QMetaObject::invokeMethod(appearance, "timeout", Qt::DirectConnection));
+    QVERIFY(progress->isActive());
 }
 
 QTEST_MAIN(WinUI3SurfacesTest)

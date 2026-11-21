@@ -7,6 +7,7 @@
 
 #include "winui3surfaces_p.h"
 
+#include "winui3helpers_p.h"
 #include "winui3paint_p.h"
 #include "winui3qtcompat_p.h"
 #include "winui3style_properties_p.h"
@@ -219,10 +220,10 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
     // placeholder widgets) autofills the Base role. WinUI's Base is a
     // translucent lift (#3A3A3A@76 Dark, white@128 Light), so stacking those
     // fills over the content surface drew visible lighter rectangles in the
-    // header (issue #73). The wizard is one opaque surface: make every Base
-    // role handed to a wizard descendant resolve to that same content tone, so
-    // a Base-role autofill adds no lift.
-    contentPalette.setColor(QPalette::Base, contentPalette.color(QPalette::Window));
+    // header (issue #73). Give the wizard chrome the opaque content tone and
+    // preserve the regular Base role for page controls such as QTextEdit.
+    QPalette chromePalette = contentPalette;
+    chromePalette.setColor(QPalette::Base, contentPalette.color(QPalette::Window));
     QPalette commandPalette = applicationPalette;
     const auto isWizardButton = [wizard](QWidget *candidate) {
         for (QWizard::WizardButton role :
@@ -246,11 +247,16 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
         if (hasUserPalette)
             continue;
 
-        child->setPalette(internalButton ? commandPalette : contentPalette);
+        const bool inPage = qobject_cast<const QWizardPage *>(child)
+                || anyAncestorToWindow(child, [](const QWidget *ancestor) {
+                                return qobject_cast<const QWizardPage *>(ancestor) != nullptr;
+                            });
+        const QPalette &childPalette = inPage ? contentPalette : chromePalette;
+        child->setPalette(internalButton ? commandPalette : childPalette);
         if (auto *label = qobject_cast<QLabel *>(child)) {
             // QWizard's internal title/description labels carry the platform
             // Link-role ink, unreadable on a dark page. Force content ink.
-            QPalette labelPalette = contentPalette;
+            QPalette labelPalette = childPalette;
             labelPalette.setColor(QPalette::WindowText, contentPalette.color(QPalette::WindowText));
             labelPalette.setColor(QPalette::Text, contentPalette.color(QPalette::Text));
             labelPalette.setColor(QPalette::Link, contentPalette.color(QPalette::WindowText));
@@ -266,7 +272,7 @@ void refreshWizardSurface(QWizard *wizard, const QPalette &applicationPalette)
 
     // The top-level wizard is the content backing layer. The footer is a
     // separate child so the command region remains full-width and opaque.
-    wizard->setPalette(contentPalette);
+    wizard->setPalette(chromePalette);
     wizard->setAutoFillBackground(true);
     if (WizardFooterSurface *footer = wizardFooterSurface(wizard, true)) {
         // ContentDialog's CommandSpace sits on SolidBackgroundFillColorBase,

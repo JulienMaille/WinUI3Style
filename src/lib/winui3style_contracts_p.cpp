@@ -582,6 +582,12 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
                                               option, widget);
         return option->rect.united(indicator).united(contents);
     }
+    if (element == QStyle::SE_LineEditContents && keySequenceEditor(widget)) {
+        // The shortcut recorder's editor paints keycaps in the TextBox panel.
+        // An empty text slot stops QLineEdit's line control from drawing the
+        // raw sequence (and caret/selection) over them.
+        return QRect();
+    }
     if (element == QStyle::SE_LineEditContents) {
         // QComboBox has already positioned its private editor in the exact
         // SC_ComboBoxEditField slot. Applying the standalone TextBox's 10px

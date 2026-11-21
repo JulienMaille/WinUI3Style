@@ -155,9 +155,7 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
         if (!clearForBackdropFill(painter, widget, option->rect, surface))
             painter->fillRect(option->rect, surface);
     }
-    // The dock title is itself a veiled layer. Rebuild that exact surface
-    // under each Subtle overlay on Mica, including idle/disabled buttons; a
-    // generic Subtle erase would punch a command-shaped hole through the title.
+    // Generic Subtle clearing would punch a command-shaped hole through a veiled dock title.
     const bool dockTitleButton = dockTitleBarWidget(parent);
     if (dockTitleButton)
         clearForBackdropFill(painter, widget, option->rect,
@@ -450,6 +448,13 @@ static bool drawLineEditPanelPrimitive(const Style *, const QStyleOption *option
     }
     if (focused)
         drawEditorFocusUnderline(painter, QRectF(option->rect), t.accentFill, ControlRadius);
+    // A QKeySequenceEdit has no style entry for its sequence text: the TextBox
+    // panel paints the keycaps over the field it just drew, and
+    // SE_LineEditContents returns an empty slot so Qt's line control cannot
+    // paint the raw sequence on top of them.
+    if (const auto *lineEdit = qobject_cast<const QLineEdit *>(widget);
+        lineEdit && keySequenceEditor(lineEdit))
+        paintShortcutKeycaps(painter, option, lineEdit);
     return true;
 }
 

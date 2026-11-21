@@ -101,7 +101,7 @@ private:
     void updateInteractivity();
     void refreshHeaderGeometry();
     int expandableContentHeight();
-    void resetExpansionState(bool notify);
+    void resetExpansionState();
     QGridLayout *m_headerLayout = nullptr;
     QVBoxLayout *m_rootLayout = nullptr;
     QWidget *m_headerHost = nullptr;
