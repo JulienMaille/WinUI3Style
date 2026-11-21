@@ -487,7 +487,6 @@ void WinUI3TableHeaderTest::tableCellPreservesWrappedPrefix()
     const int width = justify || bottom || rtl
             ? 100
             : option.fontMetrics.horizontalAdvance(QStringLiteral("hy-"));
-    option.rect = QRect(0, 0, width + 24, 2 * option.fontMetrics.height() + 2);
     option.index = table.model()->index(0, 0);
     option.state = QStyle::State_Enabled;
     option.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::WrapText;
@@ -502,9 +501,6 @@ void WinUI3TableHeaderTest::tableCellPreservesWrappedPrefix()
             : justify || bottom
             ? QStringLiteral("First line with extra text that wraps into several lines")
             : QStringLiteral("hy\u00adphenLongMoreText tail word");
-    const QRect textRect =
-            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
-    QCOMPARE(textRect.width(), width);
     QTextLayout layout(option.text, option.font);
     QTextOption textOption;
     textOption.setWrapMode(QTextOption::WordWrap);
@@ -522,6 +518,11 @@ void WinUI3TableHeaderTest::tableCellPreservesWrappedPrefix()
             0, qCeil(first.ascent() + first.descent() + QFontMetricsF(option.font).leading())));
     const qreal height = second.y() + second.ascent() + second.descent();
     layout.endLayout();
+    // Give the shaped lines enough room even when fallback fonts increase their height.
+    option.rect = QRect(0, 0, width + 24, qCeil(height));
+    const QRect textRect =
+            table.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, table.viewport());
+    QCOMPARE(textRect.width(), width);
     if (!justify && !bottom && !rtl)
         QCOMPARE(option.text.at(first.textLength() - 1), QChar(0x00ad));
     if (rtl)

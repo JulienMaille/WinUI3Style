@@ -164,6 +164,12 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
         if (text.endsWith(QChar::LineSeparator))
             text.chop(1);
         text = elideTableCellLine(text, metrics, option.textElideMode, rect.width(), hiddenLines);
+        if (lines.size() == 1) {
+            // Elision can remove a fallback font run and change the line height.
+            painter->drawText(rect, (textFlags & ~int(Qt::TextWordWrap)) | Qt::TextSingleLine,
+                              text);
+            return;
+        }
         painter->drawText(
                 QRectF(rect.left(), top + line.y(), rect.width(), line.ascent() + line.descent()),
                 (textFlags & ~int(Qt::TextWordWrap | Qt::AlignVertical_Mask)) | Qt::AlignTop
