@@ -17,6 +17,7 @@
 #include <QAction>
 #include <QFontMetrics>
 #include <QHash>
+#include <QHelpEvent>
 #include <QLineEdit>
 #include <QMetaObject>
 #include <QObject>
@@ -24,6 +25,7 @@
 #include <QPointer>
 #include <QStyleOption>
 #include <QTimer>
+#include <QToolTip>
 #include <QWidget>
 
 namespace WinUI3::Private {
@@ -237,6 +239,53 @@ QString shortcutCapLabel(const QString &token)
     return token;
 }
 
+QFont shortcutKeycapFont(const QLineEdit *editor)
+{
+    QFont font = editor->font();
+    font.setPixelSize(ShortcutKeycapFontSize);
+    return font;
+}
+
+struct ShortcutKeycapLayout
+{
+    ShortcutText text;
+    QVector<QRectF> caps;
+    QRectF overflow;
+};
+
+ShortcutKeycapLayout shortcutKeycapLayout(const QString &text, const QRect &rect,
+                                          const QFontMetrics &metrics)
+{
+    ShortcutKeycapLayout layout;
+    layout.text = parseShortcutText(text);
+    const QRectF bounds =
+            QRectF(rect).adjusted(ShortcutFieldTextInset, 0, -ShortcutFieldTextInset, 0);
+    const qreal capY = bounds.y() + (bounds.height() - ShortcutKeycapHeight) / 2.0;
+    qreal x = bounds.left();
+    for (int i = 0; i < layout.text.labels.size(); ++i) {
+        QString &label = layout.text.labels[i];
+        label = shortcutCapLabel(label);
+        const qreal width = metrics.horizontalAdvance(label) + 2 * ShortcutKeycapPadding;
+        const QRectF cap(x, capY, width, ShortcutKeycapHeight);
+        if (cap.right() > bounds.right())
+            break;
+        layout.caps.append(cap);
+        x = cap.right()
+                + (layout.text.separators.value(i) == QLatin1Char(',') ? ShortcutChordBreakGap
+                                                                       : ShortcutKeycapGap);
+    }
+    if (layout.caps.size() < layout.text.labels.size()) {
+        const int markerWidth = metrics.horizontalAdvance(QStringLiteral("…"));
+        const QRectF markerBounds = bounds.width() >= markerWidth ? bounds : QRectF(rect);
+        const qreal width = qMin<qreal>(markerWidth, markerBounds.width());
+        layout.overflow = QRectF(markerBounds.right() - width, capY, width, ShortcutKeycapHeight);
+        while (!layout.caps.isEmpty()
+               && layout.caps.constLast().right() + ShortcutKeycapGap > layout.overflow.left())
+            layout.caps.removeLast();
+    }
+    return layout;
+}
+
 } // namespace
 
 void paintShortcutKeycaps(QPainter *painter, const QStyleOption *option, const QLineEdit *editor)
@@ -248,51 +297,35 @@ void paintShortcutKeycaps(QPainter *painter, const QStyleOption *option, const Q
     // QKeySequenceEdit keeps the editor focused for as long as the recorder
     // owns the keys, so focus is the recording state.
     const bool recording = option->state & QStyle::State_HasFocus;
-    const ShortcutText parsed = parseShortcutText(editor->text());
-    const QRectF bounds =
-            QRectF(option->rect).adjusted(ShortcutFieldTextInset, 0, -ShortcutFieldTextInset, 0);
     const QFont savedFont = painter->font();
+    const QFont font = shortcutKeycapFont(editor);
+    const QFontMetrics fm(font, editor);
+    const auto layout = shortcutKeycapLayout(editor->text(), option->rect, fm);
     const QColor fill = !enabled ? t.accentFillDisabled
             : recording          ? t.accentFillPressed
                                  : t.accentFill;
     // Contrast-resolved ink: a custom/system accent can be light, so the fixed
     // white-on-accent used by WinUI's check templates is not safe.
     const QColor ink = enabled ? t.textOnAccentPrimary : t.textOnAccentDisabled;
-    QFont font = savedFont;
-    font.setPixelSize(ShortcutKeycapFontSize);
     painter->setFont(font);
-    const QFontMetrics fm(font);
-    QVector<QRectF> capRects;
-    qreal x = bounds.x();
-    const qreal capY = bounds.y() + (bounds.height() - ShortcutKeycapHeight) / 2.0;
-    for (int i = 0; i < parsed.labels.size(); ++i) {
-        const QString label = shortcutCapLabel(parsed.labels.at(i));
-        const qreal width = fm.horizontalAdvance(label) + 2 * ShortcutKeycapPadding;
-        const QRectF cap(x, capY, width, ShortcutKeycapHeight);
+    for (int i = 0; i < layout.caps.size(); ++i) {
+        const QRectF &cap = layout.caps.at(i);
         PaintPrivate::roundedRect(painter, cap, fill, t.accentStrokeSecondary, ControlRadius);
         painter->setPen(ink);
-        painter->drawText(cap, Qt::AlignCenter, label);
-        capRects.append(cap);
-        if (i == parsed.labels.size() - 1)
-            break;
-        x = cap.right()
-                + (parsed.separators.value(i) == QLatin1Char(',') ? ShortcutChordBreakGap
-                                                                  : ShortcutKeycapGap);
-        if (x >= bounds.right())
-            break;
+        painter->drawText(cap, Qt::AlignCenter, layout.text.labels.at(i));
     }
     // Overlay separators after all caps exist: the dot sits on the seam between
     // two caps, so they read as one group without a wide gap.
-    for (int i = 0; i + 1 < capRects.size(); ++i) {
-        const QRectF &left = capRects.at(i);
-        const QRectF &right = capRects.at(i + 1);
+    for (int i = 0; i + 1 < layout.caps.size(); ++i) {
+        const QRectF &left = layout.caps.at(i);
+        const QRectF &right = layout.caps.at(i + 1);
         const QPointF seam((left.right() + right.left()) / 2.0, left.center().y());
-        if (parsed.separators.value(i) == QLatin1Char(',')) {
+        if (layout.text.separators.value(i) == QLatin1Char(',')) {
             const qreal markWidth =
                     fm.horizontalAdvance(QStringLiteral(",")) + 2 * ShortcutSeparatorPadding;
             painter->setPen(t.textPrimary);
             painter->drawText(
-                    QRectF(seam.x() - markWidth / 2, capY, markWidth, ShortcutKeycapHeight),
+                    QRectF(seam.x() - markWidth / 2, left.y(), markWidth, ShortcutKeycapHeight),
                     Qt::AlignCenter, QStringLiteral(","));
         } else {
             QRectF dot(0, 0, 2 * ShortcutChordDotRadius, 2 * ShortcutChordDotRadius);
@@ -308,16 +341,40 @@ void paintShortcutKeycaps(QPainter *painter, const QStyleOption *option, const Q
             painter->setRenderHint(QPainter::Antialiasing, antialiased);
         }
     }
-    painter->setFont(savedFont);
-    if (parsed.labels.isEmpty() && recording) {
-        QFont hintFont = savedFont;
-        hintFont.setPixelSize(ShortcutKeycapFontSize);
-        painter->setFont(hintFont);
+    if (layout.overflow.isValid()) {
+        painter->setPen(enabled ? t.textSecondary : t.textDisabled);
+        painter->drawText(layout.overflow, Qt::AlignCenter, QStringLiteral("…"));
+    } else if (layout.text.labels.isEmpty() && recording) {
+        const QRectF bounds =
+                QRectF(option->rect)
+                        .adjusted(ShortcutFieldTextInset, 0, -ShortcutFieldTextInset, 0);
         painter->setPen(t.textSecondary);
         painter->drawText(bounds, Qt::AlignLeft | Qt::AlignVCenter,
                           QStringLiteral("Press shortcut"));
-        painter->setFont(savedFont);
     }
+    painter->setFont(savedFont);
+}
+
+bool showShortcutOverflowTooltip(QWidget *widget, const QHelpEvent &event, const Style *style)
+{
+    QLineEdit *editor = nullptr;
+    if (keySequenceEditor(widget))
+        editor = static_cast<QLineEdit *>(widget);
+    else if (auto *recorder = qobject_cast<QKeySequenceEdit *>(widget))
+        editor = recorder->findChild<QLineEdit *>(QString(), Qt::FindDirectChildrenOnly);
+
+    if (!editor || editor->style() != style)
+        return false;
+
+    const QString text = editor->text();
+    const QFontMetrics metrics(shortcutKeycapFont(editor), editor);
+    if (!shortcutKeycapLayout(text, editor->rect(), metrics).overflow.isValid())
+        return false;
+
+    QToolTip::showText(event.globalPos(),
+                       QStringLiteral("<span>%1</span>").arg(text.toHtmlEscaped()), editor,
+                       editor->rect());
+    return true;
 }
 
 } // namespace WinUI3::Private
