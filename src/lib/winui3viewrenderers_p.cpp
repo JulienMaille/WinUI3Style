@@ -1010,7 +1010,7 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
     const bool autoSuggestPopup = popup && completerPopupView(view);
     const Tokens t = tokens(option->palette);
     const bool enabled = option->state & QStyle::State_Enabled;
-    const bool tree = qobject_cast<const QTreeView *>(view);
+    const auto *tree = qobject_cast<const QTreeView *>(view);
     const bool table = qobject_cast<const QTableView *>(view);
     const bool selected = option->state & QStyle::State_Selected;
     const bool hovered = option->state & QStyle::State_MouseOver;
@@ -1069,6 +1069,25 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
             : tree          ? QRectF(option->rect).adjusted(4, 2, -4, -2)
             : table         ? QRectF(option->rect)
                             : QRectF(option->rect).adjusted(2, 1, -2, -1);
+    const QHeaderView *header = tree ? tree->header() : nullptr;
+    const bool joinTreeCells = !popup && header && viewOption && viewOption->index.isValid()
+            && tree->selectionBehavior() == QAbstractItemView::SelectRows
+            && header->count() - header->hiddenSectionCount() > 1
+            && !tree->isFirstColumnSpanned(viewOption->index.row(), viewOption->index.parent());
+    bool atRowStart = false;
+    if (joinTreeCells) {
+        const int section = viewOption->index.column();
+        const int position = header->sectionPosition(section);
+        atRowStart = position == 0;
+        const bool atRowEnd = position + header->sectionSize(section) == header->length();
+        const bool rtl = option->direction == Qt::RightToLeft;
+        // Each delegate paints its own cell. Extend the rounded ends past
+        // the shared edges, then clip each slice to its cell so interiors
+        // meet without gaps or overpainting its neighbour's content.
+        itemRect = QRectF(option->rect)
+                           .adjusted((rtl ? atRowEnd : atRowStart) ? 4 : -4, 2,
+                                     (rtl ? atRowStart : atRowEnd) ? -4 : 4, -2);
+    }
     if (fill.alpha() > 0) {
         // AutoSuggest rows must keep the opaque CE frame under the shared
         // hover pill. Other popup types retain their material erase recipe.
@@ -1092,7 +1111,14 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
             eraseForBackdropWithCardRefill(painter, widget, option->rect,
                                            veiledCard(t.layer, true));
         }
-        paintPopupRowPill(painter, itemRect, fill);
+        if (joinTreeCells) {
+            painter->save();
+            painter->setClipRect(option->rect, Qt::IntersectClip);
+            paintPopupRowPill(painter, itemRect, fill);
+            painter->restore();
+        } else {
+            paintPopupRowPill(painter, itemRect, fill);
+        }
     }
     const bool firstColumn =
             !viewOption || !viewOption->index.isValid() || viewOption->index.column() == 0;
@@ -1129,7 +1155,8 @@ static bool drawItemViewItemPrimitive(const QStyleOption *option, QPainter *pain
         icon(Icon::Check, enabled ? t.textPrimary : t.textDisabled)
                 .paint(painter, checkRect, Qt::AlignCenter,
                        enabled ? QIcon::Normal : QIcon::Disabled);
-    } else if (selected && viewOption && selectionMarkerView(widget) && firstColumn) {
+    } else if (selected && viewOption && selectionMarkerView(widget)
+               && (joinTreeCells ? atRowStart : firstColumn)) {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setPen(Qt::NoPen);
