@@ -550,6 +550,34 @@ void restoreCompleterPopup(QLineEdit *editor, Style *style)
     editor->setProperty(completerLastPopupProperty, {});
 }
 
+void refreshHiddenTableRows(QHeaderView *header, int previousDefault)
+{
+    const int currentDefault = header->defaultSectionSize();
+    if (currentDefault == previousDefault || !header->sectionsHidden())
+        return;
+
+    // Qt keeps the last height of a hidden row in the header state. Read it
+    // through a detached header so the live table never reveals a row or
+    // emits transient resize signals. Fixed mode exposes the saved heights
+    // without running the live table's delegate or stretch calculations.
+    QHeaderView saved(Qt::Vertical);
+    saved.setUpdatesEnabled(false);
+    saved.setModel(header->model());
+    saved.setRootIndex(header->rootIndex());
+    if (!saved.restoreState(header->saveState()))
+        return;
+    saved.setStretchLastSection(false);
+    saved.setSectionResizeMode(QHeaderView::Fixed);
+    saved.setMinimumSectionSize(0);
+    for (int row = 0, count = saved.count(); row < count; ++row) {
+        if (!saved.isSectionHidden(row))
+            continue;
+        saved.showSection(row);
+        if (saved.sectionSize(row) == previousDefault)
+            header->resizeSection(row, currentDefault);
+    }
+}
+
 void invalidateDensityTree(QWidget *root)
 {
     if (!root)
@@ -648,12 +676,17 @@ void invalidateDensityTree(QWidget *root)
     const auto descendants = root->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
     const auto refreshHeader = [](QWidget *widget) {
         if (auto *header = qobject_cast<QHeaderView *>(widget)) {
+            const int previousDefault = header->defaultSectionSize();
             QEvent styleChange(QEvent::StyleChange);
             QCoreApplication::sendEvent(header, &styleChange);
             if (auto *view = qobject_cast<QAbstractItemView *>(header->parentWidget())) {
+                auto *table = qobject_cast<QTableView *>(view);
+                const bool calendar =
+                        view->objectName() == QLatin1String("qt_calendar_calendarview");
+                if (table && table->verticalHeader() == header && !calendar)
+                    refreshHiddenTableRows(header, previousDefault);
                 if (header->orientation() == Qt::Horizontal
-                    && (qobject_cast<QTableView *>(view) || qobject_cast<QTreeView *>(view))
-                    && view->objectName() != QLatin1String("qt_calendar_calendarview")) {
+                    && (table || qobject_cast<QTreeView *>(view)) && !calendar) {
                     // Qt's header event skips the size-hint cache when the application
                     // sets a default section size. The viewport event always clears it.
                     QEvent viewportStyleChange(QEvent::StyleChange);

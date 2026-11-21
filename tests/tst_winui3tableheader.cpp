@@ -70,6 +70,8 @@ class WinUI3TableHeaderTest final : public QObject, private WinUI3StandardTestFi
 private slots:
     void initTestCase();
     void tableHeaderContract();
+    void tableHiddenRowsFollowDensity_data();
+    void tableHiddenRowsFollowDensity();
     void tableCellElidesOverflow_data();
     void tableCellElidesOverflow();
     void tableCellPreservesFittingMultilineText();
@@ -95,6 +97,53 @@ private slots:
 void WinUI3TableHeaderTest::initTestCase()
 {
     initializeStandardWinUI3TestStyle();
+}
+
+void WinUI3TableHeaderTest::tableHiddenRowsFollowDensity_data()
+{
+    QTest::addColumn<bool>("initialCompact");
+    QTest::newRow("to-compact") << false;
+    QTest::newRow("to-standard") << true;
+}
+
+void WinUI3TableHeaderTest::tableHiddenRowsFollowDensity()
+{
+    QFETCH(bool, initialCompact);
+    QTableWidget table(4, 1);
+    table.setProperty("winuiDensity", initialCompact ? "compact" : "standard");
+    table.show();
+    auto *header = table.verticalHeader();
+    const int oldDefault = header->defaultSectionSize();
+    QCOMPARE(table.rowHeight(0), oldDefault);
+    QCOMPARE(table.rowHeight(1), oldDefault);
+
+    table.setRowHeight(2, 68);
+    table.hideRow(1);
+    table.hideRow(2);
+    table.hideRow(3);
+    table.setRowHeight(3, 76);
+    QSignalSpy resizes(header, &QHeaderView::sectionResized);
+    table.setProperty("winuiDensity", initialCompact ? "standard" : "compact");
+    const int newDefault = header->defaultSectionSize();
+    QVERIFY(newDefault != oldDefault);
+    QCOMPARE(table.rowHeight(0), newDefault);
+    QCOMPARE(header->hiddenSectionCount(), 3);
+    for (const auto &args : resizes)
+        QCOMPARE(args.at(0).toInt(), 0);
+
+    for (int row : { 1, 2, 3 })
+        table.showRow(row);
+    QCOMPARE(table.rowHeight(1), newDefault);
+    QCOMPARE(table.rowHeight(2), 68);
+    QCOMPARE(table.rowHeight(3), 76);
+
+    header->setDefaultSectionSize(82);
+    QCOMPARE(table.rowHeight(1), 82);
+    table.hideRow(1);
+    table.setProperty("winuiDensity", initialCompact ? "compact" : "standard");
+    QVERIFY(table.isRowHidden(1));
+    table.showRow(1);
+    QCOMPARE(table.rowHeight(1), 82);
 }
 
 void WinUI3TableHeaderTest::tableCellElidesOverflow_data()
