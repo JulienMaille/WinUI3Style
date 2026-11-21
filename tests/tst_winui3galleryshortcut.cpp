@@ -103,22 +103,46 @@ void WinUI3GalleryShortcutTest::galleryShortcutRecorderReachable()
                   [](const auto &a, const auto &b) { return a.first > b.first; });
         QStringList dump;
         for (int i = 0; i < top.size() && i < 12; ++i)
-            dump << QStringLiteral("%1x%2").arg(QColor(top.at(i).second).name(QColor::HexArgb))
+            dump << QStringLiteral("%1x%2")
+                            .arg(QColor(top.at(i).second).name(QColor::HexArgb))
                             .arg(top.at(i).first);
         qInfo("DIAG rest: size=%dx%d dpr=%g recorderFocus=%d fieldFocus=%d focusWidget=%s"
               " keySeqEditor=%d accentFill=%s selectionAccent=%s textPrimary=%s"
               " onAccent=%s dark=%d palAccent=%s palHighlight=%s",
-              image.width(), image.height(), image.devicePixelRatio(),
-              int(recorder->hasFocus()), int(field->hasFocus()),
+              image.width(), image.height(), image.devicePixelRatio(), int(recorder->hasFocus()),
+              int(field->hasFocus()),
               qApp->focusWidget() ? qApp->focusWidget()->metaObject()->className() : "none",
               int(WinUI3::Private::keySequenceEditor(field)),
               qPrintable(t.accentFill.name(QColor::HexArgb)),
               qPrintable(t.selectionAccent.name(QColor::HexArgb)),
               qPrintable(t.textPrimary.name(QColor::HexArgb)),
               qPrintable(t.textOnAccentPrimary.name(QColor::HexArgb)), int(t.dark),
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
               qPrintable(recorder->palette().color(QPalette::Accent).name(QColor::HexArgb)),
+#else
+              "n/a",
+#endif
               qPrintable(recorder->palette().color(QPalette::Highlight).name(QColor::HexArgb)));
         qInfo("DIAG top colors: %s", qPrintable(dump.join(QStringLiteral(" "))));
+        // Compare the raw 8-bit pixel with the token color the same way the
+        // assertion does, and report the QColor specs/16-bit values.
+        int reported = 0;
+        for (int y = 0; y < image.height() && reported < 3; ++y) {
+            for (int x = 0; x < image.width() && reported < 3; ++x) {
+                if (QColor(image.pixel(x, y)).name(QColor::HexArgb)
+                    != t.accentFill.name(QColor::HexArgb))
+                    continue;
+                const QColor sample = image.pixelColor(x, y);
+                qInfo("DIAG pixel(%d,%d): format=%d sample=%s spec=%d rgba64=%llx"
+                      " token=%s spec=%d rgba64=%llx equal=%d",
+                      x, y, int(image.format()), qPrintable(sample.name(QColor::HexArgb)),
+                      int(sample.spec()), static_cast<unsigned long long>(sample.rgba64()),
+                      qPrintable(t.accentFill.name(QColor::HexArgb)), int(t.accentFill.spec()),
+                      static_cast<unsigned long long>(t.accentFill.rgba64()),
+                      int(sample == t.accentFill));
+                ++reported;
+            }
+        }
     }
     const qreal dpr = image.devicePixelRatio();
     QRect caps;
