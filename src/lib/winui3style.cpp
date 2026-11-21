@@ -876,6 +876,21 @@ public:
                 std::make_unique<Private::StyleInteractionController>(owner, std::move(callbacks));
     }
 
+    QPalette wizardPalette() const
+    {
+        return applicationStyleActive ? QApplication::palette() : q->standardPalette();
+    }
+
+    void queueWizardSurfaceRefresh(QWizard *wizard)
+    {
+        const QPointer<QWizard> target(wizard);
+        const QPointer<QStyle> installedStyle(wizard->style());
+        QTimer::singleShot(0, q, [this, target, installedStyle] {
+            if (target && installedStyle && target->style() == installedStyle)
+                refreshWizardSurface(target, wizardPalette());
+        });
+    }
+
     bool needsSystemAppearancePolling() const
     {
         return mode == ThemeMode::System || !accent.isValid();
@@ -1650,12 +1665,7 @@ void Style::refreshApplicationAppearance()
             });
         } else if (auto *wizard = qobject_cast<QWizard *>(window)) {
             refreshWizardSurface(wizard, applicationPalette);
-            const QPointer<QWizard> guardedWizard(wizard);
-            const QPointer<Style> guardedStyle(this);
-            QTimer::singleShot(0, wizard, [guardedWizard, guardedStyle] {
-                if (guardedWizard && guardedStyle)
-                    refreshWizardSurface(guardedWizard, guardedStyle->standardPalette());
-            });
+            d->queueWizardSurfaceRefresh(wizard);
         } else if (qobject_cast<QDialog *>(window)
                    || window->property(Private::effectiveBackdropProperty).isValid()) {
             // Disabling a material restores opaque content, but its native
@@ -2623,7 +2633,7 @@ void Style::polishWizard(QWidget *widget)
         if (QAbstractButton *primary = wizard->button(button))
             primary->setProperty(ControlRoleProperty, QStringLiteral("accent"));
     }
-    refreshWizardSurface(wizard, standardPalette());
+    refreshWizardSurface(wizard, d->wizardPalette());
 }
 
 void Style::polishContentDialog(QWidget *widget)
@@ -2824,12 +2834,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
 {
     if (auto *wizard = qobject_cast<QWizard *>(watched);
         wizard && (event->type() == QEvent::Show || event->type() == QEvent::ChildAdded)) {
-        const QPointer<QWizard> guardedWizard(wizard);
-        const QPointer<Style> guardedStyle(this);
-        QTimer::singleShot(0, wizard, [guardedWizard, guardedStyle] {
-            if (guardedWizard && guardedStyle)
-                refreshWizardSurface(guardedWizard, guardedStyle->standardPalette());
-        });
+        d->queueWizardSurfaceRefresh(wizard);
     }
     if (auto *editor = qobject_cast<QLineEdit *>(watched); editor
         && (event->type() == QEvent::FocusIn || event->type() == QEvent::KeyPress
