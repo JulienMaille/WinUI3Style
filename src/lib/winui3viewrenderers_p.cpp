@@ -1614,15 +1614,14 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->restore();
         } else {
             // Unselected pill veils its hover fill over a live material so
-            // it cannot band or ghost; rest stays transparent. A tab bar
-            // hosted by a QTabWidget shares its last row with the pane frame
-            // (PM_TabBarBaseOverlap == 1), and the parent has already painted
-            // the pane's 1 px stroke there. Clearing that row erased the
-            // separator over the material - Collections lost its tab-strip
-            // hairline while NONE kept it - so stop the clear one row short.
+            // it cannot band or ghost; rest stays transparent. QTabWidget
+            // paints its pane stroke under the tab edge (the one-pixel base
+            // overlap). Dock tab bars draw their own stroke there before
+            // painting the tabs. In either case, keep the pane-facing pixel
+            // intact when clearing an unselected tab over material.
             QRect clearRect = option->rect;
             const auto *bar = qobject_cast<const QTabBar *>(widget);
-            if (bar && qobject_cast<const QTabWidget *>(bar->parentWidget())) {
+            if (bar && (bar->drawBase() || qobject_cast<const QTabWidget *>(bar->parentWidget()))) {
                 if (south && clearRect.height() > 1)
                     clearRect.adjust(0, 1, 0, 0);
                 else if (west && clearRect.width() > 1)

@@ -301,6 +301,30 @@ void WinUI3TabsTest::tabifiedDockSurface()
             QCOMPARE(image.pixelColor(physical), fill);
         }
     }
+    // QMainWindow's dock tab bar paints its base before the individual tabs.
+    // The backdrop erase must keep that base beneath the unselected tab.
+    QVERIFY(bar->drawBase());
+    bar->setCurrentIndex(1);
+    QPoint baseSample = bar->tabRect(0).center();
+    if (orientation == 0)
+        baseSample.setY(bar->rect().bottom());
+    else if (orientation == 1)
+        baseSample.setY(bar->rect().top());
+    else if (orientation == 2)
+        baseSample.setX(bar->rect().right());
+    else
+        baseSample.setX(bar->rect().left());
+    const QImage opaque = bar->grab().toImage();
+    const QPoint sample = baseSample * opaque.devicePixelRatio();
+    QVERIFY(opaque.rect().contains(sample));
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(bar));
+    const QImage composited = bar->grab().toImage();
+    QCOMPARE(composited.pixelColor(sample), opaque.pixelColor(sample));
+    window.setProperty("_winui_backdrop", {});
+    window.setProperty("_winui_backdrop_effective", {});
+
     bar->setFocus();
     bar->setCurrentIndex(0);
     QTest::keyClick(bar, direction == Qt::RightToLeft ? Qt::Key_Left : Qt::Key_Right);
@@ -327,6 +351,7 @@ void WinUI3TabsTest::attachedTabBackdrop()
     window.setProperty("_winui_backdrop", 1);
     window.setProperty("_winui_backdrop_effective", 2);
     QTabBar bar(&window);
+    bar.setDrawBase(false); // This fixture paints the individual tab shape.
     bar.setShape(QTabBar::Shape(shape));
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&bar));
     QStyleOptionTab option;
