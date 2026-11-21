@@ -445,10 +445,8 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         break; // ▦ grid-square fallback for hosts without the icon font
     case Icon::MapDrive:
     case Icon::TVMonitor:
-        return {}; // painted by the vector fallback
     case Icon::Unknown:
-        ucs4 = 0x2754;
-        break; // ❔ question-mark ornament; closest circled-? BMP fallback
+        return {}; // painted by the vector fallback
     case Icon::Count:
         break; // sentinel, never rendered
     }
@@ -469,6 +467,7 @@ bool hasVectorFallback(Icon icon)
     case Icon::Close:
     case Icon::MapDrive:
     case Icon::TVMonitor:
+    case Icon::Unknown:
     case Icon::Restore:
     case Icon::Save:
     case Icon::SortAscending:
@@ -575,6 +574,14 @@ QPainterPath vectorFallbackPath(Icon icon)
         path.lineTo(6, 21);
         path.moveTo(16, 17);
         path.lineTo(18, 21);
+        break;
+    case Icon::Unknown:
+        path.addEllipse(QRectF(3, 3, 18, 18));
+        path.moveTo(9, 9);
+        path.cubicTo(9, 6.5, 15, 6.5, 15, 9.5);
+        path.cubicTo(15, 12, 12, 11.5, 12, 14);
+        path.moveTo(12, 17);
+        path.lineTo(12, 17.15);
         break;
     case Icon::SortAscending:
     case Icon::SortDescending: {

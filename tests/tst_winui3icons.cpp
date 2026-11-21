@@ -63,7 +63,7 @@ private slots:
     void simpleMarksUseVectorFallback();
     void complexSymbolsUseUnicodeFallback();
     void saveIconUsesVectorFallbackWithoutSegoe();
-    void mappedDeviceFallbacksHonorTint();
+    void addedIconFallbacksHonorTint();
     void trailingGlyphsRenderInk();
 };
 
@@ -263,7 +263,7 @@ void WinUI3IconsTest::saveIconUsesVectorFallbackWithoutSegoe()
     QVERIFY(ink * 4 < bounds.width() * bounds.height() * 3);
 }
 
-void WinUI3IconsTest::mappedDeviceFallbacksHonorTint()
+void WinUI3IconsTest::addedIconFallbacksHonorTint()
 {
     struct RestoreFontDetection
     {
@@ -272,7 +272,8 @@ void WinUI3IconsTest::mappedDeviceFallbacksHonorTint()
     WinUI3::Private::setIconFontAvailabilityOverrideForTest(0);
     QVERIFY(!WinUI3::Private::segoeIconFontAvailable());
 
-    for (const auto glyph : { WinUI3::Icon::MapDrive, WinUI3::Icon::TVMonitor }) {
+    for (const auto glyph :
+         { WinUI3::Icon::MapDrive, WinUI3::Icon::TVMonitor, WinUI3::Icon::Unknown }) {
         for (const QColor tint : { QColor(Qt::red), QColor(Qt::green) }) {
             const QPixmap pixmap = WinUI3::icon(glyph, tint).pixmap(24, 24);
             QCOMPARE(pixmap.size(), QSize(24, 24));

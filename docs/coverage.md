@@ -39,8 +39,8 @@ grid F0E2 (GridView) and circled question mark E9CE (Unknown), all PUA and
 present in the pinned Segoe icon fonts.
 Delete E74D (trash) is the exact dialog Discard
 counterpart: Qt's Windows reference draws the same trash mark, so the pairing
-is not a lookalike. Hosts without the Segoe icon font use tintable vector fallbacks for
-MapDrive and TVMonitor, and Unicode fallbacks for the other added glyphs.
+is not a lookalike. On hosts without Segoe, MapDrive, TVMonitor, and Unknown use tintable vector
+fallbacks. The other added glyphs use Unicode fallbacks.
 
 Status: partial — 64 `QStyle::StandardPixmap` values now resolve to an **exact**
 Fluent counterpart; the rest stay on the base style. Pairing rules: a lookalike
