@@ -150,6 +150,9 @@ private slots:
     void settingsCardExpansion();
     void settingsCardContentGeometry_data();
     void settingsCardContentGeometry();
+    void settingsCardWrappedContentFits_data();
+    void settingsCardWrappedContentFits();
+    void settingsCardReplacesDestroyedContent();
     void settingsCardNestedExpansionSeparator_data();
     void settingsCardNestedExpansionSeparator();
     void settingsCardInheritedDirectionAndTrailingInset_data();
@@ -910,6 +913,71 @@ void WinUI3SettingsCardTest::settingsCardContentGeometry()
 void WinUI3SettingsCardTest::settingsCardNestedExpansionSeparator_data()
 {
     settingsCardContentGeometry_data();
+}
+
+void WinUI3SettingsCardTest::settingsCardWrappedContentFits_data()
+{
+    settingsCardContentGeometry_data();
+}
+
+void WinUI3SettingsCardTest::settingsCardWrappedContentFits()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    qobject_cast<WinUI3::Style *>(qApp->style())
+            ->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+    DisableAnimationsGuard animations;
+    QWidget window;
+    QVBoxLayout layout(&window);
+    WinUI3::SettingsCard card(&window);
+    layout.addWidget(&card);
+    layout.addStretch();
+    WinUI3::Style::setDensityMode(
+            &card, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    card.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    card.setTitle(QStringLiteral("Advanced"));
+    auto *details = new QLabel(QStringLiteral(
+            "Some longer details that wrap over several lines when the Settings card is narrow. "
+            "This text must remain fully visible when the window is resized."));
+    details->setWordWrap(true);
+    card.setExpandableWidget(details);
+    auto *host = details->parentWidget();
+    window.resize(310, 320);
+    window.show();
+    card.setExpanded(true);
+    QCoreApplication::processEvents();
+    QCOMPARE(details->width(), host->width() - 104);
+    QVERIFY(details->height() >= details->heightForWidth(details->width()));
+    const int narrowHeight = host->height();
+
+    window.resize(510, 320);
+    QCoreApplication::processEvents();
+    QCOMPARE(details->width(), host->width() - 104);
+    QTRY_VERIFY(host->height() < narrowHeight);
+    QVERIFY(details->height() >= details->heightForWidth(details->width()));
+}
+
+void WinUI3SettingsCardTest::settingsCardReplacesDestroyedContent()
+{
+    DisableAnimationsGuard animations;
+    WinUI3::SettingsCard card;
+    card.setTitle(QStringLiteral("Advanced"));
+    auto *first = new QLabel(QStringLiteral("First"));
+    card.setExpandableWidget(first);
+    QWidget *host = first->parentWidget();
+    card.show();
+    card.setExpanded(true);
+    delete first;
+    QVERIFY(!card.expandableWidget());
+    QVERIFY(!card.isExpanded());
+
+    QLabel replacement(QStringLiteral("Replacement"));
+    card.setExpandableWidget(&replacement);
+    QCOMPARE(replacement.parentWidget(), host);
+    QCOMPARE(host->layout()->indexOf(&replacement), 0);
+    card.setExpanded(true);
+    QTRY_VERIFY(replacement.isVisible());
 }
 void WinUI3SettingsCardTest::settingsCardNestedExpansionSeparator()
 {

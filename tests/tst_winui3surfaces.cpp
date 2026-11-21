@@ -936,9 +936,18 @@ void WinUI3SurfacesTest::progressAnimationAndOrientations()
     bar.setRange(0, 0);
     bar.resize(240, 24);
     bar.show();
-    QImage first = bar.grab().toImage();
-    QTest::qWait(40);
-    QImage second = bar.grab().toImage();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    const QImage first = bar.grab().toImage();
+    QVERIFY(!first.isNull());
+    // The phase advances on a wall-clock timer, so one fixed wait can sample
+    // the same quantized indicator position on a busy runner (as happened in
+    // CI). Keep sampling until the painted frame actually moves; a stopped
+    // animation still fails after the bounded retry.
+    QImage second = first;
+    for (int attempt = 0; attempt < 15 && second == first; ++attempt) {
+        QTest::qWait(20);
+        second = bar.grab().toImage();
+    }
     QVERIFY(first != second);
     auto *timer = style->findChild<QTimer *>(QStringLiteral("_winui_progress_timer"),
                                              Qt::FindDirectChildrenOnly);
