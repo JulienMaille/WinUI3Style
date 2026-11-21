@@ -35,6 +35,7 @@ struct DensityMetrics
     int tableItemHeight;
     int navigationItemHeight;
     int headerHeight;
+    int dockTitleHeight;
 
     // Controls not covered by the Compact Sizing page retain their current
     // contract.  Keeping their values here prevents a later density change
@@ -88,10 +89,10 @@ struct DensityMetrics
     int treeIndent;
 };
 
-// All 54 fields are int, so the struct size pins the field count: adding,
+// All 55 fields are int, so the struct size pins the field count: adding,
 // removing, or reordering a field breaks the static_assert below instead of
 // silently misaligning the positional tables that used to live here.
-static_assert(sizeof(DensityMetrics) == 54 * sizeof(int),
+static_assert(sizeof(DensityMetrics) == 55 * sizeof(int),
               "DensityMetrics field count changed: update the builder functions below");
 
 // The project builds as C++17 (see CMAKE_CXX_STANDARD), so C++20
@@ -115,6 +116,7 @@ inline constexpr DensityMetrics makeStandardDensityMetrics()
     m.tableItemHeight = 36;
     m.navigationItemHeight = 40;
     m.headerHeight = 32;
+    m.dockTitleHeight = DockTitleHeight;
     // Existing contracts for controls outside that list.
     m.buttonHeight = 32;
     m.toolButtonHeight = 32;
@@ -180,6 +182,7 @@ inline constexpr DensityMetrics makeCompactDensityMetrics()
     m.tableItemHeight = CompactTableRowHeight;
     m.navigationItemHeight = 32;
     m.headerHeight = 32;
+    m.dockTitleHeight = CompactDockTitleHeight;
     // Buttons, tabs, and sliders are not on that resource page; preserve.
     m.buttonHeight = 32;
     m.toolButtonHeight = 32;

@@ -293,11 +293,17 @@ bool calendarNavigationBarWidget(const QWidget *widget)
             && qobject_cast<const QCalendarWidget *>(widget->parentWidget());
 }
 
-bool drawWidgetBackdropPrimitive(const Style *, const QStyleOption *option, QPainter *painter,
+bool drawWidgetBackdropPrimitive(const Style *style, const QStyleOption *option, QPainter *painter,
                                  const QWidget *widget)
 {
     if (!option || !painter)
         return false;
+    if (dockTitleBarWidget(widget)) {
+        QStyleOptionDockWidget dock;
+        dockTitleStyleOption(widget, &dock);
+        style->drawControl(QStyle::CE_DockWidgetTitle, &dock, painter, widget);
+        return true;
+    }
     if (calendarNavigationBarWidget(widget)) {
         if (widget->window()->windowType() == Qt::Popup) {
             const QColor surface = widget->window()->palette().color(QPalette::Window);
@@ -1519,7 +1525,8 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->save();
             // Veil over a live material (VeiledCardAlpha, same recipe as
             // CC_GroupBox): erase-then-opaque still bands over Mica.
-            painter->fillRect(dock->rect, veiledCard(t.layer, paintsDirectlyOnBackdrop(widget)));
+            painter->fillRect(dock->rect,
+                              cardRefillTone(option->palette, paintsDirectlyOnBackdrop(widget)));
             painter->setPen(t.stroke);
             if (dock->verticalTitleBar)
                 painter->drawLine(dock->rect.topRight(), dock->rect.bottomRight());
