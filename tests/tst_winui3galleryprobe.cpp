@@ -243,7 +243,9 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
     QTRY_VERIFY(tip->isVisible());
     const auto t = WinUI3::Private::tokens(slider->palette());
     QCOMPARE(t.dark, dark);
-    QCOMPARE(t.tooltipStroke, dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15));
+    // The tooltip outline is the shared Button outline gradient.
+    QCOMPARE(t.stroke, dark ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 15));
+    QCOMPARE(t.strokeSecondary, dark ? QColor(255, 255, 255, 24) : QColor(0, 0, 0, 41));
     QCOMPARE(t.tooltipFill, dark ? QColor(44, 44, 44) : QColor(249, 249, 249));
     const QImage actual = tip->grab().toImage().convertToFormat(QImage::Format_ARGB32);
     QImage expected(actual.size(), QImage::Format_ARGB32_Premultiplied);
