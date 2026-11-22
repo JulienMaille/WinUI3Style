@@ -17,6 +17,7 @@
 #include <QImage>
 #include <QPainter>
 #include <QScrollBar>
+#include <QSlider>
 #include <QStyleOptionSlider>
 #include <QtTest>
 
@@ -32,6 +33,7 @@ private slots:
     void disabledBarGrooveKeepsRoleAlpha();
     void horizontalScrollBarRtlThumbPosition_data();
     void horizontalScrollBarRtlThumbPosition();
+    void sliderTickCentersMatchHandleCenters();
 };
 
 void WinUI3ScrollBarCardTest::initTestCase()
@@ -201,6 +203,63 @@ void WinUI3ScrollBarCardTest::disabledBarGrooveKeepsRoleAlpha()
     }
     style->setDensityMode(WinUI3::DensityMode::Standard);
     style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+void WinUI3ScrollBarCardTest::sliderTickCentersMatchHandleCenters()
+{
+    QSlider slider(Qt::Horizontal);
+    slider.setRange(0, 100);
+    slider.setTickInterval(25);
+    slider.setValue(40);
+    slider.resize(200, 40);
+    slider.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&slider));
+
+    QStyleOptionSlider option;
+    option.initFrom(&slider);
+    option.orientation = Qt::Horizontal;
+    option.minimum = slider.minimum();
+    option.maximum = slider.maximum();
+    option.sliderPosition = slider.sliderPosition();
+    option.sliderValue = slider.value();
+    option.rect = slider.rect();
+    const QRect groove = slider.style()->subControlRect(QStyle::CC_Slider, &option,
+                                                        QStyle::SC_SliderGroove, &slider);
+    QList<int> handleCenters;
+    for (int value : { 0, 25, 50, 75, 100 }) {
+        QStyleOptionSlider tickOption(option);
+        tickOption.sliderPosition = value;
+        handleCenters.append(slider.style()
+                                     ->subControlRect(QStyle::CC_Slider, &tickOption,
+                                                      QStyle::SC_SliderHandle, &slider)
+                                     .center()
+                                     .x());
+    }
+    const auto render = [&slider, &option](QSlider::TickPosition position) {
+        QStyleOptionSlider tickOption(option);
+        tickOption.tickPosition = position;
+        QImage image(slider.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        slider.style()->drawComplexControl(QStyle::CC_Slider, &tickOption, &painter, &slider);
+        return image;
+    };
+    const QImage withTicks = render(QSlider::TicksAbove);
+    const QImage withoutTicks = render(QSlider::NoTicks);
+    QList<int> tickColumns;
+    for (int x = 0; x < slider.width(); ++x) {
+        for (int y = 0; y < groove.top() - 4; ++y) {
+            if (withTicks.pixelColor(x, y) != withoutTicks.pixelColor(x, y)) {
+                tickColumns.append(x);
+                break;
+            }
+        }
+    }
+    for (int center : handleCenters)
+        QVERIFY2(tickColumns.contains(center),
+                 qPrintable(QStringLiteral("handle center %1 missing from %2 tick columns")
+                                    .arg(center)
+                                    .arg(tickColumns.size())));
 }
 
 QTEST_MAIN(WinUI3ScrollBarCardTest)
