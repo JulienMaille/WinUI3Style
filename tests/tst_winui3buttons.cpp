@@ -109,6 +109,7 @@ private slots:
     void iconPixmapCacheDprAndPalette();
     void commandLinkButtonContract();
     void toolButtonIconVerticalCenter();
+    void pushButtonLabelUsesWinuiVerticalPadding();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
     void flatPushButtonUsesFlatVisual_data();
@@ -1136,6 +1137,91 @@ void WinUI3ButtonsTest::buttonControlOwnershipByElement()
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
     style->setDensityMode(WinUI3::DensityMode::Standard);
+}
+
+void WinUI3ButtonsTest::pushButtonLabelUsesWinuiVerticalPadding()
+{
+    // Issue #119: the WinUI Button template pins ButtonPadding to 11,5,11,6
+    // (Button_themeresources.xaml, microsoft-ui-xaml 9f89c2da; mirrored in
+    // docs/winui-2.4/manifest.json). ContentPresenter centres the label in that
+    // padded box, half a pixel above the geometric centre. Qt integer rects
+    // round that to one logical pixel, so the label must sit one row higher
+    // than a symmetric-content render. The reference is rendered in this same
+    // test, so a font or Qt-raster change cannot silently move the expectation.
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const auto restoreDensity = style->densityMode();
+    QCOMPARE(WinUI3::Private::ButtonPaddingBottom - WinUI3::Private::ButtonPaddingTop, 1);
+    QCOMPARE(WinUI3::Private::WinuiVerticalContentCenterOffset, 1);
+
+    const auto firstInkRow = [](const QImage &image, const QImage *baseline) {
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 8; x < image.width() - 8; ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (baseline) {
+                    const QColor plain = baseline->pixelColor(x, y);
+                    if (pixel.alpha() != plain.alpha() || pixel.red() != plain.red()
+                        || pixel.green() != plain.green() || pixel.blue() != plain.blue())
+                        return y;
+                } else if (pixel.alpha() > 0) {
+                    return y;
+                }
+            }
+        }
+        return -1;
+    };
+
+    for (const WinUI3::DensityMode density :
+         { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        style->setDensityMode(density);
+        for (const int height : { 32, 24 }) {
+            QPushButton button(QStringLiteral("Standard"));
+            button.setFixedSize(160, height);
+            QStyleOptionButton option;
+            option.initFrom(&button);
+            option.rect = QRect(0, 0, 160, height);
+            option.text = button.text();
+
+            // Geometry assertion paired with the ink assertion below: the
+            // content centre must be one row above the control centre.
+            const QRect symmetric = option.rect.adjusted(8, 4, -8, -4);
+            const QRect content =
+                    style->subElementRect(QStyle::SE_PushButtonContents, &option, &button);
+            QCOMPARE(content,
+                     symmetric.translated(0, -WinUI3::Private::WinuiVerticalContentCenterOffset));
+            QCOMPARE(content.center().y(), symmetric.center().y() - 1);
+
+            QImage image(160, height, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+            QStyleOptionButton blank = option;
+            blank.text.clear();
+            QImage empty(160, height, QImage::Format_ARGB32_Premultiplied);
+            empty.fill(Qt::transparent);
+            {
+                QPainter painter(&image);
+                style->drawControl(QStyle::CE_PushButton, &option, &painter, &button);
+                QPainter emptyPainter(&empty);
+                style->drawControl(QStyle::CE_PushButton, &blank, &emptyPainter, &button);
+            }
+            const int styledTop = firstInkRow(image, &empty);
+            QVERIFY2(styledTop >= 0, "the labelled button painted no text ink");
+
+            QImage reference(160, height, QImage::Format_ARGB32_Premultiplied);
+            reference.fill(Qt::transparent);
+            {
+                QPainter painter(&reference);
+                QFont grayFont = button.font();
+                grayFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+                        grayFont.styleStrategy() | QFont::NoSubpixelAntialias));
+                painter.setFont(grayFont);
+                painter.drawText(symmetric, Qt::AlignCenter | Qt::TextShowMnemonic, button.text());
+            }
+            const int symmetricTop = firstInkRow(reference, nullptr);
+            QVERIFY2(symmetricTop >= 0, "the symmetric reference painted no text ink");
+            QCOMPARE(styledTop, symmetricTop - WinUI3::Private::WinuiVerticalContentCenterOffset);
+        }
+    }
+    style->setDensityMode(restoreDensity);
 }
 
 QTEST_MAIN(WinUI3ButtonsTest)

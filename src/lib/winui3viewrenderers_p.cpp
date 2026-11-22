@@ -651,6 +651,10 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                 return true;
             QRect content = style->subControlRect(QStyle::CC_ComboBox, combo,
                                                   QStyle::SC_ComboBoxEditField, widget);
+            // ComboBox_themeresources.xaml (9f89c2da): ComboBoxPadding 12,5,0,7
+            // and ComboBoxItemThemePadding 11,5,11,7 put the label one pixel
+            // above the geometric centre, just like the Button fix (#119).
+            content.translate(0, -WinuiVerticalContentCenterOffset);
             if (!combo->currentIcon.isNull()) {
                 const QSize iconSize = combo->iconSize.isValid() ? combo->iconSize : QSize(16, 16);
                 const QRect logicalIcon(content.left(),

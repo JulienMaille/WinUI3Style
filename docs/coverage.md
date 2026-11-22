@@ -1,5 +1,72 @@
 # Control coverage ledger
 
+## Issue #119 — text one pixel too low (2026-11-22)
+
+Mapping: `QPushButton` → WinUI `Button`, `QComboBox` → `ComboBox` (closed
+label), `QMenu` item → `MenuFlyoutItem`, `QLineEdit` → `TextBox`. These are the
+direct mappings whose XAML template centres content vertically; the style owns
+the paint path in each case.
+
+Pinned source (`microsoft-ui-xaml` commit
+`9f89c2da5a5502c263d9268fee224697c47ecb6e`; URLs in
+`docs/winui-2.4/manifest.json`, values mirrored in `manifest.json.geometry`):
+`Button_themeresources.xaml` `ButtonPadding = 11,5,11,6`;
+`TextBox_themeresources_perf2026.xaml` `TextControlThemePadding = 10,5,10,6`;
+`ComboBox_themeresources.xaml` `ComboBoxPadding = 12,5,0,7` and
+`ComboBoxItemThemePadding = 11,5,11,7`;
+`MenuFlyout_themeresources.xaml` `MenuFlyoutItemThemePadding = 11,8,11,9`
+(Narrow `11,4,11,5`); `TabView_themeresources.xaml`
+`TabViewSelectedItemHeaderPadding = 9,3,5,4` versus the unselected
+`8,3,4,3`/`8,3,8,3`. In every case the content presenter centres its content
+inside the padded box, so the text centre is **half a device pixel above** the
+geometric centre. Qt's integer sub-element rects round that to one logical
+pixel. The project already encoded this for editors (`SE_LineEditContents` =
+`10,5,-6,-6`), but the button content rect was symmetric (`8,4,-8,-4`) and the
+combo-label and menu-item text rects spanned the full control rect: all three
+painted their text one row too low.
+
+Defect mechanism measured on the local Qt 6.12 offscreen raster: a 160x32
+`QPushButton` labelled "Standard" painted its first ink row at y=12 with the
+symmetric content rect; after applying the pinned one-pixel upward content
+offset it paints at y=11 (ink centroid 17.99 → 16.99). The same one-row shift
+applies at 24 px. This is the offset the issue screenshot shows between the
+official Gallery button and the local one.
+
+Fix: `src/lib/winui3tokens_p.h` owns the pinned padding pair and the derived
+`WinuiVerticalContentCenterOffset = 1`. `SE_PushButtonContents` translates its
+established symmetric box by that offset, `CE_ComboBoxLabel` translates the
+edit-field slot before text/icon paint, and `CE_MenuItem` translates its label
+and accelerator rects. No QSS, no new widget, no per-widget paint override.
+
+Audit of the remaining text-bearing mappings (pinned values above):
+`CheckBox` (`8,5,0,0`) and `RadioButton` (`8,6,0,0`) set
+`VerticalContentAlignment="Top"`, so they are intentionally **not** centred and
+get no offset; `ListViewItem` uses `16,0,12,0` (symmetric vertical), so no
+offset; `TabView` only the selected header carries the 3/4 asymmetry and its
+Qt tab label has state-dependent geometry, so it is left for a separate mapped
+change rather than guessed here; `ToolButton`/AppBarButton uses a different
+icon+label composition (`AppBarButtonOverflowTextLabelPadding = 0,5,0,8` is the
+overflow menu label, not the toolbar button), so no change. This is an audit
+result, not an unearned "verified" claim for those controls.
+
+Tests: `pushButtonLabelUsesWinuiVerticalPadding` (buttons suite, Standard and
+Compact densities, 32/24 px) pairs the content-rect `QCOMPARE` with a
+rendered-ink comparison against a symmetric reference drawn in the same test;
+`winui3style_textvertical` adds the pinned-pair/token assertion, the editor
+`SE_LineEditContents` asymmetry guard, and the same ink-versus-reference
+comparison for the closed combo label and menu item. Each new test was confirmed
+RED with the one-pixel translation removed (geometry and ink both fail), then
+GREEN after restoring it.
+
+Status: fixed 2026-11-22 for local rendering. The deterministic matrix was
+recaptured with the rebuilt style and approved in both gates: 82 byte-identical
+files on Qt 6.12 (`tests/baselines/gallery`) and the six Qt 6.8.3-specific frames
+in `tests/baselines/gallery-qt/6.8.3`, with two fresh runs byte-identical in
+each gate. Isolating the old and new style plugins confirms the only visual
+change is the intended text-ink shift (button x12..67 y11..22, combo x12..87,
+menu rows). A native Windows side-by-side replay of the exact issue input
+sequence is still outstanding, so this row stays **partial**, not verified.
+
 ## Issue #112 — title / body-strong typography (2026-11-22)
 
 Mapping: a `QLabel` page heading (Gallery `setHeadingFont`) and the

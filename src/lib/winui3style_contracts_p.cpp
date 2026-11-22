@@ -559,8 +559,14 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         return {};
     const DensityMode mode = densityModeFor(widget, style);
     const DensityMetrics &density = densityMetrics(mode);
-    if (element == QStyle::SE_PushButtonContents)
-        return option->rect.adjusted(8, 4, -8, -4);
+    if (element == QStyle::SE_PushButtonContents) {
+        // WinUI Button_themeresources.xaml pins ButtonPadding to 11,5,11,6;
+        // the ContentPresenter centres the label above the geometric centre.
+        // Translate the established Qt content box by that pinned asymmetry
+        // instead of inventing a new inset pair (issue #119).
+        const QRect logical = option->rect.adjusted(8, 4, -8, -4);
+        return logical.translated(0, -WinuiVerticalContentCenterOffset);
+    }
     if (element == QStyle::SE_ToolButtonLayoutItem)
         // QToolBar interprets this sub-element as external layout margins,
         // not content padding. Insets here enlarge adjacent QToolButtons into
