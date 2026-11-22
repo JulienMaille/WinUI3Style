@@ -972,6 +972,10 @@ void WinUI3MenusTest::dockWidgetContract()
 
 void WinUI3MenusTest::statusBarAndSizeGripContract()
 {
+    // Issue #110: WinUI (and Windows 11 itself) paints no resize-grip affordance,
+    // so the style must not draw the diagonal dot triangle either. Qt keeps the
+    // QSizeGrip child - the widget still owns the hit area and resizes the
+    // window - the style simply consumes CE_SizeGrip with no ink.
     QMainWindow window;
     window.resize(420, 240);
     QStatusBar *bar = window.statusBar();
@@ -983,6 +987,7 @@ void WinUI3MenusTest::statusBarAndSizeGripContract()
     QVERIFY(grip);
     QVERIFY(grip->isVisible());
     QCOMPARE(window.style()->pixelMetric(QStyle::PM_SizeGripSize, nullptr, grip), 16);
+    QCOMPARE(grip->width(), grip->height());
     const QImage barImage = bar->grab().toImage();
     QVERIFY(barImage.pixelColor(barImage.width() / 2, 0)
             != barImage.pixelColor(barImage.width() / 2, qMin(barImage.height() - 1, 6)));
@@ -991,11 +996,11 @@ void WinUI3MenusTest::statusBarAndSizeGripContract()
     bool hasGripInk = false;
     for (int y = 0; y < gripImage.height() && !hasGripInk; ++y)
         for (int x = 0; x < gripImage.width(); ++x)
-            if (colorDistance(gripImage.pixelColor(x, y), gripBackground) > 24) {
+            if (colorDistance(gripImage.pixelColor(x, y), gripBackground) > 8) {
                 hasGripInk = true;
                 break;
             }
-    QVERIFY(hasGripInk);
+    QVERIFY2(!hasGripInk, "the style painted a resize grip (issue #110)");
 }
 
 void WinUI3MenusTest::menuDoubleOpenKeepsVisualParity()
