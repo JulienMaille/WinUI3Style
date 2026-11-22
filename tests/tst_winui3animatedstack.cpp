@@ -29,6 +29,7 @@ private slots:
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
     void animatedStackDeferredReplay();
+    void animatedStackNoAnimationTracksRemovedDestination();
     void animatedStackOverlayOverCompositedStaysTransparent();
 };
 
@@ -240,6 +241,37 @@ void WinUI3AnimatedStackTest::animatedStackDeferredReplay()
     // so the original page 2 now lives at index 1.
     QCOMPARE(stack.currentIndex(), 1);
     QCOMPARE(static_cast<QLabel *>(stack.currentWidget())->text(), QStringLiteral("2"));
+}
+
+void WinUI3AnimatedStackTest::animatedStackNoAnimationTracksRemovedDestination()
+{
+    WinUI3::AnimatedStack stack;
+    stack.setDuration(0); // take the synchronous, no-animation path
+    for (int i = 0; i < 3; ++i)
+        stack.addWidget(new QLabel(QString::number(i)));
+    stack.resize(240, 80);
+    stack.show();
+    QCOMPARE(stack.currentIndex(), 0);
+
+    QList<int> finished;
+    connect(&stack, &WinUI3::AnimatedStack::transitionFinished, &stack,
+            [&](int index) { finished.append(index); });
+    QLabel *destination = static_cast<QLabel *>(stack.widget(1));
+    connect(&stack, &QStackedWidget::currentChanged, &stack, [&](int index) {
+        if (index == 1)
+            stack.removeWidget(stack.widget(0)); // earlier page removed synchronously
+    });
+
+    stack.setCurrentIndex(1);
+
+    // The destination widget shifted from index 1 to 0. The completion index
+    // and the laid-out page must both follow that widget, not the requested
+    // index (which now names a different page).
+    QCOMPARE(stack.indexOf(destination), 0);
+    QCOMPARE(stack.currentIndex(), 0);
+    QCOMPARE(finished.size(), 1);
+    QCOMPARE(finished.constFirst(), stack.currentIndex());
+    QCOMPARE(destination->geometry(), stack.rect());
 }
 
 void WinUI3AnimatedStackTest::animatedStackOverlayOverCompositedStaysTransparent()

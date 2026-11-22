@@ -137,12 +137,20 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         cancelTransition();
     }
     if (m_duration == 0 || !isVisible() || !Style::animationsAllowed()) {
+        // A currentChanged handler may remove pages synchronously, shifting
+        // the requested index. Retain the destination widget across the
+        // callback (QPointer) and resolve its dense index afterwards: the
+        // requested index can now name a different page. Geometry and the
+        // completion signal must both refer to the selected widget.
+        QPointer<QWidget> destination = widget(index);
         m_transitionStarting = true;
         QStackedWidget::setCurrentIndex(index);
         m_transitionStarting = false;
-        if (QWidget *page = widget(index))
+        const int destinationIndex = destination ? indexOf(destination) : -1;
+        const int resolved = destinationIndex >= 0 ? destinationIndex : currentIndex();
+        if (QWidget *page = widget(resolved))
             page->setGeometry(rect());
-        emit transitionFinished(index);
+        emit transitionFinished(resolved);
         if (m_deferredIndex >= 0) {
             const int deferred = m_deferredIndex;
             const Transition deferredTransition = m_deferredTransition;
