@@ -977,31 +977,14 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
     // facade chain of separate `if (element == …)` blocks, nothing else may
     // fall through here. An unguarded tail once painted these dots on every
     // plain QFrame (CE_ShapedFrame without the settings-card property).
-    // CE_SizeGrip. Reached only for that element: every branch above returns
-    // on match (or false on a failed option cast), so unlike the pre-S1
-    // facade chain of separate `if (element == …)` blocks, nothing else may
-    // fall through here. An unguarded tail once painted these dots on every
-    // plain QFrame (CE_ShapedFrame without the settings-card property).
     if (element != QStyle::CE_SizeGrip)
         return false;
-    const auto *grip = qstyleoption_cast<const QStyleOptionSizeGrip *>(option);
-    const Qt::Corner corner = grip ? grip->corner : Qt::BottomRightCorner;
-    const bool right = corner == Qt::TopRightCorner || corner == Qt::BottomRightCorner;
-    const bool bottom = corner == Qt::BottomLeftCorner || corner == Qt::BottomRightCorner;
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(t.textTertiary);
-    for (int row = 0; row < 3; ++row) {
-        for (int column = 0; column <= row; ++column) {
-            const int dx = 3 + column * 4;
-            const int dy = 3 + row * 4;
-            const qreal x = right ? option->rect.right() - dx : option->rect.left() + dx;
-            const qreal y = bottom ? option->rect.bottom() - dy : option->rect.top() + dy;
-            painter->drawEllipse(QPointF(x, y), 1.0, 1.0);
-        }
-    }
-    painter->restore();
+    // Issue #110: neither WinUI nor Windows 11 paints a resize-grip affordance,
+    // so the diagonal dot triangle the status bar corner used to carry is gone.
+    // Qt still owns the QSizeGrip child - PM_SizeGripSize keeps its hit area,
+    // the widget stays visible and resizes the window - the style simply
+    // consumes the element so the base style cannot draw its own dots.
+    Q_UNUSED(painter)
     return true;
 }
 
