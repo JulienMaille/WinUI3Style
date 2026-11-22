@@ -899,7 +899,12 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             }
             const qint64 range = qint64(bar->maximum) - qint64(bar->minimum);
             const qint64 value = qint64(bar->progress) - qint64(bar->minimum);
-            const qreal ratio = range > 0 ? qBound<qreal>(0, qreal(value) / qreal(range), 1) : 0;
+            // The busy [0, 0] range took the indeterminate branch above. A
+            // nonzero range with minimum == maximum is a completed bar: its
+            // only valid value equals the bound, so it paints 100% rather
+            // than an empty indicator.
+            const qreal ratio = range > 0 ? qBound<qreal>(0, qreal(value) / qreal(range), 1)
+                                          : (value >= 0 ? 1.0 : 0.0);
             QRect fill = track;
             if (horizontal) {
                 const int length = qRound(track.width() * ratio);

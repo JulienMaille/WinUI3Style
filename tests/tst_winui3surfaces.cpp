@@ -75,6 +75,7 @@ private slots:
     void tooltipLabelFollowsTemplateMetrics();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
+    void progressCompletedSingleValueRange();
     void progressTimerScalingAndLifecycle();
     void visibleProgressTracksMotionPreference();
 };
@@ -1038,6 +1039,31 @@ void WinUI3SurfacesTest::progressTextAndDisabledPaletteContract()
     }
     QVERIFY(foundDisabledText);
     QVERIFY(!foundActiveText);
+}
+
+void WinUI3SurfacesTest::progressCompletedSingleValueRange()
+{
+    QProgressBar bar;
+    bar.resize(240, 24);
+    const auto render = [&bar](int minimum, int maximum, int value) {
+        QStyleOptionProgressBar option;
+        option.initFrom(&bar);
+        option.rect = bar.rect();
+        option.minimum = minimum;
+        option.maximum = maximum;
+        option.progress = value;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        bar.style()->drawControl(QStyle::CE_ProgressBarContents, &option, &painter, &bar);
+        painter.end();
+        return image;
+    };
+
+    // A completed nonzero single-value range is a normal 100% bar, not the
+    // busy [0,0] indeterminate branch. It must paint exactly like a full
+    // conventional range.
+    QCOMPARE(render(50, 50, 50), render(0, 100, 100));
 }
 
 void WinUI3SurfacesTest::progressTimerScalingAndLifecycle()
