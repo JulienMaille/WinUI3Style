@@ -109,6 +109,12 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_density_tests winui3styleplugin)
 endif()
 
+add_executable(winui3style_typography_tests tst_winui3typography.cpp)
+target_include_directories(winui3style_typography_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
+target_link_libraries(winui3style_typography_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+
 # Fluent icon font-cache mechanism tests (thread isolation + value
 # semantics of the cached QFont). Same shape as winui3style_density_tests:
 # links the public library plus Qt Test/Widgets, resolves the private test
@@ -558,6 +564,10 @@ add_test(NAME winui3style_density_unit
          COMMAND winui3style_density_tests)
 add_test(NAME winui3style_density_api_unit
          COMMAND winui3style_density_api_tests)
+add_test(NAME winui3style_typography_unit
+         COMMAND winui3style_typography_tests
+             -o ${CMAKE_CURRENT_BINARY_DIR}/winui3style_typography_unit.txt,txt
+             -o -,txt)
 add_test(NAME winui3style_density_widgets_unit
          COMMAND winui3style_density_widgets_tests)
 add_test(NAME winui3style_icons_unit
@@ -698,6 +708,9 @@ set_tests_properties(winui3style_density_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_density_api_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_typography_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_density_widgets_unit PROPERTIES

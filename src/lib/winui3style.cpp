@@ -28,6 +28,7 @@
 #include "winui3tableeditors_p.h"
 #include "winui3theme_p.h"
 #include "winui3tokens_p.h"
+#include "winui3typography_p.h"
 #include "winui3appearancewatcher_p.h"
 
 #include <QAbstractButton>
@@ -608,8 +609,9 @@ public:
         m_syncing = true;
         const bool vertical = m_dock->features() & QDockWidget::DockWidgetVerticalTitleBar;
         const int padding = (densityMetricsFor(m_dock).dockTitleHeight - DockTitleButtonExtent) / 2;
-        QFont font = m_title->font();
-        font.setWeight(QFont::DemiBold);
+        // Dock titles use BodyStrong typography (issue #112): inherited
+        // SemiBold of the generic variable family, not Bold of the Text face.
+        const QFont font = Private::winuiStrongFont(m_title->font());
         const int contentExtent = qMax(DockTitleButtonExtent, QFontMetrics(font).height());
         const int extent = contentExtent + 2 * padding;
         const QSize strutSize = vertical ? QSize(contentExtent, 0) : QSize(0, contentExtent);
@@ -2362,9 +2364,17 @@ void Style::polish(QWidget *widget)
         // The compiled SettingsCard is Fixed vertically so a stretched page
         // gives spare height to its trailing stretch, not to the header band;
         // mirror that for the stock composition.
-        if (frame->property(SettingsCardProperty).toBool())
-            frame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         if (QWidget *expansion = settingsCardExpansionHost(frame)) {
+            // The style owns these while polished; unpolish() must hand the
+            // application's own values back when the style is replaced. Scope
+            // this to the stock composition: the compiled SettingsCard sets
+            // its own size policy and has no expansion host here.
+            remember(frame, originalSizePolicyProperty, QVariant::fromValue(frame->sizePolicy()));
+            frame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            remember(frame, originalFocusPolicyProperty, int(frame->focusPolicy()));
+            remember(frame, originalCursorProperty, QVariant::fromValue(frame->cursor()));
+            remember(frame, originalCardContentHiddenProperty, expansion->isHidden());
+            remember(frame, originalCardContentMaximumHeightProperty, expansion->maximumHeight());
             const bool expanded = frame->property(SettingsCardExpandedProperty).toBool();
             framePropertyRegistry().set(frame, settingsCardExpansionProgressProperty,
                                         expanded ? 1.0 : 0.0);
@@ -2923,10 +2933,27 @@ void Style::unpolish(QWidget *widget)
                 list->setSpacing(widget->property(originalListSpacingProperty).toInt());
         unpolishWizard(widget);
         unpolishContentDialog(widget);
-        if (auto *frame = qobject_cast<QFrame *>(widget))
+        if (auto *frame = qobject_cast<QFrame *>(widget)) {
             if (widget->property(originalFrameShapeProperty).isValid())
                 frame->setFrameShape(static_cast<QFrame::Shape>(
                         widget->property(originalFrameShapeProperty).toInt()));
+            if (QWidget *expansion = settingsCardExpansionHost(frame)) {
+                if (widget->property(originalSizePolicyProperty).isValid())
+                    frame->setSizePolicy(
+                            widget->property(originalSizePolicyProperty).value<QSizePolicy>());
+                if (widget->property(originalFocusPolicyProperty).isValid())
+                    frame->setFocusPolicy(static_cast<Qt::FocusPolicy>(
+                            widget->property(originalFocusPolicyProperty).toInt()));
+                if (widget->property(originalCursorProperty).isValid())
+                    frame->setCursor(widget->property(originalCursorProperty).value<QCursor>());
+                if (widget->property(originalCardContentHiddenProperty).isValid())
+                    expansion->setHidden(
+                            widget->property(originalCardContentHiddenProperty).toBool());
+                if (widget->property(originalCardContentMaximumHeightProperty).isValid())
+                    expansion->setMaximumHeight(
+                            widget->property(originalCardContentMaximumHeightProperty).toInt());
+            }
+        }
         if (widget->property(originalRoleWasValidProperty).isValid()) {
             if (widget->property(originalRoleWasValidProperty).toBool())
                 widget->setProperty(roleProperty, widget->property(originalRoleProperty));
@@ -2959,6 +2986,11 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty(originalTranslucentBackgroundProperty, {});
         widget->setProperty(originalNoSystemBackgroundProperty, {});
         widget->setProperty(originalListSpacingProperty, {});
+        widget->setProperty(originalSizePolicyProperty, {});
+        widget->setProperty(originalFocusPolicyProperty, {});
+        widget->setProperty(originalCursorProperty, {});
+        widget->setProperty(originalCardContentHiddenProperty, {});
+        widget->setProperty(originalCardContentMaximumHeightProperty, {});
         widget->setProperty(originalMinimumSizeProperty, {});
         widget->setProperty(originalMaximumSizeProperty, {});
         widget->setProperty(originalLayoutConstraintProperty, {});

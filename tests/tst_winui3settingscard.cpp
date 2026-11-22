@@ -94,6 +94,7 @@
 
 #include <cmath>
 #include <limits>
+#include <memory>
 
 #include "winui3testhelpers.h"
 
@@ -166,6 +167,8 @@ private slots:
     void settingsCardStockHeaderGeometry_data();
     void settingsCardStockHeaderGeometry();
     void settingsCardStockExpansionInteraction();
+    void settingsCardStyleSwitchRestoresApplicationState();
+    void settingsCardStyleSwitchPreservesHiddenState();
     void settingsCardStockExpansionAnimationLifecycle_data();
     void settingsCardStockExpansionAnimationLifecycle();
     void settingsCardStockTrailingCardStaysInert();
@@ -766,6 +769,50 @@ void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
                  1.0);
 }
 
+void WinUI3SettingsCardTest::settingsCardStyleSwitchRestoresApplicationState()
+{
+    std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+    QVERIFY(fusion);
+    WinUI3::Style winui(WinUI3::ThemeMode::Light);
+
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    const StockSettingsCard parts = makeStockSettingsCard();
+    layout->addWidget(parts.card);
+    // Keep the app's WinUI style away from the card while its original values
+    // are installed, so remember() captures them rather than its own defaults.
+    parts.card->setStyle(fusion.get());
+
+    // Application-owned values in place before WinUI polishes the card.
+    const QSizePolicy originalPolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    parts.card->setSizePolicy(originalPolicy);
+    parts.card->setFocusPolicy(Qt::WheelFocus);
+    parts.card->setCursor(Qt::ArrowCursor);
+    parts.details->setMaximumHeight(77);
+    parts.details->hide();
+    QVERIFY(!parts.details->isVisible());
+
+    parts.card->setStyle(&winui);
+    host.resize(480, 320);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    QCoreApplication::processEvents();
+    QCOMPARE(parts.card->sizePolicy(), QSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed));
+    QCOMPARE(parts.card->focusPolicy(), Qt::StrongFocus);
+    QCOMPARE(parts.card->cursor().shape(), Qt::PointingHandCursor);
+    QVERIFY(parts.details->isVisible());
+    QCOMPARE(parts.details->maximumHeight(), 0);
+
+    // Switching away must give the application its own settings back.
+    parts.card->setStyle(fusion.get());
+    QCoreApplication::processEvents();
+    QCOMPARE(parts.card->sizePolicy(), originalPolicy);
+    QCOMPARE(parts.card->focusPolicy(), Qt::WheelFocus);
+    QCOMPARE(parts.card->cursor().shape(), Qt::ArrowCursor);
+    QVERIFY(!parts.details->isVisible());
+    QCOMPARE(parts.details->maximumHeight(), 77);
+}
+
 void WinUI3SettingsCardTest::settingsCardStockExpansionAnimationLifecycle_data()
 {
     QTest::addColumn<bool>("applicationStyle");
@@ -1062,3 +1109,35 @@ void WinUI3SettingsCardTest::settingsCardInheritedDirectionAndTrailingInset()
 
 QTEST_MAIN(WinUI3SettingsCardTest)
 #include "tst_winui3settingscard.moc"
+
+void WinUI3SettingsCardTest::settingsCardStyleSwitchPreservesHiddenState()
+{
+    std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+    QVERIFY(fusion);
+    WinUI3::Style winui(WinUI3::ThemeMode::Light);
+
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    const StockSettingsCard parts = makeStockSettingsCard();
+    layout->addWidget(parts.card);
+    parts.card->setStyle(fusion.get());
+
+    // Polish while the parent is hidden: the details child is effectively
+    // invisible but not explicitly hidden by the application.
+    QVERIFY(!parts.details->isVisible());
+    QVERIFY(!parts.details->isHidden());
+    parts.card->setStyle(&winui);
+    QCoreApplication::processEvents();
+
+    host.resize(480, 320);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    QVERIFY(parts.details->isVisible());
+
+    // Unpolish must preserve that explicit state, not hide the child because
+    // it happened to be invisible when polish() ran.
+    parts.card->setStyle(fusion.get());
+    QCoreApplication::processEvents();
+    QVERIFY(!parts.details->isHidden());
+    QVERIFY(parts.details->isVisible());
+}

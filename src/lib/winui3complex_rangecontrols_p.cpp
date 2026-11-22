@@ -72,19 +72,23 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
                 const qint64 interval = qMax<qint64>(1, qMax(requested, (range + 99) / 100));
                 painter->save();
                 painter->setPen(QPen(enabled ? t.strokeStrong : t.textDisabled, 1));
+                // Ticks mark handle centres, so reuse the same subcontrol
+                // geometry instead of distributing them over the full groove:
+                // the handle travels over the shorter span between its inset
+                // anchors.
+                QStyleOptionSlider tickOption(*slider);
                 for (qint64 tick = minimum;;) {
-                    const int span = horizontal ? groove.width() - 1 : groove.height() - 1;
-                    const int offset = QStyle::sliderPositionFromValue(
-                            slider->minimum, slider->maximum, int(qBound(minimum, tick, maximum)),
-                            span, slider->upsideDown);
+                    tickOption.sliderPosition = int(qBound(minimum, tick, maximum));
+                    const QRect tickHandle = style->subControlRect(QStyle::CC_Slider, &tickOption,
+                                                                   QStyle::SC_SliderHandle, widget);
                     if (horizontal) {
-                        const int x = groove.left() + offset;
+                        const int x = tickHandle.center().x();
                         if (slider->tickPosition & QSlider::TicksAbove)
                             painter->drawLine(x, groove.top() - 8, x, groove.top() - 5);
                         if (slider->tickPosition & QSlider::TicksBelow)
                             painter->drawLine(x, groove.bottom() + 5, x, groove.bottom() + 8);
                     } else {
-                        const int y = groove.top() + offset;
+                        const int y = tickHandle.center().y();
                         if (slider->tickPosition & QSlider::TicksLeft)
                             painter->drawLine(groove.left() - 8, y, groove.left() - 5, y);
                         if (slider->tickPosition & QSlider::TicksRight)
