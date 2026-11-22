@@ -119,7 +119,7 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             else
                 editorSurface(painter, spin->rect, fill, t.stroke, t.strokeStrong, ControlRadius,
                               enabled);
-            if (verticalButtons) {
+            if (verticalButtons && spin->buttonSymbols != QAbstractSpinBox::NoButtons) {
                 const QRect editField = style->subControlRect(QStyle::CC_SpinBox, spin,
                                                               QStyle::SC_SpinBoxEditField, widget);
                 const int separatorX =

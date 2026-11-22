@@ -27,6 +27,7 @@
 #include <QStyleOptionHeader>
 #include <QStyleOptionMenuItem>
 #include <QStyleOptionProgressBar>
+#include <QStyleOptionSpinBox>
 #include <QStyleOptionToolButton>
 #include <QStyleOptionViewItem>
 #include <QTreeView>
@@ -200,9 +201,14 @@ static QSize lineEditSize(const QStyleOption *option, QSize size, const DensityM
 static QSize spinBoxSize(const QStyleOption *option, QSize size, const QWidget *widget,
                          const DensityMetrics &density, DensityMode mode)
 {
-    size += QSize(verticalSpinButtons(widget) ? density.verticalSpinButtonWidth + 12
-                                              : 2 * density.spinButtonWidth + 12,
-                  0);
+    // The left inset is part of the editor in every button mode. Only the
+    // step slots are reclaimed when NoButtons removes them.
+    size.rwidth() += 12;
+    const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option);
+    const bool noButtons = spin && spin->buttonSymbols == QAbstractSpinBox::NoButtons;
+    if (!noButtons)
+        size.rwidth() += verticalSpinButtons(widget) ? density.verticalSpinButtonWidth
+                                                     : 2 * density.spinButtonWidth;
     if (mode == DensityMode::Compact) {
         const int targetHeight = density.textBoxHeight;
         if (option && (option->fontMetrics.height() + 8 > targetHeight + 4))

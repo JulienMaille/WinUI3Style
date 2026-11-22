@@ -331,11 +331,18 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
         }
     }
     if (control == QStyle::CC_SpinBox) {
-        const bool verticalButtons = verticalSpinButtons(widget);
+        const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option);
+        const bool noButtons = spin && spin->buttonSymbols == QAbstractSpinBox::NoButtons;
+        const bool verticalButtons = !noButtons && verticalSpinButtons(widget);
         const int buttonWidth =
                 verticalButtons ? metrics.verticalSpinButtonWidth : metrics.spinButtonWidth;
         QRect logical;
-        if (verticalButtons && subControl == QStyle::SC_SpinBoxUp) {
+        if (noButtons) {
+            // NoButtons has no step rectangles to reserve: give the whole
+            // field back to the editor, keeping only the usual left inset.
+            if (subControl == QStyle::SC_SpinBoxEditField)
+                logical = option->rect.adjusted(12, 1, 0, -1);
+        } else if (verticalButtons && subControl == QStyle::SC_SpinBoxUp) {
             const int upperHeight = option->rect.height() / 2;
             logical = QRect(option->rect.right() - buttonWidth + 1, option->rect.top(), buttonWidth,
                             upperHeight);
