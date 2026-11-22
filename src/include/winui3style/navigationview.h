@@ -65,6 +65,10 @@ private:
     QLineEdit *m_search = nullptr;
     QListWidget *m_list = nullptr;
     AnimatedStack *m_stack = nullptr;
+    // True only while setCurrentIndex() applies a programmatic selection.
+    // currentItemChanged is synchronous; without this guard activateItem()
+    // re-enters setCurrentIndex() and dispatches the same transition twice.
+    bool m_settingCurrentItem = false;
 };
 
 } // namespace WinUI3

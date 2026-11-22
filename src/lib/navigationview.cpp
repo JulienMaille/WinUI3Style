@@ -119,7 +119,13 @@ void NavigationView::setCurrentIndex(int index)
     for (int row = 0; row < m_list->count(); ++row) {
         QListWidgetItem *item = m_list->item(row);
         if (item->data(Qt::UserRole).toInt() == index) {
+            // setCurrentItem() emits currentItemChanged synchronously. The
+            // selection is already being applied here, so suppress the
+            // activateItem() -> setCurrentIndex() re-entry; the single stack
+            // dispatch below is the one transition for this request.
+            m_settingCurrentItem = true;
             m_list->setCurrentItem(item);
+            m_settingCurrentItem = false;
             break;
         }
     }
@@ -128,8 +134,9 @@ void NavigationView::setCurrentIndex(int index)
 
 void NavigationView::activateItem(QListWidgetItem *item)
 {
-    if (item)
-        setCurrentIndex(item->data(Qt::UserRole).toInt());
+    if (m_settingCurrentItem || !item)
+        return;
+    setCurrentIndex(item->data(Qt::UserRole).toInt());
 }
 
 void NavigationView::filter(const QString &text)
