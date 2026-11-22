@@ -110,6 +110,9 @@ private slots:
     void pluginFactory();
     void navigationModelReconnectAndScroll();
     void navigationDelegateLifecycle();
+    void navigationRetiredDelegateDestructionKeepsReplacement();
+    void navigationWrapperDestructionInstallsFallback();
+    void navigationWrapperDestructionKeepsApplicationReplacement();
     void navigationTeardownMidAnimation();
     void navigationSelectionModelRepaint();
     void navigationBackdropToggleRevealsOneMaterial();
@@ -959,3 +962,71 @@ void WinUI3NavigationTest::navigationSingleSnapshotRestoreOrder()
 
 QTEST_MAIN(WinUI3NavigationTest)
 #include "tst_winui3navigation.moc"
+
+void WinUI3NavigationTest::navigationRetiredDelegateDestructionKeepsReplacement()
+{
+    QListView view;
+    QStandardItemModel model(4, 1);
+    view.setModel(&model);
+    auto *originalA = new QStyledItemDelegate(&view);
+    view.setItemDelegate(originalA);
+    WinUI3::Style::setNavigationView(&view, true);
+    view.show();
+    QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
+
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    auto *originalB = new QStyledItemDelegate(&view);
+    view.setItemDelegate(originalB);
+    style->polish(&view);
+    QCoreApplication::processEvents();
+    QVERIFY(view.property("_winui_navigation_delegate").isValid());
+
+    delete originalA;
+    WinUI3::Style::setNavigationView(&view, false);
+    QCoreApplication::processEvents();
+    QCOMPARE(view.itemDelegate(), originalB);
+    QVERIFY(!view.property("_winui_navigation_delegate").isValid());
+}
+
+void WinUI3NavigationTest::navigationWrapperDestructionInstallsFallback()
+{
+    QListView view;
+    QStandardItemModel model(4, 1);
+    view.setModel(&model);
+    WinUI3::Style::setNavigationView(&view, true);
+    view.show();
+    QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
+    QObject *wrapper = view.property("_winui_navigation_delegate").value<QObject *>();
+    QVERIFY(wrapper == view.itemDelegate());
+
+    delete wrapper;
+    QCoreApplication::processEvents();
+    QVERIFY(!view.property("_winui_navigation_delegate").isValid());
+    QVERIFY(view.itemDelegate());
+    WinUI3::Style::setNavigationView(&view, false);
+    QCoreApplication::processEvents();
+    QVERIFY(view.itemDelegate());
+}
+
+void WinUI3NavigationTest::navigationWrapperDestructionKeepsApplicationReplacement()
+{
+    QListView view;
+    QStandardItemModel model(4, 1);
+    view.setModel(&model);
+    WinUI3::Style::setNavigationView(&view, true);
+    view.show();
+    QTRY_VERIFY(view.property("_winui_navigation_delegate").isValid());
+    QObject *wrapper = view.property("_winui_navigation_delegate").value<QObject *>();
+
+    // The application installs its own delegate while the style wrapper is
+    // still alive, then the wrapper is deleted. Recovery must not overwrite B.
+    auto *replacement = new QStyledItemDelegate(&view);
+    view.setItemDelegate(replacement);
+    delete wrapper;
+    QCoreApplication::processEvents();
+    QCOMPARE(view.itemDelegate(), replacement);
+    // The cached wrapper points at the object just deleted; leaving it valid
+    // would make a later install consult a dangling pointer (#134).
+    QVERIFY(!view.property("_winui_navigation_delegate").isValid());
+}
