@@ -18,7 +18,8 @@ set(_winui3style_split_tests
     winui3style_settingscard_tests tst_winui3settingscard.cpp
     winui3style_animatedstack_tests tst_winui3animatedstack.cpp
     winui3style_settings_tests tst_winui3settings.cpp
-    winui3style_navigation_tests tst_winui3navigation.cpp)
+    winui3style_navigation_tests tst_winui3navigation.cpp
+    winui3style_textvertical_tests tst_winui3textvertical.cpp)
 list(LENGTH _winui3style_split_tests _winui3style_split_len)
 math(EXPR _winui3style_split_last "${_winui3style_split_len} - 1")
 foreach(_i RANGE 0 ${_winui3style_split_last} 2)
@@ -492,7 +493,8 @@ set(_winui3style_linked_test_targets
         winui3style_gallerydensity_tests
         winui3style_rubberband_tests
         winui3style_keysequenceedit_tests
-        winui3style_toolbox_tests)
+        winui3style_toolbox_tests
+        winui3style_textvertical_tests)
 # On Windows the executable directory is searched before PATH. Keep the
 # runtime DLL beside the linked test executables so an old manual copy can
 # never shadow the library that was just rebuilt. The tests share an output
@@ -540,7 +542,8 @@ foreach(_split_target IN ITEMS
         winui3style_settingscard_tests
         winui3style_animatedstack_tests
         winui3style_settings_tests
-        winui3style_navigation_tests)
+        winui3style_navigation_tests
+        winui3style_textvertical_tests)
     string(REPLACE "winui3style_" "" _suffix "${_split_target}")
     string(REPLACE "_tests" "" _suffix "${_suffix}")
     add_test(NAME winui3style_${_suffix}_unit

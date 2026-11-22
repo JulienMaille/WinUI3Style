@@ -349,10 +349,14 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
         const int shortcutLeft = shortcutRight - shortcutWidth;
         const int textRight = shortcutWidth > 0 ? shortcutLeft - 20 : shortcutRight;
         const int textLeft = comboItem && menu->icon.isNull() ? 16 : 42;
-        const QRect textRect = QStyle::visualRect(
-                menu->direction, menu->rect,
+        // MenuFlyout_themeresources.xaml (9f89c2da): MenuFlyoutItemThemePadding
+        // 11,8,11,9 centres the label one pixel above the geometric centre
+        // (issue #119). The accelerator shares the same vertical alignment.
+        const QRect logicalText =
                 QRect(menu->rect.left() + textLeft, menu->rect.top(),
-                      qMax(0, textRight - menu->rect.left() - textLeft + 1), menu->rect.height()));
+                      qMax(0, textRight - menu->rect.left() - textLeft + 1), menu->rect.height())
+                        .translated(0, -WinuiVerticalContentCenterOffset);
+        const QRect textRect = QStyle::visualRect(menu->direction, menu->rect, logicalText);
         int itemFlags = QStyle::visualAlignment(menu->direction, Qt::AlignLeft | Qt::AlignVCenter)
                 | Qt::TextShowMnemonic;
         if (QApplication::style()->styleHint(QStyle::SH_UnderlineShortcut, option, widget) == 0)
@@ -365,7 +369,7 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
                     menu->direction, menu->rect,
                     QRect(shortcutLeft, menu->rect.top(), shortcutWidth, menu->rect.height()));
             painter->drawText(
-                    shortcutRect,
+                    shortcutRect.translated(0, -WinuiVerticalContentCenterOffset),
                     QStyle::visualAlignment(menu->direction, Qt::AlignRight | Qt::AlignVCenter),
                     shortcutText);
         }
