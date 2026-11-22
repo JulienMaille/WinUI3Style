@@ -195,6 +195,17 @@ if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_scrollbarcard_tests winui3styleplugin)
 endif()
 
+# ScrollBar thumb, arrow, integration and backdrop-chain contracts, split out
+# of tst_winui3views.cpp to respect the 60 KB per-binary size ratchet.
+add_executable(winui3style_scrollbar_tests tst_winui3scrollbar.cpp)
+target_include_directories(winui3style_scrollbar_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
+target_link_libraries(winui3style_scrollbar_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_scrollbar_tests winui3styleplugin)
+endif()
+
 # DataGrid-like table header + sort indicator contracts (60 KB cap: views has
 # no headroom). Same shape as winui3style_scrollbarcard_tests: links the
 # public library plus Qt Test/Widgets, resolves the trailing-column seam in
@@ -555,6 +566,8 @@ add_test(NAME winui3style_calendarsurface_unit
          COMMAND winui3style_calendarsurface_tests)
 add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
+add_test(NAME winui3style_scrollbar_unit
+         COMMAND winui3style_scrollbar_tests)
 add_test(NAME winui3style_tableheader_unit
          COMMAND winui3style_tableheader_tests)
 add_test(NAME winui3style_rubberband_unit
@@ -702,6 +715,9 @@ set_tests_properties(winui3style_calendarsurface_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_scrollbarcard_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_scrollbar_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_tableheader_unit PROPERTIES
