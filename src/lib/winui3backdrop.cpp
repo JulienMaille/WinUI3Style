@@ -275,13 +275,21 @@ void applyTooltipRoundedCorners(QWidget *window)
             return false;
         return live == static_cast<DWORD>(preference);
     };
-    if (granted(cornerRoundSmall))
+    if (granted(cornerRoundSmall) || granted(cornerRound)) {
+        // A granted corner preference does not clear the compositor's own
+        // 1 px system border, which DWM paints on the opaque HWND far darker
+        // than the painted SurfaceStrokeColorFlyout token (alpha 15 Light /
+        // 51 Dark) — that border is the dark ring issue #59 shows. Border
+        // color is not a preference: Windows reports S_OK while still
+        // drawing it unless the value is the COLOR_NONE sentinel, so there
+        // is no meaningful read-back; the tooltip stroke stays the only
+        // border. The composited shadow is unaffected.
+        constexpr DWORD borderColorAttribute = 34; // DWMWA_BORDER_COLOR
+        constexpr DWORD borderColorNone = 0xFFFFFFFE; // DWMWA_COLOR_NONE
+        const COLORREF none = static_cast<COLORREF>(borderColorNone);
+        DwmSetWindowAttribute(hwnd, borderColorAttribute, &none, sizeof(none));
         return;
-    // No small radius available (Windows 11 21H2): the default rounding still
-    // beats a hard region, because it brings the composited shadow back. The
-    // painted card then sits inside a slightly rounder silhouette.
-    if (granted(cornerRound))
-        return;
+    }
     applyWindowRoundedRegion(window, 5);
 #else
     Q_UNUSED(window)
