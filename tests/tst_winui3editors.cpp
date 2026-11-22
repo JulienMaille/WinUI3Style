@@ -109,6 +109,7 @@ private slots:
     void editorElevationBorder();
     void indeterminateProgressDeterminism();
     void numberBoxSubcontrolContract();
+    void spinBoxNoButtonsGeometry();
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
     void tableEditorTrackerLifetimeContract();
@@ -743,6 +744,61 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
     spin.setValue(spin.maximum());
     QTest::mouseClick(&spin, Qt::LeftButton, Qt::NoModifier, up.center());
     QCOMPARE(spin.value(), spin.maximum());
+}
+
+void WinUI3EditorsTest::spinBoxNoButtonsGeometry()
+{
+    QSpinBox spin;
+    spin.setRange(0, 100);
+    spin.setValue(46);
+    spin.setButtonSymbols(QAbstractSpinBox::NoButtons);
+    spin.resize(200, 32);
+    spin.show();
+
+    QStyleOptionSpinBox option;
+    option.initFrom(&spin);
+    option.rect = spin.rect();
+    option.frame = true;
+    option.buttonSymbols = spin.buttonSymbols();
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+    option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
+            | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+
+    const QRect edit = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxEditField, &spin);
+    const QRect up =
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
+    const QRect down = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxDown, &spin);
+    // NoButtons reclaims both button slots instead of leaving a phantom pair.
+    QCOMPARE(edit, option.rect.adjusted(12, 1, 0, -1));
+    QVERIFY(!up.isValid());
+    QVERIFY(!down.isValid());
+    const QPoint trailing(option.rect.right() - 4, option.rect.center().y());
+    QCOMPARE(spin.style()->hitTestComplexControl(QStyle::CC_SpinBox, &option, trailing, &spin),
+             QStyle::SC_SpinBoxEditField);
+    const QPoint formerUp(option.rect.right() - 54, option.rect.center().y());
+    QCOMPARE(spin.style()->hitTestComplexControl(QStyle::CC_SpinBox, &option, formerUp, &spin),
+             QStyle::SC_SpinBoxEditField);
+
+    // The vertical variant must not reserve its stacked slot either.
+    WinUI3::Style::setVerticalSpinButtons(&spin, true);
+    QCOMPARE(spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxEditField,
+                                          &spin),
+             edit);
+    QVERIFY(!spin.style()
+                     ->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin)
+                     .isValid());
+    WinUI3::Style::setVerticalSpinButtons(&spin, false);
+
+    // Size calculation must reclaim the same slots.
+    QSpinBox withButtons;
+    QSpinBox withoutButtons;
+    const QString longSuffix(40, QLatin1Char('x'));
+    withButtons.setSuffix(longSuffix);
+    withoutButtons.setSuffix(longSuffix);
+    withoutButtons.setButtonSymbols(QAbstractSpinBox::NoButtons);
+    QCOMPARE(withButtons.sizeHint().width() - withoutButtons.sizeHint().width(), 72);
 }
 
 void WinUI3EditorsTest::verticalNumberBoxContract()
