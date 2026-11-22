@@ -63,10 +63,15 @@ bool drawToolGroupComplexControl(const Style *style, QStyle::ComplexControl cont
                 QFont titleFont = widget ? widget->font() : QApplication::font();
                 painter->setFont(winuiStrongFont(titleFont, BodyStrongFontSize));
                 painter->setPen(enabled ? t.textPrimary : t.textDisabled);
-                painter->drawText(
-                        label,
-                        QStyle::visualAlignment(group->direction, Qt::AlignLeft | Qt::AlignVCenter),
-                        group->text);
+                // QGroupBox carries its alignment in textAlignment; only fill
+                // in the defaults the option left unspecified (issue #158).
+                Qt::Alignment alignment = group->textAlignment;
+                if (!(alignment & Qt::AlignHorizontal_Mask))
+                    alignment |= Qt::AlignLeft;
+                if (!(alignment & Qt::AlignVertical_Mask))
+                    alignment |= Qt::AlignVCenter;
+                painter->drawText(label, QStyle::visualAlignment(group->direction, alignment),
+                                  group->text);
                 painter->restore();
             }
             return true;
