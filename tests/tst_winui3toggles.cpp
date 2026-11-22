@@ -9,6 +9,7 @@
 #include <winui3style/winui3icons.h>
 
 #include "../src/lib/winui3frameproperties_p.h"
+#include "../src/lib/winui3geometry_p.h"
 #include "../src/lib/winui3helpers_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
@@ -101,6 +102,8 @@ private slots:
     void togglePressedThumbPillShape_data();
     void togglePressedThumbPillShape();
     void toggleDragInteraction();
+    void toggleDragPositionGeometry_data();
+    void toggleDragPositionGeometry();
     void toggleRtlGeometryAndInteraction();
     void checkboxAcceptAnimation();
     void checkboxGlyphGeometryContract();
@@ -342,6 +345,41 @@ void WinUI3TogglesTest::toggleDragInteraction()
     QVERIFY(toggle.isChecked());
     QVERIFY(!frameBool(&toggle, "_winui_toggle_dragging"));
     QCOMPARE(clicked.count(), 1);
+}
+
+void WinUI3TogglesTest::toggleDragPositionGeometry_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    QTest::newRow("standard-ltr") << false << false;
+    QTest::newRow("standard-rtl") << false << true;
+    QTest::newRow("compact-ltr") << true << false;
+    QTest::newRow("compact-rtl") << true << true;
+}
+
+void WinUI3TogglesTest::toggleDragPositionGeometry()
+{
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+
+    const WinUI3::DensityMode mode =
+            compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard;
+    const Qt::LayoutDirection direction = rtl ? Qt::RightToLeft : Qt::LeftToRight;
+    const QRect bounds(0, 0, 120, 32);
+    const QRect track = WinUI3::Private::toggleTrackRect(bounds, direction, mode);
+
+    // Pin the shared track geometry the drag mapping is expressed against.
+    QCOMPARE(track.width(), 40);
+    QCOMPARE(track.height(), 20);
+
+    // Drag mapping must invert the same rest knob-centre mapping the paint
+    // path uses, in both layout directions and at both densities.
+    for (const qreal position : { 0.0, 0.25, 0.5, 0.75, 1.0 }) {
+        const QRectF knob = WinUI3::Private::toggleKnobRect(track, position, 0.0, 0.0, direction);
+        const qreal trackX = knob.center().x() - track.left();
+        QVERIFY(std::abs(WinUI3::Private::togglePositionFromTrackX(trackX, direction) - position)
+                < 1e-6);
+    }
 }
 
 void WinUI3TogglesTest::toggleRtlGeometryAndInteraction()

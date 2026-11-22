@@ -15,6 +15,18 @@
 
 namespace WinUI3::Private {
 
+namespace {
+// ToggleSwitch template thumb anchors, in logical pixels from the track's
+// left edge. toggleKnobRect uses them for painting and
+// togglePositionFromTrackX inverts the rest anchors for pointer dragging.
+// Keep both consumers on these values rather than restating 9.5 / 20.0 at
+// each call site.
+constexpr qreal toggleKnobRestInset = 9.5;
+constexpr qreal toggleKnobRestTravel = 20.0;
+constexpr qreal toggleKnobPressedInset = 11.5;
+constexpr qreal toggleKnobPressedTravel = 17.0;
+} // namespace
+
 QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction, DensityMode mode)
 {
     const DensityMetrics &metrics = densityMetrics(mode);
@@ -41,11 +53,17 @@ QRectF toggleKnobRect(const QRectF &track, qreal position, qreal hover, qreal pr
     qreal visualPosition = position;
     if (direction == Qt::RightToLeft)
         visualPosition = 1.0 - visualPosition;
-    const qreal normalCenter = 9.5 + 20.0 * visualPosition;
-    const qreal pressedCenter = 11.5 + 17.0 * visualPosition;
+    const qreal normalCenter = toggleKnobRestInset + toggleKnobRestTravel * visualPosition;
+    const qreal pressedCenter = toggleKnobPressedInset + toggleKnobPressedTravel * visualPosition;
     const qreal knobCenter = track.left() + normalCenter + (pressedCenter - normalCenter) * press;
     return QRectF(knobCenter - knobWidth / 2.0, track.center().y() - knobHeight / 2.0, knobWidth,
                   knobHeight);
+}
+
+qreal togglePositionFromTrackX(qreal trackX, Qt::LayoutDirection direction)
+{
+    const qreal visualPosition = (trackX - toggleKnobRestInset) / toggleKnobRestTravel;
+    return direction == Qt::RightToLeft ? 1.0 - visualPosition : visualPosition;
 }
 
 std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitch,

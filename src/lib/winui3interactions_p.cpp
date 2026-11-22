@@ -668,11 +668,12 @@ bool StyleInteractionController::handleMouseMove(QWidget *widget, QEvent *event)
                 framePropertyRegistry().set(checkBox, toggleDraggingProperty, true);
             }
             if (state->dragging) {
-                qreal position;
-                if (checkBox->layoutDirection() == Qt::RightToLeft)
-                    position = (checkBox->rect().right() - 10.0 - mousePosition(mouse).x()) / 20.0;
-                else
-                    position = (mousePosition(mouse).x() - checkBox->rect().left() - 10.0) / 20.0;
+                // Use the same track rect and knob-centre mapping as the paint
+                // path so drag and rendering cannot disagree, including at
+                // the inclusive right edge under RTL.
+                const QRect track = toggleTrackRect(checkBox->rect(), checkBox->layoutDirection());
+                const qreal position = togglePositionFromTrackX(
+                        mousePosition(mouse).x() - track.left(), checkBox->layoutDirection());
                 framePropertyRegistry().set(checkBox, togglePositionProperty,
                                             qBound<qreal>(0.0, position, 1.0));
                 checkBox->update();
