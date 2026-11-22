@@ -348,6 +348,31 @@ void WinUI3StyleNativeTest::sliderToolTipDebounceSurface()
                                                 Qt::FindDirectChildrenOnly)) {
         QVERIFY(!tip->isVisible());
     }
+
+    // The debounced popup refresh (updateSliderValueToolTipNow) must follow the
+    // live handle position too. With tracking disabled, value() stays at its
+    // release-time value while the handle moves, so reading value() here would
+    // leave the tooltip stale.
+    slider.setEnabled(true);
+    slider.setTracking(false);
+    slider.setValue(20);
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, slider.rect().center());
+    QTRY_VERIFY_WITH_TIMEOUT(WinUI3::Private::framePropertyRegistry()
+                                     .value(&slider, "_winui_slider_tooltip_visible")
+                                     .toBool(),
+                             500);
+    QMouseEvent liveMove(QEvent::MouseMove, QPointF(slider.rect().center() + QPoint(120, 0)),
+                         QPointF(slider.rect().center() + QPoint(120, 0)), Qt::NoButton,
+                         Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&slider, &liveMove);
+    QTRY_VERIFY_WITH_TIMEOUT(slider.sliderPosition() != slider.value(), 500);
+    QTRY_VERIFY_WITH_TIMEOUT(!timer->isActive(), 500);
+    QCOMPARE(WinUI3::Private::framePropertyRegistry()
+                     .value(&slider, "_winui_slider_tooltip_value")
+                     .toString(),
+             QString::number(slider.sliderPosition()));
+    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier,
+                        slider.rect().center() + QPoint(120, 0));
 }
 
 void WinUI3StyleNativeTest::comboPopupSurface()
