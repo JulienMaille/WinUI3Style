@@ -35,6 +35,12 @@ foreach(_i RANGE 0 ${_winui3style_split_last} 2)
     endif()
 endforeach()
 
+# The toggle drag/geometry agreement test calls the DLL-internal toggle
+# helpers directly. They are not exported, so compile the private geometry
+# source into this one test binary (same pattern as the theme tests).
+target_sources(winui3style_toggles_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib/winui3geometry_p.cpp)
+
 add_executable(winui3style_frameproperties_tests
     tst_winui3frameproperties.cpp)
 target_include_directories(winui3style_frameproperties_tests PRIVATE

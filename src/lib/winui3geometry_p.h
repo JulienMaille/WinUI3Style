@@ -29,6 +29,10 @@ QRect toggleTrackRect(const QRect &bounds, Qt::LayoutDirection direction, Densit
 // any future hit-test consumer share one definition.
 QRectF toggleKnobRect(const QRectF &track, qreal position, qreal hover, qreal press,
                       Qt::LayoutDirection direction);
+// Inverse of the rest-position knob-centre mapping in toggleKnobRect. Given an
+// x relative to toggleTrackRect's left edge, recover the toggle position so
+// pointer drag and painting cannot drift apart. The caller clamps the result.
+qreal togglePositionFromTrackX(qreal trackX, Qt::LayoutDirection direction);
 
 // Same null contract as pixelMetricValue: a null option returns nullopt
 // (no WinUI override) without dereferencing.
