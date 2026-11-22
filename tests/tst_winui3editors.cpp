@@ -109,6 +109,7 @@ private slots:
     void editorElevationBorder();
     void indeterminateProgressDeterminism();
     void numberBoxSubcontrolContract();
+    void spinBoxNoButtonsGeometry_data();
     void spinBoxNoButtonsGeometry();
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
@@ -746,13 +747,25 @@ void WinUI3EditorsTest::numberBoxSubcontrolContract()
     QCOMPARE(spin.value(), spin.maximum());
 }
 
+void WinUI3EditorsTest::spinBoxNoButtonsGeometry_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("standard") << false;
+    QTest::newRow("compact") << true;
+}
+
 void WinUI3EditorsTest::spinBoxNoButtonsGeometry()
 {
+    QFETCH(bool, compact);
+    if (auto *style = qobject_cast<WinUI3::Style *>(QApplication::style()))
+        style->setDensityMode(compact ? WinUI3::DensityMode::Compact
+                                      : WinUI3::DensityMode::Standard);
+
     QSpinBox spin;
     spin.setRange(0, 100);
     spin.setValue(46);
     spin.setButtonSymbols(QAbstractSpinBox::NoButtons);
-    spin.resize(200, 32);
+    spin.resize(200, compact ? 24 : 32);
     spin.show();
 
     QStyleOptionSpinBox option;
@@ -772,6 +785,8 @@ void WinUI3EditorsTest::spinBoxNoButtonsGeometry()
                                                     QStyle::SC_SpinBoxDown, &spin);
     // NoButtons reclaims both button slots instead of leaving a phantom pair.
     QCOMPARE(edit, option.rect.adjusted(12, 1, 0, -1));
+    QCOMPARE(spin.height(), WinUI3::Private::densityMetricsFor(&spin).textBoxHeight);
+    QCOMPARE(edit.height(), spin.height() - 2);
     QVERIFY(!up.isValid());
     QVERIFY(!down.isValid());
     const QPoint trailing(option.rect.right() - 4, option.rect.center().y());
