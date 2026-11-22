@@ -307,6 +307,14 @@ Light) - the same `flyoutStroke` token the menus use. A ToolTip therefore has a
 *faint darkening* border in both themes; the earlier white-at-20% Dark stroke
 lightened the edge where WinUI darkens it.
 
+The reference has **zero shading inside the card** (user review, 2026-11-22),
+and the tooltip outline is identical to a Button's. Both therefore use the
+same `controlSurface` primitive and the pinned `ControlElevationBorderBrush`
+gradient: `ControlStrokeColorDefaultBrush` (`#0F000000` Light / `#12FFFFFF`
+Dark) at the top, `ControlStrokeColorSecondaryBrush` (`#29000000` Light /
+`#18FFFFFF` Dark) at the bottom. A bespoke tooltip stroke or any upward shadow
+ramp reaching the fill is a defect, not a closer match.
+
 Qt owns the tooltip window (`QTipLabel`, a `QLabel` with
 `Qt::ToolTip | BypassGraphicsProxyWidget`), so the style maps the template onto
 it instead of restyling the control:

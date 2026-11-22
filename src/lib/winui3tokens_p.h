@@ -164,9 +164,9 @@ struct Tokens
     QColor tableHeaderFill;
     // Slider thumb outer ring.
     QColor sliderThumbOuter;
-    // Tooltip surface.
+    // Tooltip surface. Its outline is shared with Button (t.stroke /
+    // t.strokeSecondary via controlSurface), so no tooltip stroke/shadow token.
     QColor tooltipFill;
-    QColor tooltipStroke;
     // ContentDialog command-footer base and smoke scrim.
     QColor dialogCommandFill;
     QColor dialogScrim;
@@ -334,11 +334,11 @@ inline Tokens buildTokens(const QPalette &palette)
     t.sliderThumbOuter = t.dark ? QColor(69, 69, 69) : QColor(255, 255, 255);
     // WinUI `DefaultToolTipStyle` paints `AcrylicInAppFillColorDefaultBrush`
     // with `BackgroundSizing=InnerBorderEdge`, so the pinned surface is the
-    // brush's FallbackColor (#2C2C2C Dark, #F9F9F9 Light) and the 1 px border
-    // is `SurfaceStrokeColorFlyoutBrush` (#33000000 / #0F000000) - the same
-    // flyout stroke the menus already use.
+    // brush's FallbackColor (#2C2C2C Dark, #F9F9F9 Light). Live Gallery review
+    // found the tooltip outline identical to a Button's, so the stroke uses
+    // the shared ControlElevationBorderBrush tokens (t.stroke /
+    // t.strokeSecondary) through controlSurface; no tooltip-only token.
     t.tooltipFill = t.dark ? QColor(44, 44, 44) : QColor(249, 249, 249);
-    t.tooltipStroke = t.flyoutStroke;
     t.menuSeparatorStroke = t.dark ? QColor(255, 255, 255, 21) : QColor(0, 0, 0, 15);
     t.dialogSeparatorStroke = t.dark ? QColor(0, 0, 0, 25) : QColor(0, 0, 0, 15);
     // ContentDialog command-footer base (LayerFill derivation input) and

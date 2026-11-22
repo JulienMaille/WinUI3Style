@@ -446,7 +446,15 @@ bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,
         // require the full fill to avoid a darker native-background rim.
         if (!widget || !widget->testAttribute(Qt::WA_TranslucentBackground))
             painter->fillRect(option->rect, fill);
-        roundedRect(painter, QRectF(option->rect), fill, t.tooltipStroke, ControlRadius);
+        else
+            roundedRect(painter, QRectF(option->rect), fill, Qt::transparent, ControlRadius);
+        // The tooltip outline is the Button outline: the same controlSurface
+        // primitive and the same ControlElevationBorderBrush gradient tokens
+        // (t.stroke at the top, t.strokeSecondary at the bottom). The live
+        // Gallery shows identical outlines, so there is no tooltip-only
+        // stroke token and no shadow overlay; the card interior stays clean.
+        controlSurface(painter, QRectF(option->rect), fill, t.stroke, t.strokeSecondary,
+                       ControlRadius);
         return true;
     }
 
