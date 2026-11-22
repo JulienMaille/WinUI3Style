@@ -21,6 +21,8 @@
 #include <QVariantAnimation>
 #include <QVBoxLayout>
 
+#include "../src/lib/winui3paint_p.h"
+
 #include "winui3testhelpers.h"
 
 class WinUI3SettingsTest final : public QObject, private WinUI3StandardTestFixture
@@ -40,6 +42,8 @@ private slots:
     void settingsCardActivatedSlotMayDeleteCard();
     void settingsCardTrailingWidgetSurvivesExternalDelete();
     void settingsCardExpandedHostSharesCardSurface();
+    void settingsCardCornerRadius_data();
+    void settingsCardCornerRadius();
     void plainShapedFrameFallsThroughToBaseStyle();
     void uninstalledStyleDoesNotRefreshApplication();
 };
@@ -313,6 +317,114 @@ void WinUI3SettingsTest::settingsCardExpandedHostSharesCardSurface()
     QVERIFY(!host->testAttribute(Qt::WA_OpaquePaintEvent));
     QVERIFY(card.grab().toImage().pixelColor(host->mapTo(&card, host->rect().center())).alpha()
             > 200);
+}
+
+// Issue #111: the SettingsCard frame must carry the pinned
+// ControlCornerRadius (4), not the overlay/flyout radius (8).
+void WinUI3SettingsTest::settingsCardCornerRadius_data()
+{
+    QTest::addColumn<bool>("dark");
+    QTest::addColumn<bool>("compact");
+    QTest::addColumn<bool>("rtl");
+    for (bool dark : { false, true })
+        for (bool compact : { false, true })
+            for (bool rtl : { false, true })
+                QTest::newRow(
+                        qPrintable(QStringLiteral("%1-%2-%3").arg(dark).arg(compact).arg(rtl)))
+                        << dark << compact << rtl;
+}
+
+void WinUI3SettingsTest::settingsCardCornerRadius()
+{
+    QFETCH(bool, dark);
+    QFETCH(bool, compact);
+    QFETCH(bool, rtl);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(dark ? WinUI3::ThemeMode::Dark : WinUI3::ThemeMode::Light);
+
+    // Pinned: SettingsCard.xaml (CommunityToolkit/Windows a2fa47ad) sets
+    // CornerRadius={ThemeResource ControlCornerRadius} on DefaultSettingsCard-
+    // Style, and CornerRadius_themeresources.xaml (microsoft-ui-xaml 9f89c2da)
+    // defines ControlCornerRadius 4,4,4,4 and OverlayCornerRadius 8,8,8,8.
+    // A settings card is a control surface, not an overlay/flyout surface.
+    QCOMPARE(WinUI3::Private::ControlRadius, 4.0);
+    QCOMPARE(WinUI3::Private::OverlayRadius, 8.0);
+
+    QFrame card;
+    card.setProperty(WinUI3::Style::SettingsCardProperty, true);
+    WinUI3::Style::setDensityMode(
+            &card, compact ? WinUI3::DensityMode::Compact : WinUI3::DensityMode::Standard);
+    card.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    card.resize(240, 80);
+    // Offscreen with no granted material: the erase branch is a no-op, so the
+    // sentinel canvas below measures the painted shape only.
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&card));
+
+    QStyleOption option;
+    option.initFrom(&card);
+    option.rect = card.rect();
+    option.state = QStyle::State_Enabled;
+
+    const QColor sentinel(255, 0, 0);
+    QImage canvas(card.size(), QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(sentinel);
+    {
+        QPainter painter(&canvas);
+        style->drawControl(QStyle::CE_ShapedFrame, &option, &painter, &card);
+    }
+    const auto ink = [&](int x, int y) { return canvas.pixelColor(x, y) != sentinel; };
+
+    // The card's top stroke is the first inked row; its leading edge is the
+    // first inked column well below the corner.
+    int topRow = -1;
+    for (int y = 0; y < canvas.height() && topRow < 0; ++y)
+        for (int x = canvas.width() / 4; x < canvas.width() - canvas.width() / 4; ++x)
+            if (ink(x, y)) {
+                topRow = y;
+                break;
+            }
+    QVERIFY2(topRow >= 0, "the settings card painted no top edge");
+    int leading = -1;
+    for (int x = 0; x < canvas.width() && leading < 0; ++x)
+        if (ink(x, topRow + 40))
+            leading = x;
+    QVERIFY2(leading >= 0, "the settings card painted no leading edge");
+
+    // The pinned control surface for the very same fill/stroke tokens: the card
+    // frame must be pixel-identical to it, so the call site carries
+    // ControlCornerRadius rather than the overlay/flyout radius.
+    const WinUI3::Private::Tokens tokens = WinUI3::Private::tokens(card.palette());
+    QImage expected(card.size(), QImage::Format_ARGB32_Premultiplied);
+    expected.fill(sentinel);
+    {
+        QPainter painter(&expected);
+        WinUI3::PaintPrivate::controlSurface(&painter, QRectF(card.rect()), tokens.control,
+                                             tokens.stroke, tokens.strokeSecondary,
+                                             WinUI3::Private::ControlRadius);
+    }
+    QCOMPARE(canvas, expected);
+
+    // Geometry pairing on the same state: the corner arc of the fill itself.
+    // controlSurface() draws the fill inside the 1 DIP stroke ring, so the
+    // fill's arc is centred at (r, r) with radius r - 1 when the card radius
+    // is r: the interior colour first appears exactly r columns in from the
+    // leading edge in the first row below the top stroke, and 2 px further in
+    // in the second. The overlay/flyout radius (8) would read 8 and 5 instead.
+    const QColor fillColor = canvas.pixelColor(canvas.width() / 2, canvas.height() / 2);
+    QVERIFY2(fillColor != sentinel, "the settings card painted no fill");
+    const auto fillStart = [&](int row) {
+        for (int x = 0; x < canvas.width(); ++x)
+            if (canvas.pixelColor(x, row) == fillColor)
+                return x;
+        return -1;
+    };
+    const int firstRow = fillStart(topRow + 1);
+    const int secondRow = fillStart(topRow + 2);
+    QVERIFY2(firstRow >= 0 && secondRow >= 0, "the settings card painted no fill corner");
+    QCOMPARE(firstRow, static_cast<int>(WinUI3::Private::ControlRadius));
+    QCOMPARE(secondRow, static_cast<int>(WinUI3::Private::ControlRadius) - 2);
+    QCOMPARE(card.size(), QSize(240, 80));
 }
 
 void WinUI3SettingsTest::plainShapedFrameFallsThroughToBaseStyle()

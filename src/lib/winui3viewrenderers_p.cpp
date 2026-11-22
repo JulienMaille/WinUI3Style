@@ -571,10 +571,17 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
         // CC_GroupBox): an opaque card bands over Mica. Erase first so
         // hover frames cannot accumulate, then veil; off-material the fill
         // stays opaque as before.
-        eraseForBackdrop(painter, widget, option->rect, OverlayRadius);
+        // SettingsCard.xaml (CommunityToolkit/Windows a2fa47ad) sets
+        // CornerRadius={ThemeResource ControlCornerRadius} on DefaultSettings-
+        // CardStyle, and CornerRadius_themeresources.xaml (microsoft-ui-xaml
+        // 9f89c2da) defines ControlCornerRadius 4,4,4,4 - the control radius,
+        // not OverlayCornerRadius 8, which belongs to flyout/popup surfaces
+        // (issue #111). The SettingsExpander card and its items inherit the
+        // same value, so the erase and the painted surface share it.
+        eraseForBackdrop(painter, widget, option->rect, ControlRadius);
         if (paintsDirectlyOnBackdrop(widget))
             fill.setAlpha(qMin(fill.alpha(), VeiledCardAlpha));
-        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, OverlayRadius);
+        controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
         // The header's bottom border remains visible above the expanded
         // content. Both stock and compiled compositions delegate it here.
         const QWidget *content = expansion
