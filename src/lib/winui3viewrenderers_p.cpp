@@ -1416,7 +1416,11 @@ static bool drawItemViewItemControl(const Style *style, const QStyleOption *opti
                     textColor = t.textDisabled;
             }
             painter->setPen(textColor);
-            Qt::Alignment alignment = Qt::Alignment(source->displayAlignment) | Qt::AlignVCenter;
+            // A delegate's TextAlignmentRole may supply an explicit vertical
+            // alignment; centring must only be the default (issue #159).
+            Qt::Alignment alignment = Qt::Alignment(source->displayAlignment);
+            if (!(alignment & Qt::AlignVertical_Mask))
+                alignment |= Qt::AlignVCenter;
             alignment = QStyle::visualAlignment(source->direction, alignment);
             const bool wraps = source->features & QStyleOptionViewItem::WrapText;
             const int textFlags =
