@@ -42,13 +42,17 @@ Status: fixed 2026-11-22 — `winuiTypographyFontContract` pins the resolved
 family, exact Semibold weight, pixel size and optical-size axis for both roles
 and RED-checks the old Text+DemiBold recipe (removing only the family promotion
 makes it fail with `Segoe UI Variable Text` instead of `Segoe UI Variable`).
-The 82-frame deterministic matrix stays byte-identical across two runs after
-refreshing the 40 typography-affected approved PNGs; all 54 non-native unit/
-contract tests and all 24 DPI reruns pass. A native Windows Gallery replay of
-the Settings page after the fix measured the "Settings" title ink at 102 px,
-matching the pinned official Gallery crop, where the reported build measured
-106 px. The full interactive light/dark side-by-side against the official
-Gallery is still outstanding, so this row stays **partial**, not verified.
+The promotion is deliberately gated on the real variable font being installed:
+hosts without `Segoe UI Variable` keep the application font untouched, so their
+approved rasters are unchanged (Windows Server / CI images have no optical-axis
+face and cannot reproduce the pinned outlines). On a host with the font, the
+82-frame deterministic matrix is byte-identical across two runs with the 40
+typography-affected PNGs refreshed; all 54 non-native unit/contract tests and
+all 24 DPI reruns pass. A native Windows Gallery replay of the Settings page
+after the fix measured the "Settings" title ink at 102 px, matching the pinned
+official Gallery crop, where the reported build measured 106 px. The full
+interactive light/dark side-by-side against the official Gallery is still
+outstanding, so this row stays **partial**, not verified.
 
 ## Issue #69 — standard pixmap icon audit surface (2026-11-15)
 

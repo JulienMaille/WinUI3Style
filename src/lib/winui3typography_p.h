@@ -29,11 +29,13 @@ namespace WinUI3::Private {
 // keeps the application's family).
 inline QString winuiVariableFontFamily()
 {
+    // Only the real variable family carries the optical-size axis WinUI uses.
+    // Hosts without it (older Windows / CI images) keep the application font
+    // untouched: a substitution would change their approved rasters and would
+    // not reproduce the pinned WinUI outlines anyway.
     const QStringList families = fontFamilies();
     if (families.contains(QLatin1String(VariableFontFamily)))
         return QLatin1String(VariableFontFamily);
-    if (families.contains(QLatin1String(StaticFontFamily)))
-        return QLatin1String(StaticFontFamily);
     return QString();
 }
 

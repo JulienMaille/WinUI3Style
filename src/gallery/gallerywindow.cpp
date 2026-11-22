@@ -81,11 +81,11 @@ QFont winuiStrongFont(const QFont &base, int pixelSize)
     const QFontDatabase database;
     const QStringList families = database.families();
 #endif
-    QString family;
-    if (families.contains(QStringLiteral("Segoe UI Variable")))
-        family = QStringLiteral("Segoe UI Variable");
-    else if (families.contains(QStringLiteral("Segoe UI")))
-        family = QStringLiteral("Segoe UI");
+    // Only promote when the real variable family is installed. Hosts without
+    // it keep the application font untouched (same rule as the style helper).
+    const QString family = families.contains(QStringLiteral("Segoe UI Variable"))
+            ? QStringLiteral("Segoe UI Variable")
+            : QString();
     const QString baseFamily = font.family();
     const bool styleOwned = baseFamily == QLatin1String("Segoe UI Variable Text")
             || baseFamily == QLatin1String("Segoe UI Variable")
