@@ -32,6 +32,9 @@ using WinUI3::Private::progress;
 constexpr auto navigationIndicatorProperty = "_winui_navigation_indicator_y";
 constexpr auto navigationDelegateProperty = "_winui_navigation_delegate";
 constexpr auto navigationOriginalDelegateProperty = "_winui_navigation_original_delegate";
+// Marks the delegate installed by this style so destruction recovery can
+// leave an application-owned replacement alone.
+constexpr auto navigationOwnedDelegateProperty = "_winui_navigation_owned_delegate";
 constexpr auto navigationStateProperty = "_winui_navigation_state";
 constexpr auto originalMouseTrackingProperty = "_winui_original_mouse_tracking";
 
@@ -271,6 +274,11 @@ public:
     }
     QPointer<NavigationItemDelegate> delegate;
     QPointer<QAbstractItemDelegate> original;
+    // Bumped on every install/retire. destroyed() handlers from a retired
+    // installation must not mutate the state of its replacement, and QPointer
+    // is already clear when QObject::destroyed() runs, so this generation is
+    // the only reliable identity left at that point.
+    quint64 installation = 0;
     // The surface snapshot (pre-material palette, explicit flags, autofill
     // and backdrop attributes) lives in the shared backdrop-surface keys
     // (rememberBackdropSurfaceState), not here: a view armed by both the
@@ -371,6 +379,9 @@ void retireNavigationDelegate(QAbstractItemView *view, NavigationViewState *stat
 {
     if (!view || !state)
         return;
+    // Invalidate destroyed() handlers belonging to this installation before
+    // its delegate is deferred for deletion.
+    ++state->installation;
     // Finding C: compare through the tracked QPointer state. Reading
     // view->itemDelegate() (a raw pointer) inside a destroyed() handler
     // risks touching a dangling pointer; installation status was already
@@ -447,47 +458,57 @@ void prepareNavigationView(QAbstractItemView *view)
         return;
     if (state->delegate)
         retireNavigationDelegate(view, state);
+    ++state->installation;
     QAbstractItemDelegate *original = view->itemDelegate();
     auto *delegate = new NavigationItemDelegate(view, original);
     state->original = original;
     state->delegate = delegate;
     view->setProperty(navigationOriginalDelegateProperty, QVariant::fromValue<QObject *>(original));
+    delegate->setProperty(navigationOwnedDelegateProperty, true);
     view->setProperty(navigationDelegateProperty, QVariant::fromValue<QObject *>(delegate));
     const QPointer<QAbstractItemView> guardedView(view);
     const QPointer<NavigationViewState> guardedState(state);
-    // Finding C: capture the delegate in a QPointer. The raw sender
-    // pointer is dangling once destroyed() is emitted (verified with a
-    // throwaway Qt 6.11 probe: QPointer clears before destroyed()
-    // handlers run), so every comparison below goes through guarded
-    // QPointer state instead.
-    const QPointer<NavigationItemDelegate> guardedDelegate(delegate);
-    QObject::connect(delegate, &QObject::destroyed, state,
-                     [guardedView, guardedState, guardedDelegate] {
-                         if (!guardedView || !guardedState || !guardedDelegate)
-                             return;
-                         if (guardedState->delegate.data() != guardedDelegate.data())
-                             return;
-                         guardedState->delegate.clear();
-                         // The destroyed delegate is already detached from
-                         // here; only replace what the view still holds.
-                         // The fallback is now tracked in state->original
-                         // (Finding C) so restoreNavigationView() restores
-                         // the owned object instead of a dangling pointer.
-                         auto *fallback = new QStyledItemDelegate(guardedView);
-                         guardedState->original = fallback;
-                         guardedView->setProperty(navigationOriginalDelegateProperty,
-                                                  QVariant::fromValue<QObject *>(fallback));
-                         if (guardedView->itemDelegate() == guardedDelegate)
-                             guardedView->setItemDelegate(fallback);
-                         guardedView->setProperty(navigationDelegateProperty, {});
-                     });
-    if (original) {
-        QObject::connect(original, &QObject::destroyed, state, [guardedView, guardedState] {
-            if (!guardedView || !guardedState)
+    // QPointer clears before QObject::destroyed() handlers run (verified
+    // with a throwaway Qt 6.11 probe), so neither a QPointer to the dying
+    // delegate nor a raw sender comparison can identify the installation.
+    // Capture the generation instead; retireNavigationDelegate() bumps it
+    // before a retired delegate is deleted, making that handler a no-op.
+    const quint64 generation = state->installation;
+    QObject::connect(delegate, &QObject::destroyed, state, [guardedView, guardedState, generation] {
+        if (!guardedView || !guardedState || guardedState->installation != generation)
+            return;
+        guardedState->delegate.clear();
+        // The destroyed delegate is already detached from
+        // here; only replace what the view still holds. The
+        // fallback is tracked in state->original so
+        // restoreNavigationView() restores an owned object.
+        auto *fallback = new QStyledItemDelegate(guardedView);
+        guardedState->original = fallback;
+        guardedView->setProperty(navigationOriginalDelegateProperty,
+                                 QVariant::fromValue<QObject *>(fallback));
+        // A retired generation is excluded above. Also leave an
+        // application-owned replacement installed: only recover when the
+        // view has no delegate or still holds one this style installed.
+        if (QAbstractItemDelegate *current = guardedView->itemDelegate()) {
+            if (!current->property(navigationOwnedDelegateProperty).toBool()) {
+                // The cached wrapper points at the delegate being destroyed;
+                // clear it before returning so no later install consults a
+                // dangling cached pointer (#134).
+                guardedView->setProperty(navigationDelegateProperty, {});
                 return;
-            guardedState->original.clear();
-            guardedView->setProperty(navigationOriginalDelegateProperty, {});
-        });
+            }
+        }
+        guardedView->setItemDelegate(fallback);
+        guardedView->setProperty(navigationDelegateProperty, {});
+    });
+    if (original) {
+        QObject::connect(
+                original, &QObject::destroyed, state, [guardedView, guardedState, generation] {
+                    if (!guardedView || !guardedState || guardedState->installation != generation)
+                        return;
+                    guardedState->original.clear();
+                    guardedView->setProperty(navigationOriginalDelegateProperty, {});
+                });
     }
     view->setItemDelegate(delegate);
     view->viewport()->setProperty(Style::NavigationViewProperty, true);
