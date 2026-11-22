@@ -379,12 +379,63 @@ void WinUI3ViewsTest::scrollBarContract()
     const QColor background = bar.palette().color(QPalette::Window);
     const int sampleY = thumb.center().y();
     QVERIFY(colorDistance(collapsedGeometry.pixelColor(2, sampleY), background) < 5);
-    QVERIFY(colorDistance(collapsedGeometry.pixelColor(4, sampleY), background) > 10);
-    QVERIFY(colorDistance(collapsedGeometry.pixelColor(11, sampleY), background) > 10);
+    // Collapsed thumb: 8 px element centred + 2 px trailing offset, stroked
+    // at 6 px per the pinned template, so the visible hairline sits at x=7..8.
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(5, sampleY), background) < 5);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(7, sampleY), background) > 10);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(8, sampleY), background) > 10);
+    // The old trailing bar reached x=11; the hairline leaves it clear.
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(11, sampleY), background) < 5);
 
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&bar, &enter);
     QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 1.0);
+
+    // Issue #109: a solid caret has a continuous ink centre; a chevron has not.
+    for (WinUI3::ThemeMode theme : { WinUI3::ThemeMode::Light, WinUI3::ThemeMode::Dark }) {
+        qobject_cast<WinUI3::Style *>(QApplication::style())->setThemeMode(theme);
+        QCOMPARE(frameReal(&bar, "_winui_hover_progress"), 1.0);
+        const QImage expandedArrow = bar.grab().toImage();
+        const QColor arrowBackground = bar.palette().color(QPalette::Window);
+        int centreRun = 0;
+        int solidCentreRun = 0;
+        int arrowInkSpan = 0;
+        for (int y = decrease.top(); y < decrease.bottom(); ++y) {
+            const bool centreInk = colorDistance(expandedArrow.pixelColor(decrease.center().x(), y),
+                                                 arrowBackground)
+                    > 24;
+            centreRun = centreInk ? centreRun + 1 : 0;
+            solidCentreRun = qMax(solidCentreRun, centreRun);
+            for (int x = decrease.left(); x < decrease.right(); ++x)
+                if (colorDistance(expandedArrow.pixelColor(x, y), arrowBackground) > 24)
+                    ++arrowInkSpan;
+        }
+        QVERIFY2(solidCentreRun >= 4, "the hover arrow is a hollow chevron, not a solid caret");
+        QVERIFY2(arrowInkSpan <= 60, "the hover arrow is wider than the 8 px pinned arrow box");
+
+        // The caret ink must share the thumb's horizontal centre. A font glyph
+        // with asymmetric side bearings sits visibly to the left of it.
+        int arrowMin = decrease.right();
+        int arrowMax = decrease.left();
+        for (int y = decrease.top(); y < decrease.bottom(); ++y)
+            for (int x = decrease.left(); x < decrease.right(); ++x)
+                if (colorDistance(expandedArrow.pixelColor(x, y), arrowBackground) > 24) {
+                    arrowMin = qMin(arrowMin, x);
+                    arrowMax = qMax(arrowMax, x);
+                }
+        int thumbMin = thumb.right();
+        int thumbMax = thumb.left();
+        for (int x = thumb.left(); x < thumb.right(); ++x)
+            if (colorDistance(expandedArrow.pixelColor(x, thumb.center().y()), arrowBackground)
+                > 24) {
+                thumbMin = qMin(thumbMin, x);
+                thumbMax = qMax(thumbMax, x);
+            }
+        const qreal arrowCentre = (arrowMin + arrowMax) / 2.0;
+        const qreal thumbCentre = (thumbMin + thumbMax) / 2.0;
+        QVERIFY2(qAbs(arrowCentre - thumbCentre) <= 0.5,
+                 "the hover arrow ink is not centred on the thumb");
+    }
 
     const int beforeArrow = bar.value();
     QTest::mouseClick(&bar, Qt::LeftButton, Qt::NoModifier, increase.center());
@@ -450,8 +501,12 @@ void WinUI3ViewsTest::scrollBarHorizontalAndReentry()
     const QColor background = bar.palette().color(QPalette::Window);
     const int sampleX = thumb.center().x();
     QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 2), background) < 5);
-    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 4), background) > 10);
-    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 11), background) > 10);
+    // Collapsed thumb hairline sits at y=7..8 (see the vertical contract).
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 5), background) < 5);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 7), background) > 10);
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 8), background) > 10);
+    // The centred hairline leaves the trailing side clear.
+    QVERIFY(colorDistance(collapsedGeometry.pixelColor(sampleX, 11), background) < 5);
 
     QEvent enter(QEvent::Enter);
     QCoreApplication::sendEvent(&bar, &enter);

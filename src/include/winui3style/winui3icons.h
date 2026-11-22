@@ -79,6 +79,9 @@ enum class Icon {
     OpenFile, // E8E5 OpenFile (file-link icon)
     Color, // E790 Color (palette lab)
     EmojiTabSymbols, // ED58 EmojiTabSymbols (icons page)
+    // WinUI ScrollBar arrows, pinned in ScrollBar_themeresources.xaml.
+    ScrollBarArrowUp, // EDDB ChevronUp (VerticalDecrementTemplate)
+    ScrollBarArrowDown, // EDDC ChevronDown (VerticalIncrementTemplate)
     // Sentinel: the number of real glyphs. Lookups and the icon cache size
     // must use this, not the last named glyph (issue #69: stopping at
     // SortDescending silently dropped Accept and ReturnKey).
