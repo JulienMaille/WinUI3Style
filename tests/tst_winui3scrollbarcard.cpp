@@ -30,6 +30,8 @@ private slots:
     void cleanup();
     void scrollBarInsideOpaqueCardKeepsCardFill();
     void disabledBarGrooveKeepsRoleAlpha();
+    void horizontalScrollBarRtlThumbPosition_data();
+    void horizontalScrollBarRtlThumbPosition();
 };
 
 void WinUI3ScrollBarCardTest::initTestCase()
@@ -203,3 +205,51 @@ void WinUI3ScrollBarCardTest::disabledBarGrooveKeepsRoleAlpha()
 
 QTEST_MAIN(WinUI3ScrollBarCardTest)
 #include "tst_winui3scrollbarcard.moc"
+
+void WinUI3ScrollBarCardTest::horizontalScrollBarRtlThumbPosition_data()
+{
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("standard") << false;
+    QTest::newRow("compact") << true;
+}
+
+void WinUI3ScrollBarCardTest::horizontalScrollBarRtlThumbPosition()
+{
+    QFETCH(bool, compact);
+    auto *style = qobject_cast<WinUI3::Style *>(QApplication::style());
+    if (style)
+        style->setDensityMode(compact ? WinUI3::DensityMode::Compact
+                                      : WinUI3::DensityMode::Standard);
+
+    QScrollBar bar(Qt::Horizontal);
+    bar.setLayoutDirection(Qt::RightToLeft);
+    bar.setRange(0, 100);
+    bar.setPageStep(20);
+    bar.setValue(0);
+    bar.resize(200, 12);
+    bar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    QCOMPARE(bar.style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, &bar), 12);
+
+    QStyleOptionSlider option;
+    option.initFrom(&bar);
+    option.orientation = Qt::Horizontal;
+    option.minimum = bar.minimum();
+    option.maximum = bar.maximum();
+    option.sliderPosition = bar.sliderPosition();
+    option.pageStep = bar.pageStep();
+    QCOMPARE(option.direction, Qt::RightToLeft);
+    const QRect groove = bar.style()->subControlRect(QStyle::CC_ScrollBar, &option,
+                                                     QStyle::SC_ScrollBarGroove, &bar);
+    const QRect thumb = bar.style()->subControlRect(QStyle::CC_ScrollBar, &option,
+                                                    QStyle::SC_ScrollBarSlider, &bar);
+    QVERIFY2(thumb.center().x() > groove.center().x(), "RTL thumb must sit at the right end");
+    const QPoint expectedThumb(groove.right() - thumb.width() / 2, groove.center().y());
+    QCOMPARE(bar.style()->hitTestComplexControl(QStyle::CC_ScrollBar, &option, expectedThumb, &bar),
+             QStyle::SC_ScrollBarSlider);
+    QTest::mouseClick(&bar, Qt::LeftButton, Qt::NoModifier, expectedThumb);
+    QCOMPARE(bar.value(), 0);
+
+    if (style)
+        style->setDensityMode(WinUI3::DensityMode::Standard);
+}

@@ -227,12 +227,18 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                             scroll->rect.height())
                     : QRect(scroll->rect.left(), scroll->rect.top() + buttonLength,
                             scroll->rect.width(), grooveLength);
+            // Geometry is computed in logical (left-to-right) coordinates.
+            // Mirror every subcontrol for RTL, not just the arrow buttons:
+            // the thumb and page halves must follow the same visual direction.
+            const auto visual = [scroll](const QRect &rect) {
+                return QStyle::visualRect(scroll->direction, scroll->rect, rect);
+            };
             if (subControl == QStyle::SC_ScrollBarSubLine)
                 return QStyle::visualRect(scroll->direction, scroll->rect, logicalSub);
             if (subControl == QStyle::SC_ScrollBarAddLine)
                 return QStyle::visualRect(scroll->direction, scroll->rect, logicalAdd);
             if (subControl == QStyle::SC_ScrollBarGroove)
-                return groove;
+                return visual(groove);
 
             const qint64 range = qMax<qint64>(0, qint64(scroll->maximum) - qint64(scroll->minimum));
             int thumbLength = grooveLength;
@@ -252,33 +258,39 @@ std::optional<QRect> complexControlRect(QStyle::ComplexControl control,
                     ? QRect(groove.left() + offset, groove.top(), thumbLength, groove.height())
                     : QRect(groove.left(), groove.top() + offset, groove.width(), thumbLength);
             if (subControl == QStyle::SC_ScrollBarSlider)
-                return thumb;
+                return visual(thumb);
 
             if (subControl == QStyle::SC_ScrollBarSubPage) {
                 if (horizontal) {
-                    return scroll->upsideDown
-                            ? QRect(thumb.right() + 1, groove.top(),
-                                    qMax(0, groove.right() - thumb.right()), groove.height())
-                            : QRect(groove.left(), groove.top(),
-                                    qMax(0, thumb.left() - groove.left()), groove.height());
+                    return visual(scroll->upsideDown
+                                          ? QRect(thumb.right() + 1, groove.top(),
+                                                  qMax(0, groove.right() - thumb.right()),
+                                                  groove.height())
+                                          : QRect(groove.left(), groove.top(),
+                                                  qMax(0, thumb.left() - groove.left()),
+                                                  groove.height()));
                 }
-                return scroll->upsideDown ? QRect(groove.left(), thumb.bottom() + 1, groove.width(),
-                                                  qMax(0, groove.bottom() - thumb.bottom()))
-                                          : QRect(groove.left(), groove.top(), groove.width(),
-                                                  qMax(0, thumb.top() - groove.top()));
+                return visual(scroll->upsideDown
+                                      ? QRect(groove.left(), thumb.bottom() + 1, groove.width(),
+                                              qMax(0, groove.bottom() - thumb.bottom()))
+                                      : QRect(groove.left(), groove.top(), groove.width(),
+                                              qMax(0, thumb.top() - groove.top())));
             }
             if (subControl == QStyle::SC_ScrollBarAddPage) {
                 if (horizontal) {
-                    return scroll->upsideDown
-                            ? QRect(groove.left(), groove.top(),
-                                    qMax(0, thumb.left() - groove.left()), groove.height())
-                            : QRect(thumb.right() + 1, groove.top(),
-                                    qMax(0, groove.right() - thumb.right()), groove.height());
+                    return visual(scroll->upsideDown
+                                          ? QRect(groove.left(), groove.top(),
+                                                  qMax(0, thumb.left() - groove.left()),
+                                                  groove.height())
+                                          : QRect(thumb.right() + 1, groove.top(),
+                                                  qMax(0, groove.right() - thumb.right()),
+                                                  groove.height()));
                 }
-                return scroll->upsideDown ? QRect(groove.left(), groove.top(), groove.width(),
-                                                  qMax(0, thumb.top() - groove.top()))
-                                          : QRect(groove.left(), thumb.bottom() + 1, groove.width(),
-                                                  qMax(0, groove.bottom() - thumb.bottom()));
+                return visual(scroll->upsideDown
+                                      ? QRect(groove.left(), groove.top(), groove.width(),
+                                              qMax(0, thumb.top() - groove.top()))
+                                      : QRect(groove.left(), thumb.bottom() + 1, groove.width(),
+                                              qMax(0, groove.bottom() - thumb.bottom())));
             }
         }
     }
