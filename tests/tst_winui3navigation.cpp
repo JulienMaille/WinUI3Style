@@ -100,6 +100,7 @@ private slots:
     void cleanup();
     void navigationTransition();
     void navigationSingleTransitionDispatch();
+    void navigationNewPageRespectsFilter();
     void navigationSelectedStateFill_data();
     void navigationSelectedStateFill();
     void navigationIconlessTextInset_data();
@@ -186,6 +187,28 @@ void WinUI3NavigationTest::navigationSingleTransitionDispatch()
     QVERIFY(redirected);
     QCOMPARE(completions, QList<int>({ 1, 0 }));
     QCOMPARE(view.currentIndex(), 0);
+}
+
+void WinUI3NavigationTest::navigationNewPageRespectsFilter()
+{
+    WinUI3::NavigationView view;
+    view.addPage(new QLabel(QStringLiteral("Alpha")), QIcon(), QStringLiteral("Alpha"));
+    auto *search = view.findChild<QLineEdit *>();
+    QVERIFY(search);
+    search->setText(QStringLiteral("Alpha"));
+    QCOMPARE(view.navigationList()->item(0)->isHidden(), false);
+
+    view.addPage(new QLabel(QStringLiteral("Beta")), QIcon(), QStringLiteral("Beta"));
+    QListWidgetItem *beta = nullptr;
+    for (int row = 0; row < view.navigationList()->count(); ++row) {
+        auto *candidate = view.navigationList()->item(row);
+        if (candidate->text() == QStringLiteral("Beta"))
+            beta = candidate;
+    }
+    QVERIFY(beta);
+    // A page inserted while a filter is active must obey that filter; the
+    // textChanged signal that drives filter() has already fired.
+    QVERIFY2(beta->isHidden(), "Beta was added visible under an active Alpha filter");
 }
 
 void WinUI3NavigationTest::navigationSelectedStateFill_data()
