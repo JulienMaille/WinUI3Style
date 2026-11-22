@@ -98,6 +98,15 @@
 
 #include "winui3testhelpers.h"
 
+namespace {
+class AlignmentGroupBox : public QGroupBox
+{
+public:
+    using QGroupBox::initStyleOption;
+    using QGroupBox::QGroupBox;
+};
+} // namespace
+
 class WinUI3MenusTest final : public QObject
 {
     Q_OBJECT
@@ -116,6 +125,7 @@ private slots:
     void menuBarOnlyActiveActionIsHighlighted();
     void micaChromePaintersStayTransparent();
     void groupBoxContract();
+    void groupBoxTitleHonorsAlignment();
     void splitterHandleContract();
     void splitterGripPixelAlignment();
     void dockWidgetContract();
@@ -826,6 +836,58 @@ void WinUI3MenusTest::groupBoxContract()
     const QPoint rtlGap((rtlLabel.right() + rtlIndicator.left()) / 2, rtlIndicator.center().y());
     QCOMPARE(group.style()->hitTestComplexControl(QStyle::CC_GroupBox, &option, rtlGap, &group),
              QStyle::SC_GroupBoxCheckBox);
+}
+
+void WinUI3MenusTest::groupBoxTitleHonorsAlignment()
+{
+    AlignmentGroupBox group(QStringLiteral("Title"));
+    group.resize(260, 90);
+    const auto render = [&group](Qt::Alignment alignment) {
+        group.setAlignment(alignment);
+        QStyleOptionGroupBox option;
+        group.initStyleOption(&option);
+        option.rect = group.rect();
+        QImage image(group.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        group.style()->drawComplexControl(QStyle::CC_GroupBox, &option, &painter, &group);
+        return image;
+    };
+
+    // Qt carries the widget's alignment into the style option; the style must
+    // honour it instead of forcing AlignLeft at the paint site.
+    group.setAlignment(Qt::AlignRight);
+    QStyleOptionGroupBox probe;
+    group.initStyleOption(&probe);
+    QVERIFY(probe.textAlignment & Qt::AlignRight);
+
+    group.setTitle(QString());
+    const QImage blank = render(Qt::AlignLeft);
+    group.setTitle(QStringLiteral("Title"));
+    const QImage left = render(Qt::AlignLeft);
+    const QImage right = render(Qt::AlignRight);
+    // Diff against a no-title frame: the card stroke spans the whole width and
+    // would otherwise dominate a simple contrast scan.
+    const auto inkCentreX = [&blank](const QImage &image) {
+        int sum = 0;
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (image.pixel(x, y) != blank.pixel(x, y)) {
+                    sum += x;
+                    ++count;
+                }
+            }
+        }
+        return count ? static_cast<qreal>(sum) / count : -1.0;
+    };
+    const qreal leftInk = inkCentreX(left);
+    const qreal rightInk = inkCentreX(right);
+    QVERIFY(leftInk > 0.0);
+    QVERIFY2(rightInk > leftInk + 20.0,
+             qPrintable(QStringLiteral("right title ink %1 did not move past left ink %2")
+                                .arg(rightInk)
+                                .arg(leftInk)));
 }
 
 void WinUI3MenusTest::splitterHandleContract()
