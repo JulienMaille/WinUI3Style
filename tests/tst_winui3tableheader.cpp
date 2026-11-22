@@ -82,6 +82,7 @@ private slots:
     void tableCellKeepsFittingText();
     void tableCellKeepsFittingLineBeforeOverflow();
     void tableCellHonorsElideNone();
+    void tableCellHonorsExplicitVerticalAlignment();
     void tableCellPreservesWrappedPrefix_data();
     void tableCellPreservesWrappedPrefix();
     void tableHeaderLabelKeepsLeadingEdgeWithSortColumn();
@@ -986,6 +987,61 @@ void WinUI3TableHeaderTest::tableHeaderBandContrastsAlternateRows()
     }
     style->setThemeMode(WinUI3::ThemeMode::Light);
     qApp->processEvents();
+}
+
+void WinUI3TableHeaderTest::tableCellHonorsExplicitVerticalAlignment()
+{
+    QTableWidget table(1, 1);
+    table.ensurePolished();
+    QStyleOptionViewItem option;
+    option.initFrom(table.viewport());
+    option.font = table.font();
+    option.fontMetrics = QFontMetrics(option.font);
+    option.rect = QRect(0, 0, 150, 100);
+    option.index = table.model()->index(0, 0);
+    option.state = QStyle::State_Enabled;
+    option.features = QStyleOptionViewItem::HasDisplay;
+    option.text = QStringLiteral("Top");
+    option.textElideMode = Qt::ElideNone;
+
+    const auto render = [&option, &table](Qt::Alignment alignment) {
+        QStyleOptionViewItem cell = option;
+        cell.displayAlignment = alignment;
+        QImage image(cell.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        table.viewport()->style()->drawControl(QStyle::CE_ItemViewItem, &cell, &painter,
+                                               table.viewport());
+        return image;
+    };
+    const QImage top = render(Qt::AlignLeft | Qt::AlignTop);
+    const QImage centre = render(Qt::AlignLeft | Qt::AlignVCenter);
+
+    const auto inkCentreY = [](const QImage &image) {
+        const QColor background = image.pixelColor(0, 0);
+        int sum = 0;
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (qAbs(pixel.red() - background.red()) + qAbs(pixel.green() - background.green())
+                            + qAbs(pixel.blue() - background.blue())
+                            + qAbs(pixel.alpha() - background.alpha())
+                    > 30) {
+                    sum += y;
+                    ++count;
+                }
+            }
+        }
+        return count ? static_cast<qreal>(sum) / count : -1.0;
+    };
+    const qreal topInk = inkCentreY(top);
+    const qreal centreInk = inkCentreY(centre);
+    QVERIFY(topInk > 0.0);
+    QVERIFY2(topInk < centreInk - 20.0,
+             qPrintable(QStringLiteral("explicit AlignTop ink %1 stayed near centred ink %2")
+                                .arg(topInk)
+                                .arg(centreInk)));
 }
 
 QTEST_MAIN(WinUI3TableHeaderTest)
