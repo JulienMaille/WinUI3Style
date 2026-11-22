@@ -50,6 +50,12 @@ inline constexpr auto originalTranslucentBackgroundProperty =
         "_winui_original_translucent_background";
 inline constexpr auto originalNoSystemBackgroundProperty = "_winui_original_no_system_background";
 inline constexpr auto originalListSpacingProperty = "_winui_original_list_spacing";
+inline constexpr auto originalSizePolicyProperty = "_winui_original_size_policy";
+inline constexpr auto originalFocusPolicyProperty = "_winui_original_focus_policy";
+inline constexpr auto originalCursorProperty = "_winui_original_cursor";
+inline constexpr auto originalCardContentHiddenProperty = "_winui_original_card_content_hidden";
+inline constexpr auto originalCardContentMaximumHeightProperty =
+        "_winui_original_card_content_maximum_height";
 inline constexpr auto ownedPaletteProperty = "_winui_theme_owned_palette";
 inline constexpr auto completerOwnerProperty = "_winui_completer_owner";
 inline constexpr auto calendarPopupBorderObjectName = "_winui_calendar_popup_border";
