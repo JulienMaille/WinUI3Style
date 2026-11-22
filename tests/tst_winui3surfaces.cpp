@@ -702,10 +702,8 @@ void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
                                     top.blueF() * alpha + bottom.blueF() * (1.0 - alpha));
         };
         const auto half = [](const QColor &a, const QColor &b) {
-            return QColor::fromRgbF((a.redF() + b.redF()) / 2.0,
-                                    (a.greenF() + b.greenF()) / 2.0,
-                                    (a.blueF() + b.blueF()) / 2.0,
-                                    (a.alphaF() + b.alphaF()) / 2.0);
+            return QColor::fromRgbF((a.redF() + b.redF()) / 2.0, (a.greenF() + b.greenF()) / 2.0,
+                                    (a.blueF() + b.blueF()) / 2.0, (a.alphaF() + b.alphaF()) / 2.0);
         };
         // Same outline as Button: controlSurface strokes the
         // ControlElevationBorderBrush gradient t.stroke -> t.strokeSecondary
