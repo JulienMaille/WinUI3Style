@@ -5,6 +5,7 @@
 #include "winui3density_p.h"
 #include "winui3helpers_p.h"
 #include "winui3style_properties_p.h"
+#include "winui3typography_p.h"
 
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
@@ -106,8 +107,8 @@ static QSize pushButtonSize(const QStyleOption *option, QSize size, const QWidge
                             const DensityMetrics &density)
 {
     if (const auto *command = qobject_cast<const QCommandLinkButton *>(widget)) {
-        QFont titleFont = command->font();
-        titleFont.setWeight(QFont::DemiBold);
+        // CommandLink's title is BodyStrong typography (issue #112).
+        const QFont titleFont = winuiStrongFont(command->font());
         const int textWidth =
                 qMax(QFontMetrics(titleFont).horizontalAdvance(command->text()),
                      command->fontMetrics().horizontalAdvance(command->description()));

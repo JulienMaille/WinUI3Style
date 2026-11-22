@@ -52,6 +52,17 @@ constexpr int ShortcutChordBreakGap = 10;
 constexpr qreal ShortcutChordDotRadius = 3.0;
 constexpr int ShortcutKeycapFontSize = 12;
 constexpr int ShortcutFieldTextInset = 10;
+// TextBlock_themeresources.xaml (microsoft-ui-xaml 9f89c2da): BaseTextBlockStyle
+// inherits XamlAutoFontFamily + SemiBold into Title/BodyStrong; only the size
+// differs. XamlAutoFontFamily is the generic Segoe UI Variable family, whose
+// optical-size axis tracks the requested pixel size (issue #112).
+constexpr const char *VariableFontFamily = "Segoe UI Variable";
+constexpr const char *TextFontFamily = "Segoe UI Variable Text";
+constexpr const char *StaticFontFamily = "Segoe UI";
+constexpr int TitleFontSize = 28;
+constexpr int SubtitleFontSize = 20;
+constexpr int BodyStrongFontSize = 14;
+constexpr int TitleFontWeight = 600; // QFont::DemiBold, mapped to the exact Semibold face
 // TextBox_themeresources_perf2026.xaml: reflected absolute 0,0 -> 0,2
 // elevation brush, strong stop at 0.5; TextControlBorderThemeThickness is 1.
 constexpr qreal EditorBorderThickness = 1.0;

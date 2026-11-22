@@ -8,6 +8,7 @@
 #include "winui3style_properties_p.h"
 #include "winui3surfaces_p.h"
 #include "winui3tokens_p.h"
+#include "winui3typography_p.h"
 
 #include <winui3style/winui3icons.h>
 #include <winui3style/winui3style.h>
@@ -1548,8 +1549,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                 painter->translate(-transposed.left(), -transposed.top());
             }
             QFont font = widget ? widget->font() : QApplication::font();
-            font.setWeight(QFont::DemiBold);
-            painter->setFont(font);
+            painter->setFont(winuiStrongFont(font));
             painter->setPen(dock->state & QStyle::State_Enabled ? t.textPrimary : t.textDisabled);
             painter->drawText(
                     titleRect,

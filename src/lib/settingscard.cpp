@@ -7,6 +7,7 @@
 #include "winui3settingscardmotion_p.h"
 #include "winui3paint_p.h"
 #include "winui3qtcompat_p.h"
+#include "winui3typography_p.h"
 
 #include <QGridLayout>
 #include <QCoreApplication>
@@ -89,9 +90,10 @@ SettingsCard::SettingsCard(QWidget *parent)
     m_titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_descriptionLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_chevronLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-    QFont titleFont = m_titleLabel->font();
-    titleFont.setWeight(QFont::DemiBold);
-    m_titleLabel->setFont(titleFont);
+    // SettingsCard.xaml: BodyStrongTextBlockStyle (14 px, inherited SemiBold
+    // of the generic variable family). See issue #112.
+    m_titleLabel->setFont(
+            Private::winuiStrongFont(m_titleLabel->font(), Private::BodyStrongFontSize));
 
     m_headerLayout->addWidget(m_iconLabel, 0, 0, 2, 1);
     m_headerLayout->addWidget(m_titleLabel, 0, 1);
