@@ -130,7 +130,10 @@ void updateSliderValueToolTipNow(QSlider *slider)
     const QPoint anchor = slider->orientation() == Qt::Horizontal
             ? QPoint(handle.center().x(), handle.top() - 8)
             : QPoint(handle.right() + 8, handle.center().y());
-    const QString valueText = QString::number(slider->value());
+    // With tracking disabled the handle follows sliderPosition() while value()
+    // stays at its release-time value. The tooltip is attached to the handle,
+    // so show the live position, not the pending value.
+    const QString valueText = QString::number(slider->sliderPosition());
     framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, true);
     framePropertyRegistry().set(slider, sliderToolTipValueProperty, valueText);
     // The headless platform cannot host a non-activating tool window and
@@ -180,7 +183,7 @@ void showSliderValueToolTip(QSlider *slider)
     // native popup is coalesced.
     framePropertyRegistry().set(slider, sliderToolTipVisibleProperty, true);
     framePropertyRegistry().set(slider, sliderToolTipValueProperty,
-                                QString::number(slider->value()));
+                                QString::number(slider->sliderPosition()));
     // The headless platform cannot host a non-activating tool window; keep the
     // state synchronous and avoid allocating a timer that cannot fire.
     if (QGuiApplication::platformName() == QStringLiteral("offscreen"))

@@ -101,6 +101,7 @@ private slots:
     void sliderStateMotion();
     void sliderDragInteraction();
     void sliderValueToolTipAndFocus();
+    void sliderToolTipUsesLivePositionWithoutTracking();
     void tabViewContract();
     void listViewContract();
     void itemViewGutterContract();
@@ -335,6 +336,41 @@ void WinUI3ViewsTest::sliderValueToolTipAndFocus()
     option.rect = slider.rect();
     const QImage disabled = render(option);
     QVERIFY(disabled != mouseFocused);
+}
+
+void WinUI3ViewsTest::sliderToolTipUsesLivePositionWithoutTracking()
+{
+    QSlider slider(Qt::Horizontal);
+    slider.setRange(0, 100);
+    slider.setValue(20);
+    slider.setTracking(false);
+    slider.resize(320, 40);
+    slider.move(300, 300);
+    slider.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&slider));
+
+    QStyleOptionSlider option;
+    option.initFrom(&slider);
+    option.orientation = slider.orientation();
+    option.minimum = slider.minimum();
+    option.maximum = slider.maximum();
+    option.sliderPosition = slider.sliderPosition();
+    option.sliderValue = slider.value();
+    const QRect handle = slider.style()->subControlRect(QStyle::CC_Slider, &option,
+                                                        QStyle::SC_SliderHandle, &slider);
+
+    QTest::mousePress(&slider, Qt::LeftButton, Qt::NoModifier, handle.center());
+    QMouseEvent move(QEvent::MouseMove, QPointF(handle.center() + QPoint(120, 0)),
+                     QPointF(handle.center() + QPoint(120, 0)), Qt::NoButton, Qt::LeftButton,
+                     Qt::NoModifier);
+    QCoreApplication::sendEvent(&slider, &move);
+    // Mechanism: with tracking disabled the handle moves but value() stays at
+    // its release-time value. The tooltip must follow the live position.
+    QTRY_VERIFY(slider.sliderPosition() != slider.value());
+    QTRY_VERIFY(frameBool(&slider, "_winui_slider_tooltip_visible"));
+    QCOMPARE(frameValue(&slider, "_winui_slider_tooltip_value").toString(),
+             QString::number(slider.sliderPosition()));
+    QTest::mouseRelease(&slider, Qt::LeftButton, Qt::NoModifier, handle.center() + QPoint(120, 0));
 }
 
 void WinUI3ViewsTest::tabViewContract()

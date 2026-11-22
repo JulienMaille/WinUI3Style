@@ -740,7 +740,9 @@ void WinUI3SettingsCardTest::settingsCardStockExpansionInteraction()
                  1.0);
     QCOMPARE(parts.details->maximumHeight(), QWIDGETSIZE_MAX);
     QTRY_COMPARE(parts.details->height(), parts.details->sizeHint().height());
-    QCOMPARE(parts.details->y(), headerHeight);
+    // The layout applies the collapsed content height on the next event-loop
+    // turn; waiting avoids a CI-only race where the pre-layout y is sampled.
+    QTRY_COMPARE(parts.details->y(), headerHeight);
 
     // Clicking inside the expanded content must not toggle the card.
     QTest::mouseClick(parts.details, Qt::LeftButton, Qt::NoModifier,
@@ -896,7 +898,9 @@ void WinUI3SettingsCardTest::settingsCardContentGeometry()
     QCOMPARE(contentLeading, titleLeading);
     QCOMPARE(details->geometry().center().y(), (host->height() - 9 + 7 - 1) / 2);
     QCOMPARE(host->sizeHint().height(), 51);
-    QVERIFY(host->height() >= 51);
+    // sizeHint is already pinned above; the shown height can lag one layout
+    // pass on a busy CI runner, so wait for the geometry to settle.
+    QTRY_VERIFY(host->height() >= 51);
 
     const int seam = host->y() - 1;
     const QImage image = card.grab().toImage();

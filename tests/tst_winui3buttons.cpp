@@ -186,10 +186,10 @@ void WinUI3ButtonsTest::paletteDerivedTokensMatchWinUIConstants()
 
         const QColor popup = WinUI3::Private::popupSurfaceColor(palette);
         QCOMPARE(popup, dark ? QColor(44, 44, 44) : QColor(252, 252, 252));
-        // Pinned `DefaultToolTipStyle`: the acrylic fallback fill and the
-        // `SurfaceStrokeColorFlyoutBrush` border (#33000000 / #0F000000).
+        // Pinned `DefaultToolTipStyle` acrylic fallback fill. The outline is
+        // shared with Button - t.stroke / t.strokeSecondary above - so there
+        // is no tooltip-only stroke token.
         QCOMPARE(t.tooltipFill, dark ? QColor(44, 44, 44) : QColor(249, 249, 249));
-        QCOMPARE(t.tooltipStroke, dark ? QColor(0, 0, 0, 51) : QColor(0, 0, 0, 15));
     }
 }
 

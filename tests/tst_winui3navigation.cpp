@@ -99,6 +99,8 @@ private slots:
     void init();
     void cleanup();
     void navigationTransition();
+    void navigationSingleTransitionDispatch();
+    void navigationNewPageRespectsFilter();
     void navigationSelectedStateFill_data();
     void navigationSelectedStateFill();
     void navigationIconlessTextInset_data();
@@ -154,6 +156,59 @@ void WinUI3NavigationTest::navigationTransition()
     QTRY_VERIFY(qAbs(frameReal(view.navigationList()->viewport(), "_winui_navigation_indicator_y")
                      - second.top())
                 < 0.5);
+}
+
+void WinUI3NavigationTest::navigationSingleTransitionDispatch()
+{
+    WinUI3::NavigationView view;
+    view.addPage(new QLabel(QStringLiteral("A")), QIcon(), QStringLiteral("A"));
+    view.addPage(new QLabel(QStringLiteral("B")), QIcon(), QStringLiteral("B"));
+    view.stack()->setDuration(0); // deterministic synchronous completions
+    view.resize(400, 200);
+    view.show();
+
+    QList<int> completions;
+    connect(view.stack(), &WinUI3::AnimatedStack::transitionFinished, &view,
+            [&](int index) { completions.append(index); });
+    bool redirected = false;
+    connect(view.stack(), &WinUI3::AnimatedStack::transitionFinished, &view, [&](int index) {
+        if (index == 1 && !redirected) {
+            redirected = true;
+            view.setCurrentIndex(0);
+        }
+    });
+
+    view.setCurrentIndex(1);
+
+    // One navigation request means one stack dispatch, even when the
+    // completion handler redirects to another page. The old programmatic
+    // selection emitted currentItemChanged, which re-entered setCurrentIndex
+    // and dispatched a second transition for the same request.
+    QVERIFY(redirected);
+    QCOMPARE(completions, QList<int>({ 1, 0 }));
+    QCOMPARE(view.currentIndex(), 0);
+}
+
+void WinUI3NavigationTest::navigationNewPageRespectsFilter()
+{
+    WinUI3::NavigationView view;
+    view.addPage(new QLabel(QStringLiteral("Alpha")), QIcon(), QStringLiteral("Alpha"));
+    auto *search = view.findChild<QLineEdit *>();
+    QVERIFY(search);
+    search->setText(QStringLiteral("Alpha"));
+    QCOMPARE(view.navigationList()->item(0)->isHidden(), false);
+
+    view.addPage(new QLabel(QStringLiteral("Beta")), QIcon(), QStringLiteral("Beta"));
+    QListWidgetItem *beta = nullptr;
+    for (int row = 0; row < view.navigationList()->count(); ++row) {
+        auto *candidate = view.navigationList()->item(row);
+        if (candidate->text() == QStringLiteral("Beta"))
+            beta = candidate;
+    }
+    QVERIFY(beta);
+    // A page inserted while a filter is active must obey that filter; the
+    // textChanged signal that drives filter() has already fired.
+    QVERIFY2(beta->isHidden(), "Beta was added visible under an active Alpha filter");
 }
 
 void WinUI3NavigationTest::navigationSelectedStateFill_data()

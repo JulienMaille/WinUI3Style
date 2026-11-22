@@ -75,6 +75,7 @@ private slots:
     void tooltipLabelFollowsTemplateMetrics();
     void progressAnimationAndOrientations();
     void progressTextAndDisabledPaletteContract();
+    void progressCompletedSingleValueRange();
     void progressTimerScalingAndLifecycle();
     void visibleProgressTracksMotionPreference();
 };
@@ -689,11 +690,11 @@ void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
         QCOMPARE(inkPixels(image, image.rect(), 1.0, sentinel), image.width() * image.height());
         // The stroke sits on the window edge now that the compositor owns the
         // silhouette, so the outermost pixel on each side is the card's stroke
-        // composited over the fill, and the row just inside it is the fill. The
-        // pinned `SurfaceStrokeColorFlyoutBrush` is black at 20% (Dark) or 6%
-        // (Light), so the edge is deliberately a few levels from the fill, not
-        // a hard outline; a surface that stopped short of the edge would still
-        // have kept the darker QPalette::Window there.
+        // composited over the fill, and the row just inside it is the fill.
+        // The tooltip shares the Button outline gradient, so the edges are a
+        // few levels from the fill rather than a hard outline; a surface that
+        // stopped short of the edge would still have kept the darker
+        // QPalette::Window there.
         const QColor fill = t.tooltipFill;
         const auto over = [](const QColor &top, const QColor &bottom) {
             const qreal alpha = top.alphaF();
@@ -701,22 +702,38 @@ void WinUI3SurfacesTest::tooltipSurfaceCoversWindowRect()
                                     top.greenF() * alpha + bottom.greenF() * (1.0 - alpha),
                                     top.blueF() * alpha + bottom.blueF() * (1.0 - alpha));
         };
-        const QColor edgeTone = over(t.tooltipStroke, fill);
-        const QList<QPoint> edge = { QPoint(0, image.height() / 2),
-                                     QPoint(image.width() - 1, image.height() / 2),
-                                     QPoint(image.width() / 2, 0),
-                                     QPoint(image.width() / 2, image.height() - 1) };
-        for (const QPoint &point : edge) {
-            QVERIFY2(colorDistance(image.pixelColor(point), edgeTone) <= 8,
-                     qPrintable(QStringLiteral("edge at %1,%2 is %3, expected stroke %4")
-                                        .arg(point.x())
-                                        .arg(point.y())
-                                        .arg(image.pixelColor(point).name(), edgeTone.name())));
+        const auto half = [](const QColor &a, const QColor &b) {
+            return QColor::fromRgbF((a.redF() + b.redF()) / 2.0, (a.greenF() + b.greenF()) / 2.0,
+                                    (a.blueF() + b.blueF()) / 2.0, (a.alphaF() + b.alphaF()) / 2.0);
+        };
+        // Same outline as Button: controlSurface strokes the
+        // ControlElevationBorderBrush gradient t.stroke -> t.strokeSecondary
+        // over the fill. Top and bottom are the two tokens, the sides their
+        // midpoint. There is no tooltip-only stroke and no shadow overlay.
+        const QList<QPair<QPoint, QColor>> edge = {
+            { QPoint(image.width() / 2, 0), over(t.stroke, fill) },
+            { QPoint(0, image.height() / 2), over(half(t.stroke, t.strokeSecondary), fill) },
+            { QPoint(image.width() - 1, image.height() / 2),
+              over(half(t.stroke, t.strokeSecondary), fill) },
+            { QPoint(image.width() / 2, image.height() - 1), over(t.strokeSecondary, fill) },
+        };
+        for (const auto &entry : edge) {
+            QVERIFY2(colorDistance(image.pixelColor(entry.first), entry.second) <= 8,
+                     qPrintable(QStringLiteral("edge at %1,%2 is %3, expected %4")
+                                        .arg(entry.first.x())
+                                        .arg(entry.first.y())
+                                        .arg(image.pixelColor(entry.first).name(),
+                                             entry.second.name())));
         }
+        // Edge tones asserted above; keep the fill probes below.
+        // Zero interior shading: the fill rows immediately above the
+        // bottom border must be exactly the card fill. This is RED with the
+        // previous 3 px upward shadow ramp (rows -2/-3 were darkened).
         const QList<QPoint> inner = { QPoint(1, image.height() / 2),
                                       QPoint(image.width() - 2, image.height() / 2),
                                       QPoint(image.width() / 2, 1),
-                                      QPoint(image.width() / 2, image.height() - 2) };
+                                      QPoint(image.width() / 2, image.height() - 2),
+                                      QPoint(image.width() / 2, image.height() - 3) };
         for (const QPoint &point : inner) {
             QVERIFY2(colorDistance(image.pixelColor(point), fill) <= 8,
                      qPrintable(QStringLiteral("card fill missing at %1,%2 (%3, fill %4)")
@@ -807,7 +824,9 @@ void WinUI3SurfacesTest::tooltipLabelFollowsTemplateMetrics()
 #endif
     int firstInkRow = -1;
     int lastInkRow = -1;
-    for (int y = 0; y < image.height(); ++y) {
+    // Only the bottom border row is shadowed; skip that row so its darkened
+    // stroke is not mistaken for text ink. The fill rows above it are clean.
+    for (int y = 0; y < image.height() - 1; ++y) {
         for (int x = firstInk; x <= lastInk; ++x) {
             if (colorDistance(image.pixelColor(x, y), fill) > 120) {
                 if (firstInkRow < 0)
@@ -1038,6 +1057,31 @@ void WinUI3SurfacesTest::progressTextAndDisabledPaletteContract()
     }
     QVERIFY(foundDisabledText);
     QVERIFY(!foundActiveText);
+}
+
+void WinUI3SurfacesTest::progressCompletedSingleValueRange()
+{
+    QProgressBar bar;
+    bar.resize(240, 24);
+    const auto render = [&bar](int minimum, int maximum, int value) {
+        QStyleOptionProgressBar option;
+        option.initFrom(&bar);
+        option.rect = bar.rect();
+        option.minimum = minimum;
+        option.maximum = maximum;
+        option.progress = value;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        bar.style()->drawControl(QStyle::CE_ProgressBarContents, &option, &painter, &bar);
+        painter.end();
+        return image;
+    };
+
+    // A completed nonzero single-value range is a normal 100% bar, not the
+    // busy [0,0] indeterminate branch. It must paint exactly like a full
+    // conventional range.
+    QCOMPARE(render(50, 50, 50), render(0, 100, 100));
 }
 
 void WinUI3SurfacesTest::progressTimerScalingAndLifecycle()

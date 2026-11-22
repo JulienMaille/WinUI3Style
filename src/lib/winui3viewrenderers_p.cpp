@@ -446,7 +446,15 @@ bool drawChromePrimitive(const Style *, QStyle::PrimitiveElement element,
         // require the full fill to avoid a darker native-background rim.
         if (!widget || !widget->testAttribute(Qt::WA_TranslucentBackground))
             painter->fillRect(option->rect, fill);
-        roundedRect(painter, QRectF(option->rect), fill, t.tooltipStroke, ControlRadius);
+        else
+            roundedRect(painter, QRectF(option->rect), fill, Qt::transparent, ControlRadius);
+        // The tooltip outline is the Button outline: the same controlSurface
+        // primitive and the same ControlElevationBorderBrush gradient tokens
+        // (t.stroke at the top, t.strokeSecondary at the bottom). The live
+        // Gallery shows identical outlines, so there is no tooltip-only
+        // stroke token and no shadow overlay; the card interior stays clean.
+        controlSurface(painter, QRectF(option->rect), fill, t.stroke, t.strokeSecondary,
+                       ControlRadius);
         return true;
     }
 
@@ -899,7 +907,12 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
             }
             const qint64 range = qint64(bar->maximum) - qint64(bar->minimum);
             const qint64 value = qint64(bar->progress) - qint64(bar->minimum);
-            const qreal ratio = range > 0 ? qBound<qreal>(0, qreal(value) / qreal(range), 1) : 0;
+            // The busy [0, 0] range took the indeterminate branch above. A
+            // nonzero range with minimum == maximum is a completed bar: its
+            // only valid value equals the bound, so it paints 100% rather
+            // than an empty indicator.
+            const qreal ratio = range > 0 ? qBound<qreal>(0, qreal(value) / qreal(range), 1)
+                                          : (value >= 0 ? 1.0 : 0.0);
             QRect fill = track;
             if (horizontal) {
                 const int length = qRound(track.width() * ratio);
