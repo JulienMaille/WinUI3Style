@@ -67,6 +67,9 @@
 #include <QStyleOptionTab>
 #include <QStyledItemDelegate>
 #include <QStyleOptionToolButton>
+#include <QApplication>
+#include <QFontMetrics>
+#include <QIcon>
 #include <QSlider>
 #include <QTabBar>
 #include <QTabWidget>
@@ -109,6 +112,8 @@ private slots:
     void iconPixmapCacheDprAndPalette();
     void commandLinkButtonContract();
     void toolButtonIconVerticalCenter();
+    void toolButtonArrowTypePaintsArrow();
+    void toolButtonLabelUsesOptionStyle();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
     void flatPushButtonUsesFlatVisual_data();
@@ -674,6 +679,62 @@ void WinUI3ButtonsTest::toolButtonIconVerticalCenter()
             QVERIFY(qAbs(sumY / weight - content.center().y()) <= 0.5);
         }
     }
+}
+
+void WinUI3ButtonsTest::toolButtonArrowTypePaintsArrow()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QToolButton tool;
+    tool.resize(40, 40);
+    const auto render = [&style, &tool](Qt::ArrowType arrow) {
+        QStyleOptionToolButton option;
+        option.initFrom(&tool);
+        option.rect = tool.rect();
+        option.state = QStyle::State_Enabled;
+        option.arrowType = arrow;
+        QImage image(tool.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, &tool);
+        return image;
+    };
+
+    const QImage up = render(Qt::UpArrow);
+    const QImage down = render(Qt::DownArrow);
+    const QImage none = render(Qt::NoArrow);
+    // A stock arrow-only tool button must actually paint its arrow.
+    QVERIFY(up != none);
+    QVERIFY(down != none);
+    QVERIFY(up != down);
+}
+
+void WinUI3ButtonsTest::toolButtonLabelUsesOptionStyle()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QPixmap source(16, 16);
+    source.fill(QColor(220, 30, 40));
+    QStyleOptionToolButton option;
+    option.rect = QRect(0, 0, 160, 40);
+    option.state = QStyle::State_Enabled;
+    option.icon = QIcon(source);
+    option.iconSize = QSize(16, 16);
+    option.text = QStringLiteral("Text");
+    option.font = QApplication::font();
+    option.fontMetrics = QFontMetrics(option.font);
+    const auto render = [&style, &option](Qt::ToolButtonStyle buttonStyle) {
+        option.toolButtonStyle = buttonStyle;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        // Null widget is a supported QStyle painting path: the option, not a
+        // live widget's style(), must drive the layout.
+        style->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, nullptr);
+        return image;
+    };
+
+    QVERIFY(render(Qt::ToolButtonIconOnly) != render(Qt::ToolButtonTextBesideIcon));
 }
 
 void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
