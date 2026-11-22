@@ -15,6 +15,8 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFont>
+#include <QFontDatabase>
+#include <QFontInfo>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QPixmap>
@@ -62,6 +64,41 @@ QIcon navigationGlyph(char16_t codePoint, const QPalette &palette)
     return QIcon(pixmap);
 }
 
+// Issue #112: the Gallery is a plain Qt client and cannot call the style's
+// private typography helper, so mirror the pinned TextBlock_themeresources
+// mapping here: XamlAutoFontFamily (generic Segoe UI Variable) plus the
+// SemiBold inherited from BaseTextBlockStyle, with the optical-size axis pinned
+// to the requested pixel size. `Segoe UI Variable Text` has no Semibold face,
+// so QFont::DemiBold on it resolves to Bold and keeps the Text optical size.
+QFont winuiStrongFont(const QFont &base, int pixelSize)
+{
+    QFont font = base;
+    font.setPixelSize(pixelSize);
+    font.setWeight(QFont::DemiBold);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const QStringList families = QFontDatabase::families();
+#else
+    const QFontDatabase database;
+    const QStringList families = database.families();
+#endif
+    QString family;
+    if (families.contains(QStringLiteral("Segoe UI Variable")))
+        family = QStringLiteral("Segoe UI Variable");
+    else if (families.contains(QStringLiteral("Segoe UI")))
+        family = QStringLiteral("Segoe UI");
+    const QString baseFamily = font.family();
+    const bool styleOwned = baseFamily == QLatin1String("Segoe UI Variable Text")
+            || baseFamily == QLatin1String("Segoe UI Variable")
+            || baseFamily == QLatin1String("Segoe UI");
+    if (styleOwned && !family.isEmpty() && qgetenv("WINUI3STYLE_APP_FONT").isEmpty())
+        font.setFamily(family);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    if (font.family() == QLatin1String("Segoe UI Variable"))
+        font.setVariableAxis(QFont::Tag("opsz"), static_cast<float>(pixelSize));
+#endif
+    return font;
+}
+
 // Matches codepointer's CommitForm PathElideDelegate: the file path is elided
 // on the left before the stock item view item is painted, so the available
 // width is the column width and not the model's full path string.
@@ -89,10 +126,7 @@ void configureContentDialog(QDialog *dialog)
     dialog->resize(420, 220);
     auto *layout = new QVBoxLayout(dialog);
     auto *title = new QLabel(QObject::tr("Content dialog"));
-    QFont titleFont = title->font();
-    titleFont.setPixelSize(20);
-    titleFont.setWeight(QFont::DemiBold);
-    title->setFont(titleFont);
+    title->setFont(winuiStrongFont(title->font(), 20));
     layout->addWidget(title);
     auto *description = new QLabel(QObject::tr(
             "Every control remains a native QWidget configured through Qt properties."));
@@ -113,10 +147,7 @@ void configureContentDialog(QDialog *dialog)
 
 void setHeadingFont(QLabel *heading)
 {
-    QFont font = heading->font();
-    font.setPixelSize(28);
-    font.setWeight(QFont::DemiBold);
-    heading->setFont(font);
+    heading->setFont(winuiStrongFont(heading->font(), 28));
 }
 
 QCompleter *makeAutoSuggestCompleter(const QStringList &words, QWidget *parent)
@@ -235,6 +266,11 @@ void GalleryWindow::refreshCardIcons()
         font.setPixelSize(12);
         description->setFont(font);
     }
+    // SettingsCard.xaml titles use BodyStrongTextBlockStyle: 14 px inherited
+    // SemiBold of the generic variable family (issue #112). The .ui file can
+    // only serialize the old 63 weight, so uic's font is replaced here.
+    for (QLabel *title : { ui->notificationsCardTitle, ui->updatesCardTitle, ui->advancedTitle })
+        title->setFont(winuiStrongFont(title->font(), 14));
 }
 
 void GalleryWindow::configureGallery()

@@ -28,6 +28,7 @@
 #include "winui3tableeditors_p.h"
 #include "winui3theme_p.h"
 #include "winui3tokens_p.h"
+#include "winui3typography_p.h"
 #include "winui3appearancewatcher_p.h"
 
 #include <QAbstractButton>
@@ -608,8 +609,9 @@ public:
         m_syncing = true;
         const bool vertical = m_dock->features() & QDockWidget::DockWidgetVerticalTitleBar;
         const int padding = (densityMetricsFor(m_dock).dockTitleHeight - DockTitleButtonExtent) / 2;
-        QFont font = m_title->font();
-        font.setWeight(QFont::DemiBold);
+        // Dock titles use BodyStrong typography (issue #112): inherited
+        // SemiBold of the generic variable family, not Bold of the Text face.
+        const QFont font = Private::winuiStrongFont(m_title->font());
         const int contentExtent = qMax(DockTitleButtonExtent, QFontMetrics(font).height());
         const int extent = contentExtent + 2 * padding;
         const QSize strutSize = vertical ? QSize(contentExtent, 0) : QSize(0, contentExtent);

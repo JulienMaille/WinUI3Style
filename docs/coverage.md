@@ -1,5 +1,55 @@
 # Control coverage ledger
 
+## Issue #112 — title / body-strong typography (2026-11-22)
+
+Mapping: a `QLabel` page heading (Gallery `setHeadingFont`) and the
+`WinUI3::SettingsCard` title label map to WinUI `TitleTextBlockStyle` and
+`BodyStrongTextBlockStyle` respectively. The Gallery label is a semantic
+extension (plain Qt widget, size baked in by the demo); the SettingsCard title is
+already a style-owned widget child, so its font belongs to the style. Both roles
+use the **generic** variable family, never the `Text` named instance.
+
+Pinned source (`microsoft-ui-xaml` commit
+`9f89c2da5a5502c263d9268fee224697c47ecb6e`,
+`controls/dev/CommonStyles/TextBlock_themeresources.xaml`):
+`TitleTextBlockFontSize = 28`; `SubtitleTextBlockFontSize = 20`;
+`BodyTextBlockFontSize = 14`; `BaseTextBlockStyle` sets
+`FontFamily="XamlAutoFontFamily"`, `FontWeight="SemiBold"` (600) and the 14 px
+body size; `TitleTextBlockStyle` and `BodyStrongTextBlockStyle` are both
+`BasedOn` that base style and override **only** `FontSize` (28 for Title, 14 for
+BodyStrong) plus `OpticalMarginAlignment`. Family and weight are inherited, so a
+title is 28 px Semibold of the generic variable family, and a body-strong label
+is 14 px Semibold of the same family. Microsoft's pinned
+[Typography in Windows](https://learn.microsoft.com/windows/apps/design/signature-experiences/typography)
+states that XAML common controls select Segoe UI Variable by default and that
+its optical-size axis tracks the requested size: at 28 px that yields the wider,
+lighter Display outlines the official Gallery shows, while 14 px yields the
+Text outlines.
+
+Defect mechanism: `Style::polish(QApplication*)` installs `Segoe UI Variable
+Text` as the Qt 6 application family. That named instance has no Semibold face,
+so `setWeight(QFont::DemiBold)` resolves to **Bold** (`QFontInfo::exactMatch() ==
+false`); the 28 px heading also keeps the 14 px Text optical size. A font probe
+against the pinned Qt 6.12 runtime measured `QFont("Segoe UI Variable Text",
+600)` → `Segoe UI Variable Text/Bold` (width 107, not exact), while
+`QFont("Segoe UI Variable", 600)` → `Segoe UI Variable/Semibold` (exact), and the
+latter's optical size follows the pixel size. The fix selects the generic family
+and weight 600 for both roles, with the `opsz` axis pinned to the pixel size on
+Qt ≥ 6.7; Qt 5 and hosts without the variable family keep the documented
+`Segoe UI` fallback.
+
+Status: fixed 2026-11-22 — `winuiTypographyFontContract` pins the resolved
+family, exact Semibold weight, pixel size and optical-size axis for both roles
+and RED-checks the old Text+DemiBold recipe (removing only the family promotion
+makes it fail with `Segoe UI Variable Text` instead of `Segoe UI Variable`).
+The 82-frame deterministic matrix stays byte-identical across two runs after
+refreshing the 40 typography-affected approved PNGs; all 54 non-native unit/
+contract tests and all 24 DPI reruns pass. A native Windows Gallery replay of
+the Settings page after the fix measured the "Settings" title ink at 102 px,
+matching the pinned official Gallery crop, where the reported build measured
+106 px. The full interactive light/dark side-by-side against the official
+Gallery is still outstanding, so this row stays **partial**, not verified.
+
 ## Issue #69 — standard pixmap icon audit surface (2026-11-15)
 
 Mapping: `QStyle::standardIcon` is the style's public answer for Qt's

@@ -4,6 +4,7 @@
 #include "winui3helpers_p.h"
 #include "winui3paint_p.h"
 #include "winui3tokens_p.h"
+#include "winui3typography_p.h"
 
 #include <winui3style/winui3style.h>
 
@@ -60,8 +61,7 @@ bool drawToolGroupComplexControl(const Style *style, QStyle::ComplexControl cont
                                                           QStyle::SC_GroupBoxLabel, widget);
                 painter->save();
                 QFont titleFont = widget ? widget->font() : QApplication::font();
-                titleFont.setWeight(QFont::DemiBold);
-                painter->setFont(titleFont);
+                painter->setFont(winuiStrongFont(titleFont, BodyStrongFontSize));
                 painter->setPen(enabled ? t.textPrimary : t.textDisabled);
                 painter->drawText(
                         label,
