@@ -70,6 +70,15 @@ QIcon navigationGlyph(char16_t codePoint, const QPalette &palette)
 // SemiBold inherited from BaseTextBlockStyle, with the optical-size axis pinned
 // to the requested pixel size. `Segoe UI Variable Text` has no Semibold face,
 // so QFont::DemiBold on it resolves to Bold and keeps the Text optical size.
+bool winuiVariableFontAvailable()
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return QFontDatabase::families().contains(QStringLiteral("Segoe UI Variable"));
+#else
+    return false;
+#endif
+}
+
 QFont winuiStrongFont(const QFont &base, int pixelSize)
 {
     QFont font = base;
@@ -267,10 +276,14 @@ void GalleryWindow::refreshCardIcons()
         description->setFont(font);
     }
     // SettingsCard.xaml titles use BodyStrongTextBlockStyle: 14 px inherited
-    // SemiBold of the generic variable family (issue #112). The .ui file can
-    // only serialize the old 63 weight, so uic's font is replaced here.
-    for (QLabel *title : { ui->notificationsCardTitle, ui->updatesCardTitle, ui->advancedTitle })
-        title->setFont(winuiStrongFont(title->font(), 14));
+    // SemiBold of the generic variable family (issue #112). uic emits a plain
+    // default font for these labels, so without the variable face there is no
+    // Semibold to select and the original raster must stay untouched.
+    if (winuiVariableFontAvailable()) {
+        for (QLabel *title :
+             { ui->notificationsCardTitle, ui->updatesCardTitle, ui->advancedTitle })
+            title->setFont(winuiStrongFont(title->font(), 14));
+    }
 }
 
 void GalleryWindow::configureGallery()
