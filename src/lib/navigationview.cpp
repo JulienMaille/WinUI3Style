@@ -10,6 +10,13 @@
 
 namespace WinUI3 {
 
+namespace {
+bool matchesSearchFilter(const QString &text, const QString &filter)
+{
+    return text.contains(filter, Qt::CaseInsensitive);
+}
+} // namespace
+
 NavigationView::NavigationView(QWidget *parent)
     : QWidget(parent),
       m_search(new QLineEdit(this)),
@@ -57,6 +64,9 @@ int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &tit
     const int index = m_stack->addWidget(page);
     auto *item = new QListWidgetItem(icon, title, m_list);
     item->setData(Qt::UserRole, index);
+    // filter() only runs when the search text changes. A page inserted while
+    // a filter is already active must obey it from the moment it appears.
+    item->setHidden(!matchesSearchFilter(title, m_search->text()));
     if (m_list->count() == 1) {
         m_list->setCurrentItem(item);
         m_stack->QStackedWidget::setCurrentIndex(index);
@@ -142,8 +152,7 @@ void NavigationView::activateItem(QListWidgetItem *item)
 void NavigationView::filter(const QString &text)
 {
     for (int row = 0; row < m_list->count(); ++row)
-        m_list->item(row)->setHidden(
-                !m_list->item(row)->text().contains(text, Qt::CaseInsensitive));
+        m_list->item(row)->setHidden(!matchesSearchFilter(m_list->item(row)->text(), text));
 }
 
 } // namespace WinUI3
