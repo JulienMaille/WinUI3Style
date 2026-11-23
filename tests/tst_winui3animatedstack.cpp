@@ -79,6 +79,50 @@ private slots:
         QCOMPARE(view.stack()->currentWidget(), c);
         QCOMPARE(view.navigationList()->currentItem()->data(Qt::UserRole).toInt(), 2);
     }
+    void navigationPageRemovalSynchronizesRows_data()
+    {
+        QTest::addColumn<int>("index");
+        QTest::addColumn<bool>("destroy");
+        for (int index = 0; index < 3; ++index) {
+            QTest::newRow(qPrintable(QStringLiteral("destroy-%1").arg(index))) << index << true;
+            QTest::newRow(qPrintable(QStringLiteral("remove-%1").arg(index))) << index << false;
+        }
+    }
+    void navigationPageRemovalSynchronizesRows()
+    {
+        QFETCH(int, index);
+        QFETCH(bool, destroy);
+        WinUI3::NavigationView view;
+        QList<QWidget *> pages;
+        for (int i = 0; i < 3; ++i) {
+            pages.append(new QWidget);
+            view.addPage(pages.last(), {}, QString::number(i));
+        }
+        view.setCurrentIndex(1);
+        QWidget *removed = pages.takeAt(index);
+        if (destroy)
+            delete removed;
+        else
+            view.removePage(index);
+        QCOMPARE(view.count(), 2);
+        QCOMPARE(view.navigationList()->count(), 2);
+        for (int i = 0; i < 2; ++i) {
+            QCOMPARE(view.widget(i), pages.at(i));
+            QCOMPARE(view.navigationList()->item(i)->data(Qt::UserRole).toInt(), i);
+            view.setCurrentIndex(i);
+            QCOMPARE(view.stack()->currentWidget(), pages.at(i));
+            QCOMPARE(view.navigationList()->currentItem()->text(),
+                     QString::number(i < index ? i : i + 1));
+        }
+        if (!destroy)
+            delete removed;
+        delete pages.takeFirst();
+        QCOMPARE(view.count(), 1);
+        QCOMPARE(view.navigationList()->count(), 1);
+        delete pages.takeFirst();
+        QCOMPARE(view.count(), 0);
+        QCOMPARE(view.navigationList()->count(), 0);
+    }
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
