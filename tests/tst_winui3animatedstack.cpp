@@ -111,7 +111,8 @@ private slots:
             QCOMPARE(view.navigationList()->item(i)->data(Qt::UserRole).toInt(), i);
             view.setCurrentIndex(i);
             QCOMPARE(view.stack()->currentWidget(), pages.at(i));
-            QCOMPARE(view.navigationList()->currentItem()->text(), QString::number(i < index ? i : i + 1));
+            QCOMPARE(view.navigationList()->currentItem()->text(),
+                     QString::number(i < index ? i : i + 1));
         }
         if (!destroy)
             delete removed;
