@@ -48,6 +48,37 @@ private slots:
         QCOMPARE(view.stack()->currentWidget(), b);
         QCOMPARE(view.navigationList()->currentItem()->text(), QStringLiteral("B"));
     }
+    void navigationReentrantRedirectKeepsLatestRequest()
+    {
+        // A consumer redirecting from currentIndexChanged() during the
+        // synchronous dispatch window is the newest navigation request. The
+        // outer setCurrentIndex() cancellation mechanism must not dispatch its
+        // own page afterwards and leave the highlighted row pointing at a
+        // page the stack no longer shows.
+        WinUI3::NavigationView view;
+        QWidget *a = new QWidget;
+        QWidget *b = new QWidget;
+        QWidget *c = new QWidget;
+        view.addPage(a, {}, QStringLiteral("A"));
+        view.addPage(b, {}, QStringLiteral("B"));
+        view.addPage(c, {}, QStringLiteral("C"));
+        view.stack()->setDuration(60);
+        view.resize(400, 300);
+        view.show();
+        QCOMPARE(view.currentIndex(), 0);
+        bool redirected = false;
+        connect(&view, &WinUI3::NavigationView::currentIndexChanged, &view, [&](int index) {
+            if (index == 1 && !redirected) {
+                redirected = true;
+                view.setCurrentIndex(2);
+            }
+        });
+        view.setCurrentIndex(1);
+        QTRY_VERIFY(!view.stack()->isAnimating());
+        QCOMPARE(view.currentIndex(), 2);
+        QCOMPARE(view.stack()->currentWidget(), c);
+        QCOMPARE(view.navigationList()->currentItem()->data(Qt::UserRole).toInt(), 2);
+    }
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
