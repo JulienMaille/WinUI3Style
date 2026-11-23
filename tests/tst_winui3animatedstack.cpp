@@ -5,6 +5,8 @@
 // names stay identical to the pre-split file so the DPI reruns in
 // tests/CMakeLists.txt keep addressing tests by function name.
 #include <winui3style/animatedstack.h>
+#include <winui3style/navigationview.h>
+#include <QListWidget>
 #include <winui3style/winui3style.h>
 
 #include "winui3testhelpers.h"
@@ -25,6 +27,27 @@ private slots:
     void initTestCase();
     void init();
     void cleanup();
+    void navigationRepeatedPagePreservesIdentity()
+    {
+        WinUI3::NavigationView view;
+        auto *a = new QWidget;
+        auto *b = new QWidget;
+        view.addPage(a, {}, QStringLiteral("A"));
+        view.addPage(b, {}, QStringLiteral("B"));
+        QCOMPARE(view.addPage(a, {}, QStringLiteral("A again")), 0);
+        QCOMPARE(view.count(), 2);
+        QCOMPARE(view.navigationList()->count(), 2);
+        QCOMPARE(view.widget(0), a);
+        QCOMPARE(view.widget(1), b);
+        view.setCurrentIndex(0);
+        QCOMPARE(view.stack()->currentWidget(), a);
+        QCOMPARE(view.navigationList()->currentItem()->text(), QStringLiteral("A"));
+        QCOMPARE(view.addPage(b, {}, QStringLiteral("B again")), 1);
+        QCOMPARE(view.navigationList()->count(), 2);
+        view.setCurrentIndex(1);
+        QCOMPARE(view.stack()->currentWidget(), b);
+        QCOMPARE(view.navigationList()->currentItem()->text(), QStringLiteral("B"));
+    }
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
