@@ -736,18 +736,47 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
                 ? editorClearSurfaceRect(helperEditor->rect(), widget->geometry(), tool->direction)
                           .translated(-widget->pos())
                 : buttonRect.adjusted(4.0, 2.0, -4.0, -2.0);
-        Qt::ToolButtonStyle buttonStyle = Qt::ToolButtonIconOnly;
-        if (const auto *toolButton = qobject_cast<const QToolButton *>(widget))
-            buttonStyle = toolButton->toolButtonStyle();
+        // The option is the authoritative input: QStyle must paint the same
+        // layout when called with a null widget as when called from a live
+        // QToolButton (QStyleOptionToolButton::initFrom copies the widget's
+        // toolButtonStyle).
+        Qt::ToolButtonStyle buttonStyle = tool->toolButtonStyle;
         if (buttonStyle == Qt::ToolButtonFollowStyle)
             buttonStyle = Qt::ToolButtonIconOnly;
         const bool hasIcon = !tool->icon.isNull();
+        // QStyleOptionToolButton defaults arrowType to DownArrow even when no
+        // arrow was requested, and an icon/text option must keep its own
+        // layout. Only a content-free button with an explicit arrow type is
+        // an arrow-only tool button.
+        const bool hasArrow = tool->arrowType != Qt::NoArrow && !hasIcon && tool->text.isEmpty();
         const QSize iconSize = clearHelper
                 ? QSize(12, 12)
                 : (tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16));
         const QFontMetrics metrics(tool->fontMetrics);
         const int textWidth = tool->text.isEmpty() ? 0 : metrics.horizontalAdvance(tool->text);
-        if (buttonStyle == Qt::ToolButtonTextOnly || !hasIcon) {
+        if (hasArrow) {
+            // Stock QToolButton::setArrowType() carries no QIcon; map the
+            // requested standard arrow to the matching Fluent chevron.
+            Icon glyph = Icon::ChevronUp;
+            switch (tool->arrowType) {
+            case Qt::DownArrow:
+                glyph = Icon::ChevronDown;
+                break;
+            case Qt::LeftArrow:
+                glyph = Icon::ChevronLeft;
+                break;
+            case Qt::RightArrow:
+                glyph = Icon::ChevronRight;
+                break;
+            default:
+                break;
+            }
+            const QRectF arrowRect(content.center().x() - iconSize.width() / 2.0,
+                                   content.center().y() - iconSize.height() / 2.0, iconSize.width(),
+                                   iconSize.height());
+            paintThemedIcon(painter, icon(glyph), arrowRect, Qt::AlignCenter, textColor,
+                            enabled ? QIcon::Normal : QIcon::Disabled, QIcon::Off);
+        } else if (buttonStyle == Qt::ToolButtonTextOnly || !hasIcon) {
             paintGrayscaleText(painter, content.toRect(), Qt::AlignCenter | Qt::TextShowMnemonic,
                                tool->font, textColor, tool->text);
         } else if (buttonStyle == Qt::ToolButtonTextBesideIcon && textWidth > 0) {
