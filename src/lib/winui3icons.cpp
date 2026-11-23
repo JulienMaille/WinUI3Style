@@ -102,6 +102,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
         case Icon::Add:
             ucs4 = 0xE710;
             break;
+        case Icon::Remove:
+            ucs4 = 0xE738; // Remove (Segoe Fluent Icons, PUA E700-E9F9)
+            break;
         case Icon::Back:
             ucs4 = 0xE72B;
             break;
@@ -299,6 +302,9 @@ QString codePointString(Icon icon, bool hasSegoeFont)
     case Icon::Add:
         ucs4 = 0x002B;
         break; // +
+    case Icon::Remove:
+        ucs4 = 0x2212;
+        break; // − (Unicode minus sign)
     case Icon::Back:
         ucs4 = 0x2190;
         break; // ←
@@ -487,6 +493,7 @@ bool hasVectorFallback(Icon icon)
 {
     switch (icon) {
     case Icon::Add:
+    case Icon::Remove:
     case Icon::Back:
     case Icon::Check:
     case Icon::ChevronDown:
@@ -515,6 +522,10 @@ QPainterPath vectorFallbackPath(Icon icon)
     case Icon::Add:
         path.moveTo(12, 5);
         path.lineTo(12, 19);
+        path.moveTo(5, 12);
+        path.lineTo(19, 12);
+        break;
+    case Icon::Remove:
         path.moveTo(5, 12);
         path.lineTo(19, 12);
         break;

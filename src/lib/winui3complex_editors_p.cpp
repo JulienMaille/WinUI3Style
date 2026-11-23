@@ -159,8 +159,9 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
                         .paint(painter, QRect(center.x() - 6, center.y() - 6, 12, 12),
                                Qt::AlignCenter, stepEnabled ? QIcon::Normal : QIcon::Disabled);
             };
-            drawStep(QStyle::SC_SpinBoxUp, Icon::ChevronUp);
-            drawStep(QStyle::SC_SpinBoxDown, Icon::ChevronDown);
+            const SpinButtonGlyphPair glyphs = spinButtonGlyphs(spin->buttonSymbols);
+            drawStep(QStyle::SC_SpinBoxUp, glyphs.up);
+            drawStep(QStyle::SC_SpinBoxDown, glyphs.down);
             return true;
         }
     }

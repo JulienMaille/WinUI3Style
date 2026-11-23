@@ -271,6 +271,16 @@ separator at the editable-field boundary. Its focus underline still spans the
 complete control width. The separator is a stroke only, not a cell or bevel;
 the variant is not presented as an official NumberBox template placement.
 
+Qt's `QAbstractSpinBox::PlusMinus` button symbols are a further semantic
+variant of the same covered control. They keep the inline or stacked step-button
+geometry and their input states, but paint Fluent **Add** (`U+E710`) for the
+increment button and **Remove** (`U+E738`) for the decrement button instead of
+the NumberBox chevrons. Both code points and names are pinned to the Microsoft
+`Segoe Fluent Icons font` icon list
+(https://learn.microsoft.com/windows/apps/design/iconography/segoe-fluent-icons-font,
+PUA E700-E9F9). The fallback glyph is the Unicode minus sign `U+2212`; this is
+a Qt compatibility mapping, not an official NumberBox template state.
+
 Qt `QGroupBox` has no direct WinUI control equivalent. It is therefore treated
 as a WinUI card: a translucent layer fill, subtle one-pixel stroke, six-pixel
 corner radius, semibold header, and (when checkable) the same animated 20 px

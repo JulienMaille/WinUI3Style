@@ -8,6 +8,7 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
+#include "../src/lib/winui3complex_editors_p.h"
 #include "../src/lib/winui3frameproperties_p.h"
 #include "../src/lib/winui3density_p.h"
 #include "../src/lib/winui3helpers_p.h"
@@ -111,6 +112,7 @@ private slots:
     void numberBoxSubcontrolContract();
     void spinBoxNoButtonsGeometry_data();
     void spinBoxNoButtonsGeometry();
+    void spinBoxPlusMinusGlyphContract();
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
     void tableEditorTrackerLifetimeContract();
@@ -814,6 +816,63 @@ void WinUI3EditorsTest::spinBoxNoButtonsGeometry()
     withoutButtons.setSuffix(longSuffix);
     withoutButtons.setButtonSymbols(QAbstractSpinBox::NoButtons);
     QCOMPARE(withButtons.sizeHint().width() - withoutButtons.sizeHint().width(), 72);
+}
+
+void WinUI3EditorsTest::spinBoxPlusMinusGlyphContract()
+{
+    const auto plusMinus = WinUI3::Private::spinButtonGlyphs(QAbstractSpinBox::PlusMinus);
+    QCOMPARE(plusMinus.up, WinUI3::Icon::Add);
+    QCOMPARE(plusMinus.down, WinUI3::Icon::Remove);
+    const auto arrows = WinUI3::Private::spinButtonGlyphs(QAbstractSpinBox::UpDownArrows);
+    QCOMPARE(arrows.up, WinUI3::Icon::ChevronUp);
+    QCOMPARE(arrows.down, WinUI3::Icon::ChevronDown);
+
+    // The paint path must follow ButtonSymbols, not just the helper. Both
+    // renders share one widget and state, so any pixel difference in a step
+    // button comes from the glyph choice alone.
+    QSpinBox spin;
+    spin.setRange(0, 100);
+    spin.setValue(46);
+    spin.resize(150, 32);
+    spin.show();
+    const auto render = [&spin](QAbstractSpinBox::ButtonSymbols symbols) {
+        QStyleOptionSpinBox option;
+        option.initFrom(&spin);
+        option.rect = spin.rect();
+        option.frame = true;
+        option.buttonSymbols = symbols;
+        option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+        option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
+                | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+        QImage image(spin.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &option, &painter, &spin);
+        return image;
+    };
+
+    QStyleOptionSpinBox option;
+    option.initFrom(&spin);
+    option.rect = spin.rect();
+    option.buttonSymbols = QAbstractSpinBox::PlusMinus;
+    const QRect up =
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
+    const QRect down = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxDown, &spin);
+    option.buttonSymbols = QAbstractSpinBox::UpDownArrows;
+    QCOMPARE(
+            up,
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin));
+    QCOMPARE(down,
+             spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxDown,
+                                          &spin));
+
+    const QImage chevronRender = render(QAbstractSpinBox::UpDownArrows);
+    const QImage plusMinusRender = render(QAbstractSpinBox::PlusMinus);
+    QVERIFY2(chevronRender.copy(up) != plusMinusRender.copy(up),
+             "PlusMinus did not change the increment glyph");
+    QVERIFY2(chevronRender.copy(down) != plusMinusRender.copy(down),
+             "PlusMinus did not change the decrement glyph");
 }
 
 void WinUI3EditorsTest::verticalNumberBoxContract()
