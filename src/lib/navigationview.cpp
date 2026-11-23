@@ -61,6 +61,9 @@ NavigationView::~NavigationView() = default;
 
 int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &title)
 {
+    const int existingIndex = m_stack->indexOf(page);
+    if (existingIndex >= 0)
+        return existingIndex;
     const int index = m_stack->addWidget(page);
     auto *item = new QListWidgetItem(icon, title, m_list);
     item->setData(Qt::UserRole, index);
