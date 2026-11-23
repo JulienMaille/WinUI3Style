@@ -118,6 +118,8 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
 {
     if (index < 0 || index >= count())
         return;
+    if (!m_transitionStarting)
+        m_deferredIndex = -1;
     if (index == QStackedWidget::currentIndex()) {
         // QAbstractItemView can emit both clicked and activated for the same
         // gesture. Re-selecting the page that is already entering must not
