@@ -99,6 +99,7 @@ private slots:
     void init();
     void cleanup();
     void navigationTransition();
+    void navigationDirectStackNavigationSyncsRow();
     void navigationSingleTransitionDispatch();
     void navigationNewPageRespectsFilter();
     void navigationSelectedStateFill_data();
@@ -159,6 +160,36 @@ void WinUI3NavigationTest::navigationTransition()
     QTRY_VERIFY(qAbs(frameReal(view.navigationList()->viewport(), "_winui_navigation_indicator_y")
                      - second.top())
                 < 0.5);
+}
+
+void WinUI3NavigationTest::navigationDirectStackNavigationSyncsRow()
+{
+    // Navigating through the AnimatedStack directly (a caller holding the
+    // stack, or the caller of setCurrentWidget()) bypasses
+    // NavigationView::setCurrentIndex(). The row selection must follow the
+    // page the stack actually displays, with the internal activation guard
+    // preventing a re-entrant setCurrentIndex() dispatch.
+    WinUI3::NavigationView view;
+    view.addPage(new QLabel(QStringLiteral("A")), QIcon(), QStringLiteral("A"));
+    view.addPage(new QLabel(QStringLiteral("B")), QIcon(), QStringLiteral("B"));
+    view.addPage(new QLabel(QStringLiteral("C")), QIcon(), QStringLiteral("C"));
+    view.stack()->setDuration(20);
+    view.resize(400, 200);
+    view.show();
+    view.setCurrentIndex(1);
+    QTRY_COMPARE(view.currentIndex(), 1);
+    QCOMPARE(view.navigationList()->currentItem()->data(Qt::UserRole).toInt(), 1);
+
+    QSignalSpy navigations(&view, &WinUI3::NavigationView::currentIndexChanged);
+    view.stack()->setCurrentIndex(2);
+    QTRY_VERIFY(!view.stack()->isAnimating());
+
+    QCOMPARE(view.currentIndex(), 2);
+    QCOMPARE(view.stack()->currentWidget(), view.widget(2));
+    QVERIFY(view.navigationList()->currentItem());
+    QCOMPARE(view.navigationList()->currentItem()->data(Qt::UserRole).toInt(), 2);
+    QVERIFY(!navigations.isEmpty());
+    QCOMPARE(navigations.constLast().value(0).toInt(), 2);
 }
 
 void WinUI3NavigationTest::navigationSingleTransitionDispatch()

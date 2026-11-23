@@ -54,7 +54,21 @@ NavigationView::NavigationView(QWidget *parent)
     connect(m_list, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem *current) { activateItem(current); });
     connect(m_search, &QLineEdit::textChanged, this, &NavigationView::filter);
-    connect(m_stack, &AnimatedStack::currentChanged, this, &NavigationView::currentIndexChanged);
+    connect(m_stack, &AnimatedStack::currentChanged, this, [this](int index) {
+        QListWidgetItem *selected = nullptr;
+        for (int row = 0; row < m_list->count(); ++row) {
+            QListWidgetItem *item = m_list->item(row);
+            if (item->data(Qt::UserRole).toInt() == index) {
+                selected = item;
+                break;
+            }
+        }
+        const bool wasSettingCurrentItem = m_settingCurrentItem;
+        m_settingCurrentItem = true;
+        m_list->setCurrentItem(selected);
+        m_settingCurrentItem = wasSettingCurrentItem;
+        emit currentIndexChanged(index);
+    });
 }
 
 NavigationView::~NavigationView() = default;
