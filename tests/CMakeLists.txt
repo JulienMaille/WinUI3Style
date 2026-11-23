@@ -18,7 +18,8 @@ set(_winui3style_split_tests
     winui3style_settingscard_tests tst_winui3settingscard.cpp
     winui3style_animatedstack_tests tst_winui3animatedstack.cpp
     winui3style_settings_tests tst_winui3settings.cpp
-    winui3style_navigation_tests tst_winui3navigation.cpp)
+    winui3style_navigation_tests tst_winui3navigation.cpp
+    winui3style_textvertical_tests tst_winui3textvertical.cpp)
 list(LENGTH _winui3style_split_tests _winui3style_split_len)
 math(EXPR _winui3style_split_last "${_winui3style_split_len} - 1")
 foreach(_i RANGE 0 ${_winui3style_split_last} 2)
@@ -205,6 +206,17 @@ target_link_libraries(winui3style_scrollbarcard_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_scrollbarcard_tests winui3styleplugin)
+endif()
+
+# ScrollBar thumb, arrow, integration and backdrop-chain contracts, split out
+# of tst_winui3views.cpp to respect the 60 KB per-binary size ratchet.
+add_executable(winui3style_scrollbar_tests tst_winui3scrollbar.cpp)
+target_include_directories(winui3style_scrollbar_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/lib)
+target_link_libraries(winui3style_scrollbar_tests PRIVATE
+    WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    add_dependencies(winui3style_scrollbar_tests winui3styleplugin)
 endif()
 
 # DataGrid-like table header + sort indicator contracts (60 KB cap: views has
@@ -481,7 +493,8 @@ set(_winui3style_linked_test_targets
         winui3style_gallerydensity_tests
         winui3style_rubberband_tests
         winui3style_keysequenceedit_tests
-        winui3style_toolbox_tests)
+        winui3style_toolbox_tests
+        winui3style_textvertical_tests)
 # On Windows the executable directory is searched before PATH. Keep the
 # runtime DLL beside the linked test executables so an old manual copy can
 # never shadow the library that was just rebuilt. The tests share an output
@@ -529,7 +542,8 @@ foreach(_split_target IN ITEMS
         winui3style_settingscard_tests
         winui3style_animatedstack_tests
         winui3style_settings_tests
-        winui3style_navigation_tests)
+        winui3style_navigation_tests
+        winui3style_textvertical_tests)
     string(REPLACE "winui3style_" "" _suffix "${_split_target}")
     string(REPLACE "_tests" "" _suffix "${_suffix}")
     add_test(NAME winui3style_${_suffix}_unit
@@ -571,6 +585,8 @@ add_test(NAME winui3style_calendarsurface_unit
          COMMAND winui3style_calendarsurface_tests)
 add_test(NAME winui3style_scrollbarcard_unit
          COMMAND winui3style_scrollbarcard_tests)
+add_test(NAME winui3style_scrollbar_unit
+         COMMAND winui3style_scrollbar_tests)
 add_test(NAME winui3style_tableheader_unit
          COMMAND winui3style_tableheader_tests)
 add_test(NAME winui3style_rubberband_unit
@@ -721,6 +737,9 @@ set_tests_properties(winui3style_calendarsurface_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_scrollbarcard_unit PROPERTIES
+    ENVIRONMENT "${_winui3style_test_environment}"
+)
+set_tests_properties(winui3style_scrollbar_unit PROPERTIES
     ENVIRONMENT "${_winui3style_test_environment}"
 )
 set_tests_properties(winui3style_tableheader_unit PROPERTIES

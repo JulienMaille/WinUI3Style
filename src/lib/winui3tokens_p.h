@@ -52,6 +52,22 @@ constexpr int ShortcutChordBreakGap = 10;
 constexpr qreal ShortcutChordDotRadius = 3.0;
 constexpr int ShortcutKeycapFontSize = 12;
 constexpr int ShortcutFieldTextInset = 10;
+// At the pinned microsoft-ui-xaml commit (9f89c2da) the text-bearing control
+// templates use asymmetric vertical padding whose bottom inset is larger than
+// its top inset. The ContentPresenter/TextBlock centres content inside that
+// box, so its centre is half a pixel above the geometric centre. Qt integer
+// rects round that to one logical pixel, which is the #119 one-pixel-too-low
+// defect. Pinned pairs (left,top,right,bottom):
+//   Button:           Button_themeresources.xaml          11,5,11,6
+//   TextBox:          TextBox_themeresources_perf2026...  10,5,10,6
+//   ComboBox:         ComboBox_themeresources.xaml        12,5,0,7
+//   ComboBoxItem:     ComboBox_themeresources.xaml        11,5,11,7
+//   MenuFlyoutItem:   MenuFlyout_themeresources.xaml      11,8,11,9
+//   TabView selected: TabView_themeresources.xaml          9,3,5,4
+// Keep the pair and its derived offset here so paint and tests cannot drift.
+constexpr int ButtonPaddingTop = 5;
+constexpr int ButtonPaddingBottom = 6;
+constexpr int WinuiVerticalContentCenterOffset = 1;
 // TextBlock_themeresources.xaml (microsoft-ui-xaml 9f89c2da): BaseTextBlockStyle
 // inherits XamlAutoFontFamily + SemiBold into Title/BodyStrong; only the size
 // differs. XamlAutoFontFamily is the generic Segoe UI Variable family, whose

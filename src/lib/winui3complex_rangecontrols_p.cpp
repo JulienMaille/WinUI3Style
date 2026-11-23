@@ -175,14 +175,38 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
                 roundedRect(painter, option->rect, track, Qt::transparent, 3);
             }
 
-            const qreal thickness = 8.0 + 4.0 * expanded;
+            // Pinned template (ScrollBar_themeresources.xaml): the
+            // Thumb element is ScrollBarVerticalThumbMinWidth (8 px)
+            // contracted and ScrollBarSize (12 px) expanded, centred in the
+            // 12 px control and translated ScrollBarThumbOffset (2 px) toward
+            // the trailing edge while contracted. ThumbVisual strokes that
+            // element at ScrollBarThumbStrokeThickness (6), so the visible
+            // bar is the element minus 3 px per face: a 2 px hairline at rest
+            // growing to the 6 px centred bar of the expanded reference
+            // capture. RadiusX stays at ScrollBarCornerRadius (3) and clamps
+            // to the hairline.
+            const qreal controlThickness =
+                    horizontal ? qreal(option->rect.height()) : qreal(option->rect.width());
+            const qreal elementThickness = 8.0 + 4.0 * expanded;
+            const qreal visibleThickness = elementThickness - 6.0;
+            qreal elementLeading =
+                    (controlThickness - elementThickness) / 2.0 + 2.0 * (1.0 - expanded);
+            const bool thumbRtl = option->direction == Qt::RightToLeft;
+            if (thumbRtl && !horizontal)
+                elementLeading = controlThickness - elementThickness - elementLeading;
+            const qreal visibleLeading = elementLeading + 3.0;
             QRectF visualThumb(thumb);
             if (horizontal)
-                visualThumb.setTop(thumb.bottom() + 1.0 - thickness);
+                visualThumb.setTop(thumb.top() + visibleLeading);
             else
-                visualThumb.setLeft(thumb.right() + 1.0 - thickness);
+                visualThumb.setLeft(thumb.left() + visibleLeading);
+            if (horizontal)
+                visualThumb.setHeight(visibleThickness);
+            else
+                visualThumb.setWidth(visibleThickness);
             const QColor thumbColor = t.strokeStrong;
-            roundedRect(painter, visualThumb, thumbColor, Qt::transparent, thickness / 2.0);
+            roundedRect(painter, visualThumb, thumbColor, Qt::transparent,
+                        qMin(3.0, visibleThickness / 2.0));
 
             if (expanded > 0.001) {
                 const QRect decrease = style->subControlRect(QStyle::CC_ScrollBar, scroll,
@@ -190,7 +214,8 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
                 const QRect increase = style->subControlRect(QStyle::CC_ScrollBar, scroll,
                                                              QStyle::SC_ScrollBarAddLine, widget);
                 const bool pressed = option->state & QStyle::State_Sunken;
-                const auto drawArrow = [&](const QRect &rect, QStyle::SubControl sub, Icon glyph) {
+                const auto drawArrow = [&](const QRect &rect, QStyle::SubControl sub,
+                                           qreal angleDegrees) {
                     if (!(scroll->subControls & sub))
                         return;
                     const bool active = (scroll->activeSubControls & sub)
@@ -202,22 +227,27 @@ bool drawRangeComplexControl(const Style *style, QStyle::ComplexControl control,
                     }
                     painter->save();
                     painter->setOpacity(expanded);
-                    QRect glyphRect(rect.center().x() - 4, rect.center().y() - 4, 8, 8);
-                    if (active && pressed)
-                        glyphRect = QRect(rect.center().x() - 3, rect.center().y() - 3, 7, 7);
-                    icon(glyph, t.textPrimary)
-                            .paint(painter, glyphRect, Qt::AlignCenter, QIcon::Normal);
+                    // ScrollBar_themeresources.xaml pins the arrow glyph to
+                    // Segoe Fluent Icons U+EDDC/EDDB at FontSize 8, painted
+                    // with ControlStrongFillColorDefaultBrush (strokeStrong,
+                    // the thumb's brush). Pressed scale is 0.875. The themed
+                    // pixmap path keeps the glyph neutral, without ClearType
+                    // fringes in the live window.
+                    const qreal scale = (active && pressed) ? 0.875 : 1.0;
+                    const int size = qRound(8 * scale);
+                    const QRectF box(rect.left() + (rect.width() - size) / 2.0,
+                                     rect.top() + (rect.height() - size) / 2.0, size, size);
+                    paintRotatedIcon(painter, icon(Icon::ScrollBarArrowUp), box, angleDegrees,
+                                     t.strokeStrong);
                     painter->restore();
                 };
                 if (horizontal) {
                     const bool rtl = option->direction == Qt::RightToLeft;
-                    drawArrow(decrease, QStyle::SC_ScrollBarSubLine,
-                              rtl ? Icon::ChevronRight : Icon::ChevronLeft);
-                    drawArrow(increase, QStyle::SC_ScrollBarAddLine,
-                              rtl ? Icon::ChevronLeft : Icon::ChevronRight);
+                    drawArrow(decrease, QStyle::SC_ScrollBarSubLine, rtl ? 90 : -90);
+                    drawArrow(increase, QStyle::SC_ScrollBarAddLine, rtl ? -90 : 90);
                 } else {
-                    drawArrow(decrease, QStyle::SC_ScrollBarSubLine, Icon::ChevronUp);
-                    drawArrow(increase, QStyle::SC_ScrollBarAddLine, Icon::ChevronDown);
+                    drawArrow(decrease, QStyle::SC_ScrollBarSubLine, 0);
+                    drawArrow(increase, QStyle::SC_ScrollBarAddLine, 180);
                 }
             }
             return true;

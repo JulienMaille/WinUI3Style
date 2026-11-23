@@ -56,7 +56,9 @@
     "overlay_corner_radius": 8,
     "minimum_control_height": 32,
     "toggle_track": [40, 20],
-    "toggle_knob_rest": 12
+    "toggle_knob_rest": 12,
+    "button_padding": [11, 5, 11, 6],
+    "button_vertical_center_offset": 1
   },
   "typography": {
     "family": "Segoe UI Variable Text",
