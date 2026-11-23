@@ -54,6 +54,28 @@ NavigationView::NavigationView(QWidget *parent)
     connect(m_list, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem *current) { activateItem(current); });
     connect(m_search, &QLineEdit::textChanged, this, &NavigationView::filter);
+    connect(m_stack, &QStackedWidget::widgetRemoved, this, [this](int index) {
+        const bool settingCurrentItem = m_settingCurrentItem;
+        m_settingCurrentItem = true;
+        for (int row = 0; row < m_list->count(); ++row) {
+            QListWidgetItem *item = m_list->item(row);
+            const int stored = item->data(Qt::UserRole).toInt();
+            if (stored == index) {
+                delete m_list->takeItem(row);
+                --row;
+            } else if (stored > index) {
+                item->setData(Qt::UserRole, stored - 1);
+            }
+        }
+        for (int row = 0; row < m_list->count(); ++row) {
+            QListWidgetItem *item = m_list->item(row);
+            if (item->data(Qt::UserRole).toInt() == m_stack->currentIndex()) {
+                m_list->setCurrentItem(item);
+                break;
+            }
+        }
+        m_settingCurrentItem = settingCurrentItem;
+    });
     connect(m_stack, &AnimatedStack::currentChanged, this, [this](int index) {
         QListWidgetItem *selected = nullptr;
         for (int row = 0; row < m_list->count(); ++row) {
@@ -71,7 +93,10 @@ NavigationView::NavigationView(QWidget *parent)
     });
 }
 
-NavigationView::~NavigationView() = default;
+NavigationView::~NavigationView()
+{
+    disconnect(m_stack, nullptr, this, nullptr);
+}
 
 int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &title)
 {
@@ -96,16 +121,6 @@ void NavigationView::removePage(int index)
     QWidget *page = m_stack->widget(index);
     if (!page)
         return;
-    for (int row = 0; row < m_list->count(); ++row) {
-        QListWidgetItem *item = m_list->item(row);
-        const int stored = item->data(Qt::UserRole).toInt();
-        if (stored == index) {
-            delete m_list->takeItem(row);
-            --row;
-        } else if (stored > index) {
-            item->setData(Qt::UserRole, stored - 1);
-        }
-    }
     m_stack->removeWidget(page);
     page->setParent(nullptr);
 }
