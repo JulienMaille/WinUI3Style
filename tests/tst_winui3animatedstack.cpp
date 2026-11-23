@@ -52,6 +52,7 @@ private slots:
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
     void animatedStackDeferredReplay();
+    void animatedStackNewerRequestOverridesStaleDeferred();
     void animatedStackNoAnimationTracksRemovedDestination();
     void animatedStackOverlayOverCompositedStaysTransparent();
 };
@@ -384,6 +385,38 @@ void WinUI3AnimatedStackTest::animatedStackOverlayOverCompositedStaysTransparent
                                            Qt::FindDirectChildrenOnly)
                      .size(),
              0);
+}
+
+void WinUI3AnimatedStackTest::animatedStackNewerRequestOverridesStaleDeferred()
+{
+    // A request deferred inside the synchronous currentChanged window is only
+    // valid until a newer explicit request arrives. The transitionFinished
+    // handler below issues one after the deferred entry exists, and the stale
+    // deferred page must not replay and override it.
+    WinUI3::AnimatedStack stack;
+    for (int i = 0; i < 4; ++i)
+        stack.addWidget(new QLabel(QString::number(i)));
+    stack.setDuration(0); // deterministic synchronous completions
+    stack.resize(240, 80);
+    stack.show();
+    QCOMPARE(stack.currentIndex(), 0);
+    bool redirected = false;
+    connect(&stack, &QStackedWidget::currentChanged, &stack, [&](int index) {
+        if (index == 1 && !redirected) {
+            redirected = true;
+            stack.setCurrentIndex(2);
+        }
+    });
+    bool redirectedFromFinished = false;
+    connect(&stack, &WinUI3::AnimatedStack::transitionFinished, &stack, [&](int index) {
+        if (index == 1 && !redirectedFromFinished) {
+            redirectedFromFinished = true;
+            stack.setCurrentIndex(3);
+        }
+    });
+    stack.setCurrentIndex(1);
+    QCOMPARE(stack.currentIndex(), 3);
+    QCOMPARE(static_cast<QLabel *>(stack.currentWidget())->text(), QStringLiteral("3"));
 }
 
 QTEST_MAIN(WinUI3AnimatedStackTest)
