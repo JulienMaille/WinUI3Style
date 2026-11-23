@@ -69,6 +69,7 @@ private:
     // currentItemChanged is synchronous; without this guard activateItem()
     // re-enters setCurrentIndex() and dispatches the same transition twice.
     bool m_settingCurrentItem = false;
+    quint64 m_navigationRequest = 0;
 };
 
 } // namespace WinUI3
