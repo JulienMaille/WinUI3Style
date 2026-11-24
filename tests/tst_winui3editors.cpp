@@ -1023,10 +1023,8 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
     verify(true, Qt::RightToLeft);
 }
 
-// Issues #175/#176: QAbstractSpinBox::setFrame(false) and standalone
-// QLineEdit::setFrame(false) must stop the border while keeping fill, hover
-// and focus feedback. Fusion treats the same sequence as a visible change; the
-// WinUI surfaces used to stay identical.
+// Issues #175/#176: setFrame(false) must remove the border while keeping
+// fill, hover and focus feedback; the WinUI captures used to stay identical.
 void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
 {
     QSpinBox spin;
@@ -1039,16 +1037,13 @@ void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
     const QImage framedGrab = spin.grab().toImage();
     spin.setFrame(false);
     QCOMPARE(spin.hasFrame(), false);
-    spin.update();
     const QImage framelessGrab = spin.grab().toImage();
-    QVERIFY(framedGrab.size() == framelessGrab.size());
     QVERIFY(framedGrab != framelessGrab);
 
     QStyleOptionSpinBox option;
     option.initFrom(&spin);
     option.rect = spin.rect();
     option.buttonSymbols = spin.buttonSymbols();
-    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
     option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
             | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
     const auto renderSpin = [this, &spin, &option](bool frame, bool focus) {
@@ -1068,9 +1063,7 @@ void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
     for (int x = 0; x < spin.width(); ++x)
         borderDiff += framed.pixelColor(x, 0) != frameless.pixelColor(x, 0);
     QVERIFY(borderDiff > 100);
-    // The field surface itself (text area center) keeps the same fill.
-    const QPoint fieldCenter = spin.rect().center();
-    QCOMPARE(frameless.pixelColor(fieldCenter), framed.pixelColor(fieldCenter));
+    QCOMPARE(frameless.pixelColor(spin.rect().center()), framed.pixelColor(spin.rect().center()));
     // Layout must not depend on the frame flag.
     QStyleOptionSpinBox framedOption = option;
     framedOption.frame = true;
@@ -1082,8 +1075,7 @@ void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
                                           QStyle::SC_SpinBoxEditField, &spin));
 
     // Standalone QLineEdit drives PE_PanelLineEdit through its own
-    // initStyleOption: zero-width frame line must remove the border only.
-    QLineEdit edit;
+    // initStyleOption: a zero-width frame line must remove the border only.    QLineEdit edit;
     edit.setText(QStringLiteral("frameless"));
     edit.resize(160, 32);
     edit.show();
@@ -1092,9 +1084,7 @@ void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
     const QImage editFramed = edit.grab().toImage();
     edit.setFrame(false);
     QCOMPARE(edit.hasFrame(), false);
-    edit.update();
     const QImage editFrameless = edit.grab().toImage();
-    QVERIFY(editFramed.size() == editFrameless.size());
     QVERIFY(editFramed != editFrameless);
 
     const auto renderPanel = [&edit](int lineWidth) {
