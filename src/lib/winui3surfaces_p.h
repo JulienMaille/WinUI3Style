@@ -70,7 +70,9 @@ WINUI3STYLE_EXPORT void restoreContentSurfacesForBackdrop(QWidget *window);
 // winui3helpers_p.h). State is remembered so toggle-off restores exactly.
 void transparentizeForBackdrop(QWidget *surface);
 void restoreTransparentizedForBackdrop(QWidget *surface);
-bool isTransparentizedForBackdrop(const QWidget *surface);
+// Exported for the offscreen mechanism tests (same seam as the sync entry
+// points above): the theme-switch test asserts the armed recipe directly.
+WINUI3STYLE_EXPORT bool isTransparentizedForBackdrop(const QWidget *surface);
 // Remembers the pre-backdrop palette, explicit flag and backdrop attributes
 // once (first write wins). Shared by transparentizeSurface below and by the
 // NavigationView surface prepare, so a view armed by both keeps one snapshot
