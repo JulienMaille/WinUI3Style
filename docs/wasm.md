@@ -24,6 +24,12 @@ in `CMakeLists.txt` therefore:
 Nothing in the style implementation changes; the same widget painting,
 animation and density behavior runs in the browser.
 
+Browser hours: each animated frame repaints the widget canvas on the browser's
+main thread, so the gallery ships an **Animate motion** checkbox that drives
+the style's `motionEffects` property — the same reduced-motion gate fed by
+`WINUI3STYLE_DISABLE_ANIMATIONS` or the Windows animation setting. Toggling it
+off stops hover and interaction animation without touching the painting.
+
 ## One-time toolchain setup
 
 The pinned versions match Qt's WebAssembly binaries for Qt 6.8.x:
