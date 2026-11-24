@@ -111,6 +111,7 @@ private slots:
     void hoverAnimationProgresses();
     void readOnlyActionRestoration();
     void rtlGeometryAndHitTesting();
+    void comboStyleReplacementInsideShowPopupSurvives();
     void sliderHandleInputMapping_data();
     void sliderHandleInputMapping();
     void runtimeAppearanceAndDialogLifecycle();
@@ -1130,6 +1131,41 @@ void WinUI3InteractionTest::runtimeAppearanceAndDialogLifecycle()
 
     style->setAccentColor({});
     style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+// Issue #177: a QComboBox::showPopup() override that swaps the application
+// style synchronously deletes the active WinUI3 style (and its interaction
+// controller) mid-dispatch. The post-call release cleanup must bail out
+// instead of touching the destroyed controller state.
+void WinUI3InteractionTest::comboStyleReplacementInsideShowPopupSurvives()
+{
+    struct StyleReplacingCombo final : QComboBox
+    {
+        void showPopup() override
+        {
+            QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+        }
+    };
+
+    StyleReplacingCombo combo;
+    combo.addItems({ QStringLiteral("One"), QStringLiteral("Two") });
+    combo.resize(180, 32);
+    combo.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&combo));
+    QPointer<QComboBox> comboGuard(&combo);
+
+    QTest::mouseClick(&combo, Qt::LeftButton, Qt::NoModifier, combo.rect().center());
+    QVERIFY(comboGuard);
+    // The style replacement must have happened exactly once, from inside the
+    // release-dispatched showPopup(), and the controller must have bailed out
+    // of its cleanup without touching the destroyed private state.
+    QCOMPARE(QByteArray(qApp->style()->metaObject()->className()),
+             QByteArrayLiteral("QFusionStyle"));
+    QVERIFY(QWidget::mouseGrabber() == nullptr);
+
+    // Restore the suite-wide fixture style; resetStandardWinUI3TestStyle()
+    // assumes a WinUI3 style is active.
+    QApplication::setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
 }
 
 void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()
