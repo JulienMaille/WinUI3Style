@@ -1,7 +1,9 @@
 #include "gallerywindow.h"
 
 #if defined(EMSCRIPTEN)
-#  include <winui3style/winui3style.h>
+// Under Emscripten the style is embedded at link time (wasmstyle.cpp,
+// docs/wasm.md): QStyleFactory cannot load the winui3 plugin in the browser.
+QStyle *embeddedGalleryStyle();
 #endif
 
 #include <QApplication>
@@ -18,9 +20,7 @@ int main(int argc, char *argv[])
     application.setApplicationName(QStringLiteral("WinUI 3 Style Gallery"));
     application.setOrganizationName(QStringLiteral("WinUI3Style"));
 #if defined(EMSCRIPTEN)
-    // Qt for WebAssembly ships without a runtime plugin loader, so the style
-    // is linked into the executable instead of resolved by QStyleFactory.
-    QStyle *style = new WinUI3::Style(WinUI3::ThemeMode::Light);
+    QStyle *style = embeddedGalleryStyle();
 #else
     QStyle *style = QStyleFactory::create(QStringLiteral("winui3"));
     if (!style) {

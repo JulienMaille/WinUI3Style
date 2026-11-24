@@ -26,6 +26,7 @@ if(EMSCRIPTEN)
     # WebAssembly gallery links the style into the executable (docs/wasm.md).
     # -lembind: Qt6Gui's Emscripten-only file API code references the emval
     # runtime, which qt_add_executable injects for plain add_executable users.
+    target_sources(winui3style_gallery PRIVATE wasmstyle.cpp)
     target_link_libraries(winui3style_gallery PRIVATE WinUI3::Widgets)
     target_link_options(winui3style_gallery PRIVATE -lembind)
 endif()
