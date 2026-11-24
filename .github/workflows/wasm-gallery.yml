@@ -1,0 +1,87 @@
+# Build the widget gallery for the browser with Qt for WebAssembly and publish
+# it to GitHub Pages (docs/wasm.md).
+#
+# The build step runs on every push, pull request and manual dispatch so the
+# WebAssembly target keeps compiling. Only main (and manual dispatch)
+# deploys: Pages serves the browser demo at /WinUI3Style/ from the latest main
+# build. Requires Settings > Pages > Source = "GitHub Actions"; the
+# configure-pages step below offers enablement with a privileged token.
+name: wasm-gallery
+
+on:
+  push:
+    branches: [main, wasm-gallery]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      EMSDK_VERSION: "3.1.56"
+      QT_VERSION: "6.8.3"
+    steps:
+      - uses: actions/checkout@v7
+
+      # Qt for WebAssembly 6.8+ is published under the host-independent wasm
+      # target (aqtinstall docs); the single-threaded build is what the demo
+      # and docs/wasm.md pin. The desktop build supplies moc/uic/rcc.
+      - name: Install Qt host tools and WebAssembly build
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "aqtinstall==3.3.0"
+          aqt install-qt linux desktop "$QT_VERSION" linux_gcc_64 --outputdir "$HOME/Qt"
+          aqt install-qt all_os wasm "$QT_VERSION" wasm_singlethread --autodesktop --outputdir "$HOME/Qt"
+
+      # Qt 6.8.x WebAssembly binaries are built with Emscripten 3.1.56; other
+      # emcc versions change the ABI and can redefine wasm ld flags.
+      - name: Install Emscripten
+        run: |
+          git clone --depth 1 --branch "$EMSDK_VERSION" \
+              https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      - name: Build and package the WebAssembly gallery
+        run: |
+          export EMSDK="$HOME/emsdk"
+          export QT_HOST_DIR="$HOME/Qt/$QT_VERSION/gcc_64"
+          export QT_WASM_DIR="$HOME/Qt/$QT_VERSION/wasm_singlethread"
+          tools/wasm/build_wasm.sh
+          test -f build-wasm/web/index.html
+          test -f build-wasm/web/winui3style_gallery.wasm
+
+      - name: Configure GitHub Pages
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload the Pages artifact
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build-wasm/web
+
+  deploy:
+    needs: build
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

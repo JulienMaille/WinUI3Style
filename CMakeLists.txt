@@ -49,6 +49,18 @@ option(WINUI3STYLE_BUILD_NATIVE_TESTS
 option(WINUI3STYLE_BUILD_BENCHMARKS
        "Build the opt-in render benchmark (not registered with CTest)" OFF)
 
+# The WebAssembly gallery build (docs/wasm.md) targets the browser with Qt for
+# WebAssembly, which ships without a runtime plugin loader in the
+# single-threaded configuration the demo uses. The style is therefore embedded
+# into the gallery binary as a static library, and the plugin, CTest suites
+# and render benchmark are skipped: CTest processes cannot run in a browser.
+if(EMSCRIPTEN)
+    set(WINUI3STYLE_STATIC ON)
+    set(WINUI3STYLE_BUILD_PLUGIN OFF)
+    set(WINUI_ENABLE_TESTS OFF)
+    set(WINUI3STYLE_BUILD_BENCHMARKS OFF)
+endif()
+
 find_package(Qt6 6.5 QUIET COMPONENTS Core Gui Widgets)
 if(NOT Qt6_FOUND)
     find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets)

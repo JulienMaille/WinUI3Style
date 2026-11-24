@@ -29,6 +29,12 @@ require_file() {
 
 require_file "$app_dir/$app.js"
 require_file "$app_dir/$app.wasm"
+# Plain add_executable targets miss Qt's wasm helper copies (those run from
+# qt_add_executable internals), so fall back to the loader shipped in the
+# Qt for WebAssembly installation.
+if [ ! -f "$app_dir/qtloader.js" ] && [ -n "${QT_WASM_DIR:-}" ]; then
+    cp -f "$QT_WASM_DIR/plugins/platforms/qtloader.js" "$app_dir/qtloader.js"
+fi
 require_file "$app_dir/qtloader.js"
 require_file "$script_dir/index.html"
 

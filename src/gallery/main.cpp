@@ -1,5 +1,7 @@
 #include "gallerywindow.h"
 
+#include <winui3style/winui3style.h>
+
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDebug>
@@ -13,15 +15,21 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     application.setApplicationName(QStringLiteral("WinUI 3 Style Gallery"));
     application.setOrganizationName(QStringLiteral("WinUI3Style"));
-    if (QStyle *style = QStyleFactory::create(QStringLiteral("winui3"))) {
-        application.setStyle(style);
-        // Give the gallery app an icon from the style's own Fluent glyphs;
-        // no bundled image or resource file is needed.
-        application.setWindowIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
-    } else {
+#if defined(EMSCRIPTEN)
+    // Qt for WebAssembly ships without a runtime plugin loader, so the style
+    // is linked into the executable instead of resolved by QStyleFactory.
+    QStyle *style = new WinUI3::Style(WinUI3::ThemeMode::Light);
+#else
+    QStyle *style = QStyleFactory::create(QStringLiteral("winui3"));
+    if (!style) {
         qCritical() << "The winui3 QStyle plugin could not be loaded.";
         return 1;
     }
+#endif
+    application.setStyle(style);
+    // Give the gallery app an icon from the style's own Fluent glyphs;
+    // no bundled image or resource file is needed.
+    application.setWindowIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("WinUI 3 Qt Widgets gallery"));

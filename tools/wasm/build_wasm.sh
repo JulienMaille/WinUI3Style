@@ -59,6 +59,9 @@ cmake_args=()
 cmake_args+=(-DCMAKE_BUILD_TYPE=Release)
 cmake_args+=(-DCMAKE_TOOLCHAIN_FILE="$toolchain")
 cmake_args+=(-DQT_HOST_PATH="$QT_HOST_DIR")
+# Qt's wasm helpers copy their app files (js, wasm, qtloader.js) into the
+# target's runtime output directory; package_wasm.sh collects them from there.
+cmake_args+=(-DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$build_dir/wasm")
 
 cmake -S "$repo_root" -B "$build_dir" "${generator[@]}" "${cmake_args[@]}"
 
