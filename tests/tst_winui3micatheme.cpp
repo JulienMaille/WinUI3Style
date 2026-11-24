@@ -250,9 +250,15 @@ void WinUI3MicaThemeTest::scrollBarRebasesAcrossGrantedMaterialReapply()
 
     // The theme switch queues applyBackdrop(), which re-runs the content sync
     // on the still-granted material. That re-apply must keep the Dark palette.
+    // Offscreen that queued call publishes the Painted fallback and drops the
+    // bar's transparent Window role, so drain it first, then re-publish the
+    // simulated grant and re-run the sync exactly as the native DWM branch
+    // does. Without the snapshot rebase the re-armed bar still shows Light RGB.
+    QCoreApplication::processEvents();
+    window.setProperty(WinUI3::Private::effectiveBackdropProperty,
+                       static_cast<int>(WinUI3::Private::BackdropSurface::Composited));
     WinUI3::Private::makeChromeSurfacesTransparent(&window);
     WinUI3::Private::syncContentSurfacesForBackdrop(&window);
-    QCoreApplication::processEvents();
 
     QVERIFY(!bar->size().isEmpty());
     QVERIFY(WinUI3::Private::isTransparentizedForBackdrop(bar));
