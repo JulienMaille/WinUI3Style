@@ -2,6 +2,7 @@
 #pragma once
 
 #include "winui3backdrop_p.h"
+#include "winui3style_properties_p.h"
 
 #include <winui3style/winui3global.h>
 
@@ -81,6 +82,30 @@ QPalette backdropSurfaceSnapshotPalette(const QWidget *surface);
 // Rebase the saved snapshot when the runtime theme moves (style-owned
 // surfaces follow the theme while keeping their live recipe).
 void rebaseBackdropSurfaceSnapshotPalette(QWidget *surface, const QPalette &palette);
+// A theme refresh writes the transparent Window role (alpha 0) onto a surface
+// that is already armed with a pre-material snapshot. The backdrop sync
+// restores that snapshot before re-arming a scroll chain, so it has to follow
+// the theme too; otherwise a granted-material re-apply resurrects the previous
+// theme's RGB (issue #180: the scrollbar stayed on the Light palette after
+// switching to Dark under Mica). This overload takes the mutable refresh
+// palette; const calls keep using the plain writer above.
+inline void setBackdropPalette(QWidget *surface, QPalette &palette)
+{
+    // Same key as backdropSurfacePaletteProperty in the implementation TU.
+    const QVariant armedVariant =
+            surface ? surface->property("_winui_backdrop_surface_palette") : QVariant();
+    setBackdropPalette(surface, static_cast<const QPalette &>(palette));
+    if (!surface || !armedVariant.isValid() || palette.color(QPalette::Window).alpha() != 0)
+        return;
+    if (!surface->property(ownedPaletteProperty).toBool())
+        return;
+    const QPalette armed = armedVariant.value<QPalette>();
+    QPalette saved = palette;
+    QColor window = saved.color(QPalette::Window);
+    window.setAlpha(armed.color(QPalette::Window).alpha());
+    saved.setColor(QPalette::Window, window);
+    rebaseBackdropSurfaceSnapshotPalette(surface, saved);
+}
 // Arms one freshly polished widget when its window already presents a live
 // material (Composited): chrome, islands, scroll chains and bare containers
 // converge without waiting for the next theme refresh. Same remember-once
