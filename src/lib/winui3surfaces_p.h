@@ -55,7 +55,7 @@ void setBackdropPalette(QWidget *surface, const QPalette &palette);
 // touched widget to its remembered palette, attributes and autofill.
 // Exported for the offscreen mechanism tests (same seam as the content
 // sync below): the DWM-applied branch that calls the chrome chain never
-// runs offscreen, so so tests drive make/restore directly.
+// runs offscreen, so tests drive make/restore directly.
 WINUI3STYLE_EXPORT void makeChromeSurfacesTransparent(QWidget *window);
 WINUI3STYLE_EXPORT void restoreChromeSurfaces(QWidget *window);
 // Exported for the offscreen mechanism tests (same seam as the exported
