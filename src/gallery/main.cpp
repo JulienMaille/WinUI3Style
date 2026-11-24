@@ -1,6 +1,8 @@
 #include "gallerywindow.h"
 
-#include <winui3style/winui3style.h>
+#if defined(EMSCRIPTEN)
+#  include <winui3style/winui3style.h>
+#endif
 
 #include <QApplication>
 #include <QCommandLineParser>
