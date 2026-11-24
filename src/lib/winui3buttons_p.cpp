@@ -24,6 +24,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QStyleOptionButton>
+#include <QStyleOptionFrame>
 #include <QStyleOptionToolButton>
 #include <QToolBar>
 #include <QToolButton>
@@ -432,7 +433,16 @@ static bool drawLineEditPanelPrimitive(const Style *, const QStyleOption *option
     QColor fill = !enabled ? t.controlDisabled : focused ? t.editorFocusedFill : t.control;
     if (enabled && !focused)
         fill = mix(fill, t.controlHover, lineEditHover);
-    if (focused)
+    // QLineEdit::initStyleOption reports a disabled frame as a zero-width
+    // frame line: a standalone editor with setFrame(false) must paint only
+    // the fill surface (issue #176). Non-frame options keep the bordered
+    // surface. Fill, hover and the focus underline stay; only the border
+    // frame is dropped.
+    const auto *frameOption = qstyleoption_cast<const QStyleOptionFrame *>(option);
+    const bool framed = !frameOption || frameOption->lineWidth > 0;
+    if (!framed)
+        roundedRect(painter, option->rect, fill, Qt::transparent, ControlRadius);
+    else if (focused)
         controlSurface(painter, option->rect, fill, t.stroke, t.strokeSecondary, ControlRadius);
     else
         editorSurface(painter, option->rect, fill, t.stroke, t.strokeStrong, ControlRadius,

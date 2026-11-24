@@ -61,6 +61,7 @@
 #include <QStyleOptionGroupBox>
 #include <QStyleOptionButton>
 #include <QStyleOptionComboBox>
+#include <QStyleOptionFrame>
 #include <QStyleOptionHeader>
 #include <QStyleOptionMenuItem>
 #include <QStyleOptionSlider>
@@ -115,6 +116,7 @@ private slots:
     void spinBoxPlusMinusGlyphContract();
     void verticalNumberBoxContract();
     void spinBoxFocusUnderlinePixelContract();
+    void framelessSpinAndLineEditsContract();
     void tableEditorTrackerLifetimeContract();
 };
 
@@ -854,6 +856,7 @@ void WinUI3EditorsTest::spinBoxPlusMinusGlyphContract()
     QStyleOptionSpinBox option;
     option.initFrom(&spin);
     option.rect = spin.rect();
+    option.frame = true;
     option.buttonSymbols = QAbstractSpinBox::PlusMinus;
     const QRect up =
             spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
@@ -1020,6 +1023,102 @@ void WinUI3EditorsTest::spinBoxFocusUnderlinePixelContract()
     verify(true, Qt::RightToLeft);
 }
 
+// Issues #175/#176: QAbstractSpinBox::setFrame(false) and standalone
+// QLineEdit::setFrame(false) must stop the border while keeping fill, hover
+// and focus feedback. Fusion treats the same sequence as a visible change; the
+// WinUI surfaces used to stay identical.
+void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
+{
+    QSpinBox spin;
+    spin.setRange(0, 100);
+    spin.setValue(46);
+    spin.resize(150, 32);
+    spin.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&spin));
+    QVERIFY(spin.hasFrame());
+    const QImage framedGrab = spin.grab().toImage();
+    spin.setFrame(false);
+    QCOMPARE(spin.hasFrame(), false);
+    spin.update();
+    const QImage framelessGrab = spin.grab().toImage();
+    QVERIFY(framedGrab.size() == framelessGrab.size());
+    QVERIFY(framedGrab != framelessGrab);
+
+    QStyleOptionSpinBox option;
+    option.initFrom(&spin);
+    option.rect = spin.rect();
+    option.buttonSymbols = spin.buttonSymbols();
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+    option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
+            | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+    const auto renderSpin = [this, &spin, &option](bool frame, bool focus) {
+        QStyleOptionSpinBox copy = option;
+        copy.frame = frame;
+        if (focus)
+            copy.state |= QStyle::State_HasFocus;
+        QImage out(spin.size(), QImage::Format_ARGB32_Premultiplied);
+        out.fill(Qt::transparent);
+        QPainter painter(&out);
+        spin.style()->drawComplexControl(QStyle::CC_SpinBox, &copy, &painter, &spin);
+        return out;
+    };
+    const QImage framed = renderSpin(true, false);
+    const QImage frameless = renderSpin(false, false);
+    int borderDiff = 0;
+    for (int x = 0; x < spin.width(); ++x)
+        borderDiff += framed.pixelColor(x, 0) != frameless.pixelColor(x, 0);
+    QVERIFY(borderDiff > 100);
+    // The field surface itself (text area center) keeps the same fill.
+    const QPoint fieldCenter = spin.rect().center();
+    QCOMPARE(frameless.pixelColor(fieldCenter), framed.pixelColor(fieldCenter));
+    // Layout must not depend on the frame flag.
+    QStyleOptionSpinBox framedOption = option;
+    framedOption.frame = true;
+    QStyleOptionSpinBox framelessOption = option;
+    framelessOption.frame = false;
+    QCOMPARE(spin.style()->subControlRect(QStyle::CC_SpinBox, &framedOption,
+                                          QStyle::SC_SpinBoxEditField, &spin),
+             spin.style()->subControlRect(QStyle::CC_SpinBox, &framelessOption,
+                                          QStyle::SC_SpinBoxEditField, &spin));
+
+    // Standalone QLineEdit drives PE_PanelLineEdit through its own
+    // initStyleOption: zero-width frame line must remove the border only.
+    QLineEdit edit;
+    edit.setText(QStringLiteral("frameless"));
+    edit.resize(160, 32);
+    edit.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&edit));
+    QVERIFY(edit.hasFrame());
+    const QImage editFramed = edit.grab().toImage();
+    edit.setFrame(false);
+    QCOMPARE(edit.hasFrame(), false);
+    edit.update();
+    const QImage editFrameless = edit.grab().toImage();
+    QVERIFY(editFramed.size() == editFrameless.size());
+    QVERIFY(editFramed != editFrameless);
+
+    const auto renderPanel = [&edit](int lineWidth) {
+        QStyleOptionFrame panelOption;
+        panelOption.initFrom(&edit);
+        panelOption.rect = edit.rect();
+        panelOption.lineWidth = lineWidth;
+        panelOption.state |= QStyle::State_MouseOver;
+        QImage out(edit.size(), QImage::Format_ARGB32_Premultiplied);
+        out.fill(Qt::transparent);
+        QPainter painter(&out);
+        edit.style()->drawPrimitive(QStyle::PE_PanelLineEdit, &panelOption, &painter, &edit);
+        return out;
+    };
+    const QImage panelFramed = renderPanel(1);
+    const QImage panelFrameless = renderPanel(0);
+    int panelBorderDiff = 0;
+    for (int y = 0; y < edit.height(); ++y)
+        panelBorderDiff += panelFramed.pixelColor(0, y) != panelFrameless.pixelColor(0, y);
+    QVERIFY(panelBorderDiff > 20);
+    QCOMPARE(panelFrameless.pixelColor(edit.rect().center()),
+             panelFramed.pixelColor(edit.rect().center()));
+}
+
 void WinUI3EditorsTest::tableEditorTrackerLifetimeContract()
 {
     // Defect protocol (METHODOLOGY §6): TableEditorTracker installed its
@@ -1132,6 +1231,7 @@ void WinUI3EditorsTest::editorElevationBorder()
     QStyleOptionSpinBox option;
     option.rect = rect;
     option.palette = palette;
+    option.frame = true;
     // Exercise the normal Segoe-sized line height on every platform. Smaller
     // Linux defaults otherwise hide a Standard/Compact fixture mismatch.
     QFont sizingFont = spin.font();
