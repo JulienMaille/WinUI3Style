@@ -1075,7 +1075,8 @@ void WinUI3EditorsTest::framelessSpinAndLineEditsContract()
                                           QStyle::SC_SpinBoxEditField, &spin));
 
     // Standalone QLineEdit drives PE_PanelLineEdit through its own
-    // initStyleOption: a zero-width frame line must remove the border only.    QLineEdit edit;
+    // initStyleOption: a zero-width frame line must remove the border only.
+    QLineEdit edit;
     edit.setText(QStringLiteral("frameless"));
     edit.resize(160, 32);
     edit.show();
