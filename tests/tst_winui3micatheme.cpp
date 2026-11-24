@@ -9,6 +9,7 @@
 
 #include "winui3testhelpers.h"
 
+#include "../src/lib/winui3backdrop_p.h"
 #include "../src/lib/winui3surfaces_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
@@ -29,6 +30,7 @@ private slots:
     void init();
     void cleanup();
     void themeSwitchThenDisableRestoresCurrentTheme();
+    void scrollBarRebasesAcrossGrantedMaterialReapply();
     void windowBackgroundEraseIsRectangularAndClipped_data();
     void windowBackgroundEraseIsRectangularAndClipped();
 };
@@ -185,7 +187,7 @@ void WinUI3MicaThemeTest::themeSwitchThenDisableRestoresCurrentTheme()
         const QColor expectedWindow = expected.color(QPalette::Window);
         const QColor expectedBase = expected.color(QPalette::Base);
         // tail asserts one QCOMPARE group at a time.
-        const QList<QWidget *> surfaces = { central, nav, island, card };
+        QList<QWidget *> surfaces = { central, nav, island, card };
         for (QWidget *surface : surfaces) {
             QCOMPARE(surface->palette().color(QPalette::Window).alpha(), 255);
             QCOMPARE(surface->palette().color(QPalette::Window).red(), expectedWindow.red());
@@ -201,6 +203,63 @@ void WinUI3MicaThemeTest::themeSwitchThenDisableRestoresCurrentTheme()
         QCOMPARE(navView->palette().color(QPalette::Base).alpha(), expectedBase.alpha());
         QCOMPARE(area->viewport()->palette().color(QPalette::Base).alpha(), expectedBase.alpha());
     }
+    style->setThemeMode(WinUI3::ThemeMode::Light);
+}
+
+void WinUI3MicaThemeTest::scrollBarRebasesAcrossGrantedMaterialReapply()
+{
+    // Live defect (issue #180): Light -> Dark with Mica granted left the
+    // scrollbar on the Light palette. The theme refresh corrects the bar, then
+    // the queued backdrop re-apply restores the saved pre-material snapshot
+    // before re-arming the scroll chain; that snapshot still held Light RGB.
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    const QColor lightWindow = style->standardPalette().color(QPalette::Window);
+
+    QMainWindow window;
+    window.setProperty("winuiBackdrop", QStringLiteral("mica"));
+    auto *central = new QWidget;
+    central->setObjectName(QStringLiteral("centralWidget"));
+    window.setCentralWidget(central);
+    auto *area = new QScrollArea(central);
+    auto *content = new QWidget;
+    content->resize(760, 900);
+    area->setWidget(content);
+    area->setGeometry(10, 10, 400, 200);
+    window.resize(640, 420);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // Drive the granted-material recipe directly: offscreen never reaches the
+    // DWM-applied branch that arms the scroll chain.
+    window.setProperty(WinUI3::Private::effectiveBackdropProperty, 2); // Composited
+    WinUI3::Private::makeChromeSurfacesTransparent(&window);
+    WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+    QCoreApplication::processEvents();
+
+    QScrollBar *bar = area->verticalScrollBar();
+    QVERIFY(!bar->size().isEmpty());
+    QVERIFY(WinUI3::Private::isTransparentizedForBackdrop(bar));
+    QCOMPARE(bar->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(bar->palette().color(QPalette::Window).red(), lightWindow.red());
+
+    style->setThemeMode(WinUI3::ThemeMode::Dark);
+    const QColor darkWindow = style->standardPalette().color(QPalette::Window);
+    QVERIFY(darkWindow.red() != lightWindow.red());
+
+    // The theme switch queues applyBackdrop(), which re-runs the content sync
+    // on the still-granted material. That re-apply must keep the Dark palette.
+    WinUI3::Private::makeChromeSurfacesTransparent(&window);
+    WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+    QCoreApplication::processEvents();
+
+    QVERIFY(!bar->size().isEmpty());
+    QVERIFY(WinUI3::Private::isTransparentizedForBackdrop(bar));
+    QCOMPARE(bar->palette().color(QPalette::Window).alpha(), 0);
+    QCOMPARE(bar->palette().color(QPalette::Window).red(), darkWindow.red());
+    QCOMPARE(bar->palette().color(QPalette::Window).green(), darkWindow.green());
+    QCOMPARE(bar->palette().color(QPalette::Window).blue(), darkWindow.blue());
     style->setThemeMode(WinUI3::ThemeMode::Light);
 }
 

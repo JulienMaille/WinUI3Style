@@ -113,7 +113,12 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
             QColor fill = !enabled ? t.controlDisabled
                     : focused      ? t.editorFocusedFill
                                    : mix(t.control, t.controlHover, hover);
-            if (focused)
+            // QAbstractSpinBox::setFrame(false) requests the documented
+            // frameless drawing (issue #175): keep fill, hover and the focus
+            // underline, drop only the bordered surface and its elevation.
+            if (!spin->frame)
+                roundedRect(painter, spin->rect, fill, Qt::transparent, ControlRadius);
+            else if (focused)
                 controlSurface(painter, spin->rect, fill, t.stroke, t.strokeSecondary,
                                ControlRadius);
             else
