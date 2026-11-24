@@ -738,7 +738,15 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
                 // keyboard/programmatic path unchanged and avoids a
                 // visible press-time popup/layout pass.
                 m_callbacks.prepareComboPopupFirstFrame(combo);
+                // showPopup() is virtual: a QComboBox subclass may replace the
+                // application style from inside it, which synchronously deletes
+                // this style and its controller (issue #177). Nothing on this
+                // object may be touched afterwards, so bail out exactly like a
+                // completed dispatch when the controller did not survive.
+                const std::weak_ptr<bool> alive = m_alive;
                 combo->showPopup();
+                if (alive.expired())
+                    return true;
             }
             m_callbacks.releaseComboChevron(combo);
             return true;
