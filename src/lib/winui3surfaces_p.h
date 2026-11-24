@@ -55,7 +55,7 @@ void setBackdropPalette(QWidget *surface, const QPalette &palette);
 // touched widget to its remembered palette, attributes and autofill.
 // Exported for the offscreen mechanism tests (same seam as the content
 // sync below): the DWM-applied branch that calls the chrome chain never
-// runs offscreen, so tests drive make/restore directly.
+// runs offscreen, so so tests drive make/restore directly.
 WINUI3STYLE_EXPORT void makeChromeSurfacesTransparent(QWidget *window);
 WINUI3STYLE_EXPORT void restoreChromeSurfaces(QWidget *window);
 // Exported for the offscreen mechanism tests (same seam as the exported
@@ -70,7 +70,9 @@ WINUI3STYLE_EXPORT void restoreContentSurfacesForBackdrop(QWidget *window);
 // winui3helpers_p.h). State is remembered so toggle-off restores exactly.
 void transparentizeForBackdrop(QWidget *surface);
 void restoreTransparentizedForBackdrop(QWidget *surface);
-bool isTransparentizedForBackdrop(const QWidget *surface);
+// Exported for the offscreen mechanism tests: the granted-material re-apply
+// test asserts the scroll chain is armed through this query.
+WINUI3STYLE_EXPORT bool isTransparentizedForBackdrop(const QWidget *surface);
 // Remembers the pre-backdrop palette, explicit flag and backdrop attributes
 // once (first write wins). Shared by transparentizeSurface below and by the
 // NavigationView surface prepare, so a view armed by both keeps one snapshot
