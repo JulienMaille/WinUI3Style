@@ -4,14 +4,11 @@ A WinUI 3 `QStyle` for Qt Widgets (Qt 6.5+, with Qt 5.12 fallback), modeled afte
 
 [![Live 60 fps Light/Dark demo: stock Qt widgets driven by real mouse and keyboard input](docs/images/winui3style-widgets-live.webp)](docs/images/winui3style-widgets-live.mp4)
 
-Real-time capture of stock Qt widgets driven by real mouse and keyboard
-input ([60 fps MP4](docs/images/winui3style-widgets-live.mp4)). The capture
-tooling lives on the `feature/demo-video-and-popup-corners` branch.
-
+Below the dark and light mode captured with Mica enabled:
 ![WinUI3Style gallery, light theme](docs/images/hero-gallery-light.png)
 ![WinUI3Style gallery, dark theme](docs/images/hero-gallery-dark.png)
 
-> **v0.1.0 experimental preview.** Control parity is tracked in [docs/coverage.md](docs/coverage.md); see [tools/poc/README.md](tools/poc/README.md) for the portable Windows x64 gallery package.
+> **Work in progress** Control parity is tracked in [docs/coverage.md](docs/coverage.md); see [tools/poc/README.md](tools/poc/README.md) for the portable Windows x64 gallery package.
 
 ## Usage
 
