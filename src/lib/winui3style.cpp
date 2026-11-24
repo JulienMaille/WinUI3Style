@@ -436,6 +436,7 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
             && Private::isTransparentizedForBackdrop(widget))
             palette.setColor(QPalette::Window, withAlpha(palette.color(QPalette::Window), 0));
         Private::setBackdropPalette(widget, palette);
+        Private::rebaseThemeRefreshedBackdropSurface(widget, palette);
         // Keep the implicit-owner snapshot in step with the style's own rebase.
         // Qt's theme propagation (or this write) otherwise leaves the live
         // palette != snapshot, so the NEXT toggle's hasRuntimePaletteOverride

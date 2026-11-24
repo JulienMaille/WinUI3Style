@@ -87,14 +87,17 @@ void rebaseBackdropSurfaceSnapshotPalette(QWidget *surface, const QPalette &pale
 // restores that snapshot before re-arming a scroll chain, so it has to follow
 // the theme too; otherwise a granted-material re-apply resurrects the previous
 // theme's RGB (issue #180: the scrollbar stayed on the Light palette after
-// switching to Dark under Mica). This overload takes the mutable refresh
-// palette; const calls keep using the plain writer above.
-inline void setBackdropPalette(QWidget *surface, QPalette &palette)
+// switching to Dark under Mica).
+//
+// This is deliberately NOT a setBackdropPalette overload: every mutable-palette
+// caller would then rebase its snapshot, including the NavigationView refresh
+// which transparentizes Base as well and must keep an opaque saved Base for a
+// later toggle-off. Only the theme-refresh path calls this explicitly.
+inline void rebaseThemeRefreshedBackdropSurface(QWidget *surface, const QPalette &palette)
 {
     // Same key as backdropSurfacePaletteProperty in the implementation TU.
     const QVariant armedVariant =
             surface ? surface->property("_winui_backdrop_surface_palette") : QVariant();
-    setBackdropPalette(surface, static_cast<const QPalette &>(palette));
     if (!surface || !armedVariant.isValid() || palette.color(QPalette::Window).alpha() != 0)
         return;
     if (!surface->property(ownedPaletteProperty).toBool())
