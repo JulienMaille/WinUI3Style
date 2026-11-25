@@ -130,6 +130,7 @@ private slots:
     void animatedStackNewerRequestOverridesStaleDeferred();
     void animatedStackNoAnimationTracksRemovedDestination();
     void animatedStackOverlayOverCompositedStaysTransparent();
+    void animatedStackQueuedTransitionSlotIsInvokable();
 };
 
 void WinUI3AnimatedStackTest::initTestCase()
@@ -492,6 +493,27 @@ void WinUI3AnimatedStackTest::animatedStackNewerRequestOverridesStaleDeferred()
     stack.setCurrentIndex(1);
     QCOMPARE(stack.currentIndex(), 3);
     QCOMPARE(static_cast<QLabel *>(stack.currentWidget())->text(), QStringLiteral("3"));
+}
+
+void WinUI3AnimatedStackTest::animatedStackQueuedTransitionSlotIsInvokable()
+{
+    // A queued call from another component resolves the slot by the type name
+    // moc recorded. An unqualified enum type there makes the invoke fail even
+    // though a direct C++ call works, so assert the meta-object contract.
+    WinUI3::AnimatedStack stack;
+    auto *first = new QWidget(&stack);
+    auto *second = new QWidget(&stack);
+    stack.addWidget(first);
+    stack.addWidget(second);
+    QCOMPARE(stack.count(), 2);
+    QCOMPARE(stack.currentIndex(), 0);
+
+    const bool queued = QMetaObject::invokeMethod(
+            &stack, "setCurrentIndex", Qt::QueuedConnection, Q_ARG(int, 1),
+            Q_ARG(WinUI3::AnimatedStack::Transition, WinUI3::AnimatedStack::Transition::Backward));
+    QVERIFY(queued);
+    QTRY_COMPARE(stack.currentIndex(), 1);
+    QCOMPARE(stack.currentWidget(), second);
 }
 
 QTEST_MAIN(WinUI3AnimatedStackTest)
