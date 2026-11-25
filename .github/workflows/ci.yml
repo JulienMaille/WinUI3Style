@@ -125,6 +125,61 @@ jobs:
       - name: Build (tidy runs as errors)
         run: cmake --build build-tidy -j"$(nproc)"
 
+  clazy:
+    name: clazy (Qt 6.8.3, experimental)
+    # Experiment: the Qt C++ review skill v3.1 check set, run as a report only
+    # (continue-on-error) so it cannot block a merge while we learn what it
+    # says about this tree. Ubuntu's clazy 1.11 (clang 15) parses the
+    # GCC-built Qt database; the Windows host's MSVC STL needs clang 20+, so
+    # this cannot run locally. A later promotion would make it a real gate.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install clazy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clazy
+      - name: Install Qt 6.8.3
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: 'qt-6.8.3-linux-gcc64-v1'
+      - name: Configure (compile database, no tidy launcher)
+        run: >
+          cmake -S . -B build-clazy
+          -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DWINUI3STYLE_BUILD_PLUGIN=ON
+          -DWINUI3STYLE_BUILD_DEMO=ON
+          -DWINUI_ENABLE_TESTS=OFF
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Run clazy over shipped sources
+        env:
+          CLAZY_HEADER_FILTER: '.*WinUI3Style/src/.*'
+        run: |
+          # Verbatim from the skill's references/analysers/clazy-checks.txt.
+          checks='level0,level1,old-style-connect,missing-qobject-macro,copyable-polymorphic,use-chrono-in-qtimer,use-static-qregularexpression,assert-with-side-effects,isempty-vs-count,reserve-candidates,container-inside-loop,thread-with-slots,qt6-deprecated-api-fixes,qt6-header-fixes'
+          mapfile -t files < <(find src/lib src/plugin src/gallery -name '*.cpp' | sort)
+          clazy-standalone -p build-clazy -checks="$checks" \
+            --extra-arg=-Wno-unknown-warning-option \
+            --extra-arg=-Wno-error \
+            --extra-arg=-UQT_NO_DEBUG \
+            "${files[@]}" 2>&1 | tee clazy-report.txt
+          echo "clazy warning lines: $(grep -c 'warning:' clazy-report.txt || true)"
+      - name: Upload clazy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clazy-report
+          path: clazy-report.txt
+          if-no-files-found: warn
+
   linux-gcc:
     name: linux-gcc (Qt 6.8.3, Release)
     # Compilation and unit-test gate for non-Windows hosts (issue #21). The
