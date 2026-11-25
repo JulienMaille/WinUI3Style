@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  QT_VERSION: '6.12.0'
+  QT_VERSION: '6.12.1'
 
 jobs:
   package-windows:
