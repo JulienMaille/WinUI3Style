@@ -14,6 +14,10 @@ inline constexpr auto buttonPressReleasePendingProperty = "_winui_button_press_r
 inline constexpr auto focusProperty = "_winui_focus_progress";
 inline constexpr auto focusVisibleProperty = "_winui_focus_visible";
 inline constexpr auto checkProperty = "_winui_check_progress";
+// Last painted glyph of a tri-state check box, so switching between
+// PartiallyChecked and Checked restarts the reveal instead of swapping
+// the dash and the accept tick at a standing progress of 1.0.
+inline constexpr auto checkGlyphProperty = "_winui_check_glyph";
 inline constexpr auto tableEditorProperty = "_winui_table_editor";
 inline constexpr auto togglePositionProperty = "_winui_toggle_position";
 inline constexpr auto toggleDraggingProperty = "_winui_toggle_dragging";

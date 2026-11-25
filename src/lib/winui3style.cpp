@@ -2612,6 +2612,8 @@ void Style::polishCheckableWidget(QWidget *widget)
             disconnect(previous);
         framePropertyRegistry().set(widget, checkProperty,
                                     checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
+        framePropertyRegistry().set(widget, checkGlyphProperty,
+                                    static_cast<int>(checkBox->checkState()));
         framePropertyRegistry().set(widget, togglePositionProperty,
                                     checkBox->isChecked() ? 1.0 : 0.0);
         d->toggleConnections.insert(
@@ -2624,6 +2626,16 @@ void Style::polishCheckableWidget(QWidget *widget)
 #endif
                         this, [this, checkBox](int state) {
                             const bool on = state != Qt::Unchecked;
+                            const int previousGlyph = framePropertyRegistry()
+                                                              .value(checkBox, checkGlyphProperty)
+                                                              .toInt();
+                            framePropertyRegistry().set(checkBox, checkGlyphProperty, state);
+                            // The dash and the accept tick are separate glyphs that
+                            // share the reveal progress. Between two non-unchecked
+                            // states the target is still 1.0, so restart from zero;
+                            // otherwise the glyph swaps with no animation at all.
+                            if (on && previousGlyph != Qt::Unchecked && state != previousGlyph)
+                                framePropertyRegistry().set(checkBox, checkProperty, 0.0);
                             // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
                             // removes the stroke immediately. Only the acceptance path
                             // is animated; an on-transition remains interruptible by
