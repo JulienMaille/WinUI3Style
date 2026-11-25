@@ -159,12 +159,15 @@ jobs:
           -DWINUI3STYLE_BUILD_DEMO=ON
           -DWINUI_ENABLE_TESTS=OFF
           -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Build (generates ui_gallerywindow.h for the gallery TU)
+        run: cmake --build build-clazy -j"$(nproc)"
       - name: Run clazy over shipped sources
         env:
           CLAZY_HEADER_FILTER: '.*WinUI3Style/src/.*'
         run: |
-          # Verbatim from the skill's references/analysers/clazy-checks.txt.
-          checks='level0,level1,old-style-connect,missing-qobject-macro,copyable-polymorphic,use-chrono-in-qtimer,use-static-qregularexpression,assert-with-side-effects,isempty-vs-count,reserve-candidates,container-inside-loop,thread-with-slots,qt6-deprecated-api-fixes,qt6-header-fixes'
+          # The skill's clazy-checks.txt minus qt6-deprecated-api-fixes and
+          # qt6-header-fixes: Ubuntu's clazy 1.11 rejects both as invalid.
+          checks='level0,level1,old-style-connect,missing-qobject-macro,copyable-polymorphic,use-chrono-in-qtimer,use-static-qregularexpression,assert-with-side-effects,isempty-vs-count,reserve-candidates,container-inside-loop,thread-with-slots'
           mapfile -t files < <(find src/lib src/plugin src/gallery -name '*.cpp' | sort)
           clazy-standalone -p build-clazy -checks="$checks" \
             --extra-arg=-Wno-unknown-warning-option \
