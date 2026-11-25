@@ -72,11 +72,14 @@ int main(int argc, char *argv[])
         // runs forever. Keep this timer alive for the whole capture.
         auto *startCapture = new QTimer(&application);
         startCapture->setSingleShot(true);
-        QObject::connect(startCapture, &QTimer::timeout,
-                         [&application, &window, &parser, captureOption, backdropOption] {
-                             const bool saved = window.saveSnapshots(parser.value(captureOption),
-                                                                     parser.value(backdropOption));
-                             application.exit(saved ? 0 : 2);
+        // The application is both the timer's parent and the connection
+        // context, so the callback can never outlive the objects it reads.
+        QObject::connect(startCapture, &QTimer::timeout, &application,
+                         [application = &application, window = &window, parser = &parser,
+                          captureOption, backdropOption] {
+                             const bool saved = window->saveSnapshots(
+                                     parser->value(captureOption), parser->value(backdropOption));
+                             application->exit(saved ? 0 : 2);
                          });
         startCapture->start(250);
     }

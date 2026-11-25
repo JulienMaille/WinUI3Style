@@ -32,7 +32,7 @@ public:
 
 public slots:
     void setCurrentIndex(int index);
-    void setCurrentIndex(int index, Transition transition);
+    void setCurrentIndex(int index, WinUI3::AnimatedStack::Transition transition);
     // Animated equivalent of QStackedWidget::setCurrentWidget(). The base
     // implementation is not virtual, so callers holding a QStackedWidget*
     // still reach the base directly; callers through AnimatedStack* (or
