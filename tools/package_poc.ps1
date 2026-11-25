@@ -72,7 +72,6 @@ $stage = Join-Path $output $name
 New-Item -ItemType Directory -Path (Join-Path $stage 'styles') -Force | Out-Null
 Copy-Item -LiteralPath $gallery -Destination $stage
 Copy-Item -LiteralPath $plugin -Destination (Join-Path $stage 'styles')
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'poc/README.md') -Destination $stage
 
 $savedPath = $env:Path
 try {
