@@ -210,11 +210,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 6.8.3 = oldest supported Qt; 6.12.0 = version this tree develops
+        # 6.8.3 = oldest supported Qt; 6.12.1 = version this tree develops
         # against. Exact versions: stock aqt 3.3.x has no checksum entry for
         # newer Qt 6.11+ Windows archives, so the pinned action + dev snapshot
         # below is required (not "any v4").
-        qt: ["6.8.3", "6.12.0"]
+        qt: ["6.8.3", "6.12.1"]
         # Debug is a multi-config drift guard, not a PR signal: in run
         # 44885729876 its test step cost 6m36s (6.8.3) and 8m56s (6.12) versus
         # 3m40s in Release; the gallery capture alone carries a 600 s Debug
