@@ -976,7 +976,11 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                                       option->fontMetrics.elidedText(bar->text, Qt::ElideRight,
                                                                      labelRect.width()));
                 } else {
-                    painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
+                    painter->translate(bar->rect.center());
+                    painter->rotate(bar->bottomToTop ? -90 : 90);
+                    const QRect label(-bar->rect.height() / 2, -bar->rect.width() / 2,
+                                      bar->rect.height(), bar->rect.width());
+                    painter->drawText(label, Qt::AlignCenter, bar->text);
                 }
                 painter->restore();
             }
