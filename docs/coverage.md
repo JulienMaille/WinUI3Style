@@ -820,3 +820,4 @@ row above; never promote a candidate from a green test alone.
   non-native `QFileDialog`/`QColorDialog`/`QFontDialog`/`QInputDialog`/
   `QProgressDialog`. Any implementation needs an explicit Qt-to-WinUI mapping
   first (METHODOLOGY section 1).
+Qt tab labels retain Qt mnemonic semantics on the TabView surface (#222): `&Reports` displays “Reports”, while `&&` displays a literal ampersand.

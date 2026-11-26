@@ -1737,9 +1737,13 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
                 else
                     textRect.setLeft(iconRect.right() + 10);
             }
-            painter->drawText(
-                    textRect, Qt::AlignHCenter | Qt::AlignVCenter,
-                    painter->fontMetrics().elidedText(tab->text, Qt::ElideRight, textRect.width()));
+            int flags = Qt::AlignCenter | Qt::TextShowMnemonic;
+            if (!style->styleHint(QStyle::SH_UnderlineShortcut, tab, widget))
+                flags |= Qt::TextHideMnemonic;
+            painter->drawText(textRect, flags,
+                              painter->fontMetrics().elidedText(tab->text, Qt::ElideRight,
+                                                                textRect.width(),
+                                                                Qt::TextShowMnemonic));
             painter->restore();
             return true;
         }
