@@ -59,6 +59,12 @@ public:
     explicit NavigationItemDelegate(QAbstractItemView *view, QAbstractItemDelegate *original)
         : QStyledItemDelegate(view), m_view(view), m_original(original), m_indicatorAnimation(this)
     {
+        if (original) {
+            connect(original, &QAbstractItemDelegate::commitData, this,
+                    &QAbstractItemDelegate::commitData);
+            connect(original, &QAbstractItemDelegate::closeEditor, this,
+                    &QAbstractItemDelegate::closeEditor);
+        }
         QObject::connect(&m_indicatorAnimation, &QVariantAnimation::valueChanged, this,
                          [this](const QVariant &value) {
                              m_indicatorY = value.toReal();
@@ -88,6 +94,47 @@ public:
 
     ~NavigationItemDelegate() override { shutdown(false); }
     QAbstractItemDelegate *originalDelegate() const { return m_original.data(); }
+
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
+                          const QModelIndex &index) const override
+    {
+        return m_original ? m_original->createEditor(parent, option, index)
+                          : QStyledItemDelegate::createEditor(parent, option, index);
+    }
+
+    void setEditorData(QWidget *editor, const QModelIndex &index) const override
+    {
+        if (m_original)
+            m_original->setEditorData(editor, index);
+        else
+            QStyledItemDelegate::setEditorData(editor, index);
+    }
+
+    void setModelData(QWidget *editor, QAbstractItemModel *model,
+                      const QModelIndex &index) const override
+    {
+        if (m_original)
+            m_original->setModelData(editor, model, index);
+        else
+            QStyledItemDelegate::setModelData(editor, model, index);
+    }
+
+    void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option,
+                              const QModelIndex &index) const override
+    {
+        if (m_original)
+            m_original->updateEditorGeometry(editor, option, index);
+        else
+            QStyledItemDelegate::updateEditorGeometry(editor, option, index);
+    }
+
+    void destroyEditor(QWidget *editor, const QModelIndex &index) const override
+    {
+        if (m_original)
+            m_original->destroyEditor(editor, index);
+        else
+            QStyledItemDelegate::destroyEditor(editor, index);
+    }
 
     void shutdown(bool clearViewport = true)
     {

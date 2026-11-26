@@ -359,6 +359,8 @@ float mark, so this row is Verified.
 
 ## Integration review — 2026-10-11
 
+For editable `QAbstractItemView` navigation rows, navigation styling owns painting and row size; the application's item delegate owns the editor and model commit (#199).
+
 NavigationView's existing runtime-theme/backdrop mapping is reopened for
 Dark/System → Mica ON → Compact → scroll → Mica OFF → Light. Live A/B on
 the unmodified remote SHA `a96b4a8` and the integration build, both Qt 6.8.3,
