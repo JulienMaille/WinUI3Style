@@ -582,15 +582,8 @@ void prepareNavigationView(QAbstractItemView *view)
     if (original) {
         // Qt 6.8.3 disconnects the incoming delegate instead of the outgoing
         // one in setItemDelegate. Keep only the relay through our wrapper.
-        struct ViewSlots : QAbstractItemView
-        {
-            using QAbstractItemView::closeEditor;
-            using QAbstractItemView::commitData;
-        };
-        QObject::disconnect(original, &QAbstractItemDelegate::commitData, view,
-                            &ViewSlots::commitData);
-        QObject::disconnect(original, &QAbstractItemDelegate::closeEditor, view,
-                            &ViewSlots::closeEditor);
+        QObject::disconnect(original, &QAbstractItemDelegate::commitData, view, nullptr);
+        QObject::disconnect(original, &QAbstractItemDelegate::closeEditor, view, nullptr);
     }
     view->viewport()->setProperty(Style::NavigationViewProperty, true);
     if (!view->viewport()->property(originalMouseTrackingProperty).isValid())
