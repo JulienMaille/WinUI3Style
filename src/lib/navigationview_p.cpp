@@ -95,6 +95,12 @@ public:
     ~NavigationItemDelegate() override { shutdown(false); }
     QAbstractItemDelegate *originalDelegate() const { return m_original.data(); }
 
+    bool eventFilter(QObject *editor, QEvent *event) override
+    {
+        return m_original ? static_cast<QObject *>(m_original.data())->eventFilter(editor, event)
+                          : QStyledItemDelegate::eventFilter(editor, event);
+    }
+
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
                           const QModelIndex &index) const override
     {
@@ -573,6 +579,12 @@ void prepareNavigationView(QAbstractItemView *view)
                 });
     }
     view->setItemDelegate(delegate);
+    if (original) {
+        // Qt 6.8.3 disconnects the incoming delegate instead of the outgoing
+        // one in setItemDelegate. Keep only the relay through our wrapper.
+        QObject::disconnect(original, &QAbstractItemDelegate::commitData, view, nullptr);
+        QObject::disconnect(original, &QAbstractItemDelegate::closeEditor, view, nullptr);
+    }
     view->viewport()->setProperty(Style::NavigationViewProperty, true);
     if (!view->viewport()->property(originalMouseTrackingProperty).isValid())
         view->viewport()->setProperty(originalMouseTrackingProperty,
