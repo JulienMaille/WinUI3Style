@@ -315,8 +315,9 @@ static QSize menuItemSize(const QStyleOption *option, QSize size, const QWidget 
     return size;
 }
 
-static QSize itemViewItemSize(QSize size, const QStyleOption *option, const QWidget *widget,
-                              const DensityMetrics &density, DensityMode mode)
+static QSize itemViewItemSize(const Style *style, QSize size, const QStyleOption *option,
+                              const QWidget *widget, const DensityMetrics &density,
+                              DensityMode mode)
 {
     // QStyledItemDelegate::sizeHint() asks the style for the entire item and
     // passes an empty content size. Resolve the intrinsic text / decoration /
@@ -521,7 +522,7 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = menuItemSize(option, size, widget, density);
         break;
     case QStyle::CT_ItemViewItem:
-        size = itemViewItemSize(size, option, widget, density, mode);
+        size = itemViewItemSize(style, size, option, widget, density, mode);
         break;
     case QStyle::CT_HeaderSection:
         size = headerSectionSize(style, size, option, widget, density, mode);
