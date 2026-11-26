@@ -776,13 +776,21 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
             const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
             framePropertyRegistry().set(checkBox, toggleDraggingProperty, false);
             checkBox->setDown(false);
+            const QPointer<QCheckBox> guarded = checkBox;
+            const std::weak_ptr<bool> alive = m_alive;
             Q_EMIT checkBox->released();
+            if (!guarded || alive.expired())
+                return true;
             if (checkBox->isChecked() != checked)
                 checkBox->setChecked(checked);
             else
                 m_callbacks.animate(checkBox, togglePositionProperty, checked ? 1.0 : 0.0,
                                     FasterDuration);
+            if (!guarded || alive.expired())
+                return true;
             Q_EMIT checkBox->clicked(checkBox->isChecked());
+            if (!guarded || alive.expired())
+                return true;
             m_callbacks.animate(checkBox, pressProperty, 0.0, FasterDuration);
             return true;
         }
