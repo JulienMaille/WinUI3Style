@@ -613,7 +613,7 @@ void SettingsCard::changeEvent(QEvent *event)
 {
     const bool refreshHeader = event->type() == QEvent::ApplicationPaletteChange
             || event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
             || event->type() == QEvent::DevicePixelRatioChange
 #endif
             || event->type() == QEvent::EnabledChange
