@@ -744,8 +744,9 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
                 // object may be touched afterwards, so bail out exactly like a
                 // completed dispatch when the controller did not survive.
                 const std::weak_ptr<bool> alive = m_alive;
+                const QPointer<QComboBox> guardedCombo = combo;
                 combo->showPopup();
-                if (alive.expired())
+                if (alive.expired() || !guardedCombo)
                     return true;
             }
             m_callbacks.releaseComboChevron(combo);
