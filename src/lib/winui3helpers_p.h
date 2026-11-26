@@ -462,6 +462,17 @@ inline bool eraseForBackdropWithCardRefill(QPainter *painter, const QWidget *wid
     return true;
 }
 
+inline void eraseForBackdropWithCardRefill(QPainter *painter, const QWidget *widget,
+                                           const QRect &rect)
+{
+    if (!eraseForBackdrop(painter, widget, rect) || !insideOpaqueCard(widget))
+        return;
+    painter->save();
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
+    painter->fillRect(rect, cardRefillToneFor(widget, true));
+    painter->restore();
+}
+
 // Recipe 3 implementation: Source-blend the translucent popup surface so a
 // state pill composites exactly one layer over acrylic. Gated the same way
 // as eraseForBackdrop; returns true when the fill ran. Pass the popup
