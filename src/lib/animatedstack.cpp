@@ -118,7 +118,7 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
 {
     if (index < 0 || index >= count())
         return;
-    if (!m_transitionStarting)
+    if (!m_transitionStarting || index == QStackedWidget::currentIndex())
         m_deferredIndex = -1;
     if (index == QStackedWidget::currentIndex()) {
         // QAbstractItemView can emit both clicked and activated for the same
