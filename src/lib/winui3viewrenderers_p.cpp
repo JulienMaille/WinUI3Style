@@ -1720,7 +1720,7 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             if (!tab->icon.isNull()) {
                 const QRect logicalIcon(textRect.left(), textRect.center().y() - 8, 16, 16);
                 const QRect iconRect = vertical
-                        ? logicalIcon
+                        ? QStyle::visualRect(tab->direction, textRect, logicalIcon)
                         : QStyle::visualRect(tab->direction, tab->rect, logicalIcon);
                 paintThemedIcon(painter, tab->icon, iconRect, Qt::AlignCenter,
                                 enabled ? t.textPrimary : t.textDisabled,
