@@ -284,8 +284,8 @@ static QSize tabBarTabSize(const QStyleOption *option, QSize size, const Density
     return size;
 }
 
-static QSize menuItemSize(const Style *style, const QStyleOption *option, QSize size,
-                          const QWidget *widget, const DensityMetrics &density)
+static QSize menuItemSize(const QStyleOption *option, QSize size, const QWidget *widget,
+                          const DensityMetrics &density)
 {
     if (const auto *menu = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
         if (menu->menuItemType == QStyleOptionMenuItem::Separator) {
@@ -309,14 +309,14 @@ static QSize menuItemSize(const Style *style, const QStyleOption *option, QSize 
         // Extension (not in WinUI Compact Sizing): Compact menu-popup rows
         // shrink 36 -> 32 like list rows. Visible popups are resized to
         // the new profile by the density invalidation below.
-        if (!comboItem && densityMetricsFor(widget, style).menuBarItemHeight == 24)
+        if (!comboItem && density.menuBarItemHeight == 24)
             size.setHeight(32);
     }
     return size;
 }
 
-static QSize itemViewItemSize(const Style *style, QSize size, const QStyleOption *option,
-                              const QWidget *widget, const DensityMetrics &density)
+static QSize itemViewItemSize(QSize size, const QStyleOption *option, const QWidget *widget,
+                              const DensityMetrics &density, DensityMode mode)
 {
     // QStyledItemDelegate::sizeHint() asks the style for the entire item and
     // passes an empty content size. Resolve the intrinsic text / decoration /
@@ -341,9 +341,7 @@ static QSize itemViewItemSize(const Style *style, QSize size, const QStyleOption
         if (!calendarPopupItemView(widget)) {
             if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
                 item && (item->index.flags() & Qt::ItemIsEditable)) {
-                const int editorHeight =
-                        lineEditSize(option, QSize(), density, densityModeFor(widget, style))
-                                .height();
+                const int editorHeight = lineEditSize(option, QSize(), density, mode).height();
                 size.setHeight(qMax(size.height(), editorHeight + int(table->showGrid())));
             }
             size.setHeight(qMax(size.height(), density.tableItemHeight));
@@ -520,10 +518,10 @@ QSize sizeFromContents(const Style *style, QStyle::ContentsType type, const QSty
         size = tabBarTabSize(option, size, density);
         break;
     case QStyle::CT_MenuItem:
-        size = menuItemSize(style, option, size, widget, density);
+        size = menuItemSize(option, size, widget, density);
         break;
     case QStyle::CT_ItemViewItem:
-        size = itemViewItemSize(style, size, option, widget, density);
+        size = itemViewItemSize(size, option, widget, density, mode);
         break;
     case QStyle::CT_HeaderSection:
         size = headerSectionSize(style, size, option, widget, density, mode);
