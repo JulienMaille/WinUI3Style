@@ -152,7 +152,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         const int resolved = destinationIndex >= 0 ? destinationIndex : currentIndex();
         if (QWidget *page = widget(resolved))
             page->setGeometry(rect());
+        const QPointer<AnimatedStack> guard(this);
         emit transitionFinished(resolved);
+        if (!guard)
+            return;
         if (m_deferredIndex >= 0) {
             const int deferred = m_deferredIndex;
             const Transition deferredTransition = m_deferredTransition;

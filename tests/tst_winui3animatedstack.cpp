@@ -178,6 +178,17 @@ private slots:
         QCOMPARE(changes.count(), 1);
     }
     void animatedStackNewerRequestOverridesStaleDeferred();
+    void immediateCompletionMayDeleteStack()
+    {
+        QPointer<WinUI3::AnimatedStack> stack = new WinUI3::AnimatedStack;
+        stack->setDuration(0);
+        stack->addWidget(new QWidget);
+        stack->addWidget(new QWidget);
+        connect(stack.data(), &WinUI3::AnimatedStack::transitionFinished, this,
+                [&stack] { delete stack.data(); });
+        stack->setCurrentIndex(1);
+        QVERIFY(stack.isNull());
+    }
     void animatedStackNoAnimationTracksRemovedDestination();
     void animatedStackOverlayOverCompositedStaysTransparent();
     void animatedStackQueuedTransitionSlotIsInvokable();

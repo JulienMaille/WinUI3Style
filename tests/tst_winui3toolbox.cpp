@@ -35,8 +35,12 @@ QColor over(const QColor &top, const QColor &bottom)
                   qRound(top.blue() * a + bottom.blue() * (1.0 - a)));
 }
 
-QImage renderHeader(const QStyle *style, const QPalette &palette, bool selected,
-                    bool enabled = true)
+// Renders the header over an explicit body tone. The live toolbox body is not
+// always the plain palette surface token (the Gallery page body lays its own
+// Layer veil), so the corner cutouts outside the rounded header must keep the
+// surface the header sits on, never the header's own composite base.
+QImage renderHeaderOnBody(const QStyle *style, const QPalette &palette, bool selected,
+                          const QColor &body, bool enabled = true)
 {
     QWidget host;
     host.setPalette(palette);
@@ -51,13 +55,20 @@ QImage renderHeader(const QStyle *style, const QPalette &palette, bool selected,
     if (selected)
         option.state |= QStyle::State_Selected;
     QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-    // The header sits on the toolbox surface; painting into a transparent
-    // image would composite the veil alpha over nothing.
-    image.fill(WinUI3::Private::tokens(palette).surface);
+    // The header sits on the given toolbox body surface; painting into a
+    // transparent image would composite the veil alpha over nothing.
+    image.fill(body);
     QPainter painter(&image);
     style->drawControl(QStyle::CE_ToolBoxTab, &option, &painter, &host);
     painter.end();
     return image;
+}
+
+QImage renderHeader(const QStyle *style, const QPalette &palette, bool selected,
+                    bool enabled = true)
+{
+    return renderHeaderOnBody(style, palette, selected, WinUI3::Private::tokens(palette).surface,
+                              enabled);
 }
 
 // Ink bounds of the trailing chevron region, ignoring the card surface.
@@ -97,6 +108,8 @@ private slots:
     void initTestCase();
     void expanderHeaderUsesPinnedGeometry_data();
     void expanderHeaderUsesPinnedGeometry();
+    void headerCornerCutoutsStayOnBodySurface_data();
+    void headerCornerCutoutsStayOnBodySurface();
     void headersShareOneCardAcrossPages();
     void chevronRotatesWithCurrentPage();
 };
@@ -209,6 +222,73 @@ void WinUI3ToolBoxTest::expanderHeaderUsesPinnedGeometry()
     // Disabled keeps the header card.
     const QImage disabled = renderHeader(style, palette, false, false);
     expectPixel(disabled.pixelColor(250, 3), card, 3, "disabled card");
+}
+
+void WinUI3ToolBoxTest::headerCornerCutoutsStayOnBodySurface_data()
+{
+    QTest::addColumn<int>("theme");
+    QTest::addColumn<int>("density");
+    QTest::newRow("light-standard")
+            << int(WinUI3::ThemeMode::Light) << int(WinUI3::DensityMode::Standard);
+    QTest::newRow("light-compact")
+            << int(WinUI3::ThemeMode::Light) << int(WinUI3::DensityMode::Compact);
+    QTest::newRow("dark-standard")
+            << int(WinUI3::ThemeMode::Dark) << int(WinUI3::DensityMode::Standard);
+    QTest::newRow("dark-compact") << int(WinUI3::ThemeMode::Dark)
+                                  << int(WinUI3::DensityMode::Compact);
+}
+
+void WinUI3ToolBoxTest::headerCornerCutoutsStayOnBodySurface()
+{
+    QFETCH(int, theme);
+    QFETCH(int, density);
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    style->setThemeMode(WinUI3::ThemeMode(theme));
+    style->setDensityMode(WinUI3::DensityMode(density));
+
+    const QPalette palette = style->standardPalette();
+    const WinUI3::Private::Tokens t = WinUI3::Private::tokens(palette);
+    const QColor card = over(t.layer, t.surface);
+    const QColor stroke = over(t.stroke, card);
+    const QColor body = over(t.layer, t.surface);
+    QVERIFY2(colorDistance(body, t.surface) > 6,
+             "the test needs a body tone the surface token cannot be confused with");
+
+    // Issue #189: the shared composite base under the translucent card fill
+    // was laid over the whole square tab rect, so the four rounded-corner
+    // cutouts kept the surface token and read as dark pixels wherever the
+    // toolbox body is not that exact tone. The cutouts must stay on the body
+    // surface the header actually sits on.
+    const QImage collapsed = renderHeaderOnBody(style, palette, false, body);
+    const QImage selected = renderHeaderOnBody(style, palette, true, body);
+    const auto expectPixel = [](const QColor &actual, const QColor &expected, int tolerance,
+                                const char *what) {
+        QVERIFY2(colorDistance(actual, expected) <= tolerance,
+                 qPrintable(QStringLiteral("%1: actual %2 expected %3")
+                                    .arg(QString::fromLatin1(what), actual.name(QColor::HexArgb),
+                                         expected.name(QColor::HexArgb))));
+    };
+    for (const QImage *image : { &collapsed, &selected }) {
+        expectPixel(image->pixelColor(0, 0), body, 2, "top-left cutout");
+        expectPixel(image->pixelColor(image->width() - 1, 0), body, 2, "top-right cutout");
+        // Same-state token pairing: the fill/stroke inside the arc are
+        // unchanged by the cutout fix.
+        expectPixel(image->pixelColor(250, 3), card, 3, "card fill");
+        expectPixel(image->pixelColor(160, 0), stroke, 3, "card stroke");
+    }
+    // A collapsed header is a whole rounded card: all four cutouts stay on
+    // the body. An expanded (selected) header keeps its bottom corners square
+    // - the expanded content owns them - so its bottom edge is card, not body.
+    expectPixel(collapsed.pixelColor(0, collapsed.height() - 1), body, 2,
+                "collapsed bottom-left cutout");
+    expectPixel(collapsed.pixelColor(collapsed.width() - 1, collapsed.height() - 1), body, 2,
+                "collapsed bottom-right cutout");
+    QVERIFY2(colorDistance(selected.pixelColor(0, selected.height() - 1), body) > 6,
+             "expanded header keeps its square bottom card corners (TopCornerRadius)");
+    QVERIFY2(colorDistance(selected.pixelColor(selected.width() - 1, selected.height() - 1), body)
+                     > 6,
+             "expanded header keeps its square bottom card corners (TopCornerRadius)");
 }
 
 void WinUI3ToolBoxTest::headersShareOneCardAcrossPages()
