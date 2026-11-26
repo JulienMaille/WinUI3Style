@@ -95,6 +95,12 @@ public:
     ~NavigationItemDelegate() override { shutdown(false); }
     QAbstractItemDelegate *originalDelegate() const { return m_original.data(); }
 
+    bool eventFilter(QObject *editor, QEvent *event) override
+    {
+        return m_original ? static_cast<QObject *>(m_original.data())->eventFilter(editor, event)
+                          : QStyledItemDelegate::eventFilter(editor, event);
+    }
+
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
                           const QModelIndex &index) const override
     {
