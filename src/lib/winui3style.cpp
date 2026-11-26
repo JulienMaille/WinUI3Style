@@ -2068,15 +2068,20 @@ ControlRole Style::controlRole(const QWidget *widget)
             return static_cast<ControlRole>(numericRole);
         }
     }
-    if (!widget->property(roleProperty).isValid()) {
+    // One property() lookup: this runs at least twice per painted button
+    // (panel primitive + label control), and every call resolves the name
+    // through QMetaObject::indexOfProperty.
+    const QVariant role = widget->property(roleProperty);
+    if (!role.isValid()) {
         if (const auto *button = qobject_cast<const QPushButton *>(widget)) {
             if (button->isFlat())
                 return ControlRole::Subtle;
             if (button->isDefault())
                 return ControlRole::Accent;
         }
+        return ControlRole::Standard;
     }
-    return static_cast<ControlRole>(widget->property(roleProperty).toInt());
+    return static_cast<ControlRole>(role.toInt());
 }
 
 void Style::setToggleSwitch(QCheckBox *checkBox, bool enabled)
