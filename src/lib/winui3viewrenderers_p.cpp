@@ -1722,7 +1722,9 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->setPen(enabled ? (selected ? t.textPrimary : t.textSecondary)
                                     : t.textDisabled);
             if (!tab->icon.isNull()) {
-                const QRect logicalIcon(textRect.left(), textRect.center().y() - 8, 16, 16);
+                const QSize size = tab->iconSize.isValid() ? tab->iconSize : QSize(16, 16);
+                const QRect logicalIcon(
+                        QPoint(textRect.left(), textRect.center().y() - size.height() / 2), size);
                 const QRect iconRect = vertical
                         ? QStyle::visualRect(tab->direction, textRect, logicalIcon)
                         : QStyle::visualRect(tab->direction, tab->rect, logicalIcon);
