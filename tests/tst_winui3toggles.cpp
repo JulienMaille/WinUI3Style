@@ -106,6 +106,7 @@ private slots:
     void toggleDragPositionGeometry();
     void toggleRtlGeometryAndInteraction();
     void checkboxAcceptAnimation();
+    void triStateGlyphRevealRestarts();
     void checkboxGlyphGeometryContract();
     void lightModeIndicatorOnAccentIsWhite();
     void darkModeIndicatorOnAccentIsBlack();
@@ -872,6 +873,31 @@ void WinUI3TogglesTest::checkboxAndRadioUncheckMotion()
     QCOMPARE(frameReal(two, "_winui_check_progress"), 0.0);
     two->setChecked(true);
     QCOMPARE(frameReal(one, "_winui_check_progress"), 0.0);
+}
+
+void WinUI3TogglesTest::triStateGlyphRevealRestarts()
+{
+    // The dash and the accept tick are different glyphs on the same animated
+    // reveal. Switching between two non-unchecked states must restart the
+    // reveal instead of leaving the glyph at 1.0 and swapping it instantly.
+    QCheckBox check(QStringLiteral("Tri-state reveal"));
+    check.setTristate(true);
+    check.resize(120, 32);
+    check.show();
+    check.setCheckState(Qt::Checked);
+    setFrame(&check, "_winui_check_progress", 1.0);
+
+    check.setCheckState(Qt::PartiallyChecked);
+    setAnimationTime(&check, 55);
+    const qreal dashMid = frameReal(&check, "_winui_check_progress");
+    QVERIFY2(dashMid > 0.0 && dashMid < 0.90, qPrintable(QString::number(dashMid)));
+    QTRY_VERIFY(frameReal(&check, "_winui_check_progress") > 0.99);
+
+    check.setCheckState(Qt::Checked);
+    setAnimationTime(&check, 55);
+    const qreal tickMid = frameReal(&check, "_winui_check_progress");
+    QVERIFY2(tickMid > 0.0 && tickMid < 0.90, qPrintable(QString::number(tickMid)));
+    QTRY_VERIFY(frameReal(&check, "_winui_check_progress") > 0.99);
 }
 
 QTEST_MAIN(WinUI3TogglesTest)

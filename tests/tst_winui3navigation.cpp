@@ -111,6 +111,18 @@ private slots:
     void pluginFactory();
     void navigationModelReconnectAndScroll();
     void navigationDelegateLifecycle();
+    void insertingUnlistedPagePreservesNavigationTarget()
+    {
+        WinUI3::NavigationView view;
+        view.addPage(new QWidget, {}, QStringLiteral("A"));
+        auto *b = new QWidget;
+        view.addPage(b, {}, QStringLiteral("B"));
+        view.stack()->insertWidget(0, new QWidget);
+        view.navigationList()->setCurrentRow(1);
+        QCOMPARE(view.stack()->currentWidget(), b);
+        QCOMPARE(view.navigationList()->currentItem()->data(Qt::UserRole).toInt(), 2);
+    }
+    void navigationEditCommitsThroughOriginalDelegate();
     void navigationRetiredDelegateDestructionKeepsReplacement();
     void navigationWrapperDestructionInstallsFallback();
     void navigationWrapperDestructionKeepsApplicationReplacement();
@@ -597,6 +609,33 @@ void WinUI3NavigationTest::navigationModelReconnectAndScroll()
     QCoreApplication::processEvents();
     QVERIFY(!view.currentIndex().isValid());
     QVERIFY(!frameValue(view.viewport(), "_winui_navigation_indicator_y").isValid());
+}
+
+void WinUI3NavigationTest::navigationEditCommitsThroughOriginalDelegate()
+{
+    struct CanonicalDelegate final : QStyledItemDelegate
+    {
+        mutable int commits = 0;
+        void setModelData(QWidget *editor, QAbstractItemModel *model,
+                          const QModelIndex &index) const override
+        {
+            ++commits;
+            model->setData(index, qobject_cast<QLineEdit *>(editor)->text().trimmed().toUpper());
+        }
+    } delegate;
+    QListWidget view;
+    view.setItemDelegate(&delegate);
+    auto *item = new QListWidgetItem(QStringLiteral("Original"), &view);
+    item->setFlags(item->flags() | Qt::ItemIsEditable);
+    WinUI3::Style::setNavigationView(&view);
+    view.show();
+    view.editItem(item);
+    auto *editor = view.viewport()->findChild<QLineEdit *>();
+    QVERIFY(editor);
+    editor->setText(QStringLiteral("  mixed  "));
+    QTest::keyClick(editor, Qt::Key_Return);
+    QTRY_COMPARE(item->text(), QStringLiteral("MIXED"));
+    QCOMPARE(delegate.commits, 1);
 }
 
 void WinUI3NavigationTest::navigationDelegateLifecycle()

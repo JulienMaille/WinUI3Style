@@ -721,14 +721,6 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
 
             eraseForBackdrop(painter, widget, tab->rect, headerRadius);
             const QColor cardFill = veiledCard(ht.layer, paintsDirectlyOnBackdrop(widget));
-            if (cardFill.alpha() < 255 && !paintsDirectlyOnBackdrop(widget)) {
-                // Qt recolors each page button's Window role from the page
-                // widget that follows it, so a translucent card fill would
-                // composite over a different leftover tone per header and the
-                // accordion would show mismatched cards. The toolbox palette
-                // is the one surface every header shares; clear to it first.
-                painter->fillRect(tab->rect, tokens(widget->palette()).surface);
-            }
             const auto headerPath = [&](const QRectF &r) {
                 QPainterPath path;
                 if (selected) {
@@ -744,6 +736,21 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                 }
                 return path;
             };
+            if (cardFill.alpha() < 255 && !paintsDirectlyOnBackdrop(widget)) {
+                // Qt recolors each page button's Window role from the page
+                // widget that follows it, so a translucent card fill would
+                // composite over a different leftover tone per header and the
+                // accordion would show mismatched cards. The toolbox palette
+                // is the one surface every header shares; clear to it first.
+                // Clip to the header shape: the square tab rect includes the
+                // rounded-corner cutouts, and filling those with the surface
+                // token leaves darker corner pixels wherever the toolbox body
+                // around the header is not the plain surface tone (#189).
+                painter->save();
+                painter->setClipPath(headerPath(QRectF(tab->rect)));
+                painter->fillRect(tab->rect, tokens(widget->palette()).surface);
+                painter->restore();
+            }
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);

@@ -99,7 +99,7 @@ QFont winuiStrongFont(const QFont &base, int pixelSize)
     const bool styleOwned = baseFamily == QLatin1String("Segoe UI Variable Text")
             || baseFamily == QLatin1String("Segoe UI Variable")
             || baseFamily == QLatin1String("Segoe UI");
-    if (styleOwned && !family.isEmpty() && qgetenv("WINUI3STYLE_APP_FONT").isEmpty())
+    if (styleOwned && !family.isEmpty() && qEnvironmentVariableIsEmpty("WINUI3STYLE_APP_FONT"))
         font.setFamily(family);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
     if (font.family() == QLatin1String("Segoe UI Variable"))
@@ -186,8 +186,9 @@ GalleryWindow::GalleryWindow(QWidget *parent, bool captureMode)
         QTimer *firstTimer = new QTimer(this);
         firstTimer->setSingleShot(true);
         QObject::connect(firstTimer, &QTimer::timeout, this, [this] {
+            const QList<QAction *> menuActions = ui->menuBar->actions();
             ui->fileMenu->popup(ui->menuBar->mapToGlobal(
-                    QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                    QPoint(ui->menuBar->actionGeometry(menuActions.first()).left(),
                            ui->menuBar->height())));
         });
         firstTimer->start(delay);
@@ -198,8 +199,9 @@ GalleryWindow::GalleryWindow(QWidget *parent, bool captureMode)
             QTimer *secondTimer = new QTimer(this);
             secondTimer->setSingleShot(true);
             QObject::connect(secondTimer, &QTimer::timeout, this, [this] {
+                const QList<QAction *> menuActions = ui->menuBar->actions();
                 ui->fileMenu->popup(ui->menuBar->mapToGlobal(
-                        QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
+                        QPoint(ui->menuBar->actionGeometry(menuActions.first()).left(),
                                ui->menuBar->height())));
             });
             closeTimer->start(delay + 4000);
@@ -1117,9 +1119,9 @@ bool GalleryWindow::saveSnapshots(const QString &directory, const QString &backd
         activeStyle->setProperty("themeMode", mode);
         refreshNavGlyphs();
         const QString theme = mode == 1 ? QStringLiteral("light") : QStringLiteral("dark");
-        ui->fileMenu->popup(ui->menuBar->mapToGlobal(
-                QPoint(ui->menuBar->actionGeometry(ui->menuBar->actions().first()).left(),
-                       ui->menuBar->height())));
+        const QList<QAction *> menuActions = ui->menuBar->actions();
+        ui->fileMenu->popup(ui->menuBar->mapToGlobal(QPoint(
+                ui->menuBar->actionGeometry(menuActions.first()).left(), ui->menuBar->height())));
         qApp->processEvents();
         success = ui->fileMenu->grab().save(output.filePath(theme + "-menu.png"), "PNG") && success;
         if (QAction *firstAction = ui->fileMenu->actions().value(0)) {

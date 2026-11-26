@@ -30,7 +30,8 @@ public:
     // removes the page from the stack and reparents it to nullptr without
     // deleting it; the caller takes ownership back and must delete or
     // reparent the returned page. Use widget() to retrieve the page before
-    // removal.
+    // removal. If a synchronous removal handler deletes, reparents, or
+    // reinserts the page, removePage() respects that decision.
     int addPage(QWidget *page, const QIcon &icon, const QString &title);
     // Index contract: valid pages are 0 <= index < count(). An empty view
     // has count() == 0 and currentIndex() == -1. Out-of-range input is

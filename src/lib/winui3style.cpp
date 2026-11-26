@@ -443,6 +443,7 @@ void refreshOwnedPalette(QWidget *widget, QWidget *window, const QPalette &appli
             && Private::isTransparentizedForBackdrop(widget))
             palette.setColor(QPalette::Window, withAlpha(palette.color(QPalette::Window), 0));
         Private::setBackdropPalette(widget, palette);
+        Private::rebaseThemeRefreshedBackdropSurface(widget, palette);
         // Keep the implicit-owner snapshot in step with the style's own rebase.
         // Qt's theme propagation (or this write) otherwise leaves the live
         // palette != snapshot, so the NEXT toggle's hasRuntimePaletteOverride
@@ -1207,7 +1208,15 @@ public:
 
         const bool active = Style::animationsAllowed()
                 && std::any_of(progressBars.cbegin(), progressBars.cend(),
-                               isVisibleIndeterminateProgressBar);
+                               [](const QPointer<QObject> &guarded) {
+                                   // qobject_cast stays well-defined even if a
+                                   // destroyed() handler left a half-destroyed
+                                   // widget here; it returns null in that case.
+                                   return guarded
+                                           && isVisibleIndeterminateProgressBar(
+                                                   qobject_cast<const QProgressBar *>(
+                                                           guarded.data()));
+                               });
         if (active && !progressTimer->isActive())
             progressTimer->start();
         else if (!active)
@@ -1220,18 +1229,19 @@ public:
         const qreal phase = qreal(QDateTime::currentMSecsSinceEpoch() % 1500) / 1500.0;
         bool active = false;
         for (auto it = progressBars.begin(); it != progressBars.end();) {
-            const QPointer<QProgressBar> guarded = *it;
-            if (!guarded) {
+            const QPointer<QObject> guarded = *it;
+            auto *progressBar = qobject_cast<QProgressBar *>(guarded.data());
+            if (!guarded || !progressBar) {
                 it = progressBars.erase(it);
                 continue;
             }
-            if (isVisibleIndeterminateProgressBar(guarded)) {
+            if (isVisibleIndeterminateProgressBar(progressBar)) {
                 active = allowed;
                 if (allowed)
-                    framePropertyRegistry().set(guarded, progressPhaseProperty, phase);
+                    framePropertyRegistry().set(progressBar, progressPhaseProperty, phase);
                 // The painter uses the stationary phase when motion is off.
                 // Repaint once before stopping so the last moving frame is cleared.
-                guarded->update();
+                progressBar->update();
             }
             ++it;
         }
@@ -1247,7 +1257,12 @@ public:
             refreshProgressTimer();
             return;
         }
-        progressBars.append(QPointer<QProgressBar>(progressBar));
+        // Stored as QPointer<QObject> (not QProgressBar): the destroyed()
+        // handler below runs while the bar destructor is already past the
+        // QProgressBar subobject, and QPointer<QProgressBar>::data() would
+        // downcast through that half-destroyed object (UB downcast report,
+        // #187). qobject_cast resolves the typed pointer where it is used.
+        progressBars.append(QPointer<QObject>(progressBar));
         // QProgressBar has no rangeChanged signal. valueChanged covers the
         // normal range-reset path, while UpdateRequest below closes the case
         // where a range changes without changing the current value.
@@ -1620,7 +1635,9 @@ public:
     WinUI3::DensityMode density = WinUI3::DensityMode::Standard;
     QColor accent;
     FrameAnimationDriver animationDriver;
-    QVector<QPointer<QProgressBar>> progressBars;
+    // QObject-typed guards compare without downcasting during teardown (see
+    // registerProgressBar).
+    QVector<QPointer<QObject>> progressBars;
     QHash<QProgressBar *, QMetaObject::Connection> progressBarStateConnections;
     QHash<QScrollBar *, QPointer<QTimer>> scrollBarTimers;
     QHash<QSlider *, QPointer<QTimer>> sliderToolTipTimers;
@@ -2633,6 +2650,8 @@ void Style::polishCheckableWidget(QWidget *widget)
             disconnect(previous);
         framePropertyRegistry().set(widget, checkProperty,
                                     checkBox->checkState() == Qt::Unchecked ? 0.0 : 1.0);
+        framePropertyRegistry().set(widget, checkGlyphProperty,
+                                    static_cast<int>(checkBox->checkState()));
         framePropertyRegistry().set(widget, togglePositionProperty,
                                     checkBox->isChecked() ? 1.0 : 0.0);
         d->toggleConnections.insert(
@@ -2645,6 +2664,16 @@ void Style::polishCheckableWidget(QWidget *widget)
 #endif
                         this, [this, checkBox](int state) {
                             const bool on = state != Qt::Unchecked;
+                            const int previousGlyph = framePropertyRegistry()
+                                                              .value(checkBox, checkGlyphProperty)
+                                                              .toInt();
+                            framePropertyRegistry().set(checkBox, checkGlyphProperty, state);
+                            // The dash and the accept tick are separate glyphs that
+                            // share the reveal progress. Between two non-unchecked
+                            // states the target is still 1.0, so restart from zero;
+                            // otherwise the glyph swaps with no animation at all.
+                            if (on && previousGlyph != Qt::Unchecked && state != previousGlyph)
+                                framePropertyRegistry().set(checkBox, checkProperty, 0.0);
                             // AnimatedAcceptVisualSource's NormalOnToNormalOff segment
                             // removes the stroke immediately. Only the acceptance path
                             // is animated; an on-transition remains interruptible by

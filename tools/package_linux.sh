@@ -141,7 +141,6 @@ fi
 licenses="$prefix/licenses"
 mkdir -p "$licenses"
 cp "$repo_root/LICENSE" "$licenses/WinUI3Style-LGPL-2.1.txt"
-cp "$repo_root/tools/poc/linux/README.txt" "$prefix/README.txt"
 
 python3 - "$prefix/manifest.json" "$name" "$revision" "$qt_version" <<'PY'
 import json

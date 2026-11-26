@@ -38,6 +38,22 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  qt65-library:
+    name: Library build at Qt 6.5 minimum
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
+        with:
+          version: '6.5.3'
+          host: linux
+          target: desktop
+          arch: gcc_64
+          archives: qtbase
+          cache: true
+      - run: cmake -S . -B build -DWINUI_ENABLE_TESTS=OFF -DWINUI3STYLE_BUILD_DEMO=OFF -DCMAKE_REQUIRE_FIND_PACKAGE_Qt6=ON
+      - run: cmake --build build --target winui3style --parallel 2
+
   coverage-honesty:
     # A Verified row must name at least one test *function* that exists under
     # tests/ (matched as `void ...::name(`), so a bare class or file mention
@@ -125,6 +141,64 @@ jobs:
       - name: Build (tidy runs as errors)
         run: cmake --build build-tidy -j"$(nproc)"
 
+  clazy:
+    name: clazy (Qt 6.8.3, experimental)
+    # Experiment: the Qt C++ review skill v3.1 check set, run as a report only
+    # (continue-on-error) so it cannot block a merge while we learn what it
+    # says about this tree. Ubuntu's clazy 1.11 (clang 15) parses the
+    # GCC-built Qt database; the Windows host's MSVC STL needs clang 20+, so
+    # this cannot run locally. A later promotion would make it a real gate.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install clazy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clazy
+      - name: Install Qt 6.8.3
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: 'qt-6.8.3-linux-gcc64-v1'
+      - name: Configure (compile database, no tidy launcher)
+        run: >
+          cmake -S . -B build-clazy
+          -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DWINUI3STYLE_BUILD_PLUGIN=ON
+          -DWINUI3STYLE_BUILD_DEMO=ON
+          -DWINUI_ENABLE_TESTS=OFF
+          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+      - name: Build (generates ui_gallerywindow.h for the gallery TU)
+        run: cmake --build build-clazy -j"$(nproc)"
+      - name: Run clazy over shipped sources
+        env:
+          CLAZY_HEADER_FILTER: '.*WinUI3Style/src/.*'
+        run: |
+          # The skill's clazy-checks.txt minus qt6-deprecated-api-fixes and
+          # qt6-header-fixes: Ubuntu's clazy 1.11 rejects both as invalid.
+          checks='level0,level1,old-style-connect,missing-qobject-macro,copyable-polymorphic,use-chrono-in-qtimer,use-static-qregularexpression,assert-with-side-effects,isempty-vs-count,reserve-candidates,container-inside-loop,thread-with-slots'
+          mapfile -t files < <(find src/lib src/plugin src/gallery -name '*.cpp' | sort)
+          clazy-standalone -p build-clazy -checks="$checks" \
+            --extra-arg=-Wno-unknown-warning-option \
+            --extra-arg=-Wno-error \
+            --extra-arg=-UQT_NO_DEBUG \
+            "${files[@]}" 2>&1 | tee clazy-report.txt
+          echo "clazy warning lines: $(grep -c 'warning:' clazy-report.txt || true)"
+      - name: Upload clazy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clazy-report
+          path: clazy-report.txt
+          if-no-files-found: warn
+
   linux-gcc:
     name: linux-gcc (Qt 6.8.3, Release)
     # Compilation and unit-test gate for non-Windows hosts (issue #21). The
@@ -210,11 +284,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 6.8.3 = oldest supported Qt; 6.12.0 = version this tree develops
+        # 6.8.3 = oldest supported Qt; 6.12.1 = version this tree develops
         # against. Exact versions: stock aqt 3.3.x has no checksum entry for
         # newer Qt 6.11+ Windows archives, so the pinned action + dev snapshot
         # below is required (not "any v4").
-        qt: ["6.8.3", "6.12.0"]
+        qt: ["6.8.3", "6.12.1"]
         # Debug is a multi-config drift guard, not a PR signal: in run
         # 44885729876 its test step cost 6m36s (6.8.3) and 8m56s (6.12) versus
         # 3m40s in Release; the gallery capture alone carries a 600 s Debug

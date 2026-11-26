@@ -112,6 +112,7 @@ private slots:
     void readOnlyActionRestoration();
     void rtlGeometryAndHitTesting();
     void comboStyleReplacementInsideShowPopupSurvives();
+    void comboDeletionInsideShowPopupSurvives();
     void sliderHandleInputMapping_data();
     void sliderHandleInputMapping();
     void runtimeAppearanceAndDialogLifecycle();
@@ -1166,6 +1167,20 @@ void WinUI3InteractionTest::comboStyleReplacementInsideShowPopupSurvives()
     // Restore the suite-wide fixture style; resetStandardWinUI3TestStyle()
     // assumes a WinUI3 style is active.
     QApplication::setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+}
+
+void WinUI3InteractionTest::comboDeletionInsideShowPopupSurvives()
+{
+    struct RemovingCombo final : QComboBox
+    {
+        void showPopup() override { delete this; }
+    };
+    QPointer<QComboBox> combo = new RemovingCombo;
+    combo->addItems({ QStringLiteral("One"), QStringLiteral("Two") });
+    combo->show();
+    QVERIFY(QTest::qWaitForWindowExposed(combo));
+    QTest::mouseClick(combo, Qt::LeftButton, Qt::NoModifier, combo->rect().center());
+    QVERIFY(!combo);
 }
 
 void WinUI3InteractionTest::callbackCoalescingAndAnimationReuse()

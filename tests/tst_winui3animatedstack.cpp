@@ -123,13 +123,58 @@ private slots:
         QCOMPARE(view.count(), 0);
         QCOMPARE(view.navigationList()->count(), 0);
     }
+    void navigationRemovalHandlerCanClaimPage_data()
+    {
+        QTest::addColumn<bool>("reinsert");
+        QTest::newRow("transfer") << false;
+        QTest::newRow("reinsert") << true;
+    }
+    void navigationRemovalHandlerCanClaimPage()
+    {
+        QFETCH(bool, reinsert);
+        WinUI3::NavigationView source, other;
+        auto &destination = reinsert ? source : other;
+        QWidget page;
+        source.addPage(&page, {}, QStringLiteral("Page"));
+        QObject receiver;
+        connect(source.stack(), &QStackedWidget::widgetRemoved, &receiver,
+                [&](int) { destination.addPage(&page, {}, QStringLiteral("Claimed")); });
+        source.removePage(0);
+        QCOMPARE(destination.count(), 1);
+        QCOMPARE(destination.widget(0), &page);
+        QCOMPARE(page.parentWidget(), destination.stack());
+    }
+    void navigationRemovalHandlerCanDeletePage()
+    {
+        WinUI3::NavigationView view;
+        QPointer<QWidget> page = new QWidget;
+        view.addPage(page, {}, QStringLiteral("Page"));
+        connect(view.stack(), &QStackedWidget::widgetRemoved, &view,
+                [&](int) { delete page.data(); });
+        view.removePage(0);
+        QVERIFY(page.isNull());
+        QCOMPARE(view.count(), 0);
+        QCOMPARE(view.navigationList()->count(), 0);
+    }
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
     void animatedStackDeferredReplay();
     void animatedStackNewerRequestOverridesStaleDeferred();
+    void immediateCompletionMayDeleteStack()
+    {
+        QPointer<WinUI3::AnimatedStack> stack = new WinUI3::AnimatedStack;
+        stack->setDuration(0);
+        stack->addWidget(new QWidget);
+        stack->addWidget(new QWidget);
+        connect(stack.data(), &WinUI3::AnimatedStack::transitionFinished, this,
+                [&stack] { delete stack.data(); });
+        stack->setCurrentIndex(1);
+        QVERIFY(stack.isNull());
+    }
     void animatedStackNoAnimationTracksRemovedDestination();
     void animatedStackOverlayOverCompositedStaysTransparent();
+    void animatedStackQueuedTransitionSlotIsInvokable();
 };
 
 void WinUI3AnimatedStackTest::initTestCase()
@@ -492,6 +537,27 @@ void WinUI3AnimatedStackTest::animatedStackNewerRequestOverridesStaleDeferred()
     stack.setCurrentIndex(1);
     QCOMPARE(stack.currentIndex(), 3);
     QCOMPARE(static_cast<QLabel *>(stack.currentWidget())->text(), QStringLiteral("3"));
+}
+
+void WinUI3AnimatedStackTest::animatedStackQueuedTransitionSlotIsInvokable()
+{
+    // A queued call from another component resolves the slot by the type name
+    // moc recorded. An unqualified enum type there makes the invoke fail even
+    // though a direct C++ call works, so assert the meta-object contract.
+    WinUI3::AnimatedStack stack;
+    auto *first = new QWidget(&stack);
+    auto *second = new QWidget(&stack);
+    stack.addWidget(first);
+    stack.addWidget(second);
+    QCOMPARE(stack.count(), 2);
+    QCOMPARE(stack.currentIndex(), 0);
+
+    const bool queued = QMetaObject::invokeMethod(
+            &stack, "setCurrentIndex", Qt::QueuedConnection, Q_ARG(int, 1),
+            Q_ARG(WinUI3::AnimatedStack::Transition, WinUI3::AnimatedStack::Transition::Backward));
+    QVERIFY(queued);
+    QTRY_COMPARE(stack.currentIndex(), 1);
+    QCOMPARE(stack.currentWidget(), second);
 }
 
 QTEST_MAIN(WinUI3AnimatedStackTest)

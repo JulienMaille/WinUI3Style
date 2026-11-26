@@ -744,8 +744,9 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
                 // object may be touched afterwards, so bail out exactly like a
                 // completed dispatch when the controller did not survive.
                 const std::weak_ptr<bool> alive = m_alive;
+                const QPointer<QComboBox> guardedCombo = combo;
                 combo->showPopup();
-                if (alive.expired())
+                if (alive.expired() || !guardedCombo)
                     return true;
             }
             m_callbacks.releaseComboChevron(combo);
@@ -776,13 +777,21 @@ bool StyleInteractionController::handleMouseRelease(QWidget *widget, QEvent *eve
             const bool checked = progress(checkBox, togglePositionProperty) >= 0.5;
             framePropertyRegistry().set(checkBox, toggleDraggingProperty, false);
             checkBox->setDown(false);
+            const QPointer<QCheckBox> guarded = checkBox;
+            const std::weak_ptr<bool> alive = m_alive;
             Q_EMIT checkBox->released();
+            if (!guarded || alive.expired())
+                return true;
             if (checkBox->isChecked() != checked)
                 checkBox->setChecked(checked);
             else
                 m_callbacks.animate(checkBox, togglePositionProperty, checked ? 1.0 : 0.0,
                                     FasterDuration);
+            if (!guarded || alive.expired())
+                return true;
             Q_EMIT checkBox->clicked(checkBox->isChecked());
+            if (!guarded || alive.expired())
+                return true;
             m_callbacks.animate(checkBox, pressProperty, 0.0, FasterDuration);
             return true;
         }

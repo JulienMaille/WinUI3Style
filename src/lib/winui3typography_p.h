@@ -57,7 +57,7 @@ inline QFont winuiStrongFont(const QFont &base, int pixelSize = 0)
     const bool styleOwned = family == QLatin1String(VariableFontFamily)
             || family == QLatin1String(TextFontFamily) || family == QLatin1String(StaticFontFamily);
     const QString generic = winuiVariableFontFamily();
-    if (styleOwned && !generic.isEmpty() && qgetenv("WINUI3STYLE_APP_FONT").isEmpty())
+    if (styleOwned && !generic.isEmpty() && qEnvironmentVariableIsEmpty("WINUI3STYLE_APP_FONT"))
         font.setFamily(generic);
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
