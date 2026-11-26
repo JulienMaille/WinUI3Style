@@ -67,7 +67,7 @@ private:
     qreal m_overlayStartOffset = 0.0;
     qreal m_transitionProgress = 0.0;
     bool m_transitionStarting = false;
-    int m_deferredIndex = -1;
+    QPointer<QWidget> m_deferredPage;
     Transition m_deferredTransition = Transition::Automatic;
 };
 

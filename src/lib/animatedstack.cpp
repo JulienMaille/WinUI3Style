@@ -119,7 +119,7 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     if (index < 0 || index >= count())
         return;
     if (!m_transitionStarting)
-        m_deferredIndex = -1;
+        m_deferredPage.clear();
     if (index == QStackedWidget::currentIndex()) {
         // QAbstractItemView can emit both clicked and activated for the same
         // gesture. Re-selecting the page that is already entering must not
@@ -131,7 +131,7 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         // request another page from that signal before this transition has
         // finished constructing its snapshot and animation group. Retain
         // only the latest request and apply it after the group is running.
-        m_deferredIndex = index;
+        m_deferredPage = widget(index);
         m_deferredTransition = transition;
         return;
     }
@@ -156,10 +156,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         emit transitionFinished(resolved);
         if (!guard)
             return;
-        if (m_deferredIndex >= 0) {
-            const int deferred = m_deferredIndex;
+        if (m_deferredPage) {
+            const int deferred = indexOf(m_deferredPage);
             const Transition deferredTransition = m_deferredTransition;
-            m_deferredIndex = -1;
+            m_deferredPage.clear();
             setCurrentIndex(deferred, deferredTransition);
         }
         return;
@@ -211,10 +211,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
         }
         m_from = m_to = -1;
         m_transitionProgress = 0.0;
-        if (m_deferredIndex >= 0) {
-            const int deferred = m_deferredIndex;
+        if (m_deferredPage) {
+            const int deferred = indexOf(m_deferredPage);
             const Transition deferredTransition = m_deferredTransition;
-            m_deferredIndex = -1;
+            m_deferredPage.clear();
             setCurrentIndex(deferred, deferredTransition);
         }
         return;
@@ -258,10 +258,10 @@ void AnimatedStack::setCurrentIndex(int index, Transition transition)
     connect(m_group, &QParallelAnimationGroup::finished, this, &AnimatedStack::finishTransition);
     m_group->start();
 
-    if (m_deferredIndex >= 0) {
-        const int deferred = m_deferredIndex;
+    if (m_deferredPage) {
+        const int deferred = indexOf(m_deferredPage);
         const Transition deferredTransition = m_deferredTransition;
-        m_deferredIndex = -1;
+        m_deferredPage.clear();
         setCurrentIndex(deferred, deferredTransition);
     }
 }
@@ -300,16 +300,8 @@ void AnimatedStack::updateOverlayGeometry(qreal progress)
 
 void AnimatedStack::handleWidgetRemoved(int index)
 {
-    // Deferred slot shares the dense indexing of m_from/m_to. A removal
-    // before the deferred request replays retargets it when indices shift,
-    // so adjust it first — including while m_transitionStarting is true and
-    // no group exists yet (the reentrant currentChanged path). A deferred
-    // target that was itself removed no longer exists: drop it instead of
-    // replaying the shifted-in successor.
-    if (m_deferredIndex == index)
-        m_deferredIndex = -1;
-    else if (m_deferredIndex > index)
-        --m_deferredIndex;
+    if (m_deferredPage && indexOf(m_deferredPage) < 0)
+        m_deferredPage.clear();
     if (!m_group)
         return;
 
