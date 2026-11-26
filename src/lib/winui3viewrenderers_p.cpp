@@ -976,7 +976,11 @@ bool drawChromeControl(const Style *style, QStyle::ControlElement element,
                                       option->fontMetrics.elidedText(bar->text, Qt::ElideRight,
                                                                      labelRect.width()));
                 } else {
-                    painter->drawText(bar->rect, Qt::AlignCenter, bar->text);
+                    painter->translate(bar->rect.center());
+                    painter->rotate(bar->bottomToTop ? -90 : 90);
+                    const QRect label(-bar->rect.height() / 2, -bar->rect.width() / 2,
+                                      bar->rect.height(), bar->rect.width());
+                    painter->drawText(label, Qt::AlignCenter, bar->text);
                 }
                 painter->restore();
             }
@@ -1718,9 +1722,11 @@ bool drawViewControl(const Style *style, QStyle::ControlElement element, const Q
             painter->setPen(enabled ? (selected ? t.textPrimary : t.textSecondary)
                                     : t.textDisabled);
             if (!tab->icon.isNull()) {
-                const QRect logicalIcon(textRect.left(), textRect.center().y() - 8, 16, 16);
+                const QSize size = tab->iconSize.isValid() ? tab->iconSize : QSize(16, 16);
+                const QRect logicalIcon(
+                        QPoint(textRect.left(), textRect.center().y() - size.height() / 2), size);
                 const QRect iconRect = vertical
-                        ? logicalIcon
+                        ? QStyle::visualRect(tab->direction, textRect, logicalIcon)
                         : QStyle::visualRect(tab->direction, tab->rect, logicalIcon);
                 paintThemedIcon(painter, tab->icon, iconRect, Qt::AlignCenter,
                                 enabled ? t.textPrimary : t.textDisabled,

@@ -160,6 +160,23 @@ private slots:
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();
     void animatedStackDeferredReplay();
+    void reselectingCurrentPageCancelsQueuedRequest()
+    {
+        WinUI3::AnimatedStack stack;
+        stack.setDuration(0);
+        for (int i = 0; i < 3; ++i)
+            stack.addWidget(new QWidget);
+        QSignalSpy changes(&stack, &QStackedWidget::currentChanged);
+        connect(&stack, &QStackedWidget::currentChanged, this, [&stack](int index) {
+            if (index == 1) {
+                stack.setCurrentIndex(2);
+                stack.setCurrentIndex(1);
+            }
+        });
+        stack.setCurrentIndex(1);
+        QCOMPARE(stack.currentIndex(), 1);
+        QCOMPARE(changes.count(), 1);
+    }
     void animatedStackNewerRequestOverridesStaleDeferred();
     void immediateCompletionMayDeleteStack()
     {
