@@ -330,13 +330,15 @@ void SettingsCard::updateInteractivity()
 
 QWidget *SettingsCard::trailingWidget() const
 {
-    return m_trailingWidget;
+    return m_trailingWidget && m_headerLayout->indexOf(m_trailingWidget) >= 0
+            ? m_trailingWidget.data()
+            : nullptr;
 }
 void SettingsCard::setTrailingWidget(QWidget *widget)
 {
-    if (widget == m_trailingWidget)
+    if (widget && widget == trailingWidget())
         return;
-    if (m_trailingWidget) {
+    if (trailingWidget()) {
         m_headerLayout->removeWidget(m_trailingWidget);
         m_trailingWidget->setParent(nullptr);
     }
