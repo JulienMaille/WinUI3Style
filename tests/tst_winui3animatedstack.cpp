@@ -123,6 +123,39 @@ private slots:
         QCOMPARE(view.count(), 0);
         QCOMPARE(view.navigationList()->count(), 0);
     }
+    void navigationRemovalHandlerCanClaimPage_data()
+    {
+        QTest::addColumn<bool>("reinsert");
+        QTest::newRow("transfer") << false;
+        QTest::newRow("reinsert") << true;
+    }
+    void navigationRemovalHandlerCanClaimPage()
+    {
+        QFETCH(bool, reinsert);
+        WinUI3::NavigationView source, other;
+        auto &destination = reinsert ? source : other;
+        QWidget page;
+        source.addPage(&page, {}, QStringLiteral("Page"));
+        QObject receiver;
+        connect(source.stack(), &QStackedWidget::widgetRemoved, &receiver,
+                [&](int) { destination.addPage(&page, {}, QStringLiteral("Claimed")); });
+        source.removePage(0);
+        QCOMPARE(destination.count(), 1);
+        QCOMPARE(destination.widget(0), &page);
+        QCOMPARE(page.parentWidget(), destination.stack());
+    }
+    void navigationRemovalHandlerCanDeletePage()
+    {
+        WinUI3::NavigationView view;
+        QPointer<QWidget> page = new QWidget;
+        view.addPage(page, {}, QStringLiteral("Page"));
+        connect(view.stack(), &QStackedWidget::widgetRemoved, &view,
+                [&](int) { delete page.data(); });
+        view.removePage(0);
+        QVERIFY(page.isNull());
+        QCOMPARE(view.count(), 0);
+        QCOMPARE(view.navigationList()->count(), 0);
+    }
     void animatedStackEffectsAndInterruption();
     void animatedStackLifecycleStress();
     void animatedStackFinishRetrigger();

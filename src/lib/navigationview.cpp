@@ -6,6 +6,8 @@
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPointer>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 
 namespace WinUI3 {
@@ -118,11 +120,24 @@ int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &tit
 
 void NavigationView::removePage(int index)
 {
-    QWidget *page = m_stack->widget(index);
+    const QPointer<AnimatedStack> stack = m_stack;
+    const QPointer<QWidget> page = stack->widget(index);
     if (!page)
         return;
-    m_stack->removeWidget(page);
-    page->setParent(nullptr);
+    const bool removedCurrent = stack->currentWidget() == page;
+    // Qt still uses the removed widget after emitting widgetRemoved, and
+    // removeWidget's layout scan can remove a reinserted page repeatedly.
+    // Deliver the stack notifications only after Qt releases the layout item.
+    {
+        const QSignalBlocker blocker(stack);
+        stack->removeWidget(page);
+    }
+    if (removedCurrent)
+        emit stack->currentChanged(stack->currentIndex());
+    if (stack)
+        emit stack->widgetRemoved(index);
+    if (stack && page && page->parentWidget() == stack && stack->indexOf(page) < 0)
+        page->setParent(nullptr);
 }
 
 int NavigationView::count() const
