@@ -13,6 +13,28 @@
 namespace WinUI3 {
 
 namespace {
+// Derive the public index role from page identity even on Qt versions that
+// do not notify QStackedWidget clients about insertions.
+class PageItem final : public QListWidgetItem
+{
+public:
+    PageItem(const QIcon &icon, const QString &title, AnimatedStack *stack, QWidget *page)
+        : QListWidgetItem(icon, title), m_stack(stack), m_page(page)
+    {
+    }
+
+    QVariant data(int role) const override
+    {
+        if (role == Qt::UserRole)
+            return m_stack && m_page ? m_stack->indexOf(m_page) : -1;
+        return QListWidgetItem::data(role);
+    }
+
+private:
+    QPointer<AnimatedStack> m_stack;
+    QPointer<QWidget> m_page;
+};
+
 bool matchesSearchFilter(const QString &text, const QString &filter)
 {
     return text.contains(filter, Qt::CaseInsensitive);
@@ -56,17 +78,15 @@ NavigationView::NavigationView(QWidget *parent)
     connect(m_list, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem *current) { activateItem(current); });
     connect(m_search, &QLineEdit::textChanged, this, &NavigationView::filter);
-    connect(m_stack, &QStackedWidget::widgetRemoved, this, [this](int index) {
+    connect(m_stack, &QStackedWidget::widgetRemoved, this, [this] {
         const bool settingCurrentItem = m_settingCurrentItem;
         m_settingCurrentItem = true;
         for (int row = 0; row < m_list->count(); ++row) {
             QListWidgetItem *item = m_list->item(row);
             const int stored = item->data(Qt::UserRole).toInt();
-            if (stored == index) {
+            if (stored < 0) {
                 delete m_list->takeItem(row);
                 --row;
-            } else if (stored > index) {
-                item->setData(Qt::UserRole, stored - 1);
             }
         }
         for (int row = 0; row < m_list->count(); ++row) {
@@ -106,8 +126,8 @@ int NavigationView::addPage(QWidget *page, const QIcon &icon, const QString &tit
     if (existingIndex >= 0)
         return existingIndex;
     const int index = m_stack->addWidget(page);
-    auto *item = new QListWidgetItem(icon, title, m_list);
-    item->setData(Qt::UserRole, index);
+    auto *item = new PageItem(icon, title, m_stack, page);
+    m_list->addItem(item);
     // filter() only runs when the search text changes. A page inserted while
     // a filter is already active must obey it from the moment it appears.
     item->setHidden(!matchesSearchFilter(title, m_search->text()));

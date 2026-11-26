@@ -111,6 +111,17 @@ private slots:
     void pluginFactory();
     void navigationModelReconnectAndScroll();
     void navigationDelegateLifecycle();
+    void insertingUnlistedPagePreservesNavigationTarget()
+    {
+        WinUI3::NavigationView view;
+        view.addPage(new QWidget, {}, QStringLiteral("A"));
+        auto *b = new QWidget;
+        view.addPage(b, {}, QStringLiteral("B"));
+        view.stack()->insertWidget(0, new QWidget);
+        view.navigationList()->setCurrentRow(1);
+        QCOMPARE(view.stack()->currentWidget(), b);
+        QCOMPARE(view.navigationList()->currentItem()->data(Qt::UserRole).toInt(), 2);
+    }
     void navigationEditCommitsThroughOriginalDelegate();
     void navigationRetiredDelegateDestructionKeepsReplacement();
     void navigationWrapperDestructionInstallsFallback();
