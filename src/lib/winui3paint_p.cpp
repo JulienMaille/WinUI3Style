@@ -212,10 +212,35 @@ void paintGrayscaleText(QPainter *painter, const QRect &rect, int flags, const Q
     // QFont::NoSubpixelAntialias caps the rasterizer to neutral grayscale
     // coverage: no LCD-stripe R/B fringes. Lives on the font copy used for
     // this paint only; the widget font is never mutated.
-    QFont grayFont = font;
-    grayFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(grayFont.styleStrategy()
-                                                                | QFont::NoSubpixelAntialias));
-    painter->setFont(grayFont);
+    if (font.styleStrategy() & QFont::NoSubpixelAntialias) {
+        painter->setFont(font);
+    } else {
+        struct DerivedFont
+        {
+            QFont source;
+            QFont result;
+            bool initialized = false;
+        };
+        // A single entry retains at most two fonts. Reuse only when the
+        // inputs share the actual Qt font data, including device attributes.
+        static thread_local DerivedFont cached;
+        const auto resolveMask = [](const QFont &value) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            return value.resolveMask();
+#else
+            return value.resolve();
+#endif
+        };
+        if (!cached.initialized || !font.isCopyOf(cached.source)
+            || resolveMask(font) != resolveMask(cached.source)) {
+            cached.source = font;
+            cached.result = font;
+            cached.result.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+                    font.styleStrategy() | QFont::NoSubpixelAntialias));
+            cached.initialized = true;
+        }
+        painter->setFont(cached.result);
+    }
     painter->setPen(color);
     painter->setRenderHint(QPainter::TextAntialiasing, true);
     // Same Alt-reveal as menus: hide the mnemonic underline until the style
