@@ -19,6 +19,7 @@ private slots:
     void cleanup();
     void dockTabLabelOrientation_data();
     void dockTabLabelOrientation();
+    void tabLabelTreatsAmpersandAsMnemonic();
     void attachedTabSurface_data();
     void attachedTabSurface();
     void tabBaseOrientation_data();
@@ -51,6 +52,25 @@ void WinUI3TabsTest::dockTabLabelOrientation_data()
     QTest::addColumn<int>("densityMode");
     QTest::newRow("standard") << int(WinUI3::DensityMode::Standard);
     QTest::newRow("compact") << int(WinUI3::DensityMode::Compact);
+}
+
+void WinUI3TabsTest::tabLabelTreatsAmpersandAsMnemonic()
+{
+    auto render = [](const QString &text) {
+        QStyleOptionTab option;
+        option.rect = QRect(0, 0, 200, 36);
+        option.state = QStyle::State_Enabled;
+        option.text = text;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        qApp->style()->drawControl(QStyle::CE_TabBarTabLabel, &option, &painter);
+        return image;
+    };
+    // A trailing marker has no letter to underline. A doubled marker,
+    // however, must leave one visible ampersand.
+    QCOMPARE(render(QStringLiteral("Reports&")), render(QStringLiteral("Reports")));
+    QVERIFY(render(QStringLiteral("Reports&&")) != render(QStringLiteral("Reports")));
 }
 
 void WinUI3TabsTest::dockTabLabelOrientation()
