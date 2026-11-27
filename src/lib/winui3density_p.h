@@ -287,21 +287,8 @@ inline DensityMode densityModeFor(const QWidget *widget)
     // profile is active.  Prefer the concrete API so setDensityMode() and a
     // dynamic densityMode property have exactly the same result.
     const QStyle *style = widget ? widget->style() : (qApp ? qApp->style() : nullptr);
-    if (const auto *winui = qobject_cast<const WinUI3::Style *>(style)) {
-        if (widget) {
-            // The winuiDensity ancestor walk above already found nothing, so
-            // effectiveDensityMode(widget) would only re-walk the same
-            // ancestors before returning the global mode. Return it directly.
-            return winui->densityMode();
-        }
-        // Null widget: resolve through the same densityMode property parse
-        // as the generic path below (the Q_PROPERTY exposes the same global
-        // mode), falling back to the concrete accessor.
-        DensityMode mode = winui->densityMode();
-        if (parseDensity(winui->property("densityMode"), &mode))
-            return mode;
+    if (const auto *winui = qobject_cast<const WinUI3::Style *>(style))
         return winui->densityMode();
-    }
     if (style) {
         DensityMode mode = DensityMode::Standard;
         if (parseDensity(style->property("densityMode"), &mode))

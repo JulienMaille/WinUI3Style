@@ -148,10 +148,28 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
                     const QColor &strokeTop, const QColor &strokeBottom, qreal radius,
                     qreal strokeWidth)
 {
-    QLinearGradient border(rect.topLeft(), rect.bottomLeft());
-    border.setColorAt(0.0, strokeTop);
-    border.setColorAt(1.0, strokeBottom);
-    borderedSurface(painter, rect, fill, QBrush(border), radius, strokeWidth, true);
+    struct ControlBorder
+    {
+        qreal x = 0.0;
+        qreal top = 0.0;
+        qreal bottom = 0.0;
+        QColor strokeTop;
+        QColor strokeBottom;
+        QBrush brush;
+    };
+    // Consecutive buttons of the same height and palette can share the
+    // brush while Qt rasterizes each border against its actual backdrop.
+    static thread_local ControlBorder cached;
+    if (cached.brush.style() == Qt::NoBrush || cached.x != rect.x() || cached.top != rect.top()
+        || cached.bottom != rect.bottom() || cached.strokeTop != strokeTop
+        || cached.strokeBottom != strokeBottom) {
+        QLinearGradient border(rect.topLeft(), rect.bottomLeft());
+        border.setColorAt(0.0, strokeTop);
+        border.setColorAt(1.0, strokeBottom);
+        cached = { rect.x(), rect.top(), rect.bottom(), strokeTop, strokeBottom, QBrush(border) };
+    }
+    const QBrush border = cached.brush;
+    borderedSurface(painter, rect, fill, border, radius, strokeWidth, true);
 }
 
 void editorSurface(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
