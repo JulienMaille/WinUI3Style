@@ -23,4 +23,7 @@
 - Defects: reproduce in the running Gallery first, add a failing test for the
   mechanism (not the screenshot), then fix; re-run the input sequence live.
 - Regressions reopen the `coverage.md` row (METHODOLOGY §6). Benchmarks stay
-  opt-in, never part of the red/green gate.
+  opt-in and never gate snapshot correctness. The one CI exception is the
+  `perf-budget` job, a generous ratio ceiling against Fusion
+  (`tools/perf_compare.py --max-ratio`), which only fails order-of-magnitude
+  paint regressions, not measurement noise.
