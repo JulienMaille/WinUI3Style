@@ -24,11 +24,11 @@ set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 if(EMSCRIPTEN)
     # Qt for WebAssembly ships without a runtime plugin loader, so the
     # WebAssembly gallery links the style into the executable (docs/wasm.md).
-    # -lembind: Qt6Gui's Emscripten-only file API code references the emval
-    # runtime, which qt_add_executable injects for plain add_executable users.
     target_sources(winui3style_gallery PRIVATE wasmstyle.cpp)
     target_link_libraries(winui3style_gallery PRIVATE WinUI3::Widgets)
-    target_link_options(winui3style_gallery PRIVATE -lembind)
+    # Finalization exports the module factory used by qtloader.js and links
+    # embind. The browser shell supplies the Qt container before startup.
+    qt6_finalize_target(winui3style_gallery)
 endif()
 
 if(TARGET winui3styleplugin)

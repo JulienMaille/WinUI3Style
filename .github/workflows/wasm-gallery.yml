@@ -56,6 +56,15 @@ jobs:
           tools/wasm/build_wasm.sh
           test -f build-wasm/web/index.html
           test -f build-wasm/web/winui3style_gallery.wasm
+          node <<'NODE'
+          const fs = require("node:fs");
+          const vm = require("node:vm");
+          const browser = {};
+          vm.runInNewContext(fs.readFileSync("build-wasm/web/winui3style_gallery.js", "utf8"),
+                             browser);
+          if (typeof browser.winui3style_gallery_entry !== "function")
+            throw new Error("The gallery must export the entry function used by index.html");
+          NODE
 
       - name: Upload the Pages artifact
         if: github.ref == 'refs/heads/main'
