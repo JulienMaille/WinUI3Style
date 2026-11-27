@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="The WinUI3Style widget gallery, compiled to WebAssembly with Qt for WebAssembly.">
+  <title>WinUI 3 Style Gallery &middot; WebAssembly</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f3f3f3;
+      --bg-glow: rgba(0, 103, 192, 0.10);
+      --layer: #fbfbfb;
+      --stroke: rgba(0, 0, 0, 0.08);
+      --text: #1b1b1b;
+      --text-secondary: #5d5d5d;
+      --accent: #0067c0;
+      --accent-strong: #005a9e;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+      --radius: 8px;
+      font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+                   "Helvetica Neue", Arial, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #202020;
+        --bg-glow: rgba(96, 205, 255, 0.12);
+        --layer: #2b2b2b;
+        --stroke: rgba(255, 255, 255, 0.10);
+        --text: #ffffff;
+        --text-secondary: #c7c7c7;
+        --accent: #60cdff;
+        --accent-strong: #98e6ff;
+        --shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background:
+        radial-gradient(120% 80% at 50% 0%, var(--bg-glow), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    [hidden] { display: none !important; }
+
+    /* Qt renders the widget gallery into this element. */
+    #screen {
+      position: fixed;
+      inset: 0;
+    }
+
+    #screen canvas {
+      display: block;
+      outline: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(120% 80% at 50% 0%, var(--bg-glow), transparent 60%),
+        var(--bg);
+    }
+
+    .card {
+      width: min(360px, 100%);
+      padding: 28px 28px 22px;
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      background: var(--layer);
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .spinner {
+      width: 26px;
+      height: 26px;
+      margin: 0 auto 18px;
+      border: 2px solid var(--stroke);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; border-top-color: var(--accent); }
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      margin: 6px 0 18px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .progress {
+      position: relative;
+      height: 2px;
+      margin: 0 0 14px;
+      overflow: hidden;
+      border-radius: 1px;
+      background: var(--stroke);
+    }
+
+    .progress::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 40%;
+      border-radius: inherit;
+      background: var(--accent);
+      animation: slide 1.4s ease-in-out infinite;
+    }
+
+    @keyframes slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .progress::after { animation: none; width: 100%; opacity: 0.6; }
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    .foot {
+      margin: 20px 0 0;
+      font-size: 12px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      border-radius: 4px;
+    }
+
+    a:hover { color: var(--accent-strong); text-decoration: underline; }
+
+    a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      text-decoration: underline;
+    }
+
+    .error-title {
+      margin: 0 0 10px;
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .error-text {
+      margin: 0 0 18px;
+      max-height: 7.5em;
+      overflow: auto;
+      font: 12px/1.5 "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      color: var(--text-secondary);
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 96px;
+      min-height: 32px;
+      padding: 0 16px;
+      border: 1px solid var(--stroke);
+      border-radius: 4px;
+      background: var(--accent);
+      color: #ffffff;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .button:hover { background: var(--accent-strong); }
+
+    .button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .button { color: #00334d; }
+    }
+
+    .status {
+      position: fixed;
+      right: max(10px, env(safe-area-inset-right));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      z-index: 3;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 10px;
+      border: 1px solid var(--stroke);
+      border-radius: 999px;
+      background: var(--layer);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+      opacity: 0.92;
+    }
+
+    .status .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .status a { color: inherit; }
+
+    .status a:hover { color: var(--text); }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <main id="screen" aria-label="WinUI 3 Style Gallery widget demo"></main>
+
+  <div id="qtspinner" class="overlay">
+    <section class="card" aria-labelledby="gallery-title">
+      <div id="loading-view">
+        <div class="spinner" aria-hidden="true"></div>
+        <h1 id="gallery-title">WinUI 3 Style Gallery</h1>
+        <p class="subtitle">Qt Widgets compiled to WebAssembly</p>
+        <div class="progress" role="progressbar" aria-label="Loading the gallery"
+             aria-valuetext="Loading"></div>
+        <p class="hint">Fetching the Qt runtime and the style library&hellip;
+          The first visit downloads about 15&nbsp;MB.</p>
+        <p class="foot">
+          <a href="https://github.com/JulienMaille/WinUI3Style">View source on GitHub</a>
+        </p>
+      </div>
+      <div id="error-view" hidden>
+        <h2 class="error-title">The gallery could not start</h2>
+        <p id="error-text" class="error-text" role="alert"></p>
+        <button id="retry" class="button" type="button">Retry</button>
+        <p class="foot">
+          <a href="https://github.com/JulienMaille/WinUI3Style">View source on GitHub</a>
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <p id="qtannounce" class="sr-only" role="status" aria-live="polite">Loading the gallery</p>
+
+  <div id="qtstatus" class="status" hidden>
+    <span class="dot" aria-hidden="true"></span>
+    <span>WinUI3Style &middot; WebAssembly demo</span>
+  </div>
+
+  <noscript>
+    <div class="overlay">
+      <section class="card">
+        <h1>JavaScript is required</h1>
+        <p class="hint">This demo runs the WinUI3Style gallery as WebAssembly,
+          which needs JavaScript enabled in the browser.</p>
+      </section>
+    </div>
+  </noscript>
+
+  <script src="qtloader.js"></script>
+  <script src="winui3style_gallery.js"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const screen = document.getElementById("screen");
+      const overlay = document.getElementById("qtspinner");
+      const loadingView = document.getElementById("loading-view");
+      const errorView = document.getElementById("error-view");
+      const errorText = document.getElementById("error-text");
+      const status = document.getElementById("qtstatus");
+      const announce = document.getElementById("qtannounce");
+      const retry = document.getElementById("retry");
+
+      const messageOf = (error) => {
+        if (!error) return "Unknown error.";
+        if (typeof error === "string") return error;
+        return error.text || error.message || String(error);
+      };
+
+      const fail = (error) => {
+        const message = messageOf(error);
+        loadingView.hidden = true;
+        errorView.hidden = false;
+        overlay.hidden = false;
+        errorText.textContent = message;
+        announce.textContent = "The gallery could not start: " + message;
+        retry.focus({ preventScroll: true });
+      };
+
+      retry.addEventListener("click", () => window.location.reload());
+
+      const start = async () => {
+        if (typeof WebAssembly !== "object") {
+          fail("This browser does not support WebAssembly.");
+          return;
+        }
+        if (typeof window.winui3style_gallery_entry !== "function") {
+          fail("The gallery application script did not load.");
+          return;
+        }
+        try {
+          await qtLoad({
+            qt: {
+              entryFunction: window.winui3style_gallery_entry,
+              containerElements: [screen],
+              onLoaded: () => {
+                overlay.hidden = true;
+                status.hidden = false;
+                announce.textContent = "Gallery running";
+                screen.focus?.({ preventScroll: true });
+              },
+              onExit: (exit) => {
+                if (exit && exit.crashed)
+                  fail(exit.text || "The Qt runtime stopped unexpectedly.");
+              }
+            }
+          });
+        } catch (error) {
+          fail(error);
+        }
+      };
+
+      if (document.readyState === "complete")
+        start();
+      else
+        window.addEventListener("load", start, { once: true });
+    })();
+  </script>
+</body>
+</html>

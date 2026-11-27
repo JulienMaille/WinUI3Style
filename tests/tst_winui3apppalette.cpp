@@ -89,6 +89,7 @@ private slots:
 
     void applicationHighlightOverrideDrivesTokens();
     void applicationHighlightOverrideDrivesSelectionMarker();
+    void motionEffectsPropertyGatesAnimations();
 
     void proxyStylePolishTintReachesApplicationPalette();
     void proxyStylePolishTintReachesSelectionMarker();
@@ -162,6 +163,32 @@ void WinUI3AppPaletteTest::applicationHighlightOverrideDrivesSelectionMarker()
              qPrintable(QStringLiteral("the override must repaint the selection marker: "
                                        "stock %1 vs tinted %2")
                                 .arg(stockMarker.name(), tintedMarker.name())));
+}
+
+void WinUI3AppPaletteTest::motionEffectsPropertyGatesAnimations()
+{
+    // Default: follow the system preference, which is always allowed offscreen.
+    QVERIFY(WinUI3::Style::animationsAllowed());
+
+    // A plain client writes through the style property, no headers needed.
+    qApp->style()->setProperty("motionEffects", false);
+    QCOMPARE(qApp->style()->property("motionEffects").toBool(), false);
+    QVERIFY(!WinUI3::Style::animationsAllowed());
+
+    qApp->style()->setProperty("motionEffects", true);
+    QCOMPARE(qApp->style()->property("motionEffects").toBool(), true);
+    QVERIFY(WinUI3::Style::animationsAllowed());
+
+    // The capture / reduced-motion environment opt-out still outranks the
+    // runtime override.
+    const QByteArray previousEnv = qgetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", "1");
+    QVERIFY(!WinUI3::Style::animationsAllowed());
+    if (previousEnv.isEmpty())
+        qunsetenv("WINUI3STYLE_DISABLE_ANIMATIONS");
+    else
+        qputenv("WINUI3STYLE_DISABLE_ANIMATIONS", previousEnv);
+    QVERIFY(WinUI3::Style::animationsAllowed());
 }
 
 void WinUI3AppPaletteTest::proxyStylePolishTintReachesApplicationPalette()

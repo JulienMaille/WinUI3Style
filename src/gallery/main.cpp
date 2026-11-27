@@ -1,5 +1,11 @@
 #include "gallerywindow.h"
 
+#if defined(EMSCRIPTEN)
+// Under Emscripten the style is embedded at link time (wasmstyle.cpp,
+// docs/wasm.md): QStyleFactory cannot load the winui3 plugin in the browser.
+QStyle *embeddedGalleryStyle();
+#endif
+
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDebug>
@@ -13,15 +19,19 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     application.setApplicationName(QStringLiteral("WinUI 3 Style Gallery"));
     application.setOrganizationName(QStringLiteral("WinUI3Style"));
-    if (QStyle *style = QStyleFactory::create(QStringLiteral("winui3"))) {
-        application.setStyle(style);
-        // Give the gallery app an icon from the style's own Fluent glyphs;
-        // no bundled image or resource file is needed.
-        application.setWindowIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
-    } else {
+#if defined(EMSCRIPTEN)
+    QStyle *style = embeddedGalleryStyle();
+#else
+    QStyle *style = QStyleFactory::create(QStringLiteral("winui3"));
+    if (!style) {
         qCritical() << "The winui3 QStyle plugin could not be loaded.";
         return 1;
     }
+#endif
+    application.setStyle(style);
+    // Give the gallery app an icon from the style's own Fluent glyphs;
+    // no bundled image or resource file is needed.
+    application.setWindowIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("WinUI 3 Qt Widgets gallery"));

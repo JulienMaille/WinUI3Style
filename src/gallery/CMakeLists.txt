@@ -21,6 +21,16 @@ target_link_libraries(winui3style_gallery PRIVATE
 target_link_libraries(winui3style_gallery PRIVATE winui3style_warnings)
 set_target_properties(winui3style_gallery PROPERTIES WIN32_EXECUTABLE TRUE)
 
+if(EMSCRIPTEN)
+    # Qt for WebAssembly ships without a runtime plugin loader, so the
+    # WebAssembly gallery links the style into the executable (docs/wasm.md).
+    # -lembind: Qt6Gui's Emscripten-only file API code references the emval
+    # runtime, which qt_add_executable injects for plain add_executable users.
+    target_sources(winui3style_gallery PRIVATE wasmstyle.cpp)
+    target_link_libraries(winui3style_gallery PRIVATE WinUI3::Widgets)
+    target_link_options(winui3style_gallery PRIVATE -lembind)
+endif()
+
 if(TARGET winui3styleplugin)
     # Stage the self-contained plugin on every Gallery build. The executable
     # does not relink when its dynamically loaded plugin changes.
@@ -63,7 +73,9 @@ endif()
 # install script collect Qt runtime dependencies and platform plugins. The
 # additional-module path is essential: QStyleFactory loads our style plugin
 # dynamically, so it is not visible from the Gallery executable's link graph.
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+    # The WebAssembly build cannot deploy this way: it links the style
+    # statically instead of loading the style plugin through QStyleFactory.
     if(NOT WINUI3STYLE_QT STREQUAL "Qt6")
         message(FATAL_ERROR "The Linux Gallery deployment requires Qt 6")
     endif()

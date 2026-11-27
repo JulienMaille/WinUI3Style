@@ -50,6 +50,12 @@ class WINUI3STYLE_EXPORT Style final : public QProxyStyle
     Q_PROPERTY(WinUI3::DensityMode densityMode READ densityMode WRITE setDensityMode NOTIFY
                        densityChanged)
     Q_PROPERTY(QColor accentColor READ accentColor WRITE setAccentColor NOTIFY accentColorChanged)
+    // Runtime switch for the style's state animations. Defaults to the
+    // effective system preference (always on away from Windows); a plain Qt
+    // client can also drive it as style->setProperty("motionEffects", false)
+    // without including this header. WINUI3STYLE_DISABLE_ANIMATIONS still
+    // wins: it is the capture/reduced-motion environment opt-out.
+    Q_PROPERTY(bool motionEffects READ motionEffects WRITE setMotionEffects)
 
 public:
     explicit Style(ThemeMode mode = ThemeMode::System);
@@ -77,6 +83,9 @@ public:
     // The style and compound widgets use the same switch so capture mode,
     // reduced-motion environments, and application code cannot disagree.
     static bool animationsAllowed();
+
+    bool motionEffects() const;
+    void setMotionEffects(bool allowed);
 
     // Whether mnemonic underlines are currently shown (Alt pressed, Windows
     // Alt-reveal contract). Tracked by the style's event filter; paint sites

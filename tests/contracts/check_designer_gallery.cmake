@@ -137,8 +137,26 @@ endforeach()
 file(READ "${_demo_dir}/CMakeLists.txt" _demo_cmake)
 string(FIND "${_demo_cmake}" "WinUI3::Widgets" _linked)
 if(NOT _linked EQUAL -1)
-    message(FATAL_ERROR
-        "The gallery must not link WinUI3::Widgets: the settings cards are stock Qt widgets")
+    # The browser build has no runtime plugin loader, so linking the static
+    # style inside the EMSCRIPTEN guard is the documented exception
+    # (docs/wasm.md). Any link of WinUI3::Widgets outside that guard fails.
+    set(_in_guard FALSE)
+    set(_guarded_link FALSE)
+    file(STRINGS "${_demo_dir}/CMakeLists.txt" _demo_cmake_lines)
+    foreach(_line IN LISTS _demo_cmake_lines)
+        if(_line MATCHES "^if\\(EMSCRIPTEN\\)")
+            set(_in_guard TRUE)
+        elseif(_line MATCHES "^endif\\(\\)")
+            set(_in_guard FALSE)
+        elseif(_in_guard AND _line MATCHES "WinUI3::Widgets")
+            set(_guarded_link TRUE)
+        endif()
+    endforeach()
+    if(NOT _guarded_link)
+        message(FATAL_ERROR
+            "The gallery must not link WinUI3::Widgets: the settings cards are "
+            "stock Qt widgets (only exception: the EMSCRIPTEN guard, docs/wasm.md)")
+    endif()
 endif()
 
 # Zero-QSS claim loop: Designer-set stylesheets bypass the setStyleSheet

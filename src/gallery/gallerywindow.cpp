@@ -440,6 +440,15 @@ void GalleryWindow::configureGallery()
         // style for a Mica surface.
         setProperty("winuiBackdrop", checked ? QStringLiteral("mica") : QStringLiteral("none"));
     });
+    if (qApp->style())
+        ui->motionCheck->setChecked(qApp->style()->property("motionEffects").toBool());
+    connect(ui->motionCheck, &QCheckBox::toggled, this, [](bool checked) {
+        // Same plain-client convention: the motionEffects property drives the
+        // style's animation gate from C++, Designer or the browser demo, where
+        // every repainted frame costs an order of magnitude more than native.
+        if (qApp->style())
+            qApp->style()->setProperty("motionEffects", checked);
+    });
     connect(ui->searchSettings, &QLineEdit::textChanged, this, [this](const QString &text) {
         for (int row = 0; row < ui->navigationList->count(); ++row) {
             QListWidgetItem *item = ui->navigationList->item(row);

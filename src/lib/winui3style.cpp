@@ -101,6 +101,13 @@ namespace WinUI3 {
 using namespace PaintPrivate;
 using namespace Private;
 namespace {
+
+// Explicit runtime override for the animation gate in Style::animationsAllowed(),
+// written by the motionEffects property (also reachable from plain Qt clients
+// through style->setProperty()). -1 tracks the system preference; GUI-thread-only
+// like the flag neighboring the setter, and never accessed across threads.
+int g_motionEffectsOverride = -1;
+
 Backdrop backdropFromProperty(const QVariant &value)
 {
     const QString name = value.toString().trimmed().toLower();
@@ -1751,6 +1758,10 @@ bool Style::animationsAllowed()
     // a failed native query keep motion enabled.
     if (qEnvironmentVariableIsSet("WINUI3STYLE_DISABLE_ANIMATIONS"))
         return false;
+    if (g_motionEffectsOverride == 0)
+        return false;
+    if (g_motionEffectsOverride == 1)
+        return true;
     return Private::systemAnimationsAllowed();
 }
 
@@ -1776,6 +1787,17 @@ bool Style::altMnemonicsVisible()
 {
     assertGuiThread("Style::altMnemonicsVisible");
     return g_altMnemonicsVisible;
+}
+
+bool Style::motionEffects() const
+{
+    return animationsAllowed();
+}
+
+void Style::setMotionEffects(bool allowed)
+{
+    assertGuiThread("Style::setMotionEffects");
+    g_motionEffectsOverride = allowed ? 1 : 0;
 }
 
 void Style::setAltMnemonicsVisible(bool visible)
