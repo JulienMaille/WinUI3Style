@@ -46,6 +46,7 @@ private slots:
     void bareStyledPanelSyncSharesMaterial();
     void lateScrollChainArmedAtPolish();
     void reparentedChainReconvergesWithoutSync();
+    void backdropMemoInvalidatesOnPropertyWrite();
 };
 
 void WinUI3MicaBackdropTest::initTestCase()
@@ -119,6 +120,32 @@ void WinUI3MicaBackdropTest::shellScrollChainSharesMaterial()
     QCOMPARE(list->viewport()->palette().color(QPalette::Window).alpha(), 255);
     QCOMPARE(list->verticalScrollBar()->palette().color(QPalette::Window).alpha(), 255);
     QCOMPARE(list->horizontalScrollBar()->palette().color(QPalette::Window).alpha(), 255);
+}
+
+void WinUI3MicaBackdropTest::backdropMemoInvalidatesOnPropertyWrite()
+{
+    // The erase gate memoizes the raw per-window backdrop value; a raw
+    // dynamic-property write must invalidate it without a re-polish.
+    DisableAnimationsGuard animations;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QMainWindow window;
+    window.setProperty("_winui_backdrop", 1);
+    window.setProperty("_winui_backdrop_effective", 2); // Composited
+    auto *central = new QWidget(&window);
+    window.setCentralWidget(central);
+    auto *list = new QListWidget(central);
+    list->resize(200, 140);
+    window.resize(480, 320);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    WinUI3::Private::syncContentSurfacesForBackdrop(&window);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(list->viewport()));
+
+    window.setProperty("_winui_backdrop", 0);
+    QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(list->viewport()), false);
+    window.setProperty("_winui_backdrop", 1);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(list->viewport()));
 }
 
 void WinUI3MicaBackdropTest::chromeLoopCoversAllMenuBars()

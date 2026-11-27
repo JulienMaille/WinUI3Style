@@ -7,6 +7,7 @@
 
 #include "winui3geometry_p.h"
 #include "winui3density_p.h"
+#include "winui3paintmemo_p.h"
 #include "winui3animations_p.h"
 #include "winui3backdrop_p.h"
 #include "winui3buttons_p.h"
@@ -2019,6 +2020,9 @@ void Style::setControlRole(QWidget *widget, ControlRole role)
 {
     if (!widget)
         return;
+    // Direct clear: the widget may not be polished yet, so the event filter
+    // would miss the property write below.
+    Private::clearWidgetPaintMemo(widget);
     if (!widget->property(originalRoleWasValidProperty).isValid()) {
         widget->setProperty(originalRoleWasValidProperty, widget->property(roleProperty).isValid());
         widget->setProperty(originalRoleProperty, widget->property(roleProperty));
@@ -2070,31 +2074,17 @@ ControlRole Style::controlRole(const QWidget *widget)
 {
     if (!widget)
         return ControlRole::Standard;
-    const QVariant designerRole = widget->property(ControlRoleProperty);
-    if (designerRole.isValid()) {
-        const QString name = designerRole.toString().trimmed().toLower();
-        if (name == QLatin1String("accent"))
-            return ControlRole::Accent;
-        if (name == QLatin1String("subtle"))
-            return ControlRole::Subtle;
-        if (name == QLatin1String("navigation"))
-            return ControlRole::Navigation;
-        if (name == QLatin1String("destructive"))
-            return ControlRole::Destructive;
-        if (name == QLatin1String("standard"))
-            return ControlRole::Standard;
-        bool converted = false;
-        const int numericRole = designerRole.toInt(&converted);
-        if (converted && numericRole >= int(ControlRole::Standard)
-            && numericRole <= int(ControlRole::Destructive)) {
-            return static_cast<ControlRole>(numericRole);
-        }
-    }
-    // One property() lookup: this runs at least twice per painted button
-    // (panel primitive + label control), and every call resolves the name
-    // through QMetaObject::indexOfProperty.
-    const QVariant role = widget->property(roleProperty);
-    if (!role.isValid()) {
+    // This runs at least twice per painted button (panel primitive + label
+    // control), and every property() call resolves the name through
+    // QMetaObject::indexOfProperty, so the property-derived result is
+    // memoized and invalidated from the event filter, unpolish() and
+    // setControlRole().
+    if (const std::optional<Private::MemoizedControlRole> memo =
+                Private::memoizedControlRole(widget)) {
+        if (memo->propertyValid)
+            return memo->role;
+        // The flat/default fallback cannot be memoized: setFlat() and
+        // setDefault() emit no event the style could observe.
         if (const auto *button = qobject_cast<const QPushButton *>(widget)) {
             if (button->isFlat())
                 return ControlRole::Subtle;
@@ -2103,7 +2093,53 @@ ControlRole Style::controlRole(const QWidget *widget)
         }
         return ControlRole::Standard;
     }
-    return static_cast<ControlRole>(role.toInt());
+    const QVariant designerRole = widget->property(ControlRoleProperty);
+    bool propertyValid = false;
+    ControlRole resolved = ControlRole::Standard;
+    if (designerRole.isValid()) {
+        const QString name = designerRole.toString().trimmed().toLower();
+        if (name == QLatin1String("accent")) {
+            propertyValid = true;
+            resolved = ControlRole::Accent;
+        } else if (name == QLatin1String("subtle")) {
+            propertyValid = true;
+            resolved = ControlRole::Subtle;
+        } else if (name == QLatin1String("navigation")) {
+            propertyValid = true;
+            resolved = ControlRole::Navigation;
+        } else if (name == QLatin1String("destructive")) {
+            propertyValid = true;
+            resolved = ControlRole::Destructive;
+        } else if (name == QLatin1String("standard")) {
+            propertyValid = true;
+            resolved = ControlRole::Standard;
+        } else {
+            bool converted = false;
+            const int numericRole = designerRole.toInt(&converted);
+            if (converted && numericRole >= int(ControlRole::Standard)
+                && numericRole <= int(ControlRole::Destructive)) {
+                propertyValid = true;
+                resolved = static_cast<ControlRole>(numericRole);
+            }
+        }
+    }
+    if (!propertyValid) {
+        const QVariant role = widget->property(roleProperty);
+        if (role.isValid()) {
+            propertyValid = true;
+            resolved = static_cast<ControlRole>(role.toInt());
+        }
+    }
+    Private::memoizeControlRole(widget, propertyValid, resolved);
+    if (!propertyValid) {
+        if (const auto *button = qobject_cast<const QPushButton *>(widget)) {
+            if (button->isFlat())
+                return ControlRole::Subtle;
+            if (button->isDefault())
+                return ControlRole::Accent;
+        }
+    }
+    return resolved;
 }
 
 void Style::setToggleSwitch(QCheckBox *checkBox, bool enabled)
@@ -2938,6 +2974,10 @@ void Style::unpolish(QWidget *widget)
 {
     if (widget) {
         d->unregisterPaletteOwner(widget);
+        // The filter removal below stops DynamicPropertyChange delivery, so
+        // the role/backdrop restore writes further down would leave a stale
+        // memo behind.
+        Private::clearWidgetPaintMemo(widget);
         widget->removeEventFilter(this);
         Private::removeCalendarPopupBorder(widget);
         unpolishDockTitleBar(widget);
@@ -3133,7 +3173,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 // every descendant's geometry as well as its paint state.
                 invalidateDensityTree(widget);
             } else if (change->propertyName() == ControlRoleProperty) {
+                Private::clearWidgetPaintMemo(widget);
                 widget->update();
+            } else if (change->propertyName() == roleProperty) {
+                Private::clearWidgetPaintMemo(widget);
             } else if (change->propertyName() == SurfaceProperty) {
                 applyExplicitSurfacePalette(widget);
                 // An island opted in while the material is already granted
@@ -3142,6 +3185,7 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 Private::armPolishedSurfaceForBackdrop(widget);
                 widget->update();
             } else if (change->propertyName() == BackdropProperty && widget->isWindow()) {
+                Private::clearWidgetPaintMemo(widget);
                 const Backdrop requested = backdropFromProperty(widget->property(BackdropProperty));
                 const bool leavingCompositedBackdrop = requested == Backdrop::None
                         && Private::backdropEffectiveSurface(widget)
@@ -3180,6 +3224,10 @@ bool Style::eventFilter(QObject *watched, QEvent *event)
                 refreshNavigationView(qobject_cast<QAbstractItemView *>(widget));
                 for (QAbstractItemView *view : widget->findChildren<QAbstractItemView *>())
                     refreshNavigationView(view);
+            } else if (change->propertyName() == Private::backdropStateProperty) {
+                // applyBackdrop published a new raw backdrop value; the
+                // paint-path erase gate memoizes exactly this value.
+                Private::clearWidgetPaintMemo(widget);
             } else if (change->propertyName() == Private::effectiveBackdropProperty
                        && widget->isWindow() && widget->windowType() != Qt::Popup) {
                 // applyBackdrop just published a new effective surface for this

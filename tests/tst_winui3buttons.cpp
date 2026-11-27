@@ -830,9 +830,38 @@ void WinUI3ButtonsTest::toolbarButtonCornerSymmetry()
 void WinUI3ButtonsTest::controlRoles()
 {
     QPushButton button;
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
     WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
+
+    // The paint path memoizes the property-derived role. Every write path
+    // must invalidate it, including raw dynamic-property writes on a
+    // polished widget.
+    style->polish(&button);
+    WinUI3::Style::setControlRole(&button, WinUI3::ControlRole::Accent);
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Accent);
+    button.setProperty("_winui_control_role", int(WinUI3::ControlRole::Subtle));
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Subtle);
+    button.setProperty("_winui_control_role", QVariant());
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
+
+    button.setProperty(WinUI3::Style::ControlRoleProperty, QStringLiteral("destructive"));
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Destructive);
+    button.setProperty(WinUI3::Style::ControlRoleProperty, QVariant());
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
+
+    // The flat/default fallback is never memoized: flipping setFlat() must
+    // take effect immediately even with a memo entry present.
+    QPushButton flatButton;
+    flatButton.setFlat(true);
+    QCOMPARE(WinUI3::Style::controlRole(&flatButton), WinUI3::ControlRole::Subtle);
+    flatButton.setFlat(false);
+    QCOMPARE(WinUI3::Style::controlRole(&flatButton), WinUI3::ControlRole::Standard);
+
+    style->unpolish(&button);
+    QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
 }
 
 void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual_data()
