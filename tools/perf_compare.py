@@ -74,7 +74,7 @@ def main() -> int:
                         help="path to winui3style_render_benchmark")
     parser.add_argument("--rows", type=int, default=10000)
     parser.add_argument("--iterations", type=int, default=40)
-    parser.add_argument("--max-ratio", type=float, default=2.0,
+    parser.add_argument("--max-ratio", type=float, default=1.5,
                         help="fail when a gated scene's WinUI3Style p50 exceeds "
                              "this multiple of Fusion's p50")
     parser.add_argument("--scenes", nargs="*", default=list(DEFAULT_GATED_SCENES))

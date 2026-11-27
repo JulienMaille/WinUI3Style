@@ -42,9 +42,10 @@ WinUI3Style is measured against Qt's Fusion style with the opt-in render benchma
 | List / tree / table views, 10 000 rows | ~0.7–1.3× |
 | Single button panel paint | ~1.8× (an order of magnitude before the resting panel raster cache) |
 
-CI enforces a budget ceiling, not a baseline: the `perf-budget` job fails only when a gated
-scene exceeds 2× Fusion's p50 on the same runner, so order-of-magnitude paint regressions are
-caught without gating on runner noise. Run the comparison locally:
+CI enforces a budget ceiling, not a baseline: the `perf-budget` steps at the end of the
+linux-gcc and windows-msvc jobs fail only when a gated scene exceeds 1.5× Fusion's p50 on the
+same runner, so real paint regressions are caught without gating on runner noise. Run the
+comparison locally:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWINUI_ENABLE_TESTS=OFF \

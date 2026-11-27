@@ -237,7 +237,7 @@ jobs:
           -DWINUI3STYLE_BUILD_DEMO=ON
           -DWINUI_ENABLE_TESTS=ON
           -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
-          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+          -DWINUI3STYLE_BUILD_BENCHMARKS=ON
       - name: Build
         run: cmake --build build-linux -j"$(nproc)"
       - name: Test (exclude interactive native tests)
@@ -245,6 +245,23 @@ jobs:
         # *_unit.txt; the RUN_SERIAL snapshot matrix is Windows-only.
         run: >
           ctest --test-dir build-linux --output-on-failure -LE native -j 2
+      - name: Benchmark harness self-test
+        run: python3 tools/test_perf_compare.py
+      - name: Compare render cost with Fusion (ratio ceiling)
+        # Budget ceiling, not a baseline gate: run the render benchmark with
+        # WinUI3Style and Fusion in the same offscreen process type on the same
+        # runner, and fail only when a gated scene's p50 exceeds a fixed
+        # multiple of Fusion's (runner speed cancels out in the ratio). This
+        # catches paint regressions while never gating the snapshot red/green
+        # path (AGENTS.md: benchmarks stay opt-in; this step is the deliberate
+        # exception). The whole comparison runs in seconds;
+        # the ceiling lives in tools/perf_compare.py --max-ratio. Raise it when
+        # a documented change moves the standing ratio, never by re-running
+        # until green.
+        run: >
+          python3 tools/perf_compare.py
+          --binary build-linux/tests/benchmarks/winui3style_render_benchmark
+          --rows=10000 --iterations=40 --max-ratio 1.5
       - name: Upload test log
         if: failure()
         uses: actions/upload-artifact@v4
@@ -276,47 +293,6 @@ jobs:
             -DWINUI3STYLE_BUILD_TESTS=OFF \
             -DWINUI3STYLE_BUILD_DEMO=OFF
           test ! -d build-legacy/tests
-
-  perf-budget:
-    # Budget ceiling, not a baseline gate: run the render benchmark with
-    # WinUI3Style and Fusion in the same offscreen process type on the same
-    # runner, and fail only when a gated scene's p50 exceeds a generous
-    # multiple of Fusion's (runner speed cancels out in the ratio). This
-    # catches order-of-magnitude paint regressions while never gating the
-    # snapshot red/green path (AGENTS.md: benchmarks stay opt-in; this job is
-    # the deliberate exception, kept loose on purpose). The ceiling lives in
-    # tools/perf_compare.py --max-ratio; raise it when a documented change
-    # moves the standing ratio, never by re-running until green.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install Qt 6.8.3
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
-        with:
-          version: "6.8.3"
-          host: linux
-          target: desktop
-          arch: linux_gcc_64
-          cache: true
-          cache-key-prefix: 'qt-6.8.3-linux-gcc64-v1'
-      - name: Benchmark harness self-test
-        run: python3 tools/test_perf_compare.py
-      - name: Configure (library + benchmark only)
-        run: >
-          cmake -S . -B build-perf
-          -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
-          -DCMAKE_BUILD_TYPE=Release
-          -DWINUI3STYLE_BUILD_PLUGIN=OFF
-          -DWINUI3STYLE_BUILD_DEMO=OFF
-          -DWINUI_ENABLE_TESTS=OFF
-          -DWINUI3STYLE_BUILD_BENCHMARKS=ON
-      - name: Build
-        run: cmake --build build-perf --target winui3style_render_benchmark -j"$(nproc)"
-      - name: Compare render cost with Fusion (ratio ceiling)
-        run: >
-          python3 tools/perf_compare.py
-          --binary build-perf/tests/benchmarks/winui3style_render_benchmark
-          --rows=10000 --iterations=40 --max-ratio 2.0
 
   windows-msvc:
     # windows-2022 ships VS17 + its setup instance; windows-latest moved on and
@@ -366,14 +342,14 @@ jobs:
       - name: Prepare Windows 11 visual test font
         shell: pwsh
         run: ./tools/setup_visual_test_fonts.ps1
-      - name: Configure (${{ matrix.configuration }}, benchmarks off)
+      - name: Configure (${{ matrix.configuration }})
         run: >
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
           -DWINUI3STYLE_BUILD_PLUGIN=ON
           -DWINUI3STYLE_BUILD_DEMO=ON
           -DWINUI_ENABLE_TESTS=ON
           -DWINUI3STYLE_WARNINGS_AS_ERRORS=ON
-          -DWINUI3STYLE_BUILD_BENCHMARKS=OFF
+          -DWINUI3STYLE_BUILD_BENCHMARKS=ON
       - name: Build
         # Match the four cores on the hosted Windows runner.
         run: cmake --build build --config ${{ matrix.configuration }} --parallel 4
@@ -409,6 +385,16 @@ jobs:
           # 4-core runner without contending for shared state.
           ctest --test-dir build -C $env:BUILD_CONFIGURATION --output-on-failure -V -LE native -j 2 2>&1 |
             Tee-Object -FilePath ctest-verbose.log | Select-Object -Last 30
+      - name: Compare render cost with Fusion (ratio ceiling)
+        # Same budget ceiling as the linux-gcc job: see that step for the
+        # rationale and the threshold-change policy. Qt ships the offscreen
+        # platform plugin on Windows too, and tools/perf_compare.py selects
+        # it, so both styles are measured in the same process type.
+        shell: pwsh
+        run: >
+          python3 tools/perf_compare.py
+          --binary build/tests/benchmarks/${{ matrix.configuration }}/winui3style_render_benchmark.exe
+          --rows=10000 --iterations=40 --max-ratio 1.5
       - name: Show failing assertions
         if: failure()
         shell: pwsh

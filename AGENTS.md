@@ -24,6 +24,7 @@
   mechanism (not the screenshot), then fix; re-run the input sequence live.
 - Regressions reopen the `coverage.md` row (METHODOLOGY §6). Benchmarks stay
   opt-in and never gate snapshot correctness. The one CI exception is the
-  `perf-budget` job, a generous ratio ceiling against Fusion
-  (`tools/perf_compare.py --max-ratio`), which only fails order-of-magnitude
-  paint regressions, not measurement noise.
+  `perf-budget` steps at the end of the linux-gcc and windows-msvc jobs, a
+  ratio ceiling against Fusion (`tools/perf_compare.py --max-ratio`), which
+  only fails paint regressions well above the standing ratio, not measurement
+  noise.
