@@ -21,8 +21,8 @@ in `CMakeLists.txt` therefore:
 - links the static library into `winui3style_gallery`, whose `main()` creates
   `WinUI3::Style` directly instead of going through `QStyleFactory`.
 
-Nothing in the style implementation changes; the same widget painting,
-animation and density behavior runs in the browser.
+The browser uses the same widget painting and density implementation as the
+desktop gallery.
 
 Browser hours: each animated frame repaints the widget canvas on the browser's
 main thread, so the gallery ships an **Animate motion** checkbox that drives
@@ -43,9 +43,9 @@ git clone https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
 "$HOME/emsdk/emsdk" install 3.1.56
 "$HOME/emsdk/emsdk" activate 3.1.56
 
-python3 -m pip install --user aqtinstall
+python3 -m pip install --user aqtinstall==3.3.0
 aqt install-qt linux desktop 6.8.3 linux_gcc_64   --outputdir "$HOME/Qt"
-aqt install-qt linux desktop 6.8.3 wasm_singlethread --outputdir "$HOME/Qt"
+aqt install-qt all_os wasm 6.8.3 wasm_singlethread --autodesktop --outputdir "$HOME/Qt"
 ```
 
 The scripts need a bash shell; on Windows run them from WSL.
@@ -81,9 +81,10 @@ and keeps a small "WebAssembly demo" badge after the gallery is running.
 2. Push to `main` (or run the `wasm-gallery` workflow manually from the
    Actions tab).
 
-The workflow builds on every push and pull request; only `main` deploys. The
-site is served from `/WinUI3Style/`, and all asset URLs are relative, so no base
-path configuration is needed.
+The workflow builds on pushes to `main` and `wasm-gallery`, on pull requests,
+and on manual runs. A push to `main` or a manual run from `main` deploys.
+GitHub Pages must already be configured before that deployment runs. The site
+is served from `/WinUI3Style/`, with relative asset URLs.
 
 ## Troubleshooting
 
