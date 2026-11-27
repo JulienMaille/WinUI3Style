@@ -102,11 +102,10 @@ bool eraseButtonFamilyBackdrop(QStyle::ControlElement element, const QStyleOptio
 
 // Button panels (PushButton / ToolButton): role-driven fill, backdrop
 // recipes, toolbar/text-helper surface geometry.
-static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement element,
-                                     const QStyleOption *option, QPainter *painter,
-                                     const QWidget *widget)
+static bool drawButtonPanelPrimitive(QStyle::PrimitiveElement element, const QStyleOption *option,
+                                     QPainter *painter, const QWidget *widget, const Tokens &t,
+                                     ControlRole role)
 {
-    const Tokens t = tokens(option->palette);
     const bool enabled = option->state & QStyle::State_Enabled;
     const bool hovered = enabled && (option->state & QStyle::State_MouseOver);
     const bool pressed = enabled && (option->state & QStyle::State_Sunken);
@@ -118,7 +117,6 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
             ? qMax(progress(widget, pressProperty, pressed ? 1.0 : 0.0), pressed ? 1.0 : 0.0)
             : 0.0;
 
-    const ControlRole role = Style::controlRole(widget);
     // Qt carries the flat affordance in the style option, not in the role:
     // QPushButton sets QStyleOptionButton::Flat from isFlat(), while
     // QToolButton sets State_AutoRaise from autoRaise(). A flat QPushButton
@@ -224,12 +222,12 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
         fill = enabled ? t.accentFill : t.accentFillDisabled;
         fill = mix(fill, t.accentFillHover, hover);
         fill = mix(fill, t.accentFillPressed, press);
-        stroke = fill.darker(t.dark ? 90 : 112);
+        stroke = fill;
     } else if (role == ControlRole::Destructive) {
         fill = enabled ? t.danger : mix(t.surface, t.danger, 0.35);
         fill = mix(fill, fill.lighter(112), hover);
         fill = mix(fill, fill.darker(112), press);
-        stroke = fill.darker(112);
+        stroke = fill;
     } else if (flatSurface || role == ControlRole::Subtle || role == ControlRole::Navigation
                || (element == QStyle::PE_PanelButtonTool && widget
                    && (toolbarButton || textHelper))) {
@@ -276,6 +274,10 @@ static bool drawButtonPanelPrimitive(const Style *, QStyle::PrimitiveElement ele
         fill = mix(fill, t.controlPressed, press);
         stroke = withAlpha(t.stroke, qRound(t.stroke.alpha() * qMax(hover, press)));
     }
+
+    if (stroke.alpha() == 0 && fill.alpha() == 0
+        && painter->compositionMode() == QPainter::CompositionMode_SourceOver)
+        return true;
 
     QRectF surfaceRect = option->rect;
     if (textHelper) {
@@ -476,8 +478,10 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
         return false;
     }
 
-    if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool)
-        return drawButtonPanelPrimitive(nullptr, element, option, painter, widget);
+    if (element == QStyle::PE_PanelButtonCommand || element == QStyle::PE_PanelButtonTool) {
+        return drawButtonPanelPrimitive(element, option, painter, widget, tokens(option->palette),
+                                        Style::controlRole(widget));
+    }
 
     if (element == QStyle::PE_IndicatorCheckBox || element == QStyle::PE_IndicatorRadioButton)
         return drawIndicatorPrimitive(nullptr, element, option, painter, widget);
@@ -485,13 +489,18 @@ bool drawButtonPrimitive(const Style *, QStyle::PrimitiveElement element,
     return drawLineEditPanelPrimitive(nullptr, option, painter, widget);
 }
 
+static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option,
+                                       QPainter *painter, const QWidget *widget, const Tokens &t,
+                                       ControlRole role);
+
 static bool drawPushButtonControl(const Style *style, const QStyleOption *option, QPainter *painter,
                                   const QWidget *widget)
 {
-    const Tokens t = tokens(option->palette);
     if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
-        style->drawPrimitive(QStyle::PE_PanelButtonCommand, button, painter, widget);
-        style->drawControl(QStyle::CE_PushButtonLabel, button, painter, widget);
+        const Tokens t = tokens(button->palette);
+        const ControlRole role = Style::controlRole(widget);
+        drawButtonPanelPrimitive(QStyle::PE_PanelButtonCommand, button, painter, widget, t, role);
+        drawPushButtonLabelControl(style, button, painter, widget, t, role);
         if (button->features & QStyleOptionButton::HasMenu) {
             paintDropdownChevron(
                     painter, WinUI3::icon(Icon::ChevronDown), button->rect, button->direction,
@@ -654,12 +663,11 @@ static bool calendarHeaderNavigationButton(const QWidget *widget)
 }
 
 static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option,
-                                       QPainter *painter, const QWidget *widget)
+                                       QPainter *painter, const QWidget *widget, const Tokens &t,
+                                       ControlRole role)
 {
-    const Tokens t = tokens(option->palette);
     if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
         const bool enabled = button->state & QStyle::State_Enabled;
-        const ControlRole role = Style::controlRole(widget);
         const bool accent = role == ControlRole::Accent || role == ControlRole::Destructive
                 || ((button->state & QStyle::State_On) && role == ControlRole::Standard);
         const bool pressed = enabled && (button->state & QStyle::State_Sunken);
@@ -850,7 +858,8 @@ bool drawButtonControl(const Style *style, QStyle::ControlElement element,
     case QStyle::CE_RadioButton:
         return drawCheckRadioControl(style, element, option, painter, widget);
     case QStyle::CE_PushButtonLabel:
-        return drawPushButtonLabelControl(style, option, painter, widget);
+        return drawPushButtonLabelControl(style, option, painter, widget, tokens(option->palette),
+                                          Style::controlRole(widget));
     case QStyle::CE_ToolButtonLabel:
         return drawToolButtonLabelControl(style, option, painter, widget);
     default:
