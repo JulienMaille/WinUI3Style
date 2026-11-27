@@ -7,10 +7,14 @@
 #include <winui3style/winui3icons.h>
 
 #include <QApplication>
+#include <QCache>
+#include <QImage>
 #include <QLineF>
 #include <QLinearGradient>
+#include <QPaintEngine>
 #include <QPainter>
 #include <QStyle>
+#include <QThread>
 
 #include <cmath>
 
@@ -170,6 +174,101 @@ void controlSurface(QPainter *painter, const QRectF &rect, const QColor &fill,
     }
     const QBrush border = cached.brush;
     borderedSurface(painter, rect, fill, border, radius, strokeWidth, true);
+}
+
+namespace {
+
+struct ButtonSurfaceKey
+{
+    QSize size;
+    int scale;
+    quint64 fill;
+    quint64 strokeTop;
+    quint64 strokeBottom;
+
+    bool operator==(const ButtonSurfaceKey &other) const
+    {
+        return size == other.size && scale == other.scale && fill == other.fill
+                && strokeTop == other.strokeTop && strokeBottom == other.strokeBottom;
+    }
+};
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using CacheHash = size_t;
+#else
+using CacheHash = uint;
+#endif
+
+CacheHash qHash(const ButtonSurfaceKey &key, CacheHash seed = 0)
+{
+    seed = ::qHash(key.size.width() | key.size.height() << 9 | key.scale << 17, seed);
+    seed ^= ::qHash(key.fill, seed);
+    seed ^= ::qHash(key.strokeTop, seed);
+    return seed ^ ::qHash(key.strokeBottom, seed);
+}
+
+bool drawCachedButtonSurface(QPainter *painter, const QRect &rect, const QColor &fill,
+                             const QColor &strokeTop, const QColor &strokeBottom)
+{
+    if (rect.isEmpty() || rect.width() > 256 || rect.height() > 128 || !qApp
+        || QThread::currentThread() != qApp->thread()
+        || painter->compositionMode() != QPainter::CompositionMode_SourceOver
+        || painter->opacity() != 1.0 || painter->paintEngine()->type() != QPaintEngine::Raster
+        || fill.spec() != QColor::Rgb || strokeTop.spec() != QColor::Rgb
+        || strokeBottom.spec() != QColor::Rgb)
+        return false;
+
+    const QPaintDevice *device = painter->device();
+    if (device->devType() == QInternal::Image) {
+        const auto format = static_cast<const QImage *>(device)->format();
+        if (format != QImage::Format_ARGB32_Premultiplied && format != QImage::Format_RGB32)
+            return false;
+    } else if (device->devType() != QInternal::Widget) {
+        return false;
+    }
+
+    const qreal scale = device->devicePixelRatioF();
+    const QTransform transform = painter->deviceTransform();
+    if ((scale != 1.0 && scale != 2.0) || transform.type() > QTransform::TxScale
+        || transform.m11() != scale || transform.m22() != scale)
+        return false;
+    const QPointF origin = transform.map(QPointF(rect.topLeft()));
+    if (origin.x() != std::floor(origin.x()) || origin.y() != std::floor(origin.y()))
+        return false;
+
+    // Keep a separate byte-bounded cache for button panels. Paint the source
+    // at device resolution so the destination's backdrop still shows through.
+    constexpr int maxCacheBytes = 4 * 1024 * 1024;
+    static QCache<ButtonSurfaceKey, QImage> images(maxCacheBytes);
+    const ButtonSurfaceKey key{ rect.size(), int(scale), quint64(fill.rgba64()),
+                                quint64(strokeTop.rgba64()), quint64(strokeBottom.rgba64()) };
+    if (const QImage *cached = images.object(key)) {
+        painter->drawImage(rect.topLeft(), *cached);
+        return true;
+    }
+
+    QImage image(rect.size() * int(scale), QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+        return false;
+    image.setDevicePixelRatio(scale);
+    image.fill(Qt::transparent);
+    QPainter buffer(&image);
+    controlSurface(&buffer, QRectF(QPointF(), rect.size()), fill, strokeTop, strokeBottom,
+                   Private::ControlRadius);
+    buffer.end();
+    painter->drawImage(rect.topLeft(), image);
+    const int bytes = image.bytesPerLine() * image.height();
+    images.insert(key, new QImage(std::move(image)), bytes);
+    return true;
+}
+
+} // namespace
+
+void buttonSurface(QPainter *painter, const QRect &rect, const QColor &fill,
+                   const QColor &strokeTop, const QColor &strokeBottom, bool cacheable)
+{
+    if (!cacheable || !drawCachedButtonSurface(painter, rect, fill, strokeTop, strokeBottom))
+        controlSurface(painter, rect, fill, strokeTop, strokeBottom, Private::ControlRadius);
 }
 
 void editorSurface(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,

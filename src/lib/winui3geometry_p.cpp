@@ -66,16 +66,8 @@ qreal togglePositionFromTrackX(qreal trackX, Qt::LayoutDirection direction)
     return direction == Qt::RightToLeft ? 1.0 - visualPosition : visualPosition;
 }
 
-std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitch,
-                                    const QWidget *widget)
+std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, const QWidget *widget)
 {
-    const DensityMetrics &metrics = densityMetricsFor(widget);
-    if (toggleSwitch) {
-        if (metric == QStyle::PM_IndicatorWidth)
-            return metrics.toggleTrackWidth;
-        if (metric == QStyle::PM_IndicatorHeight)
-            return metrics.toggleTrackHeight;
-    }
     switch (metric) {
     case QStyle::PM_ButtonMargin:
         // This legacy Qt metric is not the CT_PushButton content inset.
@@ -89,23 +81,29 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
         return 1;
     case QStyle::PM_ToolTipLabelFrameWidth:
         return 6;
-    case QStyle::PM_IndicatorWidth:
-    case QStyle::PM_IndicatorHeight:
+    case QStyle::PM_IndicatorWidth: {
+        const auto &metrics = densityMetricsFor(widget);
+        return toggleSwitch(widget) ? metrics.toggleTrackWidth : metrics.indicatorSize;
+    }
+    case QStyle::PM_IndicatorHeight: {
+        const auto &metrics = densityMetricsFor(widget);
+        return toggleSwitch(widget) ? metrics.toggleTrackHeight : metrics.indicatorSize;
+    }
     case QStyle::PM_ExclusiveIndicatorWidth:
     case QStyle::PM_ExclusiveIndicatorHeight:
-        return metrics.indicatorSize;
+        return densityMetricsFor(widget).indicatorSize;
     case QStyle::PM_ScrollBarExtent:
-        return metrics.scrollBarExtent;
+        return densityMetricsFor(widget).scrollBarExtent;
     case QStyle::PM_ScrollBarSliderMin:
-        return metrics.scrollBarSliderMinimum;
+        return densityMetricsFor(widget).scrollBarSliderMinimum;
     case QStyle::PM_SliderThickness:
-        return metrics.sliderThickness;
+        return densityMetricsFor(widget).sliderThickness;
     case QStyle::PM_SliderLength:
-        return metrics.sliderLength;
+        return densityMetricsFor(widget).sliderLength;
     case QStyle::PM_TabCloseIndicatorWidth:
-        return metrics.tabCloseWidth;
+        return densityMetricsFor(widget).tabCloseWidth;
     case QStyle::PM_TabCloseIndicatorHeight:
-        return metrics.tabCloseHeight;
+        return densityMetricsFor(widget).tabCloseHeight;
     case QStyle::PM_SmallIconSize:
     case QStyle::PM_ButtonIconSize:
         // Qt sizes a dock title button's glyph from PM_SmallIconSize and paints
@@ -145,7 +143,7 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
                                              ->sizeFromContents(QStyle::CT_LineEdit, &editor,
                                                                 QSize(), header->parentWidget())
                                              .height();
-            if (editorHeight + 1 <= metrics.tableItemHeight)
+            if (editorHeight + 1 <= densityMetrics(DensityMode::Compact).tableItemHeight)
                 return CompactItemViewHeaderVerticalPadding;
             return qMax(CompactItemViewHeaderVerticalPadding,
                         (editorHeight + 2 - header->fontMetrics().height()) / 2);
@@ -159,7 +157,7 @@ std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitc
         if (const auto *header = qobject_cast<const QHeaderView *>(widget); header
             && qobject_cast<const QTableView *>(header->parentWidget())
             && header->parentWidget()->objectName() != QLatin1String("qt_calendar_calendarview"))
-            return metrics.tableItemHeight;
+            return densityMetricsFor(widget).tableItemHeight;
         return 36;
     case QStyle::PM_HeaderDefaultSectionSizeHorizontal:
         return 100;

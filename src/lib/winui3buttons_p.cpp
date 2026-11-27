@@ -17,20 +17,25 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QCommandLinkButton>
+#include <QFontMetrics>
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QStyleOptionButton>
 #include <QStyleOptionFrame>
 #include <QStyleOptionToolButton>
+#include <QThread>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVariant>
 
+#include <array>
 #include <cmath>
+#include <optional>
 
 namespace WinUI3::Private {
 using namespace PaintPrivate;
@@ -294,15 +299,16 @@ static bool drawButtonPanelPrimitive(QStyle::PrimitiveElement element, const QSt
         // centres at fractional scaling factors.
         surfaceRect = devicePixelCenteredRect(painter, surfaceRect);
     }
+    const bool cacheable = element == QStyle::PE_PanelButtonCommand
+            && hover == 0.0 && press == 0.0;
     if (stroke.alpha() == 0) {
         roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
     } else if (role == ControlRole::Accent || role == ControlRole::Destructive
                || ((option->state & QStyle::State_On) && role == ControlRole::Standard)) {
-        controlSurface(painter, surfaceRect.toRect(), fill, t.accentStroke, t.accentStrokeSecondary,
-                       ControlRadius);
+        buttonSurface(painter, surfaceRect.toRect(), fill, t.accentStroke, t.accentStrokeSecondary,
+                      cacheable);
     } else {
-        controlSurface(painter, surfaceRect.toRect(), fill, t.stroke, t.strokeSecondary,
-                       ControlRadius);
+        buttonSurface(painter, surfaceRect.toRect(), fill, t.stroke, t.strokeSecondary, cacheable);
     }
     return true;
 }
@@ -662,6 +668,41 @@ static bool calendarHeaderNavigationButton(const QWidget *widget)
             && bar->parentWidget() && bar->parentWidget()->inherits("QCalendarWidget");
 }
 
+static int pushButtonTextWidth(const QStyleOptionButton &button)
+{
+    const auto &text = button.text;
+    const auto &metrics = button.fontMetrics;
+    if (text.isEmpty())
+        return 0;
+    if (text.size() > 128 || !qApp || QThread::currentThread() != qApp->thread())
+        return metrics.horizontalAdvance(text);
+
+    struct Measurement
+    {
+        QString text;
+        QFontMetrics metrics;
+        int width;
+    };
+    // Keep the layout's original font metrics and width. The cache only
+    // lives on the GUI thread, and font database changes can alter shaping
+    // even for an otherwise unchanged font and label.
+    constexpr size_t cacheSize = 256;
+    static std::array<std::optional<Measurement>, cacheSize> widths;
+    static QPointer<QApplication> application;
+    if (application != qApp) {
+        application = qApp;
+        widths = {};
+        QObject::connect(qApp, &QGuiApplication::fontDatabaseChanged, qApp, [] { widths = {}; });
+    }
+    auto &measurement = widths[qHash(text) % widths.size()];
+    if (measurement && measurement->text == text && measurement->metrics == metrics)
+        return measurement->width;
+    const int width = metrics.horizontalAdvance(text);
+    // A style option is also allowed to contain an externally backed string.
+    measurement = Measurement{ QString(text.constData(), text.size()), metrics, width };
+    return width;
+}
+
 static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *option,
                                        QPainter *painter, const QWidget *widget, const Tokens &t,
                                        ControlRole role)
@@ -688,8 +729,7 @@ static bool drawPushButtonLabelControl(const Style *style, const QStyleOption *o
             const QRect logical = content.adjusted(0, 0, -22, 0);
             content = QStyle::visualRect(button->direction, button->rect, logical);
         }
-        const QFontMetrics metrics(button->fontMetrics);
-        const int textWidth = button->text.isEmpty() ? 0 : metrics.horizontalAdvance(button->text);
+        const int textWidth = pushButtonTextWidth(*button);
         const QSize iconSize = button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
         const bool hasIcon = !button->icon.isNull();
         const int gap = hasIcon && textWidth > 0 ? 8 : 0;
@@ -769,8 +809,11 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
         const QSize iconSize = clearHelper
                 ? QSize(12, 12)
                 : (tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16));
-        const QFontMetrics metrics(tool->fontMetrics);
-        const int textWidth = tool->text.isEmpty() ? 0 : metrics.horizontalAdvance(tool->text);
+        const bool needsTextWidth = hasIcon && (buttonStyle == Qt::ToolButtonTextBesideIcon
+                                                || buttonStyle == Qt::ToolButtonTextUnderIcon);
+        const int textWidth = needsTextWidth && !tool->text.isEmpty()
+                ? tool->fontMetrics.horizontalAdvance(tool->text)
+                : 0;
         if (hasArrow) {
             // Stock QToolButton::setArrowType() carries no QIcon; map the
             // requested standard arrow to the matching Fluent chevron.

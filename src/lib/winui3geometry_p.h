@@ -17,8 +17,7 @@ namespace WinUI3::Private {
 // null or default-constructed option, e.g. QMenuBar geometry). A null option
 // yields std::nullopt / SC_None rather than dereferencing; callers must
 // treat nullopt as "no WinUI override, fall back to base QStyle".
-std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, bool toggleSwitch,
-                                    const QWidget *widget = nullptr);
+std::optional<int> pixelMetricValue(QStyle::PixelMetric metric, const QWidget *widget);
 
 // The toggle track is a fixed 40 x 20 logical-pixel slot.  Keep its layout
 // direction math in one place so painting and pointer interaction cannot

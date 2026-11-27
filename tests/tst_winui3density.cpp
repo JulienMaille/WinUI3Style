@@ -5,18 +5,37 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QFontMetrics>
+#include <QHeaderView>
 #include <QLineEdit>
 #include <QProxyStyle>
 #include <QSpinBox>
+#include <QStyleOptionButton>
 #include <QStyleOptionComboBox>
 #include <QStyleOptionFrame>
 #include <QStyleOptionSpinBox>
+#include <QTableView>
 #include <QWidget>
 #include <QtTest>
 
 using WinUI3::Private::densityMetrics;
 using WinUI3::Private::DensityMode;
 using WinUI3::Private::densityModeFor;
+
+class DensityReadProbe final : public QWidget
+{
+    Q_OBJECT
+    Q_PROPERTY(int winuiDensity READ density)
+
+public:
+    int mode = 0;
+    mutable int reads = 0;
+
+    int density() const
+    {
+        ++reads;
+        return mode;
+    }
+};
 
 class WinUI3DensityTest final : public QObject
 {
@@ -29,6 +48,8 @@ private slots:
     void nullWidgetUsesApplicationStyleDensity();
     void nullWidgetSizingUsesReceiverStyleDensity_data();
     void nullWidgetSizingUsesReceiverStyleDensity();
+    void onlyDensityDependentQueriesReadDensity_data();
+    void onlyDensityDependentQueriesReadDensity();
 };
 
 void WinUI3DensityTest::profilesExposeDocumentedSizing()
@@ -160,6 +181,37 @@ void WinUI3DensityTest::nullWidgetSizingUsesReceiverStyleDensity()
     QCOMPARE(
             receiver.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, nullptr).height(),
             receiver.sizeFromContents(QStyle::CT_ComboBox, &comboOption, content, &combo).height());
+}
+
+void WinUI3DensityTest::onlyDensityDependentQueriesReadDensity_data()
+{
+    QTest::addColumn<int>("mode");
+    QTest::newRow("standard") << 0;
+    QTest::newRow("compact") << 1;
+}
+
+void WinUI3DensityTest::onlyDensityDependentQueriesReadDensity()
+{
+    QFETCH(int, mode);
+    WinUI3::Style style;
+    DensityReadProbe parent;
+    parent.mode = mode;
+    QWidget child(&parent);
+    QTableView table(&parent);
+    QStyleOptionButton button;
+    button.rect = QRect(0, 0, 100, 32);
+
+    parent.reads = 0;
+    QCOMPARE(style.pixelMetric(QStyle::PM_SmallIconSize, nullptr, &child), 16);
+    QCOMPARE(style.subElementRect(QStyle::SE_PushButtonContents, &button, &child),
+             QRect(8, 3, 84, 24));
+    QCOMPARE(parent.reads, 0);
+
+    QCOMPARE(style.pixelMetric(QStyle::PM_HeaderDefaultSectionSizeVertical, nullptr,
+                               table.verticalHeader()),
+             densityMetrics(mode == 1 ? DensityMode::Compact : DensityMode::Standard)
+                     .tableItemHeight);
+    QCOMPARE(parent.reads, 1);
 }
 
 QTEST_MAIN(WinUI3DensityTest)
