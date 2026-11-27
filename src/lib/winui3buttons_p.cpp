@@ -299,8 +299,7 @@ static bool drawButtonPanelPrimitive(QStyle::PrimitiveElement element, const QSt
         // centres at fractional scaling factors.
         surfaceRect = devicePixelCenteredRect(painter, surfaceRect);
     }
-    const bool cacheable = element == QStyle::PE_PanelButtonCommand
-            && hover == 0.0 && press == 0.0;
+    const bool cacheable = element == QStyle::PE_PanelButtonCommand && hover == 0.0 && press == 0.0;
     if (stroke.alpha() == 0) {
         roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
     } else if (role == ControlRole::Accent || role == ControlRole::Destructive
@@ -809,8 +808,9 @@ static bool drawToolButtonLabelControl(const Style *style, const QStyleOption *o
         const QSize iconSize = clearHelper
                 ? QSize(12, 12)
                 : (tool->iconSize.isValid() ? tool->iconSize : QSize(16, 16));
-        const bool needsTextWidth = hasIcon && (buttonStyle == Qt::ToolButtonTextBesideIcon
-                                                || buttonStyle == Qt::ToolButtonTextUnderIcon);
+        const bool needsTextWidth = hasIcon
+                && (buttonStyle == Qt::ToolButtonTextBesideIcon
+                    || buttonStyle == Qt::ToolButtonTextUnderIcon);
         const int textWidth = needsTextWidth && !tool->text.isEmpty()
                 ? tool->fontMetrics.horizontalAdvance(tool->text)
                 : 0;

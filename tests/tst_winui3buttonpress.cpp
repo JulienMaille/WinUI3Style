@@ -495,7 +495,8 @@ void WinUI3ButtonPressTest::cachedButtonPanelCompositesOverCurrentBackground()
         painter.end();
         QPainter reference(&direct);
         WinUI3::PaintPrivate::controlSurface(&reference, option.rect, tokens.control, tokens.stroke,
-                                             tokens.strokeSecondary, WinUI3::Private::ControlRadius);
+                                             tokens.strokeSecondary,
+                                             WinUI3::Private::ControlRadius);
         reference.end();
 
         QCOMPARE(actual.pixelColor(0, 0), background);
