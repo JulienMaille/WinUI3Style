@@ -17,6 +17,7 @@
 #include <QThread>
 
 #include <cmath>
+#include <cstring>
 
 namespace WinUI3::PaintPrivate {
 
@@ -181,14 +182,14 @@ namespace {
 struct ButtonSurfaceKey
 {
     QSize size;
-    int scale;
+    quint64 scaleBits;
     quint64 fill;
     quint64 strokeTop;
     quint64 strokeBottom;
 
     bool operator==(const ButtonSurfaceKey &other) const
     {
-        return size == other.size && scale == other.scale && fill == other.fill
+        return size == other.size && scaleBits == other.scaleBits && fill == other.fill
                 && strokeTop == other.strokeTop && strokeBottom == other.strokeBottom;
     }
 };
@@ -201,7 +202,8 @@ using CacheHash = uint;
 
 CacheHash qHash(const ButtonSurfaceKey &key, CacheHash seed = 0)
 {
-    seed = ::qHash(key.size.width() | key.size.height() << 9 | key.scale << 17, seed);
+    seed = ::qHash(key.size.width() | key.size.height() << 9, seed);
+    seed ^= ::qHash(key.scaleBits, seed);
     seed ^= ::qHash(key.fill, seed);
     seed ^= ::qHash(key.strokeTop, seed);
     return seed ^ ::qHash(key.strokeBottom, seed);
@@ -229,7 +231,7 @@ bool drawCachedButtonSurface(QPainter *painter, const QRect &rect, const QColor 
 
     const qreal scale = device->devicePixelRatioF();
     const QTransform transform = painter->deviceTransform();
-    if ((scale != 1.0 && scale != 2.0) || transform.type() > QTransform::TxScale
+    if (scale < 1.0 || scale > 2.5 || transform.type() > QTransform::TxScale
         || transform.m11() != scale || transform.m22() != scale)
         return false;
     const QPointF origin = transform.map(QPointF(rect.topLeft()));
@@ -240,14 +242,17 @@ bool drawCachedButtonSurface(QPainter *painter, const QRect &rect, const QColor 
     // at device resolution so the destination's backdrop still shows through.
     constexpr int maxCacheBytes = 4 * 1024 * 1024;
     static QCache<ButtonSurfaceKey, QImage> images(maxCacheBytes);
-    const ButtonSurfaceKey key{ rect.size(), int(scale), quint64(fill.rgba64()),
+    quint64 scaleBits = 0;
+    std::memcpy(&scaleBits, &scale, sizeof(scaleBits));
+    const ButtonSurfaceKey key{ rect.size(), scaleBits, quint64(fill.rgba64()),
                                 quint64(strokeTop.rgba64()), quint64(strokeBottom.rgba64()) };
     if (const QImage *cached = images.object(key)) {
         painter->drawImage(rect.topLeft(), *cached);
         return true;
     }
 
-    QImage image(rect.size() * int(scale), QImage::Format_ARGB32_Premultiplied);
+    QImage image(QSize(qRound(rect.width() * scale), qRound(rect.height() * scale)),
+                 QImage::Format_ARGB32_Premultiplied);
     if (image.isNull())
         return false;
     image.setDevicePixelRatio(scale);
