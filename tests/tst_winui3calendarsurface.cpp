@@ -59,6 +59,7 @@ private slots:
     void calendarPopupBorderStroke();
     void styleReplacementQueuesCalendarPopupBorderDeletion();
     void calendarNavigationBarLaneSharesOpaqueSurface();
+    void calendarPopupBarFallbackHasSingleSurface();
     void calendarKeepPathRebasesTextRolesAcrossThemeSwitch();
     void calendarCaptionUsesPinnedForeground_data();
     void calendarCaptionUsesPinnedForeground();
@@ -729,6 +730,35 @@ void WinUI3CalendarSurfaceTest::calendarCaptionUsesPinnedForeground()
         }
     }
     calendar->hide();
+}
+
+void WinUI3CalendarSurfaceTest::calendarPopupBarFallbackHasSingleSurface()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QWidget popup(nullptr, Qt::Popup);
+    QCalendarWidget calendar(&popup);
+    auto *navigation = calendar.findChild<QWidget *>(QStringLiteral("qt_calendar_navigationbar"));
+    QVERIFY2(navigation, "calendar navigation bar must exist");
+
+    QPalette palette = style->standardPalette();
+    QColor tint = palette.color(QPalette::Window);
+    tint.setAlpha(178);
+    palette.setColor(QPalette::Window, tint);
+    popup.setPalette(palette);
+    const QColor opaqueSurface = WinUI3::Private::popupSurfaceColor(palette);
+
+    QStyleOption option;
+    option.initFrom(navigation);
+    option.rect = QRect(0, 0, 200, 32);
+    QImage frame(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    frame.fill(opaqueSurface);
+    {
+        QPainter painter(&frame);
+        style->drawPrimitive(QStyle::PE_Widget, &option, &painter, navigation);
+    }
+    QCOMPARE(frame.pixelColor(QPoint(0, 0)), opaqueSurface);
+    QCOMPARE(frame.pixelColor(QPoint(100, 16)), opaqueSurface);
 }
 
 QTEST_MAIN(WinUI3CalendarSurfaceTest)
