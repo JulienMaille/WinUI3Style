@@ -42,6 +42,10 @@ WinUI3Style is measured against Qt's Fusion style with the opt-in render benchma
 | List / tree / table views, 10 000 rows | ~0.7–1.3× |
 | Single button panel paint | ~1.8× (an order of magnitude before the resting panel raster cache) |
 
+Known platform gap: on Windows with Qt 6.8.3 the rich-surface scene measures ~1.8× Fusion
+(Qt 6.12.1 measures ~0.8×), a Qt 6.8 raster characteristic queued for optimization. The
+Windows perf-budget step therefore carries a standing 2.0 ceiling for that scene only.
+
 CI enforces a budget ceiling, not a baseline: the `perf-budget` steps at the end of the
 linux-gcc and windows-msvc jobs fail only when a gated scene exceeds 1.5× Fusion's p50 on the
 same runner, so real paint regressions are caught without gating on runner noise. Run the

@@ -43,16 +43,26 @@ def ratios(candidate: dict[str, float], baseline: dict[str, float]) -> dict[str,
 
 
 def evaluate(scene_ratios: dict[str, float], gated: tuple[str, ...],
-             max_ratio: float) -> list[str]:
-    """Return human-readable failures for gated scenes above the ceiling."""
+             max_ratio: float,
+             ceilings: dict[str, float] | None = None) -> list[str]:
+    """Return human-readable failures for gated scenes above the ceiling.
+
+    ``ceilings`` maps a scene name to a per-scene ceiling that overrides
+    ``max_ratio``; use it to document a standing platform-specific ratio
+    instead of silently disabling the gate for that scene.
+    """
+    ceilings = ceilings or {}
     failures = []
     for name in gated:
         ratio = scene_ratios.get(name)
         if ratio is None:
             failures.append(f"scene '{name}' missing from one benchmark run")
-        elif ratio > max_ratio:
-            failures.append(
-                f"scene '{name}' p50 ratio {ratio:.2f} exceeds ceiling {max_ratio:.2f}")
+        else:
+            ceiling = ceilings.get(name, max_ratio)
+            if ratio > ceiling:
+                failures.append(
+                    f"scene '{name}' p50 ratio {ratio:.2f} exceeds ceiling "
+                    f"{ceiling:.2f}")
     return failures
 
 
@@ -68,6 +78,17 @@ def run_benchmark(binary: Path, style: str, rows: int, iterations: int,
     return report
 
 
+def parse_ceiling_spec(specs: list[str]) -> dict[str, float]:
+    """Parse --ceiling SCENE=RATIO arguments into a per-scene map."""
+    ceilings: dict[str, float] = {}
+    for spec in specs:
+        name, separator, value = spec.partition("=")
+        if not separator or not name or not value:
+            raise ValueError(f"--ceiling expects SCENE=RATIO, got {spec!r}")
+        ceilings[name] = float(value)
+    return ceilings
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True,
@@ -78,6 +99,9 @@ def main() -> int:
                         help="fail when a gated scene's WinUI3Style p50 exceeds "
                              "this multiple of Fusion's p50")
     parser.add_argument("--scenes", nargs="*", default=list(DEFAULT_GATED_SCENES))
+    parser.add_argument("--ceiling", action="append", default=[], metavar="SCENE=RATIO",
+                        help="per-scene ceiling override of --max-ratio, e.g. "
+                             "--ceiling rich-surface-icons=2.0")
     parser.add_argument("--report-only", action="store_true",
                         help="print the comparison without failing")
     options = parser.parse_args()
@@ -99,7 +123,9 @@ def main() -> int:
 
     if options.report_only:
         return 0
-    failures = evaluate(scene_ratios, tuple(options.scenes), options.max_ratio)
+    ceilings = parse_ceiling_spec(options.ceiling)
+    failures = evaluate(scene_ratios, tuple(options.scenes), options.max_ratio,
+                        ceilings)
     for failure in failures:
         print(f"::error::{failure}", file=sys.stderr)
     return 1 if failures else 0

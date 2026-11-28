@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from perf_compare import evaluate, parse_report, ratios
+from perf_compare import evaluate, parse_ceiling_spec, parse_report, ratios
 
 
 SAMPLE_OUTPUT = """\
@@ -61,6 +61,34 @@ class EvaluateTest(unittest.TestCase):
     def test_passes_at_and_below_ceiling(self):
         self.assertEqual(evaluate({"dense-chrome": 2.0}, ("dense-chrome",), 2.0), [])
         self.assertEqual(evaluate({"dense-chrome": 1.2}, ("dense-chrome",), 2.0), [])
+
+    def test_per_scene_ceiling_overrides_default(self):
+        self.assertEqual(
+            evaluate({"rich-surface-icons": 1.79}, ("rich-surface-icons",), 1.5,
+                     {"rich-surface-icons": 2.0}),
+            [])
+        failures = evaluate({"rich-surface-icons": 2.1}, ("rich-surface-icons",), 1.5,
+                            {"rich-surface-icons": 2.0})
+        self.assertEqual(len(failures), 1)
+        self.assertIn("exceeds ceiling 2.00", failures[0])
+
+    def test_unlisted_scenes_keep_default_ceiling(self):
+        failures = evaluate({"dense-chrome": 1.6, "rich-surface-icons": 1.79},
+                            ("dense-chrome", "rich-surface-icons"), 1.5,
+                            {"rich-surface-icons": 2.0})
+        self.assertEqual(len(failures), 1)
+        self.assertIn("dense-chrome", failures[0])
+
+
+class ParseCeilingTest(unittest.TestCase):
+    def test_parses_name_ratio_pairs(self):
+        self.assertEqual(parse_ceiling_spec(["a=2.0", "b=3"]), {"a": 2.0, "b": 3.0})
+
+    def test_rejects_malformed_spec(self):
+        with self.assertRaises(ValueError):
+            parse_ceiling_spec(["no-separator"])
+        with self.assertRaises(ValueError):
+            parse_ceiling_spec(["=2.0"])
 
 
 if __name__ == "__main__":
