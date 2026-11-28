@@ -376,6 +376,9 @@ void WinUI3TableHeaderTest::tableCellKeepsFittingText_data()
     QTest::addColumn<QString>("text");
     QTest::addColumn<int>("fontSize");
     QTest::addColumn<int>("width");
+    QTest::newRow("single-line") << QStringLiteral("Rich 10/2") << 14 << 100;
+    QTest::newRow("edge-spaces") << QStringLiteral("  Rich 10/2  ") << 14 << 160;
+    QTest::newRow("mixed-script") << QStringLiteral("Status حالة") << 17 << 160;
     QTest::newRow("tabs") << QStringLiteral("A\tB") << 14 << 50;
     QTest::newRow("carriage-return") << QStringLiteral("A\rB") << 14 << 50;
     QTest::newRow("fractional-line-height")
