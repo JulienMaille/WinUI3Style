@@ -9,6 +9,7 @@
 // next lookup; the style's event filter (QDynamicPropertyChange) and
 // Style::unpolish() invalidate entries when the underlying property changes.
 
+#include <winui3style/winui3global.h>
 #include <winui3style/winui3style.h>
 
 #include <QPointer>
@@ -27,15 +28,16 @@ struct MemoizedControlRole
     ControlRole role = ControlRole::Standard;
 };
 
-std::optional<MemoizedControlRole> memoizedControlRole(const QWidget *widget);
-void memoizeControlRole(const QWidget *widget, bool propertyValid, ControlRole role);
+WINUI3STYLE_EXPORT std::optional<MemoizedControlRole> memoizedControlRole(const QWidget *widget);
+WINUI3STYLE_EXPORT void memoizeControlRole(const QWidget *widget, bool propertyValid,
+                                           ControlRole role);
 
 // Cached raw value of "_winui_backdrop" on a window, using QWidget::property
 // toInt() semantics (an absent property reads as 0). nullopt means "resolve
 // live"; callers store the resolved value back through memoizeWindowBackdrop.
-std::optional<int> memoizedWindowBackdrop(const QWidget *window);
-void memoizeWindowBackdrop(const QWidget *window, int backdrop);
+WINUI3STYLE_EXPORT std::optional<int> memoizedWindowBackdrop(const QWidget *window);
+WINUI3STYLE_EXPORT void memoizeWindowBackdrop(const QWidget *window, int backdrop);
 
-void clearWidgetPaintMemo(const QWidget *widget);
+WINUI3STYLE_EXPORT void clearWidgetPaintMemo(const QWidget *widget);
 
 } // namespace WinUI3::Private
