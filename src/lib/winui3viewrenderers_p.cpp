@@ -161,9 +161,8 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
             qreal left = rect.left();
             if (alignment & Qt::AlignRight) {
                 left += rect.width() - line.horizontalAdvance();
-                if (textOption.textDirection() == Qt::RightToLeft
-                    || (textOption.textDirection() == Qt::LayoutDirectionAuto
-                        && normalized.isRightToLeft())) {
+                if (direction == Qt::RightToLeft
+                    || (direction == Qt::LayoutDirectionAuto && normalized.isRightToLeft())) {
                     const int end = line.textStart() + line.textLength();
                     int trailing = end;
                     while (trailing > line.textStart() && normalized.at(trailing - 1).isSpace())
