@@ -2,6 +2,7 @@
 #include <winui3style/winui3style.h>
 #include <winui3style/winui3icons.h>
 
+#include "../src/lib/winui3frameproperties_p.h"
 #include "../src/lib/winui3helpers_p.h"
 #include "../src/lib/winui3style_properties_p.h"
 #include "../src/lib/winui3tokens_p.h"
@@ -49,6 +50,7 @@ private slots:
     void dockTitleLargeFont_data();
     void dockTitleLargeFont();
     void dockTitleModifiedPlaceholder();
+    void dockResizeHandleIgnoresHostHover();
 };
 
 void WinUI3DockTitlesTest::initTestCase()
@@ -579,6 +581,43 @@ void WinUI3DockTitlesTest::dockTitleButtonBackdrop()
             QCOMPARE(frame, first); // No accumulation or command-shaped alpha holes.
         }
     }
+}
+
+void WinUI3DockTitlesTest::dockResizeHandleIgnoresHostHover()
+{
+    auto *style = qobject_cast<WinUI3::Style *>(qApp->style());
+    QVERIFY(style);
+    QMainWindow window;
+    auto *dock = new QDockWidget(&window);
+    window.addDockWidget(Qt::LeftDockWidgetArea, dock);
+
+    QStyleOption option;
+    option.initFrom(&window);
+    option.rect = QRect(0, 0, 24, 200);
+    option.state = QStyle::State_Enabled;
+    const auto render = [&](QWidget *host, QStyle::State state) {
+        option.state = QStyle::State_Enabled | state;
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        style->drawPrimitive(QStyle::PE_IndicatorDockWidgetResizeHandle, &option, &painter, host);
+        painter.end();
+        return image;
+    };
+    WinUI3::Private::framePropertyRegistry().set(&window, "_winui_hover_progress", 0.0);
+    const QImage rest = render(&window, QStyle::State(0));
+    // The host's hover animation must not change the separator: this is what
+    // made the grip light up whenever the pointer entered the application.
+    WinUI3::Private::framePropertyRegistry().set(&window, "_winui_hover_progress", 1.0);
+    const QImage hostHovered = render(&window, QStyle::State(0));
+    QCOMPARE(hostHovered, rest);
+    WinUI3::Private::framePropertyRegistry().set(dock, "_winui_hover_progress", 1.0);
+    const QImage dockHovered = render(dock, QStyle::State(0));
+    QCOMPARE(dockHovered, rest);
+
+    // The grip's own MouseOver state still changes the ink.
+    const QImage handleHovered = render(nullptr, QStyle::State_MouseOver);
+    QVERIFY(handleHovered != rest);
 }
 
 QTEST_MAIN(WinUI3DockTitlesTest)
