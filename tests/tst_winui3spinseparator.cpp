@@ -21,6 +21,7 @@ private slots:
     void initTestCase();
     void verticalSeparatorMatchesSplitButtonInset_data();
     void verticalSeparatorMatchesSplitButtonInset();
+    void compactVerticalNumberBoxKeepsTwoToOneRatio();
 };
 
 void WinUI3SpinSeparatorTest::initTestCase()
@@ -77,6 +78,37 @@ void WinUI3SpinSeparatorTest::verticalSeparatorMatchesSplitButtonInset()
     for (const int y : { edit.top() + 1, edit.bottom() - 1 }) {
         QCOMPARE(frame.pixelColor(separatorX, y), frame.pixelColor(insideX, y));
     }
+}
+
+void WinUI3SpinSeparatorTest::compactVerticalNumberBoxKeepsTwoToOneRatio()
+{
+    QSpinBox spin;
+    WinUI3::Style::setVerticalSpinButtons(&spin);
+    spin.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
+    spin.resize(150, 24);
+    spin.show();
+
+    QStyleOptionSpinBox option;
+    option.initFrom(&spin);
+    option.rect = spin.rect();
+    option.frame = true;
+    option.buttonSymbols = spin.buttonSymbols();
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+    option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
+            | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+
+    const QRect edit = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxEditField, &spin);
+    const QRect up =
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
+    const QRect down = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxDown, &spin);
+    // Standard is 32x16 per half; Compact's 24 px editor scales both axes,
+    // keeping the same 2:1 ratio instead of squeezing only the height.
+    QCOMPARE(up.size(), QSize(24, 12));
+    QCOMPARE(down.size(), QSize(24, 12));
+    QCOMPARE(edit.right() + 1, up.left());
+    QCOMPARE(up.bottom() + 1, down.top());
 }
 
 QTEST_MAIN(WinUI3SpinSeparatorTest)
