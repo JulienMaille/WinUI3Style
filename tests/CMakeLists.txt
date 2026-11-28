@@ -669,7 +669,11 @@ foreach(_target IN LISTS _winui3style_linked_test_targets)
 endforeach()
 
 if(TEST winui3style_galleryprobe_standalone)
+    # The standalone probe runs the full gallery for minutes; sharing the
+    # runner with the timing-sensitive interaction unit made its coalescing
+    # timer miss its qWait(550) window (run 46122142707).
     set_tests_properties(winui3style_galleryprobe_standalone PROPERTIES
+        RUN_SERIAL TRUE
         ENVIRONMENT "${_winui3style_test_environment}")
 endif()
 
