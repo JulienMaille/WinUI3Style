@@ -131,8 +131,10 @@ bool drawEditorComplexControl(const Style *style, QStyle::ComplexControl control
                         spin->direction == Qt::RightToLeft ? editField.left() : editField.right();
                 painter->save();
                 painter->setPen(QPen(t.stroke, 1, Qt::SolidLine, Qt::FlatCap));
-                painter->drawLine(separatorX, spin->rect.top() + 1, separatorX,
-                                  spin->rect.bottom() - 1);
+                // Match the SplitButton divider: a 1px line inset 4 px from
+                // both ends of the edit field, not a full-height rule.
+                painter->drawLine(separatorX, editField.top() + 4, separatorX,
+                                  editField.bottom() - 4);
                 painter->restore();
             }
             if (focused)
