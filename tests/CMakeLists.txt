@@ -9,6 +9,7 @@ set(_winui3style_split_tests
     winui3style_tabs_tests tst_winui3tabs.cpp
     winui3style_apppalette_tests tst_winui3apppalette.cpp
     winui3style_menus_tests tst_winui3menus.cpp
+    winui3style_menusurface_tests tst_winui3menusurface.cpp
     winui3style_editors_tests tst_winui3editors.cpp
     winui3style_combobox_tests tst_winui3combobox.cpp
     winui3style_editablecombo_tests tst_winui3editablecombo.cpp
@@ -457,6 +458,7 @@ endif()
 # for both the Windows runtime DLL copy and the common test environment.
 set(_winui3style_linked_test_targets
         winui3style_buttons_tests
+        winui3style_menusurface_tests
         winui3style_paintmemo_tests
         winui3style_buttonpress_tests
         winui3style_toggles_tests
@@ -529,6 +531,7 @@ endif()
 # from an outer test runner or developer shell.
 foreach(_split_target IN ITEMS
         winui3style_buttons_tests
+        winui3style_menusurface_tests
         winui3style_paintmemo_tests
         winui3style_buttonpress_tests
         winui3style_toggles_tests
