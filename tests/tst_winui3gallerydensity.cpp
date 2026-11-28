@@ -251,6 +251,9 @@ void WinUI3GalleryDensityTest::galleryTreeRowHighlight()
 void WinUI3GalleryDensityTest::galleryDensityPanelsExposeVerticalNumberBoxes()
 {
     GalleryWindow gallery;
+    gallery.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&gallery));
+    QCoreApplication::processEvents();
     for (const QString prefix : { QStringLiteral("standard"), QStringLiteral("compact") }) {
         auto *panel = gallery.findChild<QFrame *>(prefix + QStringLiteral("DensityPanel"));
         auto *spin =
@@ -260,7 +263,13 @@ void WinUI3GalleryDensityTest::galleryDensityPanelsExposeVerticalNumberBoxes()
         QVERIFY2(panel && spin && label, qPrintable(prefix));
         QVERIFY(WinUI3::Style::hasVerticalSpinButtons(spin));
         QCOMPARE(spin->value(), 42);
-        QCOMPARE(spin->minimumWidth(), 150);
+        auto *horizontal = gallery.findChild<QSpinBox *>(prefix + QStringLiteral("DensityNumber"));
+        QVERIFY(horizontal);
+        QVERIFY2(spin->width() >= horizontal->width() - 1,
+                 qPrintable(QStringLiteral("%1 vertical NumberBox is narrower: %2 vs %3")
+                                    .arg(prefix)
+                                    .arg(spin->width())
+                                    .arg(horizontal->width())));
         QVERIFY(!label->text().isEmpty());
         QCOMPARE(panel->property("winuiDensity").toString(),
                  prefix == QStringLiteral("standard") ? QStringLiteral("standard")
