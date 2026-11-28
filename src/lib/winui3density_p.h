@@ -124,7 +124,8 @@ inline constexpr DensityMetrics makeStandardDensityMetrics()
     m.spinButtonWidth = 36;
     m.verticalSpinButtonWidth = 32;
     m.comboArrowWidth = 38;
-    m.toolButtonMenuWidth = 24;
+    // SplitButton_themeresources.xaml (9f89c2da): SecondaryButtonColumn Width="23".
+    m.toolButtonMenuWidth = 23;
     // Insets.
     m.buttonHorizontalPadding = 12;
     m.buttonVerticalPadding = 6;
@@ -194,7 +195,8 @@ inline constexpr DensityMetrics makeCompactDensityMetrics()
     // each half at 24x12, the same 2:1 ratio as Standard's 32x16 halves.
     m.verticalSpinButtonWidth = 24;
     m.comboArrowWidth = 30;
-    m.toolButtonMenuWidth = 24;
+    // SplitButton_themeresources.xaml (9f89c2da): SecondaryButtonColumn Width="23".
+    m.toolButtonMenuWidth = 23;
     // Insets follow only the controls whose template is compacted.
     m.buttonHorizontalPadding = 12;
     m.buttonVerticalPadding = 6;

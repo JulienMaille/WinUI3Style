@@ -28,7 +28,9 @@
 #include <QTableView>
 #include <QTabBar>
 #include <QTest>
+#include <QToolButton>
 #include <QToolTip>
+#include <QStyleOptionToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -56,6 +58,7 @@ private slots:
     void inheritedLocalProperty();
     void runtimeInvalidatesLayout();
     void geometryContractsAndInvariants();
+    void splitButtonMenuWidthMatchesPinnedTemplate();
     void verticalSizeHints_data();
     void verticalSizeHints();
     void navigationViewRelayoutsAtRuntime();
@@ -359,6 +362,27 @@ void WinUI3DensityApiTest::runtimeInvalidatesLayout()
     root.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("standard"));
     QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
     QVERIFY(root.layoutRequests > 0);
+}
+
+void WinUI3DensityApiTest::splitButtonMenuWidthMatchesPinnedTemplate()
+{
+    WinUI3::Style style;
+    QToolButton tool;
+    tool.setStyle(&style);
+    tool.resize(100, 32);
+    QStyleOptionToolButton option;
+    option.initFrom(&tool);
+    option.rect = tool.rect();
+    option.features = QStyleOptionToolButton::MenuButtonPopup;
+    option.subControls = QStyle::SC_ToolButton | QStyle::SC_ToolButtonMenu;
+    for (const WinUI3::DensityMode density :
+         { WinUI3::DensityMode::Standard, WinUI3::DensityMode::Compact }) {
+        style.setDensityMode(density);
+        const QRect menu = style.subControlRect(QStyle::CC_ToolButton, &option,
+                                                QStyle::SC_ToolButtonMenu, &tool);
+        QCOMPARE(menu.width(), 23);
+    }
+    style.setDensityMode(WinUI3::DensityMode::Standard);
 }
 
 void WinUI3DensityApiTest::geometryContractsAndInvariants()
