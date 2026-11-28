@@ -96,6 +96,7 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <list>
 
 namespace WinUI3 {
 using namespace PaintPrivate;
@@ -1110,15 +1111,19 @@ public:
         systemAppearanceWatchdog->start();
     }
 
+    struct PaletteOwner
+    {
+        QWidget *key;
+        QPointer<QWidget> widget;
+        QMetaObject::Connection destroyed;
+    };
+
     void prunePaletteOwners()
     {
         for (auto it = paletteOwners.begin(); it != paletteOwners.end();) {
-            QWidget *widget = it->data();
-            if (!widget || !widget->property(ownedPaletteProperty).toBool()) {
-                if (widget) {
-                    if (const auto connection = paletteOwnerConnections.take(widget))
-                        QObject::disconnect(connection);
-                }
+            if (!it->widget || !it->widget->property(ownedPaletteProperty).toBool()) {
+                QObject::disconnect(it->destroyed);
+                paletteOwnerIndex.remove(it->key);
                 it = paletteOwners.erase(it);
             } else {
                 ++it;
@@ -1128,40 +1133,41 @@ public:
 
     void registerPaletteOwner(QWidget *widget)
     {
-        if (!widget || !widget->property(ownedPaletteProperty).toBool())
+        if (!widget || !widget->property(ownedPaletteProperty).toBool()
+            || paletteOwnerIndex.contains(widget))
             return;
-        prunePaletteOwners();
-        for (const QPointer<QWidget> &owner : paletteOwners) {
-            if (owner.data() == widget)
-                return;
-        }
-        paletteOwners.append(QPointer<QWidget>(widget));
-        paletteOwnerConnections.insert(
-                widget, QObject::connect(widget, &QObject::destroyed, q, [this, widget] {
-                    unregisterPaletteOwner(widget);
-                }));
+        const auto destroyed = QObject::connect(widget, &QObject::destroyed, q,
+                                                [this, widget] { unregisterPaletteOwner(widget); });
+        const auto owner = paletteOwners.insert(paletteOwners.end(), { widget, widget, destroyed });
+        paletteOwnerIndex.insert(widget, owner);
     }
 
     void unregisterPaletteOwner(QWidget *widget)
     {
-        if (!widget)
+        const auto entry = paletteOwnerIndex.find(widget);
+        if (entry == paletteOwnerIndex.end())
             return;
-        if (const auto connection = paletteOwnerConnections.take(widget))
-            QObject::disconnect(connection);
-        for (auto it = paletteOwners.begin(); it != paletteOwners.end();) {
-            if (it->isNull() || it->data() == widget)
-                it = paletteOwners.erase(it);
-            else
-                ++it;
-        }
+        const auto owner = entry.value();
+        paletteOwnerIndex.erase(entry);
+        QObject::disconnect(owner->destroyed);
+        paletteOwners.erase(owner);
     }
 
     void clearPaletteOwners()
     {
-        for (const auto &connection : paletteOwnerConnections)
-            QObject::disconnect(connection);
-        paletteOwnerConnections.clear();
+        for (const PaletteOwner &owner : paletteOwners)
+            QObject::disconnect(owner.destroyed);
+        paletteOwnerIndex.clear();
         paletteOwners.clear();
+    }
+
+    QVector<QPointer<QWidget>> paletteOwnerSnapshot() const
+    {
+        QVector<QPointer<QWidget>> snapshot;
+        snapshot.reserve(static_cast<int>(paletteOwners.size()));
+        for (const PaletteOwner &owner : paletteOwners)
+            snapshot.append(owner.widget);
+        return snapshot;
     }
 
     void registerPopupPaletteOwners(QWidget *widget)
@@ -1654,8 +1660,10 @@ public:
     QHash<QComboBox *, QWidget *> comboPopupByCombo;
     QHash<QWidget *, QMetaObject::Connection> comboPopupPopupConnections;
     QHash<QComboBox *, QMetaObject::Connection> comboPopupComboConnections;
-    QVector<QPointer<QWidget>> paletteOwners;
-    QHash<QWidget *, QMetaObject::Connection> paletteOwnerConnections;
+    // Refresh visits owners in registration order, while polish and
+    // destruction look them up without scanning the other widgets.
+    std::list<PaletteOwner> paletteOwners;
+    QHash<QWidget *, std::list<PaletteOwner>::iterator> paletteOwnerIndex;
     bool keyboardInput = false;
     bool applicationStateSaved = false;
     bool applicationStyleActive = false;
@@ -1858,7 +1866,7 @@ void Style::refreshApplicationAppearance()
 {
     if (!qApp)
         return;
-    if (!d->applicationStyleActive && d->paletteOwners.isEmpty())
+    if (!d->applicationStyleActive && d->paletteOwners.empty())
         return;
     const bool applicationPaletteStillOwned = qApp->palette() == d->lastStyleApplicationPalette;
     const QPalette applicationPalette =
@@ -1949,7 +1957,7 @@ void Style::refreshOwnedPalettes(QWidget *window)
     // predicates match insideCalendarNavigationBar exactly.
     // PaletteChange handlers can polish or delete children synchronously,
     // mutating the registry. Keep a stable, guarded snapshot for both phases.
-    const auto paletteOwners = d->paletteOwners;
+    const auto paletteOwners = d->paletteOwnerSnapshot();
     for (const QPointer<QWidget> &guarded : paletteOwners)
         refreshOwnedPalette(guarded.data(), window, applicationPalette, applicationTokens,
                             applicationAccent, darkTheme);

@@ -79,6 +79,28 @@ QColor markerPixel(const QImage &row)
 
 } // namespace
 
+class PaletteOwnerProbe final : public QPushButton
+{
+    Q_OBJECT
+    Q_PROPERTY(bool _winui_theme_owned_palette READ paletteOwned WRITE setPaletteOwned)
+
+public:
+    explicit PaletteOwnerProbe(QWidget *parent) : QPushButton(parent) { }
+
+    bool paletteOwned() const
+    {
+        ++reads;
+        return owned;
+    }
+
+    void setPaletteOwned(bool value) { owned = value; }
+
+    mutable int reads = 0;
+
+private:
+    bool owned = false;
+};
+
 class WinUI3AppPaletteTest final : public QObject, private WinUI3StandardTestFixture
 {
     Q_OBJECT
@@ -87,6 +109,7 @@ private slots:
     void init();
     void cleanup();
 
+    void registeringPaletteOwnersDoesNotScanExistingWidgets();
     void applicationHighlightOverrideDrivesTokens();
     void applicationHighlightOverrideDrivesSelectionMarker();
     void motionEffectsPropertyGatesAnimations();
@@ -119,6 +142,21 @@ WinUI3::Style *WinUI3AppPaletteTest::installProxyStyle()
     auto *winui = new WinUI3::Style(WinUI3::ThemeMode::Light);
     qApp->setStyle(new ThemeProxyStyle(winui));
     return winui;
+}
+
+void WinUI3AppPaletteTest::registeringPaletteOwnersDoesNotScanExistingWidgets()
+{
+    QWidget window;
+    auto *first = new PaletteOwnerProbe(&window);
+    window.ensurePolished();
+    QVERIFY(first->paletteOwned());
+    first->reads = 0;
+
+    for (int i = 0; i < 32; ++i) {
+        auto *button = new QPushButton(&window);
+        button->ensurePolished();
+    }
+    QCOMPARE(first->reads, 0);
 }
 
 void WinUI3AppPaletteTest::applicationHighlightOverrideDrivesTokens()
