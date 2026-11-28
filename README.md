@@ -29,6 +29,36 @@ add_subdirectory(third_party/WinUI3Style)
 target_link_libraries(app PRIVATE WinUI3::Widgets)
 ```
 
+## Performance
+
+WinUI3Style is measured against Qt's Fusion style with the opt-in render benchmark
+(`tests/benchmarks/render_benchmark.cpp`). Standing ratios on Linux offscreen (lower is better,
+1.0 = Fusion):
+
+| Scene | WinUI3Style / Fusion (p50) |
+|---|---:|
+| Dense chrome (48 toolbar actions, 16 tabs, 48 buttons) | ~1.1–1.2× |
+| Rich surface (toolbar + tabs + scrolling table) | ~0.9× |
+| List / tree / table views, 10 000 rows | ~0.7–1.3× |
+| Single button panel paint | ~1.8× (an order of magnitude before the resting panel raster cache) |
+
+Known platform gap: on Windows with Qt 6.8.3 the rich-surface scene measures ~1.8× Fusion
+(Qt 6.12.1 measures ~0.8×), a Qt 6.8 raster characteristic queued for optimization. The
+Windows perf-budget step therefore carries a standing 2.0 ceiling for that scene only.
+
+CI enforces a budget ceiling, not a baseline: the `perf-budget` steps at the end of the
+linux-gcc and windows-msvc jobs fail only when a gated scene exceeds 1.5× Fusion's p50 on the
+same runner, so real paint regressions are caught without gating on runner noise. Run the
+comparison locally:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWINUI_ENABLE_TESTS=OFF \
+  -DWINUI3STYLE_BUILD_DEMO=OFF -DWINUI3STYLE_BUILD_BENCHMARKS=ON
+cmake --build build --target winui3style_render_benchmark
+QT_QPA_PLATFORM=offscreen python3 tools/perf_compare.py \
+  --binary build/tests/benchmarks/winui3style_render_benchmark --report-only
+```
+
 ## Widget variants and density
 
 Variants are configured on stock widgets via dynamic properties (in C++ or Qt Designer's Property Editor):

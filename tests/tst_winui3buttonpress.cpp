@@ -15,6 +15,7 @@
 
 #include "../src/lib/winui3frameproperties_p.h"
 #include "../src/lib/winui3helpers_p.h"
+#include "../src/lib/winui3paint_p.h"
 #include "../src/lib/winui3qtcompat_p.h"
 #include "../src/lib/winui3tokens_p.h"
 
@@ -109,6 +110,8 @@ private slots:
     void commandLinkPressKeepsContentPosition();
     void disabledButtonHasNoInteractionState();
     void checkedToolbarToggleKeepsFillOverBackdrop();
+    void cachedButtonPanelCompositesOverCurrentBackground_data();
+    void cachedButtonPanelCompositesOverCurrentBackground();
 };
 
 void WinUI3ButtonPressTest::initTestCase()
@@ -454,5 +457,58 @@ void WinUI3ButtonPressTest::checkedToolbarToggleKeepsFillOverBackdrop()
                                 .arg(center.name())
                                 .arg(expected.name())));
 }
+void WinUI3ButtonPressTest::cachedButtonPanelCompositesOverCurrentBackground_data()
+{
+    QTest::addColumn<int>("scale");
+    QTest::addColumn<bool>("compact");
+    QTest::newRow("standard-1x") << 1 << false;
+    QTest::newRow("standard-2x") << 2 << false;
+    QTest::newRow("compact-1x") << 1 << true;
+    QTest::newRow("compact-2x") << 2 << true;
+}
+
+void WinUI3ButtonPressTest::cachedButtonPanelCompositesOverCurrentBackground()
+{
+    QFETCH(int, scale);
+    QFETCH(bool, compact);
+    QPushButton button;
+    button.setProperty("winuiDensity", compact ? 1 : 0);
+    button.resize(130, 32);
+    button.ensurePolished();
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    option.state = QStyle::State_Enabled | QStyle::State_Raised;
+    const auto tokens = WinUI3::Private::tokens(option.palette);
+    QCOMPARE(option.rect.size(), QSize(130, 32));
+    QCOMPARE(button.style()->subElementRect(QStyle::SE_PushButtonContents, &option, &button),
+             QRect(8, 3, 114, 24));
+
+    // The second pass hits the same panel cache entry over a different color.
+    for (const QColor background : { QColor(241, 241, 241), QColor(37, 49, 66) }) {
+        QImage actual(button.size() * scale, QImage::Format_ARGB32_Premultiplied);
+        actual.setDevicePixelRatio(scale);
+        actual.fill(background);
+        QImage direct = actual;
+        QPainter painter(&actual);
+        button.style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+        painter.end();
+        QPainter reference(&direct);
+        WinUI3::PaintPrivate::controlSurface(&reference, option.rect, tokens.control, tokens.stroke,
+                                             tokens.strokeSecondary,
+                                             WinUI3::Private::ControlRadius);
+        reference.end();
+
+        QCOMPARE(actual.pixelColor(0, 0), background);
+        QCOMPARE(actual.pixelColor(65 * scale, 16 * scale),
+                 direct.pixelColor(65 * scale, 16 * scale));
+        const int corner = 6 * scale;
+        const QRect centerBand(corner, 0, actual.width() - 2 * corner, actual.height());
+        const QRect sideBand(0, corner, actual.width(), actual.height() - 2 * corner);
+        QCOMPARE(actual.copy(centerBand), direct.copy(centerBand));
+        QCOMPARE(actual.copy(sideBand), direct.copy(sideBand));
+    }
+}
+
 QTEST_MAIN(WinUI3ButtonPressTest)
 #include "tst_winui3buttonpress.moc"

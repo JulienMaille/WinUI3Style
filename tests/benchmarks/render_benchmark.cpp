@@ -14,11 +14,13 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QStandardItemModel>
+#include <QStyleFactory>
 #include <QStyleOptionButton>
 #include <QTabBar>
 #include <QTableView>
 #include <QToolBar>
 #include <QTreeView>
+#include <QGridLayout>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -38,6 +40,7 @@ struct Options
     int rows = DefaultRows;
     int iterations = DefaultIterations;
     bool icons = true;
+    QString style = QStringLiteral("winui3");
 };
 
 double percentile(std::vector<double> values, double fraction)
@@ -272,6 +275,38 @@ void benchmarkRichSurface(const Options &options)
            });
 }
 
+void benchmarkDenseChrome(const Options &options)
+{
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *toolbar = new QToolBar(&window);
+    for (int action = 0; action < 48; ++action)
+        toolbar->addAction(options.icons ? benchmarkIcon(action) : QIcon(),
+                           QStringLiteral("Action %1").arg(action));
+    layout->addWidget(toolbar);
+
+    auto *tabs = new QTabBar(&window);
+    for (int tab = 0; tab < 16; ++tab)
+        tabs->addTab(options.icons ? benchmarkIcon(tab) : QIcon(),
+                     QStringLiteral("Tab %1").arg(tab));
+    layout->addWidget(tabs);
+
+    QWidget grid;
+    auto *gridLayout = new QGridLayout(&grid);
+    for (int row = 0; row < 6; ++row)
+        for (int column = 0; column < 8; ++column)
+            gridLayout->addWidget(
+                    new QPushButton(QStringLiteral("Btn %1-%2").arg(row).arg(column), &grid), row,
+                    column);
+    layout->addWidget(&grid);
+
+    prepare(&window, QSize(1100, 700));
+    report(QStringLiteral("dense-chrome"), &window, options.iterations, [&grid](int frame) {
+        Q_UNUSED(frame);
+        grid.update();
+    });
+}
+
 Options parseOptions(const QApplication &application)
 {
     Options options;
@@ -284,6 +319,8 @@ Options parseOptions(const QApplication &application)
             options.rows = qMax(1, argument.mid(7).toInt());
         } else if (argument.startsWith(QStringLiteral("--iterations="))) {
             options.iterations = qMax(1, argument.mid(13).toInt());
+        } else if (argument.startsWith(QStringLiteral("--qstyle="))) {
+            options.style = argument.mid(9);
         }
     }
     return options;
@@ -293,9 +330,21 @@ Options parseOptions(const QApplication &application)
 
 int main(int argc, char **argv)
 {
+    // Windows routes qInfo() to OutputDebugString when the process has no
+    // console, which silently drops the report a piped reader needs. Force
+    // every message onto stderr so tools/perf_compare.py sees it everywhere.
+    qInstallMessageHandler([](QtMsgType, const QMessageLogContext &, const QString &message) {
+        fprintf(stderr, "%s\n", qPrintable(message));
+    });
     QApplication application(argc, argv);
-    application.setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
     const Options options = parseOptions(application);
+    if (options.style == QLatin1String("fusion"))
+        application.setStyle(QStyleFactory::create(QStringLiteral("fusion")));
+    else
+        application.setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
+    qInfo().noquote() << QStringLiteral("style=%1")
+                                 .arg(QString::fromLatin1(
+                                         application.style()->metaObject()->className()));
 
     benchmarkTokens();
     benchmarkButtonPaint(options.iterations);
@@ -303,5 +352,6 @@ int main(int argc, char **argv)
     benchmarkTree(options);
     benchmarkTable(options);
     benchmarkRichSurface(options);
+    benchmarkDenseChrome(options);
     return 0;
 }

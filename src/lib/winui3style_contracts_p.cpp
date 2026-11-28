@@ -94,7 +94,7 @@ int pixelMetric(const Style *style, QStyle::PixelMetric metric, const QStyleOpti
     if ((metric == QStyle::PM_ButtonShiftHorizontal || metric == QStyle::PM_ButtonShiftVertical)
         && qobject_cast<const QCommandLinkButton *>(widget))
         return 0;
-    if (const auto value = pixelMetricValue(metric, toggleSwitch(widget), widget))
+    if (const auto value = pixelMetricValue(metric, widget))
         return *value;
     return style->QProxyStyle::pixelMetric(metric, option, widget);
 }
@@ -556,8 +556,6 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
 {
     if (!option)
         return {};
-    const DensityMode mode = densityModeFor(widget, style);
-    const DensityMetrics &density = densityMetrics(mode);
     if (element == QStyle::SE_PushButtonContents) {
         // WinUI Button_themeresources.xaml pins ButtonPadding to 11,5,11,6;
         // the ContentPresenter centres the label above the geometric centre.
@@ -607,7 +605,7 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         if (comboBoxEditor(widget))
             return option->rect;
         if (!spinBoxEditor(widget)) {
-            const bool compact = mode == DensityMode::Compact;
+            const bool compact = densityModeFor(widget, style) == DensityMode::Compact;
             const QRect logical = compact ? option->rect.adjusted(10, 2, -6, -2)
                                           : option->rect.adjusted(10, 5, -6, -6);
             return QStyle::visualRect(option->direction, option->rect, logical);
@@ -688,7 +686,7 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
             // The delegate's option.rect already includes QTreeView's
             // hierarchy offset. Adding the model depth here doubled the
             // indentation at every level.
-            const int offset = density.itemSelectionGutter;
+            const int offset = densityMetricsFor(widget, style).itemSelectionGutter;
             const int delta = source->direction == Qt::RightToLeft ? -offset : offset;
             result.translate(delta, 0);
             QRect content = source->rect;
@@ -715,13 +713,13 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
                 result.setLeft(qMax(result.left(), decoration.right() + 1 + treeIconTextGap));
         }
     }
-    const bool popup = widget && widget->window() && widget->window()->windowType() == Qt::Popup
-            && !calendarPopupItemView(widget);
-    if (popup && element == QStyle::SE_ItemViewItemText) {
+    if (element == QStyle::SE_ItemViewItemText && widget && widget->window()
+        && widget->window()->windowType() == Qt::Popup && !calendarPopupItemView(widget)) {
         // Reserve the icon-slot inset on the leading edge in the reading
         // direction, mirroring the reservation for RTL layouts.
         const QStyleOptionViewItem *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
         const Qt::LayoutDirection direction = item ? item->direction : option->direction;
+        const auto &density = densityMetricsFor(widget, style);
         const int iconSlot = density.menuItemIconSlot;
         const int padding = density.menuItemHorizontalPadding;
         if (direction == Qt::RightToLeft) {

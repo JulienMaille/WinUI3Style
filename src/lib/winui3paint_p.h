@@ -48,6 +48,9 @@ WINUI3STYLE_EXPORT void controlSurface(QPainter *painter, const QRectF &rect, co
                                        const QColor &strokeTop, const QColor &strokeBottom,
                                        qreal radius, qreal strokeWidth = 1.0);
 
+void buttonSurface(QPainter *painter, const QRect &rect, const QColor &fill,
+                   const QColor &strokeTop, const QColor &strokeBottom, bool cacheable);
+
 // TextControlElevationBorderBrush: default stroke until the bottom 2 DIP,
 // strong stroke over the final DIP. Disabled uses the uniform default brush.
 void editorSurface(QPainter *painter, const QRectF &rect, const QColor &fill, const QColor &stroke,
