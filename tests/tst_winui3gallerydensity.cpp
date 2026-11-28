@@ -5,8 +5,11 @@
 #include "../src/lib/winui3tokens_p.h"
 
 #include <QComboBox>
+#include <QFrame>
 #include <QHeaderView>
+#include <QLabel>
 #include <QLineEdit>
+#include <QSpinBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
@@ -28,6 +31,7 @@ private slots:
     void galleryTreeHeaderDensitySwitch();
     void galleryTreeRowHighlight_data();
     void galleryTreeRowHighlight();
+    void galleryDensityPanelsExposeVerticalNumberBoxes();
 };
 
 void WinUI3GalleryDensityTest::initTestCase()
@@ -242,6 +246,26 @@ void WinUI3GalleryDensityTest::galleryTreeRowHighlight()
     QCoreApplication::sendEvent(tree->viewport(), &leave);
     child->setSelected(true);
     checkHighlight();
+}
+
+void WinUI3GalleryDensityTest::galleryDensityPanelsExposeVerticalNumberBoxes()
+{
+    GalleryWindow gallery;
+    for (const QString prefix : { QStringLiteral("standard"), QStringLiteral("compact") }) {
+        auto *panel = gallery.findChild<QFrame *>(prefix + QStringLiteral("DensityPanel"));
+        auto *spin =
+                gallery.findChild<QSpinBox *>(prefix + QStringLiteral("DensityVerticalNumber"));
+        auto *label =
+                gallery.findChild<QLabel *>(prefix + QStringLiteral("DensityVerticalNumberLabel"));
+        QVERIFY2(panel && spin && label, qPrintable(prefix));
+        QVERIFY(WinUI3::Style::hasVerticalSpinButtons(spin));
+        QCOMPARE(spin->value(), 42);
+        QCOMPARE(spin->minimumWidth(), 150);
+        QVERIFY(!label->text().isEmpty());
+        QCOMPARE(panel->property("winuiDensity").toString(),
+                 prefix == QStringLiteral("standard") ? QStringLiteral("standard")
+                                                      : QStringLiteral("compact"));
+    }
 }
 
 QTEST_MAIN(WinUI3GalleryDensityTest)
