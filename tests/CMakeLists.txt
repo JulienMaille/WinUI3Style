@@ -1,6 +1,7 @@
 # Test-function names stay stable so the DPI reruns below can address them by name.
 set(_winui3style_split_tests
     winui3style_buttons_tests tst_winui3buttons.cpp
+    winui3style_spinseparator_tests tst_winui3spinseparator.cpp
     winui3style_paintmemo_tests tst_winui3paintmemo.cpp
     winui3style_buttonpress_tests tst_winui3buttonpress.cpp
     winui3style_toggles_tests tst_winui3toggles.cpp
@@ -458,6 +459,7 @@ endif()
 # for both the Windows runtime DLL copy and the common test environment.
 set(_winui3style_linked_test_targets
         winui3style_buttons_tests
+        winui3style_spinseparator_tests
         winui3style_menusurface_tests
         winui3style_paintmemo_tests
         winui3style_buttonpress_tests
@@ -531,6 +533,7 @@ endif()
 # from an outer test runner or developer shell.
 foreach(_split_target IN ITEMS
         winui3style_buttons_tests
+        winui3style_spinseparator_tests
         winui3style_menusurface_tests
         winui3style_paintmemo_tests
         winui3style_buttonpress_tests
