@@ -22,6 +22,7 @@ private slots:
     void verticalSeparatorMatchesSplitButtonInset_data();
     void verticalSeparatorMatchesSplitButtonInset();
     void compactVerticalNumberBoxKeepsTwoToOneRatio();
+    void compactInlineSpinButtonsKeepAspect();
 };
 
 void WinUI3SpinSeparatorTest::initTestCase()
@@ -109,6 +110,37 @@ void WinUI3SpinSeparatorTest::compactVerticalNumberBoxKeepsTwoToOneRatio()
     QCOMPARE(down.size(), QSize(24, 12));
     QCOMPARE(edit.right() + 1, up.left());
     QCOMPARE(up.bottom() + 1, down.top());
+}
+
+void WinUI3SpinSeparatorTest::compactInlineSpinButtonsKeepAspect()
+{
+    QSpinBox spin;
+    spin.setProperty(WinUI3::Style::DensityProperty, QStringLiteral("compact"));
+    spin.resize(150, 24);
+    spin.show();
+
+    QStyleOptionSpinBox option;
+    option.initFrom(&spin);
+    option.rect = spin.rect();
+    option.frame = true;
+    option.buttonSymbols = spin.buttonSymbols();
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+    option.subControls = QStyle::SC_SpinBoxFrame | QStyle::SC_SpinBoxEditField
+            | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown;
+
+    const QRect up =
+            spin.style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, &spin);
+    const QRect down = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxDown, &spin);
+    const QRect edit = spin.style()->subControlRect(QStyle::CC_SpinBox, &option,
+                                                    QStyle::SC_SpinBoxEditField, &spin);
+    // Standard inline buttons are 36x32; Compact's 24 px editor keeps that
+    // aspect at 27x24 rather than squeezing only the height.
+    QCOMPARE(up.size(), QSize(27, 24));
+    QCOMPARE(down.size(), QSize(27, 24));
+    QCOMPARE(up.top(), down.top());
+    QCOMPARE(up.right() + 1, down.left());
+    QCOMPARE(edit.right() + 1, up.left());
 }
 
 QTEST_MAIN(WinUI3SpinSeparatorTest)
