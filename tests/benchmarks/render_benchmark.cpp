@@ -330,6 +330,12 @@ Options parseOptions(const QApplication &application)
 
 int main(int argc, char **argv)
 {
+    // Windows routes qInfo() to OutputDebugString when the process has no
+    // console, which silently drops the report a piped reader needs. Force
+    // every message onto stderr so tools/perf_compare.py sees it everywhere.
+    qInstallMessageHandler([](QtMsgType, const QMessageLogContext &, const QString &message) {
+        fprintf(stderr, "%s\n", qPrintable(message));
+    });
     QApplication application(argc, argv);
     const Options options = parseOptions(application);
     if (options.style == QLatin1String("fusion"))
