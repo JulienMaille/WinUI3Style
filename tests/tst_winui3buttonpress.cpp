@@ -114,6 +114,8 @@ private slots:
     void cachedButtonPanelCompositesOverCurrentBackground();
     void cachedButtonPanelAtFractionalScales_data();
     void cachedButtonPanelAtFractionalScales();
+    void settledButtonPanelCacheIsStable_data();
+    void settledButtonPanelCacheIsStable();
 };
 
 void WinUI3ButtonPressTest::initTestCase()
@@ -551,6 +553,63 @@ void WinUI3ButtonPressTest::cachedButtonPanelAtFractionalScales()
     QVERIFY(!actual.isNull());
     QCOMPARE(actual.size(), reference.size());
     QCOMPARE(actual, reference);
+}
+
+void WinUI3ButtonPressTest::settledButtonPanelCacheIsStable_data()
+{
+    QTest::addColumn<int>("role");
+    QTest::addColumn<int>("state");
+    QTest::addColumn<double>("scale");
+    for (int role = int(WinUI3::ControlRole::Standard);
+         role <= int(WinUI3::ControlRole::Destructive); ++role) {
+        const QString roleName = role == int(WinUI3::ControlRole::Standard)
+                ? QStringLiteral("standard")
+                : role == int(WinUI3::ControlRole::Accent) ? QStringLiteral("accent")
+                : role == int(WinUI3::ControlRole::Subtle) ? QStringLiteral("subtle")
+                                                           : QStringLiteral("destructive");
+        QTest::newRow(qPrintable(roleName + QStringLiteral("-hover")))
+                << role << int(QStyle::State_MouseOver) << 1.0;
+        QTest::newRow(qPrintable(roleName + QStringLiteral("-press")))
+                << role << int(QStyle::State_MouseOver | QStyle::State_Sunken) << 2.0;
+    }
+}
+
+void WinUI3ButtonPressTest::settledButtonPanelCacheIsStable()
+{
+    QFETCH(int, role);
+    QFETCH(int, state);
+    QFETCH(double, scale);
+    QPushButton button;
+    WinUI3::Style::setControlRole(&button, WinUI3::ControlRole(role));
+    button.resize(120, 32);
+    button.ensurePolished();
+    const bool pressed = state & QStyle::State_Sunken;
+    setFrame(&button, "_winui_hover_progress", 1.0);
+    setFrame(&button, "_winui_press_progress", pressed ? 1.0 : 0.0);
+    QCOMPARE(frameReal(&button, "_winui_hover_progress"), 1.0);
+    QCOMPARE(frameReal(&button, "_winui_press_progress"), pressed ? 1.0 : 0.0);
+
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    option.state = QStyle::State_Enabled | QStyle::State(state);
+    const auto render = [&] {
+        const QSize size(qRound(option.rect.width() * scale), qRound(option.rect.height() * scale));
+        QImage image(size, QImage::Format_ARGB32_Premultiplied);
+        image.setDevicePixelRatio(scale);
+        image.fill(option.palette.color(QPalette::Window));
+        QPainter painter(&image);
+        button.style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+        painter.end();
+        return image;
+    };
+    const QImage first = render();
+    const QImage second = render();
+    QVERIFY(!first.isNull());
+    QCOMPARE(first.size(), second.size());
+    QCOMPARE(first, second);
+    QVERIFY(std::any_of(first.constBits(), first.constBits() + first.sizeInBytes(),
+                        [](unsigned char byte) { return byte != 0; }));
 }
 
 QTEST_MAIN(WinUI3ButtonPressTest)
