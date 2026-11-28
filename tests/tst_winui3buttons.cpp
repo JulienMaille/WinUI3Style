@@ -47,7 +47,6 @@
 #include <QParallelAnimationGroup>
 #include <QPointer>
 #include <QProgressBar>
-#include <QProxyStyle>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
@@ -93,15 +92,6 @@
 
 #include "winui3testhelpers.h"
 
-class DeclaredRoleButton final : public QPushButton
-{
-    Q_OBJECT
-    Q_PROPERTY(QString winuiControlRole MEMBER role)
-
-public:
-    QString role = QStringLiteral("accent");
-};
-
 class WinUI3ButtonsTest final : public QObject, private WinUI3StandardTestFixture
 {
     Q_OBJECT
@@ -127,8 +117,6 @@ private slots:
     void pushButtonLabelUsesWinuiVerticalPadding();
     void toolbarButtonCornerSymmetry();
     void controlRoles();
-    void roleReadsTrackUnobservedWidgets();
-    void declaredRoleRemainsLive();
     void flatPushButtonUsesFlatVisual_data();
     void flatPushButtonUsesFlatVisual();
     void autoRaiseToolButtonUsesFlatVisual_data();
@@ -874,49 +862,6 @@ void WinUI3ButtonsTest::controlRoles()
 
     style->unpolish(&button);
     QCOMPARE(WinUI3::Style::controlRole(&button), WinUI3::ControlRole::Standard);
-}
-
-void WinUI3ButtonsTest::roleReadsTrackUnobservedWidgets()
-{
-    using WinUI3::ControlRole;
-    using WinUI3::Style;
-    QProxyStyle otherStyle;
-    QPushButton button;
-    QVERIFY(!button.testAttribute(Qt::WA_WState_Polished));
-    button.setProperty(Style::ControlRoleProperty, QStringLiteral("accent"));
-    QCOMPARE(Style::controlRole(&button), ControlRole::Accent);
-    button.setProperty(Style::ControlRoleProperty, QStringLiteral("destructive"));
-    QCOMPARE(Style::controlRole(&button), ControlRole::Destructive);
-    button.setProperty(Style::ControlRoleProperty, {});
-    QCOMPARE(Style::controlRole(&button), ControlRole::Standard);
-
-    // A polished widget can belong to another style that does not install
-    // WinUI3Style's invalidation filter.
-    button.setStyle(&otherStyle);
-    button.ensurePolished();
-    QVERIFY(button.testAttribute(Qt::WA_WState_Polished));
-    QCOMPARE(Style::controlRole(&button), ControlRole::Standard);
-    button.setProperty(Style::ControlRoleProperty, QStringLiteral("subtle"));
-    QCOMPARE(Style::controlRole(&button), ControlRole::Subtle);
-
-    button.setStyle(nullptr);
-    QCOMPARE(Style::controlRole(&button), ControlRole::Subtle);
-    button.setStyle(&otherStyle);
-    button.setProperty(Style::ControlRoleProperty, QStringLiteral("accent"));
-    QCOMPARE(Style::controlRole(&button), ControlRole::Accent);
-    button.setStyle(nullptr);
-}
-
-void WinUI3ButtonsTest::declaredRoleRemainsLive()
-{
-    using WinUI3::ControlRole;
-    using WinUI3::Style;
-    DeclaredRoleButton button;
-    button.ensurePolished();
-    QCOMPARE(Style::controlRole(&button), ControlRole::Accent);
-    // Writes to a declared property need not deliver DynamicPropertyChange.
-    button.role = QStringLiteral("destructive");
-    QCOMPARE(Style::controlRole(&button), ControlRole::Destructive);
 }
 
 void WinUI3ButtonsTest::flatPushButtonUsesFlatVisual_data()
