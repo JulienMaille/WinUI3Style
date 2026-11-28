@@ -59,7 +59,7 @@ constexpr int ShortcutFieldTextInset = 10;
 // rects round that to one logical pixel, which is the #119 one-pixel-too-low
 // defect. Pinned pairs (left,top,right,bottom):
 //   Button:           Button_themeresources.xaml          11,5,11,6
-//   TextBox:          TextBox_themeresources_perf2026...  10,5,10,6
+//   TextBox:          Common_themeresources.xaml          10,5,6,6
 //   ComboBox:         ComboBox_themeresources.xaml        12,5,0,7
 //   ComboBoxItem:     ComboBox_themeresources.xaml        11,5,11,7
 //   MenuFlyoutItem:   MenuFlyout_themeresources.xaml      11,8,11,9
