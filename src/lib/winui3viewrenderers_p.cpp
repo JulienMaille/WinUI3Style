@@ -95,14 +95,22 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
     normalized.replace(QLatin1Char('\n'), QChar::LineSeparator);
     normalized.replace(QLatin1Char('\t'), QLatin1Char(' '));
     normalized.replace(QLatin1Char('\r'), QLatin1Char(' '));
+    const QFontMetricsF metrics(option.font);
+    const Qt::LayoutDirection direction = painter->layoutDirection();
+    const bool reuseFittingLine = direction == Qt::LeftToRight
+            && (QStyle::visualAlignment(direction, Qt::Alignment(textFlags)) & Qt::AlignLeft)
+            && !(textFlags & Qt::AlignJustify) && normalized == option.text
+            && !option.text.contains(QChar(0x009c)) && !option.font.underline()
+            && !option.font.overline() && !option.font.strikeOut()
+            && metrics == QFontMetricsF(painter->font(), painter->device());
     QTextLayout layout(normalized, option.font);
+    layout.setCacheEnabled(reuseFittingLine);
     QTextOption textOption;
     textOption.setWrapMode(QTextOption::WordWrap);
-    textOption.setTextDirection(painter->layoutDirection());
+    textOption.setTextDirection(direction);
     textOption.setAlignment(textFlags & Qt::AlignJustify ? Qt::AlignJustify : Qt::AlignLeft);
     layout.setTextOption(textOption);
     QList<QTextLine> lines;
-    const QFontMetricsF metrics(option.font);
     const qreal leading = metrics.leading();
     qreal height = -leading;
     bool overflow = false;
@@ -126,7 +134,18 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
     }
     layout.endLayout();
     if (!overflow) {
-        painter->drawText(rect, textFlags, option.text);
+        if (reuseFittingLine && lines.size() == 1) {
+            // The fit check already shaped this line. Match QPainter's
+            // vertical offset using the unrounded ascent plus descent.
+            qreal y = rect.top();
+            if (textFlags & Qt::AlignBottom)
+                y += rect.height() - height;
+            else if (textFlags & Qt::AlignVCenter)
+                y += (rect.height() - height) / 2;
+            lines.front().draw(painter, QPointF(rect.left(), y));
+        } else {
+            painter->drawText(rect, textFlags, option.text);
+        }
         return;
     }
     const qreal top = rect.top()
@@ -142,9 +161,8 @@ void drawWrappedTableCellText(QPainter *painter, const QStyleOptionViewItem &opt
             qreal left = rect.left();
             if (alignment & Qt::AlignRight) {
                 left += rect.width() - line.horizontalAdvance();
-                if (textOption.textDirection() == Qt::RightToLeft
-                    || (textOption.textDirection() == Qt::LayoutDirectionAuto
-                        && normalized.isRightToLeft())) {
+                if (direction == Qt::RightToLeft
+                    || (direction == Qt::LayoutDirectionAuto && normalized.isRightToLeft())) {
                     const int end = line.textStart() + line.textLength();
                     int trailing = end;
                     while (trailing > line.textStart() && normalized.at(trailing - 1).isSpace())
