@@ -188,7 +188,9 @@ inline constexpr DensityMetrics makeCompactDensityMetrics()
     m.toolButtonHeight = 32;
     m.tabHeight = 32;
     m.spinButtonWidth = 36;
-    m.verticalSpinButtonWidth = 32;
+    // Compact editors are 24 px tall: a 24 px stacked button column keeps
+    // each half at 24x12, the same 2:1 ratio as Standard's 32x16 halves.
+    m.verticalSpinButtonWidth = 24;
     m.comboArrowWidth = 30;
     m.toolButtonMenuWidth = 24;
     // Insets follow only the controls whose template is compacted.
