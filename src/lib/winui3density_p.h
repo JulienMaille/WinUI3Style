@@ -187,7 +187,9 @@ inline constexpr DensityMetrics makeCompactDensityMetrics()
     m.buttonHeight = 32;
     m.toolButtonHeight = 32;
     m.tabHeight = 32;
-    m.spinButtonWidth = 36;
+    // Compact editors are 24 px tall: scale the inline button pair by the
+    // same 3/4 as the stacked column so both keep their Standard aspect.
+    m.spinButtonWidth = 27;
     // Compact editors are 24 px tall: a 24 px stacked button column keeps
     // each half at 24x12, the same 2:1 ratio as Standard's 32x16 halves.
     m.verticalSpinButtonWidth = 24;

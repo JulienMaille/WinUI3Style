@@ -817,7 +817,7 @@ void WinUI3EditorsTest::spinBoxNoButtonsGeometry()
     withButtons.setSuffix(longSuffix);
     withoutButtons.setSuffix(longSuffix);
     withoutButtons.setButtonSymbols(QAbstractSpinBox::NoButtons);
-    QCOMPARE(withButtons.sizeHint().width() - withoutButtons.sizeHint().width(), 72);
+    QCOMPARE(withButtons.sizeHint().width() - withoutButtons.sizeHint().width(), compact ? 54 : 72);
 }
 
 void WinUI3EditorsTest::spinBoxPlusMinusGlyphContract()
