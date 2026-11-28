@@ -2418,6 +2418,7 @@ void Style::polish(QWidget *widget)
     // unpolish(QWidget*) removes it symmetrically.
     widget->removeEventFilter(this);
     widget->installEventFilter(this);
+    Private::observeWidgetPaintMemo(widget, this);
     // QWaylandWindow::setMask updates the input/opaque regions but does not
     // clip the buffer. Request alpha while the QMenu still has no native
     // surface; preparePopupSurface() preserves this recipe on each Show.
@@ -2974,10 +2975,7 @@ void Style::unpolish(QWidget *widget)
 {
     if (widget) {
         d->unregisterPaletteOwner(widget);
-        // The filter removal below stops DynamicPropertyChange delivery, so
-        // the role/backdrop restore writes further down would leave a stale
-        // memo behind.
-        Private::clearWidgetPaintMemo(widget);
+        Private::forgetWidgetPaintMemo(widget, this);
         widget->removeEventFilter(this);
         Private::removeCalendarPopupBorder(widget);
         unpolishDockTitleBar(widget);

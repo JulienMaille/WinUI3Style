@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "winui3paintmemo_p.h"
 
+#include "winui3backdrop_p.h"
+#include "winui3style_properties_p.h"
+
+#include <QAbstractButton>
 #include <QCoreApplication>
 #include <QHash>
+#include <QPointer>
 #include <QThread>
 #include <QWidget>
 
@@ -10,112 +15,110 @@ namespace WinUI3::Private {
 
 namespace {
 
-struct ControlRoleEntry
+struct WidgetPaintMemo
 {
-    QPointer<const QWidget> guard;
-    MemoizedControlRole value;
+    QPointer<const Style> owner;
+    QMetaObject::Connection destroyed;
+    bool cacheRole = false;
+    bool cacheBackdrop = false;
+    std::optional<MemoizedControlRole> role;
+    std::optional<int> backdrop;
 };
 
-struct BackdropEntry
+QHash<const QWidget *, WidgetPaintMemo> &paintMemos()
 {
-    QPointer<const QWidget> guard;
-    int value = 0;
-};
-
-// Event filters do not reliably observe QEvent::Destroy, so entries of
-// destroyed widgets are dropped lazily: a null guard on lookup, or a sweep
-// once the table grows unusually large.
-constexpr int memoSweepThreshold = 8192;
-
-QHash<const QWidget *, ControlRoleEntry> &controlRoleMemo()
-{
-    static QHash<const QWidget *, ControlRoleEntry> memo;
-    return memo;
+    static QHash<const QWidget *, WidgetPaintMemo> memos;
+    return memos;
 }
 
-QHash<const QWidget *, BackdropEntry> &windowBackdropMemo()
-{
-    static QHash<const QWidget *, BackdropEntry> memo;
-    return memo;
-}
-
-// The memo is only touched from the paint and polish paths, which run on the
-// GUI thread. Off-thread callers fall back to live property resolution.
+// Widget polish and paint run on the GUI thread. Other callers resolve
+// properties live without accessing the cache.
 bool onGuiThread()
 {
     const QCoreApplication *application = QCoreApplication::instance();
     return application && QThread::currentThread() == application->thread();
 }
 
-template <typename Memo>
-void pruneDestroyedEntries(Memo &memo)
+WidgetPaintMemo *paintMemo(const QWidget *widget)
 {
-    if (memo.size() < memoSweepThreshold)
-        return;
-    for (auto it = memo.begin(); it != memo.end();) {
-        if (it.value().guard.isNull())
-            it = memo.erase(it);
-        else
-            ++it;
-    }
+    if (!widget || !onGuiThread())
+        return nullptr;
+    auto &memos = paintMemos();
+    auto memo = memos.find(widget);
+    return memo == memos.end() || memo->owner.isNull() ? nullptr : &memo.value();
 }
 
 } // namespace
 
+void observeWidgetPaintMemo(QWidget *widget, const Style *style)
+{
+    const bool window = widget->isWindow();
+    const bool button = qobject_cast<const QAbstractButton *>(widget) != nullptr;
+    if ((!window && !button) || !onGuiThread())
+        return;
+    // Q_PROPERTY writes do not send DynamicPropertyChange. Only memoize
+    // names for which the installed style filter will see writes.
+    const QMetaObject *meta = widget->metaObject();
+    const bool cacheRole = button && meta->indexOfProperty(Style::ControlRoleProperty) < 0
+            && meta->indexOfProperty(roleProperty) < 0;
+    const bool cacheBackdrop = window && meta->indexOfProperty(backdropStateProperty) < 0;
+    if (!cacheRole && !cacheBackdrop)
+        return;
+
+    auto &memo = paintMemos()[widget];
+    if (!memo.destroyed) {
+        memo.destroyed = QObject::connect(widget, &QObject::destroyed, QCoreApplication::instance(),
+                                          [widget] { paintMemos().remove(widget); });
+    }
+    memo.owner = style;
+    memo.cacheRole = cacheRole;
+    memo.cacheBackdrop = cacheBackdrop;
+    memo.role.reset();
+    memo.backdrop.reset();
+}
+
+void forgetWidgetPaintMemo(const QWidget *widget, const Style *style)
+{
+    if (!onGuiThread())
+        return;
+    auto &memos = paintMemos();
+    auto memo = memos.find(widget);
+    if (memo == memos.end() || memo->owner != style)
+        return;
+    QObject::disconnect(memo->destroyed);
+    memos.erase(memo);
+}
+
 std::optional<MemoizedControlRole> memoizedControlRole(const QWidget *widget)
 {
-    if (!widget || !onGuiThread())
-        return std::nullopt;
-    QHash<const QWidget *, ControlRoleEntry> &memo = controlRoleMemo();
-    const auto it = memo.find(widget);
-    if (it == memo.end())
-        return std::nullopt;
-    if (it.value().guard.isNull()) {
-        memo.erase(it);
-        return std::nullopt;
-    }
-    return it.value().value;
+    const auto *memo = paintMemo(widget);
+    return memo ? memo->role : std::nullopt;
 }
 
 void memoizeControlRole(const QWidget *widget, bool propertyValid, ControlRole role)
 {
-    if (!widget || !onGuiThread())
-        return;
-    QHash<const QWidget *, ControlRoleEntry> &memo = controlRoleMemo();
-    pruneDestroyedEntries(memo);
-    memo.insert(widget, ControlRoleEntry{ widget, MemoizedControlRole{ propertyValid, role } });
+    if (auto *memo = paintMemo(widget); memo && memo->cacheRole)
+        memo->role = MemoizedControlRole{ propertyValid, role };
 }
 
 std::optional<int> memoizedWindowBackdrop(const QWidget *window)
 {
-    if (!window || !onGuiThread())
-        return std::nullopt;
-    QHash<const QWidget *, BackdropEntry> &memo = windowBackdropMemo();
-    const auto it = memo.find(window);
-    if (it == memo.end())
-        return std::nullopt;
-    if (it.value().guard.isNull()) {
-        memo.erase(it);
-        return std::nullopt;
-    }
-    return it.value().value;
+    const auto *memo = paintMemo(window);
+    return memo ? memo->backdrop : std::nullopt;
 }
 
 void memoizeWindowBackdrop(const QWidget *window, int backdrop)
 {
-    if (!window || !onGuiThread())
-        return;
-    QHash<const QWidget *, BackdropEntry> &memo = windowBackdropMemo();
-    pruneDestroyedEntries(memo);
-    memo.insert(window, BackdropEntry{ window, backdrop });
+    if (auto *memo = paintMemo(window); memo && memo->cacheBackdrop)
+        memo->backdrop = backdrop;
 }
 
 void clearWidgetPaintMemo(const QWidget *widget)
 {
-    if (!widget || !onGuiThread())
-        return;
-    controlRoleMemo().remove(widget);
-    windowBackdropMemo().remove(widget);
+    if (auto *memo = paintMemo(widget)) {
+        memo->role.reset();
+        memo->backdrop.reset();
+    }
 }
 
 } // namespace WinUI3::Private

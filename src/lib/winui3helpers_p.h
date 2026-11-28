@@ -381,8 +381,7 @@ inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
     // Explicit enabled check: a present-but-None (0) "_winui_backdrop"
     // property means the backdrop is disabled and must never enable
     // Source-clear (isValid alone would still punch holes). The raw value is
-    // memoized per window: it only changes through applyBackdrop or a
-    // Designer property write, both observed by the style's event filter.
+    // memoized only when the style's event filter observes the window.
     int backdropValue = 0;
     if (std::optional<int> memoized = Private::memoizedWindowBackdrop(win))
         backdropValue = *memoized;

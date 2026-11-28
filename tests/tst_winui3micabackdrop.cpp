@@ -47,6 +47,7 @@ private slots:
     void lateScrollChainArmedAtPolish();
     void reparentedChainReconvergesWithoutSync();
     void backdropMemoInvalidatesOnPropertyWrite();
+    void backdropReadsTrackUnobservedWindows();
 };
 
 void WinUI3MicaBackdropTest::initTestCase()
@@ -146,6 +147,16 @@ void WinUI3MicaBackdropTest::backdropMemoInvalidatesOnPropertyWrite()
     QCOMPARE(WinUI3::Private::paintsDirectlyOnBackdrop(list->viewport()), false);
     window.setProperty("_winui_backdrop", 1);
     QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(list->viewport()));
+}
+
+void WinUI3MicaBackdropTest::backdropReadsTrackUnobservedWindows()
+{
+    QWidget window;
+    QVERIFY(!window.testAttribute(Qt::WA_WState_Polished));
+    window.setProperty("_winui_backdrop", 1);
+    QVERIFY(WinUI3::Private::paintsDirectlyOnBackdrop(&window));
+    window.setProperty("_winui_backdrop", 0);
+    QVERIFY(!WinUI3::Private::paintsDirectlyOnBackdrop(&window));
 }
 
 void WinUI3MicaBackdropTest::chromeLoopCoversAllMenuBars()

@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
-// Paint-time memoization of rarely-changing dynamic properties. Resolving a
-// property by name costs a QMetaObject::indexOfProperty lookup on every
-// QWidget::property() call, and dense scenes ask the same widgets for the
-// same values thousands of times per frame. Entries are keyed by widget
-// address and guarded by QPointer, so destroyed widgets are detected on the
-// next lookup; the style's event filter (QDynamicPropertyChange) and
-// Style::unpolish() invalidate entries when the underlying property changes.
+// Cache dynamic properties only while WinUI3Style observes the widget.
+// Unobserved widgets and declared properties are resolved live.
 
 #include <winui3style/winui3global.h>
 #include <winui3style/winui3style.h>
 
-#include <QPointer>
 #include <optional>
 
 class QWidget;
 
 namespace WinUI3::Private {
+
+void observeWidgetPaintMemo(QWidget *widget, const Style *style);
+void forgetWidgetPaintMemo(const QWidget *widget, const Style *style);
 
 struct MemoizedControlRole
 {
