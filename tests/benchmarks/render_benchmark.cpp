@@ -5,6 +5,7 @@
 #include "winui3tokens_p.h"
 
 #include <QApplication>
+#include <QCryptographicHash>
 #include <QDebug>
 #include <QElapsedTimer>
 #include <QHeaderView>
@@ -40,6 +41,7 @@ struct Options
     int rows = DefaultRows;
     int iterations = DefaultIterations;
     bool icons = true;
+    bool richProbe = false;
     QString style = QStringLiteral("winui3");
 };
 
@@ -117,7 +119,7 @@ void render(QWidget *widget, QImage *sink)
 }
 
 void report(const QString &name, QWidget *widget, int iterations,
-            const std::function<void(int)> &beforeFrame)
+            const std::function<void(int)> &beforeFrame, bool checksum = false)
 {
     QImage image(widget->size(), QImage::Format_ARGB32_Premultiplied);
     for (int warmup = 0; warmup < Warmups; ++warmup) {
@@ -142,6 +144,15 @@ void report(const QString &name, QWidget *widget, int iterations,
                                  .arg(percentile(samples, 0.50), 0, 'f', 3)
                                  .arg(percentile(samples, 0.95), 0, 'f', 3)
                                  .arg(samples.size());
+    if (checksum) {
+        const auto *bytes = reinterpret_cast<const char *>(image.constBits());
+        const QByteArray hash = QCryptographicHash::hash(
+                QByteArray(bytes, image.sizeInBytes()), QCryptographicHash::Sha256).toHex();
+        qInfo().noquote() << QStringLiteral("frame %1 %2 %3x%4")
+                                     .arg(name, QString::fromLatin1(hash))
+                                     .arg(image.width())
+                                     .arg(image.height());
+    }
 }
 
 QIcon benchmarkIcon(int row)
@@ -267,12 +278,18 @@ void benchmarkRichSurface(const Options &options)
     layout->addWidget(table, 1);
 
     prepare(&surface, QSize(1100, 700));
+    const auto scroll = [table](int frame) {
+        table->verticalScrollBar()->setValue(
+                (frame * 17) % qMax(1, table->verticalScrollBar()->maximum()));
+    };
     report(options.icons ? QStringLiteral("rich-surface-icons")
                          : QStringLiteral("rich-surface-no-icons"),
-           &surface, options.iterations, [table](int frame) {
-               table->verticalScrollBar()->setValue(
-                       (frame * 17) % qMax(1, table->verticalScrollBar()->maximum()));
-           });
+           &surface, options.iterations, scroll, options.richProbe);
+    if (options.richProbe) {
+        report(QStringLiteral("rich-table"), table, options.iterations, scroll, true);
+        report(QStringLiteral("rich-toolbar"), toolbar, options.iterations, [](int) {}, true);
+        report(QStringLiteral("rich-tabs"), tabs, options.iterations, [](int) {}, true);
+    }
 }
 
 void benchmarkDenseChrome(const Options &options)
@@ -313,7 +330,9 @@ Options parseOptions(const QApplication &application)
     const QStringList arguments = application.arguments();
     for (int index = 1; index < arguments.size(); ++index) {
         const QString argument = arguments.at(index);
-        if (argument == QStringLiteral("--no-icons")) {
+        if (argument == QStringLiteral("--rich-probe")) {
+            options.richProbe = true;
+        } else if (argument == QStringLiteral("--no-icons")) {
             options.icons = false;
         } else if (argument.startsWith(QStringLiteral("--rows="))) {
             options.rows = qMax(1, argument.mid(7).toInt());
@@ -345,6 +364,11 @@ int main(int argc, char **argv)
     qInfo().noquote() << QStringLiteral("style=%1")
                                  .arg(QString::fromLatin1(
                                          application.style()->metaObject()->className()));
+
+    if (options.richProbe) {
+        benchmarkRichSurface(options);
+        return 0;
+    }
 
     benchmarkTokens();
     benchmarkButtonPaint(options.iterations);

@@ -16,6 +16,7 @@
 #include <QCalendarWidget>
 #include <QCommandLinkButton>
 #include <QComboBox>
+#include <QCommonStyle>
 #include <QDateTimeEdit>
 #include <QFontMetrics>
 #include <QFrame>
@@ -34,6 +35,8 @@
 #include <QTreeView>
 #include <QToolButton>
 #include <QWizard>
+
+#include <typeinfo>
 
 namespace WinUI3::Private {
 namespace {
@@ -646,6 +649,23 @@ QRect subElementRect(const Style *style, QStyle::SubElement element, const QStyl
         }
         logical.translate(dock->rect.topLeft());
         return QStyle::visualRect(dock->direction, dock->rect, logical);
+    }
+    if (element == QStyle::SE_ItemViewItemText) {
+        const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+        if (item && (item->features & QStyleOptionViewItem::HasDisplay)
+            && !(item->features & (QStyleOptionViewItem::HasCheckIndicator
+                                   | QStyleOptionViewItem::HasDecoration))
+            && item->decorationPosition == QStyleOptionViewItem::Left
+            && item->rect.width() >= 2 * tableCellHorizontalPadding && item->rect.height() > 0) {
+            const auto *table = qobject_cast<const QTableView *>(itemView(widget));
+            const auto *window = table ? table->window() : nullptr;
+            if (window && window->windowType() != Qt::Popup && !calendarPopupItemView(widget)) {
+                const QStyle *base = style->baseStyle();
+                if (base && typeid(*base) == typeid(QCommonStyle))
+                    return item->rect.adjusted(tableCellHorizontalPadding, 0,
+                                               -tableCellHorizontalPadding, 0);
+            }
+        }
     }
     QRect result = style->QProxyStyle::subElementRect(element, option, widget);
     // WinUI docks the tab close button against the right edge of the tab;
