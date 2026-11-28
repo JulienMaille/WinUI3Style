@@ -112,6 +112,8 @@ private slots:
     void checkedToolbarToggleKeepsFillOverBackdrop();
     void cachedButtonPanelCompositesOverCurrentBackground_data();
     void cachedButtonPanelCompositesOverCurrentBackground();
+    void cachedButtonPanelAtFractionalScales_data();
+    void cachedButtonPanelAtFractionalScales();
 };
 
 void WinUI3ButtonPressTest::initTestCase()
@@ -508,6 +510,47 @@ void WinUI3ButtonPressTest::cachedButtonPanelCompositesOverCurrentBackground()
         QCOMPARE(actual.copy(centerBand), direct.copy(centerBand));
         QCOMPARE(actual.copy(sideBand), direct.copy(sideBand));
     }
+}
+
+void WinUI3ButtonPressTest::cachedButtonPanelAtFractionalScales_data()
+{
+    QTest::addColumn<double>("scale");
+    QTest::newRow("1.25x") << 1.25;
+    QTest::newRow("1.5x") << 1.5;
+}
+
+void WinUI3ButtonPressTest::cachedButtonPanelAtFractionalScales()
+{
+    QFETCH(double, scale);
+    // A 120x32 panel maps to whole device pixels at both scales, so the
+    // cached raster and the uncached vector paint share the same geometry.
+    QPushButton button;
+    button.resize(120, 32);
+    button.ensurePolished();
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.rect = button.rect();
+    const auto tokens = WinUI3::Private::tokens(option.palette);
+    const QSize deviceSize(qRound(button.width() * scale), qRound(button.height() * scale));
+
+    QImage actual(deviceSize, QImage::Format_ARGB32_Premultiplied);
+    actual.setDevicePixelRatio(scale);
+    actual.fill(Qt::transparent);
+    QPainter painter(&actual);
+    button.style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, &button);
+    painter.end();
+
+    QImage reference(deviceSize, QImage::Format_ARGB32_Premultiplied);
+    reference.setDevicePixelRatio(scale);
+    reference.fill(Qt::transparent);
+    QPainter refPainter(&reference);
+    WinUI3::PaintPrivate::buttonSurface(&refPainter, option.rect, tokens.control, tokens.stroke,
+                                        tokens.strokeSecondary, false);
+    refPainter.end();
+
+    QVERIFY(!actual.isNull());
+    QCOMPARE(actual.size(), reference.size());
+    QCOMPARE(actual, reference);
 }
 
 QTEST_MAIN(WinUI3ButtonPressTest)
