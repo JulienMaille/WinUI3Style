@@ -18,6 +18,10 @@ enum class BackdropSurface { Solid = 0, Painted = 1, Composited = 2 };
 // mapping matches BackdropSurface above.
 inline constexpr auto effectiveBackdropProperty = "_winui_backdrop_effective";
 
+// Raw requested-backdrop state shared by applyBackdrop and the paint-path
+// erase gate.
+inline constexpr auto backdropStateProperty = "_winui_backdrop";
+
 // Published effective state read from the window's dynamic property.
 // Queries only; never touches attributes, palettes or the native handle.
 inline BackdropSurface backdropEffectiveSurface(const QWidget *window)

@@ -23,7 +23,7 @@ namespace WinUI3 {
 namespace {
 
 #ifdef Q_OS_WIN
-constexpr auto backdropProperty = "_winui_backdrop";
+constexpr auto backdropProperty = Private::backdropStateProperty;
 constexpr auto originalWindowColorProperty = "_winui_original_window_color";
 constexpr auto originalPaletteProperty = "_winui_backdrop_original_palette";
 constexpr auto originalPaletteExplicitProperty = "_winui_backdrop_original_palette_explicit";

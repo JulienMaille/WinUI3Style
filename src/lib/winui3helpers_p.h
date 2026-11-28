@@ -8,6 +8,7 @@
 
 #include "winui3backdrop_p.h"
 #include "winui3frameproperties_p.h"
+#include "winui3paintmemo_p.h"
 #include "winui3style_properties_p.h"
 #include "winui3tokens_p.h"
 
@@ -379,9 +380,16 @@ inline bool paintsDirectlyOnBackdrop(const QWidget *widget)
         return false;
     // Explicit enabled check: a present-but-None (0) "_winui_backdrop"
     // property means the backdrop is disabled and must never enable
-    // Source-clear (isValid alone would still punch holes).
-    const QVariant backdrop = win->property("_winui_backdrop");
-    if (backdrop.toInt() <= static_cast<int>(Backdrop::None))
+    // Source-clear (isValid alone would still punch holes). The raw value is
+    // memoized only when the style's event filter observes the window.
+    int backdropValue = 0;
+    if (std::optional<int> memoized = Private::memoizedWindowBackdrop(win))
+        backdropValue = *memoized;
+    else {
+        backdropValue = win->property(Private::backdropStateProperty).toInt();
+        Private::memoizeWindowBackdrop(win, backdropValue);
+    }
+    if (backdropValue <= static_cast<int>(Backdrop::None))
         return false;
     if (win->testAttribute(Qt::WA_TranslucentBackground)
         && backdropEffectiveSurface(win) != BackdropSurface::Composited)

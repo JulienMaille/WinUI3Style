@@ -20,6 +20,8 @@ set(winui3style_sources
     winui3menus_p.cpp
     winui3paint_p.h
     winui3paint_p.cpp
+    winui3paintmemo_p.h
+    winui3paintmemo_p.cpp
     winui3geometry_p.h
     winui3geometry_p.cpp
     winui3density_p.h
