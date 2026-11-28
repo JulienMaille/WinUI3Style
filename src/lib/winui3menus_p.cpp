@@ -272,10 +272,19 @@ static bool drawMenuItemControl(const Style *, const QStyleOption *option, QPain
             // erase is a no-op (WA_StyledBackground): Source-blend the
             // already translucent surface roles explicitly so the
             // pill composites exactly one SubtleFill layer.
-            if (!clearForBackdropFill(painter, widget, menu->rect,
-                                      option->palette.color(QPalette::Window),
+            const QColor rowSurface = option->palette.color(QPalette::Window);
+            if (!clearForBackdropFill(painter, widget, menu->rect, rowSurface,
                                       popupCornerRadius(widget))) {
-                painter->fillRect(menu->rect, option->palette.color(QPalette::Window));
+                // A non-composited popup can still carry the translucent
+                // flyout tint in its palette Window role. SourceOver-painting
+                // that tint over the already opaque flyout surface adds a
+                // second layer whose square rect leaves a visible contour
+                // around the rounded hover pill (issue #241). Resolve the
+                // role to the opaque surface exactly once, as PE_PanelMenu
+                // and the combo-row path already do.
+                painter->fillRect(menu->rect,
+                                  rowSurface.alpha() < 255 ? popupSurfaceColor(option->palette)
+                                                           : rowSurface);
             }
             paintPopupRowPill(painter, popupRowPillRect(menu->rect, comboItem),
                               showPressed ? t.subtlePressed : t.subtleHover);
