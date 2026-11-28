@@ -325,9 +325,17 @@ bool drawWidgetBackdropPrimitive(const Style *style, const QStyleOption *option,
     }
     if (calendarNavigationBarWidget(widget)) {
         if (widget->window()->windowType() == Qt::Popup) {
-            const QColor surface = widget->window()->palette().color(QPalette::Window);
-            if (!clearForBackdropFill(painter, widget, option->rect, surface))
-                painter->fillRect(option->rect, surface);
+            const QPalette popupPalette = widget->window()->palette();
+            const QColor surface = popupPalette.color(QPalette::Window);
+            if (!clearForBackdropFill(painter, widget, option->rect, surface)) {
+                // A non-composited popup can keep the translucent flyout
+                // tint in its Window role. SourceOver-painting it over the
+                // already opaque calendar surface adds a second layer with
+                // square edges (same contour as issue #241 in menus).
+                painter->fillRect(option->rect,
+                                  surface.alpha() < 255 ? popupSurfaceColor(popupPalette)
+                                                        : surface);
+            }
             return true;
         }
         // Inline lane under a granted backdrop must read the same
