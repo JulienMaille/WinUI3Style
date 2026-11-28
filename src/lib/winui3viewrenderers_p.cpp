@@ -1346,7 +1346,11 @@ bool drawViewPrimitive(const Style *style, QStyle::PrimitiveElement element,
         // Qt describes dock separators in the opposite axis to CE_Splitter.
         splitter.state.setFlag(QStyle::State_Horizontal,
                                !(option->state & QStyle::State_Horizontal));
-        style->drawControl(QStyle::CE_Splitter, &splitter, painter, widget);
+        // Qt passes the dock widget or its main window here, not a splitter
+        // handle. Do not let their hover animation drive the grip: a pointer
+        // anywhere in the application would light it up. The splitter option
+        // carries the real handle state, so resolve hover/press from that.
+        style->drawControl(QStyle::CE_Splitter, &splitter, painter, nullptr);
         return true;
     }
 
