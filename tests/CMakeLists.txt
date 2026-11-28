@@ -335,6 +335,8 @@ target_link_libraries(winui3style_galleryprobe_tests PRIVATE
     WinUI3::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Widgets)
 if(WINUI3STYLE_BUILD_PLUGIN)
     add_dependencies(winui3style_galleryprobe_tests winui3styleplugin)
+    target_compile_definitions(winui3style_galleryprobe_tests PRIVATE
+        WINUI3STYLE_GALLERYPROBE_PLUGIN_PATH="${CMAKE_BINARY_DIR}/plugins")
 endif()
 
 # Standard-pixmap Icons page coverage: split out of tst_winui3galleryprobe.cpp
@@ -613,6 +615,12 @@ add_test(NAME winui3style_galleryprobe_unit
 # (per-pixmap Qt reference column) on every temporary style switch in the
 # calendar-capture repro; measured 190 s locally, so allow headroom for CI.
 set_tests_properties(winui3style_galleryprobe_unit PROPERTIES TIMEOUT 600)
+if(WINUI3STYLE_BUILD_PLUGIN)
+    # Exercise the same plugin lookup as a direct invocation of the test binary.
+    add_test(NAME winui3style_galleryprobe_standalone
+        COMMAND ${CMAKE_COMMAND} -E env --unset=QT_PLUGIN_PATH
+                $<TARGET_FILE:winui3style_galleryprobe_tests> galleryToolbarStyleToggle)
+endif()
 add_test(NAME winui3style_galleryicons_unit
          COMMAND ${CMAKE_COMMAND} -E env
              --unset=WINUI3STYLE_DISABLE_ANIMATIONS
@@ -659,6 +667,15 @@ foreach(_target IN LISTS _winui3style_linked_test_targets)
             ENVIRONMENT "${_winui3style_test_environment}")
     endif()
 endforeach()
+
+if(TEST winui3style_galleryprobe_standalone)
+    # The standalone probe runs the full gallery for minutes; sharing the
+    # runner with the timing-sensitive interaction unit made its coalescing
+    # timer miss its qWait(550) window (run 46122142707).
+    set_tests_properties(winui3style_galleryprobe_standalone PROPERTIES
+        RUN_SERIAL TRUE
+        ENVIRONMENT "${_winui3style_test_environment}")
+endif()
 
 # Gate: an element a renderer claims must be listed in
 # coveredPrimitive / coveredControl / coveredComplex, otherwise the

@@ -277,6 +277,11 @@ void WinUI3GalleryProbeTest::gallerySliderTooltipSurface()
 
 void WinUI3GalleryProbeTest::initTestCase()
 {
+#ifdef WINUI3STYLE_GALLERYPROBE_PLUGIN_PATH
+    // The Gallery restores WinUI3 through QStyleFactory. Make the build's
+    // plugin visible even when this test is launched directly.
+    QCoreApplication::addLibraryPath(QStringLiteral(WINUI3STYLE_GALLERYPROBE_PLUGIN_PATH));
+#endif
     qApp->setStyle(new WinUI3::Style(WinUI3::ThemeMode::Light));
 }
 
@@ -296,6 +301,9 @@ void WinUI3GalleryProbeTest::init()
 
 void WinUI3GalleryProbeTest::galleryComparisonStyleAvailabilityAndRestore()
 {
+#ifndef WINUI3STYLE_GALLERYPROBE_PLUGIN_PATH
+    QSKIP("The comparison round trip requires the WinUI3 style plugin.");
+#endif
     GalleryWindow gallery;
     auto *comparison = gallery.findChild<QMenu *>(QStringLiteral("comparisonStyleMenu"));
     auto *winuiAction = gallery.findChild<QAction *>(QStringLiteral("winui3StyleAction"));
@@ -339,6 +347,9 @@ void WinUI3GalleryProbeTest::galleryComparisonStyleAvailabilityAndRestore()
 
 void WinUI3GalleryProbeTest::galleryToolbarStyleToggle()
 {
+#ifndef WINUI3STYLE_GALLERYPROBE_PLUGIN_PATH
+    QSKIP("The comparison round trip requires the WinUI3 style plugin.");
+#endif
     GalleryWindow gallery;
     auto *toggle = gallery.findChild<QAction *>(QStringLiteral("comparisonToggleAction"));
     auto *theme = gallery.findChild<QComboBox *>(QStringLiteral("themeCombo"));
