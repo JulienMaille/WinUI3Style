@@ -299,7 +299,12 @@ static bool drawButtonPanelPrimitive(QStyle::PrimitiveElement element, const QSt
         // centres at fractional scaling factors.
         surfaceRect = devicePixelCenteredRect(painter, surfaceRect);
     }
-    const bool cacheable = element == QStyle::PE_PanelButtonCommand && hover == 0.0 && press == 0.0;
+    // Raster-cache the settled endpoints of the hover/press animations too.
+    // Intermediate progress values still go through the vector path; the
+    // derived fill and stroke colours are already part of the cache key, so
+    // a settled state cannot reuse another state's pixels.
+    const bool settled = (hover == 0.0 || hover == 1.0) && (press == 0.0 || press == 1.0);
+    const bool cacheable = element == QStyle::PE_PanelButtonCommand && settled;
     if (stroke.alpha() == 0) {
         roundedRect(painter, surfaceRect, fill, Qt::transparent, ControlRadius);
     } else if (role == ControlRole::Accent || role == ControlRole::Destructive
